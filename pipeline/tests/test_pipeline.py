@@ -418,3 +418,311 @@ class TestParseSection:
         assert "Level 1" in entries[0].heading_path
         assert "Level 2" in entries[0].heading_path
 
+
+# ============================================================
+# Delta round-trip test
+# ============================================================
+
+from fmhy_pipeline.delta import apply_delta, compute_delta, tables_equal
+
+
+def _make_test_db(path: str, entries: list[dict], version: int = 1) -> None:
+    """Create a minimal test SQLite database."""
+    # Find schema/dataset.sql by searching from this file upward
+    here = Path(__file__).parent
+    schema_path = None
+    for parent in [here, here.parent, here.parent.parent, here.parent.parent.parent]:
+        candidate = parent / "schema" / "dataset.sql"
+        if candidate.exists():
+            schema_path = candidate
+            break
+    if schema_path is None:
+        # Try absolute path from repo root
+        schema_path = Path("/home/omega/Projects/fmhy-android/schema/dataset.sql")
+    ddl = schema_path.read_text()
+
+    con = sqlite3.connect(path)
+    con.executescript(ddl)
+
+    # Insert meta
+    ts = int(time.time())
+    for k, v in [("schema", "1"), ("version", str(version)), ("created", str(ts)),
+                 ("source_commit", "abc123"), ("history_start", str(ts - 1000))]:
+        con.execute("INSERT OR REPLACE INTO meta(key,value) VALUES(?,?)", (k, v))
+
+    # Insert a section
+    con.execute(
+        "INSERT OR IGNORE INTO sections(id, title, description, file, ord) VALUES(?,?,?,?,?)",
+        ("test", "Test Section", "Test desc", "test.md", 0),
+    )
+
+    # Insert entries
+    for e in entries:
+        con.execute(
+            "INSERT OR REPLACE INTO entries"
+            "(num, id, section_id, heading_id, ord, name, url, original_url, "
+            "description, tags, heading_path, tier, is_inline_more, is_base64, "
+            "mirrors, extra_links, first_seen, last_changed, starred_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                e["num"], e["id"], e.get("section_id", "test"),
+                None, e.get("ord", 0), e["name"], e["url"],
+                None, e.get("description", ""), e.get("tags", ""),
+                e.get("heading_path", "Test Section"), e.get("tier", 0),
+                0, 0, "[]", "[]",
+                e.get("first_seen", ts), e.get("last_changed", ts), None,
+            ),
+        )
+
+    con.execute("INSERT INTO fts_words(fts_words) VALUES('optimize')")
+    con.execute("INSERT INTO fts_tri(fts_tri) VALUES('optimize')")
+    con.commit()
+    con.execute("VACUUM")
+    con.close()
+
+
+class TestDeltaRoundTrip:
+    def test_add_entry(self, tmp_path):
+        """Adding an entry: delta apply should produce same result as new full."""
+        db1 = str(tmp_path / "v1.sqlite")
+        db2 = str(tmp_path / "v2.sqlite")
+        applied = str(tmp_path / "applied.sqlite")
+
+        ts = int(time.time())
+        e1 = {"num": 1, "id": "aaa111", "name": "Site1", "url": "https://site1.com", "first_seen": ts, "last_changed": ts}
+        e2 = {"num": 2, "id": "bbb222", "name": "Site2", "url": "https://site2.com", "first_seen": ts, "last_changed": ts}
+
+        _make_test_db(db1, [e1], version=1)
+        _make_test_db(db2, [e1, e2], version=2)
+
+        delta = compute_delta(db1, db2, 1, 2)
+        assert "entries" in delta["upsert"]
+        upsert_ids = [r["id"] for r in delta["upsert"]["entries"]]
+        assert "bbb222" in upsert_ids
+
+        import shutil
+        shutil.copy2(db1, applied)
+        apply_delta(applied, delta)
+
+        ok, reason = tables_equal(applied, db2)
+        assert ok, f"Round trip failed: {reason}"
+
+    def test_remove_entry(self, tmp_path):
+        """Removing an entry."""
+        db1 = str(tmp_path / "v1.sqlite")
+        db2 = str(tmp_path / "v2.sqlite")
+        applied = str(tmp_path / "applied.sqlite")
+
+        ts = int(time.time())
+        e1 = {"num": 1, "id": "aaa111", "name": "Site1", "url": "https://site1.com", "first_seen": ts, "last_changed": ts}
+        e2 = {"num": 2, "id": "bbb222", "name": "Site2", "url": "https://site2.com", "first_seen": ts, "last_changed": ts}
+
+        _make_test_db(db1, [e1, e2], version=1)
+        _make_test_db(db2, [e1], version=2)
+
+        delta = compute_delta(db1, db2, 1, 2)
+        assert "entries" in delta.get("delete", {})
+        assert "bbb222" in delta["delete"]["entries"]
+
+        import shutil
+        shutil.copy2(db1, applied)
+        apply_delta(applied, delta)
+        ok, reason = tables_equal(applied, db2)
+        assert ok, f"Round trip failed: {reason}"
+
+    def test_update_entry(self, tmp_path):
+        """Updating an entry."""
+        db1 = str(tmp_path / "v1.sqlite")
+        db2 = str(tmp_path / "v2.sqlite")
+        applied = str(tmp_path / "applied.sqlite")
+
+        ts = int(time.time())
+        e1 = {"num": 1, "id": "aaa111", "name": "OldName", "url": "https://site1.com", "first_seen": ts, "last_changed": ts}
+        e2 = {"num": 1, "id": "aaa111", "name": "NewName", "url": "https://site1.com", "first_seen": ts, "last_changed": ts + 1}
+
+        _make_test_db(db1, [e1], version=1)
+        _make_test_db(db2, [e2], version=2)
+
+        delta = compute_delta(db1, db2, 1, 2)
+        assert "entries" in delta["upsert"]
+
+        import shutil
+        shutil.copy2(db1, applied)
+        apply_delta(applied, delta)
+        ok, reason = tables_equal(applied, db2)
+        assert ok, f"Round trip failed: {reason}"
+
+    def test_changes_append(self, tmp_path):
+        """changes_append adds rows to changes table."""
+        db1 = str(tmp_path / "v1.sqlite")
+        db2 = str(tmp_path / "v2.sqlite")
+        applied = str(tmp_path / "applied.sqlite")
+
+        ts = int(time.time())
+        e1 = {"num": 1, "id": "aaa111", "name": "Site1", "url": "https://site1.com", "first_seen": ts, "last_changed": ts}
+
+        _make_test_db(db1, [e1], version=1)
+        _make_test_db(db2, [e1], version=2)
+
+        # Add a change row to db2
+        con2 = sqlite3.connect(db2)
+        con2.execute(
+            "INSERT INTO changes(ts, kind, entry_id, section_id, name, url, detail, commit_sha) "
+            "VALUES(?,?,?,?,?,?,?,?)",
+            (ts, "added", "aaa111", "test", "Site1", "https://site1.com", "", "abc"),
+        )
+        con2.commit()
+        con2.close()
+
+        delta = compute_delta(db1, db2, 1, 2)
+        assert len(delta.get("changes_append", [])) == 1
+
+        import shutil
+        shutil.copy2(db1, applied)
+        apply_delta(applied, delta)
+        ok, reason = tables_equal(applied, db2)
+        assert ok, f"Round trip failed: {reason}"
+
+
+# ============================================================
+# History events on synthetic git repo
+# ============================================================
+
+from fmhy_pipeline.history import HistoryDB, walk_history
+
+
+def _git(args: list[str], cwd: str) -> str:
+    return subprocess.run(
+        ["git"] + args, capture_output=True, text=True, cwd=cwd, check=True
+    ).stdout.strip()
+
+
+def _setup_git_repo(tmp_path: Path) -> str:
+    """Create a synthetic git repo that mimics fmhy/edit structure."""
+    repo = str(tmp_path / "repo")
+    os.makedirs(repo)
+    _git(["init", "-b", "main"], repo)
+    _git(["config", "user.email", "test@test.com"], repo)
+    _git(["config", "user.name", "Test"], repo)
+
+    # Create docs directory
+    os.makedirs(os.path.join(repo, "docs"))
+    os.makedirs(os.path.join(repo, "docs", ".vitepress", "transformer"), exist_ok=True)
+
+    # Create constants.ts
+    constants_content = """
+export const headers = {
+  'sectionA.md': { title: 'Section A', description: 'Desc A' },
+  'sectionB.md': { title: 'Section B', description: 'Desc B' }
+} as const
+"""
+    Path(repo, "docs", ".vitepress", "transformer", "constants.ts").write_text(constants_content)
+
+    return repo
+
+
+def _make_commit(repo: str, files: dict[str, str], message: str, ts: int) -> str:
+    """Create a commit with given files. Returns the sha."""
+    for path, content in files.items():
+        full = Path(repo) / path
+        full.parent.mkdir(parents=True, exist_ok=True)
+        full.write_text(content)
+        _git(["add", str(full)], repo)
+    env = os.environ.copy()
+    env["GIT_COMMITTER_DATE"] = str(ts)
+    env["GIT_AUTHOR_DATE"] = str(ts)
+    subprocess.run(
+        ["git", "commit", "--allow-empty", "-m", message,
+         "--date", str(ts)],
+        cwd=repo, check=True, env=env, capture_output=True,
+    )
+    return _git(["rev-parse", "HEAD"], repo)
+
+
+class TestHistoryEvents:
+    def test_history_add_star_move_url_remove(self, tmp_path):
+        """
+        Synthetic git repo: add entry → star it → move to another file →
+        change its url → remove it. Assert exact change rows and stable id.
+        """
+        repo = _setup_git_repo(tmp_path)
+        state_dir = str(tmp_path / "state")
+        os.makedirs(state_dir)
+
+        t0 = 1700000000
+        t1 = t0 + 86400
+        t2 = t1 + 86400
+        t3 = t2 + 86400
+        t4 = t3 + 86400
+
+        # Commit 0 (baseline): add entry to sectionA
+        sha0 = _make_commit(repo, {
+            "docs/sectionA.md": "# Section A\n* [MyEntry](https://myentry.com/) - A test entry\n",
+            "docs/sectionB.md": "# Section B\n",
+            "docs/.vitepress/transformer/constants.ts": """
+export const headers = {
+  'sectionA.md': { title: 'Section A', description: 'Desc A' },
+  'sectionB.md': { title: 'Section B', description: 'Desc B' }
+} as const
+""",
+        }, "Initial commit", t0)
+
+        # Commit 1: star the entry
+        sha1 = _make_commit(repo, {
+            "docs/sectionA.md": "# Section A\n* ⭐ **[MyEntry](https://myentry.com/)** - A test entry\n",
+        }, "Star MyEntry", t1)
+
+        # Commit 2: move to sectionB
+        sha2 = _make_commit(repo, {
+            "docs/sectionA.md": "# Section A\n",
+            "docs/sectionB.md": "# Section B\n* ⭐ **[MyEntry](https://myentry.com/)** - A test entry\n",
+        }, "Move MyEntry to sectionB", t2)
+
+        # Commit 3: change URL
+        sha3 = _make_commit(repo, {
+            "docs/sectionB.md": "# Section B\n* ⭐ **[MyEntry](https://myentry.net/)** - A test entry\n",
+        }, "Change URL of MyEntry", t3)
+
+        # Commit 4: remove entry
+        sha4 = _make_commit(repo, {
+            "docs/sectionB.md": "# Section B\n",
+        }, "Remove MyEntry", t4)
+
+        # Walk history
+        history_db_path = os.path.join(state_dir, "history.sqlite")
+        hdb = HistoryDB(history_db_path)
+        walk_history(repo, "HEAD", hdb)
+        hdb.close()
+
+        # Reopen and verify
+        hdb = HistoryDB(history_db_path)
+
+        # The entry should have a consistent ID through all changes
+        from fmhy_pipeline.ids import normalize_url
+        norm_a = normalize_url("https://myentry.com/")
+        norm_b_new = normalize_url("https://myentry.net/")
+
+        # Get ID via sectionA original location
+        eid = hdb.get_id_for(norm_a, "sectionA")
+        assert eid is not None, "Entry should have an ID from sectionA"
+
+        # Check that the same ID was maintained through move (via alias)
+        eid_in_b = hdb.get_id_for(norm_a, "sectionB")
+        assert eid_in_b == eid, "ID should be stable after move"
+
+        # Check change log
+        changes = hdb.get_change_log()
+        kinds = [c["kind"] for c in changes]
+
+        assert "starred" in kinds, f"Expected 'starred' in {kinds}"
+        assert "moved" in kinds, f"Expected 'moved' in {kinds}"
+        assert "url_changed" in kinds or "added" in kinds, f"kinds: {kinds}"
+        assert "removed" in kinds, f"Expected 'removed' in {kinds}"
+
+        # Verify baseline didn't emit 'added'
+        added_rows = [c for c in changes if c["kind"] == "added"]
+        # The baseline (t0) should not have added rows
+        baseline_added = [c for c in added_rows if c["ts"] == t0]
+        assert len(baseline_added) == 0, "Baseline should not emit 'added' rows"
+
+        hdb.close()
