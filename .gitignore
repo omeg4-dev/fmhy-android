@@ -1,0 +1,14 @@
+.cache/
+.gradle-home/
+.gradle/
+.kotlin/
+build/
+local.properties
+*.iml
+.idea/
+captures/
+__pycache__/
+.venv/
+.pytest_cache/
+dist/
+out/
