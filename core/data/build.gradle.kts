@@ -19,7 +19,7 @@ dependencies {
   api(libs.androidx.sqlite.bundled)
   api(libs.kotlinx.coroutines.core)
   implementation(libs.kotlinx.serialization.json)
-  implementation(libs.okhttp)
+  api(libs.okhttp)
 
   testImplementation(libs.junit)
   testImplementation(libs.kotlinx.coroutines.test)
