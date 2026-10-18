@@ -41,7 +41,7 @@ data class Sources(
     val unsafeReasons: String = "https://raw.githubusercontent.com/fmhy/FMHYFilterlist/main/filterlists-reasons.json",
 )
 
-class FmhySync(
+open class FmhySync(
     private val store: DatasetStore,
     private val dir: File,
     private val client: OkHttpClient,
@@ -56,10 +56,10 @@ class FmhySync(
         isLenient = true
     }
 
-    private val stateFile = File(dir, "sync-state.json")
-    private val rawDir = File(dir, "raw")
+    val stateFile = File(dir, "sync-state.json")
+    val rawDir = File(dir, "raw")
 
-    private fun loadState(): SyncState {
+    open fun loadState(): SyncState {
         if (!stateFile.exists()) return SyncState()
         return try {
             json.decodeFromString<SyncState>(stateFile.readText())

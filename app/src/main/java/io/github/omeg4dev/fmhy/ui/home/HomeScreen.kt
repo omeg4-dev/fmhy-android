@@ -93,136 +93,156 @@ fun HomeScreen(
             )
         }
     ) { innerPadding ->
-        if (!state.isReady) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    CircularProgressIndicator()
-                    Spacer(Modifier.height(16.dp))
-                    Text(
-                        "Preparing FMHY dataset...",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        } else if (state.isEmptyState) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(24.dp)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+        ) {
+            if (!state.isReady) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        "No data yet — pull to update",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(Modifier.height(16.dp))
-                    Button(onClick = { viewModel.triggerSync() }) {
-                        Text("Download Dataset")
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator()
+                        Spacer(Modifier.height(16.dp))
+                        Text(
+                            "Preparing FMHY dataset...",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
-            }
-        } else {
-            LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 160.dp),
-                contentPadding = PaddingValues(
-                    start = 16.dp,
-                    end = 16.dp,
-                    top = innerPadding.calculateTopPadding() + 8.dp,
-                    bottom = innerPadding.calculateBottomPadding() + 16.dp,
-                ),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.fillMaxSize(),
-            ) {
-                // Search tap bar
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    OutlinedCard(
-                        onClick = onNavigateToSearch,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.outlinedCardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                        )
+            } else if (state.isEmptyState) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(24.dp)
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 14.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.Search,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            Spacer(Modifier.width(12.dp))
-                            Text(
-                                "Search FMHY...",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+                        Text(
+                            "No data yet — pull to update",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        Button(onClick = { viewModel.triggerSync() }) {
+                            Text("Download Dataset")
                         }
                     }
                 }
-
-                // "New since last visit: N" card (hidden when 0)
-                if (state.newSinceLastVisitCount > 0) {
+            } else {
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(minSize = 160.dp),
+                    contentPadding = PaddingValues(
+                        start = 16.dp,
+                        end = 16.dp,
+                        top = 8.dp,
+                        bottom = 16.dp,
+                    ),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                    // Search tap bar
                     item(span = { GridItemSpan(maxLineSpan) }) {
-                        Card(
+                        OutlinedCard(
                             onClick = onNavigateToSearch,
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                            ),
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.outlinedCardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            )
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(16.dp)
+                                    .padding(horizontal = 16.dp, vertical = 14.dp)
                             ) {
-                                Icon(Icons.Default.NewReleases, contentDescription = null)
+                                Icon(
+                                    Icons.Default.Search,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
                                 Spacer(Modifier.width(12.dp))
                                 Text(
-                                    text = "New since last visit: ${state.newSinceLastVisitCount}",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.SemiBold,
+                                    "Search FMHY...",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
                         }
                     }
-                }
 
-                // "Random pick" card
-                state.randomPick?.let { pick ->
-                    item(span = { GridItemSpan(maxLineSpan) }) {
-                        RandomPickCard(
-                            entry = pick,
-                            onOpen = { linkOpener.openUrl(pick.url) },
-                            onRefresh = { viewModel.refreshRandomPick() }
+                    // "New since last visit: N" card (hidden when 0)
+                    if (state.newSinceLastVisitCount > 0) {
+                        item(span = { GridItemSpan(maxLineSpan) }) {
+                            Card(
+                                onClick = onNavigateToSearch,
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp)
+                                ) {
+                                    Icon(Icons.Default.NewReleases, contentDescription = null)
+                                    Spacer(Modifier.width(12.dp))
+                                    Text(
+                                        text = "New since last visit: ${state.newSinceLastVisitCount}",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // "Random pick" card
+                    state.randomPick?.let { pick ->
+                        item(span = { GridItemSpan(maxLineSpan) }) {
+                            RandomPickCard(
+                                entry = pick,
+                                onOpen = { linkOpener.openUrl(pick.url) },
+                                onRefresh = { viewModel.refreshRandomPick() }
+                            )
+                        }
+                    }
+
+                    // Section cards
+                    items(
+                        items = state.sections,
+                        key = { it.id }
+                    ) { section ->
+                        SectionCard(
+                            section = section,
+                            onClick = { onNavigateToSection(section.id) }
                         )
                     }
                 }
+            }
 
-                // Section cards
-                items(
-                    items = state.sections,
-                    key = { it.id }
-                ) { section ->
-                    SectionCard(
-                        section = section,
-                        onClick = { onNavigateToSection(section.id) }
+            androidx.compose.animation.AnimatedVisibility(
+                visible = state.syncBanner != null,
+                enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.slideInVertically { -it },
+                exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.slideOutVertically { -it },
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 8.dp)
+            ) {
+                state.syncBanner?.let { banner ->
+                    io.github.omeg4dev.fmhy.ui.common.SyncBanner(
+                        text = banner.text,
+                        isLoading = banner.isLoading,
+                        isError = banner.isError,
+                        onDismiss = { viewModel.dismissBanner() },
                     )
                 }
             }

@@ -2,12 +2,11 @@ package io.github.omeg4dev.fmhy.di
 
 import android.content.Context
 import android.util.Log
-import io.github.omeg4dev.fmhy.AppConfig
 import io.github.omeg4dev.fmhy.data.DatasetStore
 import io.github.omeg4dev.fmhy.data.SettingsRepository
 import io.github.omeg4dev.fmhy.data.search.SearchEngine
-import io.github.omeg4dev.fmhy.data.sync.DatasetSync
-import io.github.omeg4dev.fmhy.data.sync.Manifest
+import io.github.omeg4dev.fmhy.data.sync.FmhySync
+import io.github.omeg4dev.fmhy.data.sync.SyncResult
 import java.io.File
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineScope
@@ -19,24 +18,36 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.serialization.json.Json
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import okhttp3.Cache
 import okhttp3.OkHttpClient
+
+sealed interface SyncStatus {
+    data object Idle : SyncStatus
+    data object Syncing : SyncStatus
+    data class Finished(val result: SyncResult) : SyncStatus
+}
 
 interface AppContainer {
     val context: Context
     val appScope: CoroutineScope
     val okHttpClient: OkHttpClient
     val datasetStore: DatasetStore
-    val datasetSync: DatasetSync
+    val fmhySync: FmhySync
     val searchEngine: SearchEngine
     val settingsRepository: SettingsRepository
     val isInitialized: StateFlow<Boolean>
+    val syncStatus: StateFlow<SyncStatus>
     val snackbarEvents: SharedFlow<String>
+    val isSyncBannerConsumed: Boolean
 
+    fun markSyncBannerConsumed()
     fun showSnackbar(message: String)
     fun initialize()
+    suspend fun sync(force: Boolean = false): SyncResult
 }
 
 class DefaultAppContainer(override val context: Context) : AppContainer {
@@ -60,15 +71,14 @@ class DefaultAppContainer(override val context: Context) : AppContainer {
         DatasetStore(dbFile)
     }
 
-    override val datasetSync: DatasetSync by lazy {
-        DatasetSync(
+    override val fmhySync: FmhySync by lazy {
+        FmhySync(
             store = datasetStore,
             dir = datasetDir,
-            baseUrl = AppConfig.DATA_BASE_URL,
             client = okHttpClient,
             clock = { System.currentTimeMillis() / 1000 },
-            log = { msg -> Log.d("DatasetSync", msg) },
-            minIntervalSec = 900L,
+            log = { msg -> Log.d("FmhySync", msg) },
+            minIntervalSec = 600L,
         )
     }
 
@@ -82,6 +92,34 @@ class DefaultAppContainer(override val context: Context) : AppContainer {
 
     private val _isInitialized = MutableStateFlow(false)
     override val isInitialized: StateFlow<Boolean> = _isInitialized.asStateFlow()
+
+    private val _syncStatus = MutableStateFlow<SyncStatus>(SyncStatus.Idle)
+    override val syncStatus: StateFlow<SyncStatus> = _syncStatus.asStateFlow()
+
+    @Volatile
+    private var _isSyncBannerConsumed: Boolean = false
+    override val isSyncBannerConsumed: Boolean get() = _isSyncBannerConsumed
+
+    override fun markSyncBannerConsumed() {
+        _isSyncBannerConsumed = true
+    }
+
+    private val syncMutex = Mutex()
+
+    override suspend fun sync(force: Boolean): SyncResult {
+        isInitialized.first { it }
+        return syncMutex.withLock {
+            _isSyncBannerConsumed = false
+            _syncStatus.value = SyncStatus.Syncing
+            val result = try {
+                fmhySync.sync(force = force)
+            } catch (e: Exception) {
+                SyncResult.Failed(e.message ?: "Unknown error", 0L)
+            }
+            _syncStatus.value = SyncStatus.Finished(result)
+            result
+        }
+    }
 
     private val _snackbarEvents = MutableSharedFlow<String>(extraBufferCapacity = 10)
     override val snackbarEvents: SharedFlow<String> = _snackbarEvents.asSharedFlow()
@@ -97,14 +135,12 @@ class DefaultAppContainer(override val context: Context) : AppContainer {
                     installSnapshotIfAvailable()
                 }
             } catch (e: Exception) {
-                Log.e("DatasetSync", "Initialization error: ${e.message}", e)
+                Log.e("FmhySync", "Initialization error: ${e.message}", e)
             } finally {
                 _isInitialized.value = true
             }
         }
     }
-
-    private val json = Json { ignoreUnknownKeys = true }
 
     private suspend fun installSnapshotIfAvailable() {
         val assetManager = context.assets
@@ -114,27 +150,15 @@ class DefaultAppContainer(override val context: Context) : AppContainer {
             emptyList()
         }
 
-        if (datasetAssets.contains(SNAPSHOT_ASSET)) {
-            val manifestVer = if (datasetAssets.contains("manifest.json")) {
-                try {
-                    assetManager.open("dataset/manifest.json").use { stream ->
-                        val text = stream.bufferedReader().readText()
-                        val m = json.decodeFromString<Manifest>(text)
-                        m.version
-                    }
-                } catch (_: Exception) {
-                    1L
-                }
-            } else {
-                1L
-            }
-
+        if (datasetAssets.contains(SNAPSHOT_ASSET) && datasetAssets.contains(SNAPSHOT_STATE_ASSET)) {
             try {
-                assetManager.open("dataset/$SNAPSHOT_ASSET").use { stream ->
-                    datasetSync.installFromSnapshot(stream, manifestVer)
+                assetManager.open("dataset/$SNAPSHOT_ASSET").use { gzStream ->
+                    assetManager.open("dataset/$SNAPSHOT_STATE_ASSET").use { stateStream ->
+                        fmhySync.installSnapshot(gzStream, stateStream)
+                    }
                 }
             } catch (e: Exception) {
-                Log.e("DatasetSync", "Failed to install asset snapshot: ${e.message}", e)
+                Log.e("FmhySync", "Failed to install asset snapshot: ${e.message}", e)
             }
         }
     }
@@ -143,3 +167,4 @@ class DefaultAppContainer(override val context: Context) : AppContainer {
 /** Bundled gzip snapshot. Not named *.gz: the asset packager silently un-gzips those and drops the
  *  extension, so the file would never be found under that name. */
 private const val SNAPSHOT_ASSET = "snapshot.gzbin"
+private const val SNAPSHOT_STATE_ASSET = "snapshot-state.json"

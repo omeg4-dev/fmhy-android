@@ -7,7 +7,7 @@ import android.util.Log
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
-import io.github.omeg4dev.fmhy.data.sync.SyncResult
+import androidx.lifecycle.lifecycleScope
 import io.github.omeg4dev.fmhy.di.AppContainer
 import io.github.omeg4dev.fmhy.di.DefaultAppContainer
 import kotlinx.coroutines.launch
@@ -35,29 +35,15 @@ class FmhyApp : Application() {
         container = DefaultAppContainer(this)
         container.initialize()
 
-        ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
-            override fun onStart(owner: LifecycleOwner) {
-                container.appScope.launch {
-                    try {
-                        val result = container.datasetSync.sync(force = false)
-                        when (result) {
-                            is SyncResult.Updated -> {
-                                if (result.added > 0) {
-                                    val msg = "${result.added} new sites"
-                                    container.showSnackbar(msg)
-                                }
-                            }
-                            is SyncResult.Replaced -> {
-                                container.showSnackbar("Dataset updated")
-                            }
-                            else -> {}
-                        }
-                    } catch (e: Exception) {
-                        Log.e("DatasetSync", "Auto-update sync failed: ${e.message}", e)
-                    }
-                }
+        ProcessLifecycleOwner.get().lifecycleScope.launch {
+            try {
+                container.sync(force = false)
+            } catch (e: Exception) {
+                Log.e("FmhyApp", "Launch sync failed: ${e.message}", e)
             }
+        }
 
+        ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onStop(owner: LifecycleOwner) {
                 container.appScope.launch {
                     container.settingsRepository.setLastVisitTs(System.currentTimeMillis() / 1000)

@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import io.github.omeg4dev.fmhy.data.DatasetStore
 import io.github.omeg4dev.fmhy.data.SettingsRepository
 import io.github.omeg4dev.fmhy.data.sync.SyncResult
+import io.github.omeg4dev.fmhy.data.sync.SyncState
 import io.github.omeg4dev.fmhy.di.AppContainer
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -16,8 +17,9 @@ import kotlinx.coroutines.launch
 
 @Immutable
 data class SettingsUiState(
+    val entryCount: Int = 0,
+    val lastSyncedText: String = "",
     val datasetVersion: Long = 0L,
-    val lastUpdatedText: String = "",
     val openInExternalBrowser: Boolean = false,
     val isUpdating: Boolean = false,
     val updateStatusMessage: String? = null,
@@ -38,17 +40,24 @@ class SettingsViewModel(
         _isUpdating,
         _updateStatusMessage,
     ) { version, openExternal, updating, statusMsg ->
-        val meta = try { store.meta() } catch (_: Exception) { emptyMap() }
-        val createdTs = meta["created"]?.toLongOrNull() ?: 0L
-        val lastUpdatedStr = if (createdTs > 0L) {
-            formatRelativeTime(createdTs)
-        } else {
-            "Never"
+        val count = try { store.entryCount() } catch (_: Exception) { 0 }
+        val syncState = try { container.fmhySync.loadState() } catch (_: Exception) { SyncState() }
+        val lastSyncedStr = when {
+            syncState.lastSuccess > 0L -> {
+                val host = if (syncState.source == "fallback") "jsDelivr" else "GitHub"
+                "${formatRelativeTime(syncState.lastSuccess)} via $host"
+            }
+            syncState.lastCheck > 0L -> {
+                val host = if (syncState.source == "fallback") "jsDelivr" else "GitHub"
+                "${formatRelativeTime(syncState.lastCheck)} via $host"
+            }
+            else -> "Never"
         }
 
         SettingsUiState(
+            entryCount = count,
+            lastSyncedText = lastSyncedStr,
             datasetVersion = version,
-            lastUpdatedText = lastUpdatedStr,
             openInExternalBrowser = openExternal,
             isUpdating = updating,
             updateStatusMessage = statusMsg,
@@ -70,13 +79,11 @@ class SettingsViewModel(
             _isUpdating.value = true
             _updateStatusMessage.value = "Checking for updates..."
             try {
-                val result = container.datasetSync.sync(force = true)
+                val result = container.sync(force = true)
                 val msg = when (result) {
-                    is SyncResult.Skipped -> "Skipped (recent update check)"
-                    is SyncResult.NotModified -> "Already up to date (not modified)"
                     is SyncResult.UpToDate -> "Already up to date"
-                    is SyncResult.Updated -> "Updated to v${result.to} (+${result.added} new sites)"
-                    is SyncResult.Replaced -> "Dataset replaced with v${result.to}"
+                    is SyncResult.Updated -> "Updated: ${result.added} added, ${result.removed} removed"
+                    is SyncResult.Skipped -> "Skipped"
                     is SyncResult.Failed -> "Update failed: ${result.reason}"
                 }
                 _updateStatusMessage.value = msg

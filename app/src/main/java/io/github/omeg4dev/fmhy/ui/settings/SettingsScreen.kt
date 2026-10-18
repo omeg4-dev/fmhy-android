@@ -13,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.OpenInBrowser
+import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -67,16 +68,17 @@ fun SettingsScreen(
             )
 
             ListItem(
-                headlineContent = { Text("Dataset Version") },
+                headlineContent = { Text("Dataset Size") },
                 supportingContent = {
-                    Text(if (state.datasetVersion > 0) "Version ${state.datasetVersion}" else "No dataset loaded")
+                    Text(if (state.entryCount > 0) "${state.entryCount} entries" else "No dataset loaded")
                 },
-                leadingContent = { Icon(Icons.Default.Sync, contentDescription = null) }
+                leadingContent = { Icon(Icons.Default.Storage, contentDescription = null) }
             )
 
             ListItem(
-                headlineContent = { Text("Last Updated") },
-                supportingContent = { Text(state.lastUpdatedText) },
+                headlineContent = { Text("Last Synced") },
+                supportingContent = { Text(state.lastSyncedText) },
+                leadingContent = { Icon(Icons.Default.Sync, contentDescription = null) }
             )
 
             Row(
@@ -97,18 +99,17 @@ fun SettingsScreen(
                         )
                         Spacer(Modifier.width(8.dp))
                     }
-                    Text("Update now")
+                    Text("Sync now")
                 }
+            }
 
-                if (!state.updateStatusMessage.isNullOrEmpty()) {
-                    Spacer(Modifier.width(12.dp))
-                    Text(
-                        text = state.updateStatusMessage ?: "",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
+            if (!state.updateStatusMessage.isNullOrEmpty()) {
+                Text(
+                    text = state.updateStatusMessage ?: "",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                )
             }
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))

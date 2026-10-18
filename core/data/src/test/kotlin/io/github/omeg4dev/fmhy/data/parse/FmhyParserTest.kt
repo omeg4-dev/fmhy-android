@@ -59,7 +59,7 @@ class FmhyParserTest {
 
     @Test
     fun testFixture3Cascii() {
-        val line = "* [Cascii](https://cascii.app/) / [GitHub](https://github.com/casparwylie/cascii-core), [Bob Editor](https://ivanceras.github.io/bob-editor/), [ASCII Flow](https://asciiflow.com/) or [tree](https://tree.nathanfriend.com/) - Create ASCII Diagrams"
+        val line = "* [Cascii](https://cascii.app/) / [GitHub](https://github.com/casparwylie/cascii-core), [Bob Editor](https://ivanceras.example.org/bob-editor/), [ASCII Flow](https://asciiflow.com/) or [tree](https://tree.nathanfriend.com/) - Create ASCII Diagrams"
         val parsed = parseLine(line)
         val entries = parsed.entries
         assertEquals(4, entries.size)

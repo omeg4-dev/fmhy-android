@@ -7,11 +7,14 @@ import io.github.omeg4dev.fmhy.data.model.Entry
 import io.github.omeg4dev.fmhy.data.model.Section
 import io.github.omeg4dev.fmhy.data.model.Tier
 import io.github.omeg4dev.fmhy.data.search.SearchEngine
-import io.github.omeg4dev.fmhy.data.sync.DatasetSync
+import io.github.omeg4dev.fmhy.data.sync.FmhySync
+import io.github.omeg4dev.fmhy.data.sync.SyncResult
 import io.github.omeg4dev.fmhy.di.AppContainer
+import io.github.omeg4dev.fmhy.di.SyncStatus
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,17 +22,40 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
 import okhttp3.OkHttpClient
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class HomeViewModelTest {
+
+    private val testDispatcher = StandardTestDispatcher()
+
+    @Before
+    fun setUp() {
+        Dispatchers.setMain(testDispatcher)
+    }
+
+    @After
+    fun tearDown() {
+        Dispatchers.resetMain()
+    }
 
     private class FakeDatasetStore(
         private val sectionsList: List<Section> = emptyList(),
@@ -51,11 +77,12 @@ class HomeViewModelTest {
     private class FakeContainer(
         override val datasetStore: DatasetStore,
         override val settingsRepository: SettingsRepository,
+        initialStatus: SyncStatus = SyncStatus.Idle,
     ) : AppContainer {
         override val context: Context get() = error("Not needed")
         override val appScope: CoroutineScope get() = CoroutineScope(Dispatchers.Unconfined)
         override val okHttpClient: OkHttpClient get() = error("Not needed")
-        override val datasetSync: DatasetSync get() = error("Not needed")
+        override val fmhySync: FmhySync get() = error("Not needed")
         override val searchEngine: SearchEngine get() = SearchEngine(datasetStore)
         private val _isInit = MutableStateFlow(true)
         override val isInitialized: StateFlow<Boolean> = _isInit.asStateFlow()
@@ -63,6 +90,20 @@ class HomeViewModelTest {
         override val snackbarEvents: SharedFlow<String> = _events.asSharedFlow()
         override fun showSnackbar(message: String) { _events.tryEmit(message) }
         override fun initialize() {}
+
+        val mutableSyncStatus = MutableStateFlow<SyncStatus>(initialStatus)
+        override val syncStatus: StateFlow<SyncStatus> = mutableSyncStatus.asStateFlow()
+
+        override var isSyncBannerConsumed: Boolean = false
+        override fun markSyncBannerConsumed() {
+            isSyncBannerConsumed = true
+        }
+
+        var forceSyncCalledWith: Boolean? = null
+        override suspend fun sync(force: Boolean): SyncResult {
+            forceSyncCalledWith = force
+            return SyncResult.UpToDate(10)
+        }
     }
 
     private class FakeSettingsRepository : SettingsRepository {
@@ -83,7 +124,7 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun testHomeViewModelLoadsSectionsAndData() = runTest {
+    fun testHomeViewModelLoadsSectionsAndData() = runTest(testDispatcher) {
         val sampleSections = listOf(
             Section(id = "video", title = "Video", description = "Streaming", ord = 1, entryCount = 42),
             Section(id = "audio", title = "Audio", description = "Music", ord = 2, entryCount = 10),
@@ -115,6 +156,8 @@ class HomeViewModelTest {
         val fakeContainer = FakeContainer(store, fakeSettings)
 
         val viewModel = HomeViewModel(store, fakeSettings, fakeContainer)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect() }
+        testDispatcher.scheduler.runCurrent()
 
         val readyState = viewModel.uiState.filter { it.isReady }.first()
         assertTrue(readyState.isReady)
@@ -125,5 +168,179 @@ class HomeViewModelTest {
         assertEquals("e1", readyState.randomPick?.id)
         assertEquals(5, readyState.newSinceLastVisitCount)
         assertFalse(readyState.isEmptyState)
+    }
+
+    @Test
+    fun testFastSyncDoesNotFlickerSyncingPill() = runTest(testDispatcher) {
+        val store = FakeDatasetStore()
+        val fakeSettings = FakeSettingsRepository()
+        val fakeContainer = FakeContainer(store, fakeSettings)
+        val viewModel = HomeViewModel(store, fakeSettings, fakeContainer)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect() }
+        testDispatcher.scheduler.runCurrent()
+
+        // Sync starts
+        fakeContainer.mutableSyncStatus.value = SyncStatus.Syncing
+        testDispatcher.scheduler.advanceTimeBy(200)
+        testDispatcher.scheduler.runCurrent()
+        // At 200 ms (< 600 ms), no syncing pill is shown
+        assertNull(viewModel.uiState.value.syncBanner)
+
+        // Sync completes with UpToDate in 200ms
+        fakeContainer.mutableSyncStatus.value = SyncStatus.Finished(SyncResult.UpToDate(200))
+        testDispatcher.scheduler.runCurrent()
+
+        val banner = viewModel.uiState.value.syncBanner
+        assertNotNull(banner)
+        assertEquals("Synced in background · up to date", banner?.text)
+        assertFalse(banner!!.isLoading)
+        assertFalse(banner.isError)
+    }
+
+    @Test
+    fun testSlowSyncShowsSyncingPillAfter600ms() = runTest(testDispatcher) {
+        val store = FakeDatasetStore()
+        val fakeSettings = FakeSettingsRepository()
+        val fakeContainer = FakeContainer(store, fakeSettings)
+        val viewModel = HomeViewModel(store, fakeSettings, fakeContainer)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect() }
+        testDispatcher.scheduler.runCurrent()
+
+        fakeContainer.mutableSyncStatus.value = SyncStatus.Syncing
+        testDispatcher.scheduler.advanceTimeBy(590)
+        testDispatcher.scheduler.runCurrent()
+        assertNull(viewModel.uiState.value.syncBanner)
+
+        testDispatcher.scheduler.advanceTimeBy(20) // reached 610 ms
+        testDispatcher.scheduler.runCurrent()
+        val syncingBanner = viewModel.uiState.value.syncBanner
+        assertNotNull(syncingBanner)
+        assertEquals("Syncing…", syncingBanner?.text)
+        assertTrue(syncingBanner!!.isLoading)
+
+        // Now sync finishes with Updated
+        fakeContainer.mutableSyncStatus.value = SyncStatus.Finished(
+            SyncResult.Updated(added = 12, removed = 3, changedSections = 1, tookMs = 1200)
+        )
+        testDispatcher.scheduler.runCurrent()
+
+        val updatedBanner = viewModel.uiState.value.syncBanner
+        assertNotNull(updatedBanner)
+        assertEquals("Synced in background · 12 new · 3 removed", updatedBanner?.text)
+        assertFalse(updatedBanner!!.isLoading)
+    }
+
+    @Test
+    fun testBannerAutoHidesAfter4Seconds() = runTest(testDispatcher) {
+        val store = FakeDatasetStore()
+        val fakeSettings = FakeSettingsRepository()
+        val fakeContainer = FakeContainer(store, fakeSettings)
+        val viewModel = HomeViewModel(store, fakeSettings, fakeContainer)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect() }
+        testDispatcher.scheduler.runCurrent()
+
+        fakeContainer.mutableSyncStatus.value = SyncStatus.Finished(SyncResult.UpToDate(30))
+        testDispatcher.scheduler.runCurrent()
+
+        assertNotNull(viewModel.uiState.value.syncBanner)
+        assertFalse(fakeContainer.isSyncBannerConsumed)
+
+        // Advance 3900 ms -> still visible
+        testDispatcher.scheduler.advanceTimeBy(3900)
+        testDispatcher.scheduler.runCurrent()
+        assertNotNull(viewModel.uiState.value.syncBanner)
+
+        // Advance another 200 ms (total > 4000 ms) -> dismissed
+        testDispatcher.scheduler.advanceTimeBy(200)
+        testDispatcher.scheduler.runCurrent()
+        assertNull(viewModel.uiState.value.syncBanner)
+        assertTrue(fakeContainer.isSyncBannerConsumed)
+    }
+
+    @Test
+    fun testBannerTapToDismissImmediately() = runTest(testDispatcher) {
+        val store = FakeDatasetStore()
+        val fakeSettings = FakeSettingsRepository()
+        val fakeContainer = FakeContainer(store, fakeSettings)
+        val viewModel = HomeViewModel(store, fakeSettings, fakeContainer)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect() }
+        testDispatcher.scheduler.runCurrent()
+
+        fakeContainer.mutableSyncStatus.value = SyncStatus.Finished(SyncResult.UpToDate(30))
+        testDispatcher.scheduler.runCurrent()
+        assertNotNull(viewModel.uiState.value.syncBanner)
+
+        viewModel.dismissBanner()
+        testDispatcher.scheduler.runCurrent()
+
+        assertNull(viewModel.uiState.value.syncBanner)
+        assertTrue(fakeContainer.isSyncBannerConsumed)
+    }
+
+    @Test
+    fun testBannerShownOncePerLaunchSync() = runTest(testDispatcher) {
+        val store = FakeDatasetStore()
+        val fakeSettings = FakeSettingsRepository()
+        val fakeContainer = FakeContainer(store, fakeSettings)
+        // Mark as already consumed
+        fakeContainer.isSyncBannerConsumed = true
+        fakeContainer.mutableSyncStatus.value = SyncStatus.Finished(SyncResult.UpToDate(30))
+
+        // New ViewModel (simulating navigating back to home or recreation)
+        val viewModel = HomeViewModel(store, fakeSettings, fakeContainer)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect() }
+        testDispatcher.scheduler.runCurrent()
+
+        // Should NOT show banner
+        assertNull(viewModel.uiState.value.syncBanner)
+    }
+
+    @Test
+    fun testBannerFailedShowsOfflineSavedData() = runTest(testDispatcher) {
+        val store = FakeDatasetStore()
+        val fakeSettings = FakeSettingsRepository()
+        val fakeContainer = FakeContainer(store, fakeSettings)
+        val viewModel = HomeViewModel(store, fakeSettings, fakeContainer)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect() }
+        testDispatcher.scheduler.runCurrent()
+
+        fakeContainer.mutableSyncStatus.value = SyncStatus.Finished(SyncResult.Failed("Connect timeout", 50))
+        testDispatcher.scheduler.runCurrent()
+
+        val banner = viewModel.uiState.value.syncBanner
+        assertNotNull(banner)
+        assertEquals("Offline — showing saved data", banner?.text)
+        assertTrue(banner!!.isError)
+        assertFalse(banner.isLoading)
+    }
+
+    @Test
+    fun testBannerSkippedShowsNothing() = runTest(testDispatcher) {
+        val store = FakeDatasetStore()
+        val fakeSettings = FakeSettingsRepository()
+        val fakeContainer = FakeContainer(store, fakeSettings)
+        val viewModel = HomeViewModel(store, fakeSettings, fakeContainer)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect() }
+        testDispatcher.scheduler.runCurrent()
+
+        fakeContainer.mutableSyncStatus.value = SyncStatus.Finished(SyncResult.Skipped)
+        testDispatcher.scheduler.runCurrent()
+
+        assertNull(viewModel.uiState.value.syncBanner)
+    }
+
+    @Test
+    fun testTriggerSyncCallsContainerSyncForce() = runTest(testDispatcher) {
+        val store = FakeDatasetStore()
+        val fakeSettings = FakeSettingsRepository()
+        val fakeContainer = FakeContainer(store, fakeSettings)
+        val viewModel = HomeViewModel(store, fakeSettings, fakeContainer)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect() }
+        testDispatcher.scheduler.runCurrent()
+
+        viewModel.triggerSync()
+        testDispatcher.scheduler.runCurrent()
+
+        assertEquals(true, fakeContainer.forceSyncCalledWith)
     }
 }
