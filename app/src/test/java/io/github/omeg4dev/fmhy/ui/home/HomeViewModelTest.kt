@@ -36,6 +36,7 @@ class HomeViewModelTest {
         private val topPick: Entry? = null,
         private val versionVal: Long = 10L,
     ) : DatasetStore(File("fake_nonexistent.db")) {
+        override val isAvailable = true
         override val changes = MutableStateFlow(versionVal)
         override suspend fun version(): Long = versionVal
         override suspend fun sections(): List<Section> = sectionsList

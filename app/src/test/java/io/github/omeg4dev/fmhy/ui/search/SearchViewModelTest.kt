@@ -28,6 +28,7 @@ class SearchViewModelTest {
             Section("video", "Video", "", 1, 10),
             Section("tools", "Tools", "", 2, 5),
         )
+        override val isAvailable = true
         override val changes = MutableStateFlow(1L)
         override suspend fun version(): Long = 1L
         override suspend fun sections(): List<Section> = sectionsList

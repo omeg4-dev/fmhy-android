@@ -37,6 +37,7 @@ class SectionViewModel(
         store.changes,
         _refreshTrigger,
     ) { _, _ ->
+        if (!store.isAvailable) return@combine SectionUiState(isLoading = false)
         val sections = store.sections()
         val currentSection = sections.firstOrNull { it.id == sectionId }
         val sectionItems = store.sectionItems(sectionId).toImmutableList()

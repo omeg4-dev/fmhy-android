@@ -55,7 +55,7 @@ class SearchViewModel(
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
-            allSections.value = store.sections().toImmutableList()
+            if (store.isAvailable) allSections.value = store.sections().toImmutableList()
         }
     }
 
@@ -67,7 +67,7 @@ class SearchViewModel(
      .distinctUntilChanged()
 
     private val searchResults = searchParams.mapLatest { params ->
-        if (params.query.isBlank() && params.filters.isEmpty()) {
+        if ((params.query.isBlank() && params.filters.isEmpty()) || !store.isAvailable) {
             null
         } else {
             searchEngine.search(

@@ -32,7 +32,7 @@ class LinkOpener(
 
     fun openUrl(url: String) {
         coroutineScope.launch {
-            val reason = store.unsafeReason(url)
+            val reason = if (store.isAvailable) store.unsafeReason(url) else null
             if (reason != null) {
                 pendingUnsafeReason = reason
                 pendingUnsafeUrl = url

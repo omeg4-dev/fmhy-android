@@ -48,6 +48,8 @@ class HomeViewModel(
     ) { initialized, version, lastVisitTs, randomPick, refreshing ->
         if (!initialized) {
             HomeUiState(isLoading = true, isReady = false)
+        } else if (!store.isAvailable) {
+            HomeUiState(isLoading = refreshing, isReady = true, isEmptyState = true)
         } else {
             val sections = store.sections().toImmutableList()
             val newCount = if (lastVisitTs > 0L) store.countAddedSince(lastVisitTs) else 0

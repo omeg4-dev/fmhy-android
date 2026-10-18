@@ -89,6 +89,10 @@ open class DatasetStore(
         }
     }
 
+    /** False until a dataset file exists (first launch without a bundled snapshot). Readers must
+     *  check this instead of calling queries, which throw when there is no database. */
+    open val isAvailable: Boolean get() = connection != null || dbFile.exists()
+
     open suspend fun <T> withConnection(block: (SQLiteConnection) -> T): T = withContext(dispatcher) {
         mutex.withLock {
             var conn = connection
