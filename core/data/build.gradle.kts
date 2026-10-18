@@ -58,3 +58,18 @@ tasks.register<Test>("parityTest") {
     showStandardStreams = true
   }
 }
+
+tasks.register<JavaExec>("buildSnapshot") {
+  description = "Builds the bundled dataset snapshot from local caches"
+  group = "build"
+  classpath = sourceSets["main"].runtimeClasspath
+  mainClass.set("io.github.omeg4dev.fmhy.data.snapshot.SnapshotBuilder")
+  workingDir = rootProject.rootDir
+  args(
+    "--docs", ".cache/fmhy-edit/docs",
+    "--rentry", ".cache/rentry-FMHYB64.html",
+    "--unsafe", ".cache/filterlist-domains.txt",
+    "--reasons", ".cache/filterlists-reasons.json",
+    "--out", "app/src/main/assets/dataset"
+  )
+}
