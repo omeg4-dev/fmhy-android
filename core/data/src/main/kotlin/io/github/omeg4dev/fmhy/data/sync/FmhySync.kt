@@ -170,6 +170,7 @@ open class FmhySync(
             val now = clock()
 
             if (!force && (now - state.lastCheck < minIntervalSec)) {
+                log("FmhySync: skipped (checked ${now - state.lastCheck} s ago)")
                 return@withContext SyncResult.Skipped
             }
 
@@ -881,10 +882,8 @@ open class FmhySync(
 
             val stateText = stateStream.bufferedReader().readText()
             val snapshotState = json.decodeFromString<SyncState>(stateText)
-            val seededState = snapshotState.copy(
-                lastCheck = clock(),
-                lastSuccess = clock(),
-            )
+            // lastCheck stays 0 so the sync right after first launch is not skipped.
+            val seededState = snapshotState.copy(lastCheck = 0L)
             stateFile.writeText(json.encodeToString(seededState))
 
             store.reopen()

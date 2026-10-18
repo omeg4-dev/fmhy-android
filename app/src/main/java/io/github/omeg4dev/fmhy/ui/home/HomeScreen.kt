@@ -146,6 +146,25 @@ fun HomeScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.fillMaxSize(),
                 ) {
+                    // Sync result: in the flow above the search bar so it never covers content.
+                    item(span = { GridItemSpan(maxLineSpan) }, key = "sync-banner") {
+                        androidx.compose.animation.AnimatedVisibility(
+                            visible = state.syncBanner != null,
+                            enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.expandVertically(),
+                            exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.shrinkVertically(),
+                        ) {
+                            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                                state.syncBanner?.let { banner ->
+                                    io.github.omeg4dev.fmhy.ui.common.SyncBanner(
+                                        text = banner.text,
+                                        isLoading = banner.isLoading,
+                                        isError = banner.isError,
+                                        onDismiss = { viewModel.dismissBanner() },
+                                    )
+                                }
+                            }
+                        }
+                    }
                     // Search tap bar
                     item(span = { GridItemSpan(maxLineSpan) }) {
                         OutlinedCard(
@@ -229,23 +248,6 @@ fun HomeScreen(
                 }
             }
 
-            androidx.compose.animation.AnimatedVisibility(
-                visible = state.syncBanner != null,
-                enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.slideInVertically { -it },
-                exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.slideOutVertically { -it },
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = 8.dp)
-            ) {
-                state.syncBanner?.let { banner ->
-                    io.github.omeg4dev.fmhy.ui.common.SyncBanner(
-                        text = banner.text,
-                        isLoading = banner.isLoading,
-                        isError = banner.isError,
-                        onDismiss = { viewModel.dismissBanner() },
-                    )
-                }
-            }
         }
     }
 

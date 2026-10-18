@@ -259,7 +259,8 @@ object SnapshotBuilder {
 
         val now = System.currentTimeMillis() / 1000L
         val syncState = SyncState(
-            lastCheck = now,
+            // Never checked: the first launch must sync, however recently the APK was built.
+            lastCheck = 0L,
             lastSuccess = now,
             source = "bundled",
             files = fileStates,
