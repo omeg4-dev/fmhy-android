@@ -1,6 +1,9 @@
 package io.github.omeg4dev.fmhy.ui.search
 
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.omeg4dev.fmhy.data.DatasetStore
@@ -102,7 +105,13 @@ class SearchViewModel(
         SearchUiState(query = initialQuery)
     )
 
+    /** What the text field shows. Compose state, updated synchronously on every keystroke: binding the
+     *  field to the async [uiState] instead drops and reorders characters while typing fast. */
+    var queryText by mutableStateOf(initialQuery)
+        private set
+
     fun onQueryChange(newQuery: String) {
+        queryText = newQuery
         query.value = newQuery
     }
 
@@ -125,7 +134,7 @@ class SearchViewModel(
     }
 
     fun selectRecentSearch(recent: String) {
-        query.value = recent
+        onQueryChange(recent)
         onSearchSubmitted(recent)
     }
 

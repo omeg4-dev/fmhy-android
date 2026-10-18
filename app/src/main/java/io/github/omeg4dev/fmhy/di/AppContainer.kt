@@ -114,7 +114,7 @@ class DefaultAppContainer(override val context: Context) : AppContainer {
             emptyList()
         }
 
-        if (datasetAssets.contains("full.sqlite.gz")) {
+        if (datasetAssets.contains(SNAPSHOT_ASSET)) {
             val manifestVer = if (datasetAssets.contains("manifest.json")) {
                 try {
                     assetManager.open("dataset/manifest.json").use { stream ->
@@ -130,7 +130,7 @@ class DefaultAppContainer(override val context: Context) : AppContainer {
             }
 
             try {
-                assetManager.open("dataset/full.sqlite.gz").use { stream ->
+                assetManager.open("dataset/$SNAPSHOT_ASSET").use { stream ->
                     datasetSync.installFromSnapshot(stream, manifestVer)
                 }
             } catch (e: Exception) {
@@ -139,3 +139,7 @@ class DefaultAppContainer(override val context: Context) : AppContainer {
         }
     }
 }
+
+/** Bundled gzip snapshot. Not named *.gz: the asset packager silently un-gzips those and drops the
+ *  extension, so the file would never be found under that name. */
+private const val SNAPSHOT_ASSET = "snapshot.gzbin"

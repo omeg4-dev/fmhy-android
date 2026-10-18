@@ -100,12 +100,12 @@ fun SearchScreen(
             TopAppBar(
                 title = {
                     OutlinedTextField(
-                        value = state.query,
+                        value = viewModel.queryText,
                         onValueChange = { viewModel.onQueryChange(it) },
                         placeholder = { Text("Search FMHY...") },
                         leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                         trailingIcon = {
-                            if (state.query.isNotEmpty()) {
+                            if (viewModel.queryText.isNotEmpty()) {
                                 IconButton(onClick = { viewModel.onQueryChange("") }) {
                                     Icon(Icons.Default.Clear, contentDescription = "Clear search")
                                 }
@@ -115,7 +115,7 @@ fun SearchScreen(
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                         keyboardActions = KeyboardActions(
                             onSearch = {
-                                viewModel.onSearchSubmitted(state.query)
+                                viewModel.onSearchSubmitted(viewModel.queryText)
                                 keyboardController?.hide()
                                 focusManager.clearFocus()
                             }

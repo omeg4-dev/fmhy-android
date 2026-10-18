@@ -12,3 +12,6 @@ __pycache__/
 .pytest_cache/
 dist/
 out/
+
+# bundled snapshot, copied from pipeline output at build time
+app/src/main/assets/dataset/
