@@ -26,6 +26,12 @@ dependencies {
   testImplementation(libs.okhttp.mockwebserver)
 }
 
+tasks.named<ProcessResources>("processResources") {
+  from(rootProject.file("schema")) {
+    include("dataset.sql")
+  }
+}
+
 sourceSets {
   create("parityTest") {
     kotlin.srcDir("src/parityTest/kotlin")

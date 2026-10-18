@@ -105,6 +105,51 @@ open class DatasetStore(
         }
     }
 
+    open suspend fun <T> withTransaction(block: (SQLiteConnection) -> T): T = withConnection { conn ->
+        conn.execSQL("BEGIN IMMEDIATE;")
+        try {
+            val result = block(conn)
+            conn.execSQL("COMMIT;")
+            result
+        } catch (e: Throwable) {
+            try {
+                conn.execSQL("ROLLBACK;")
+            } catch (_: Exception) {}
+            throw e
+        }
+    }
+
+    open suspend fun maxNum(): Long = withConnection { conn ->
+        conn.prepare("SELECT COALESCE(MAX(num), 0) FROM entries").use { stmt ->
+            if (stmt.step()) stmt.getLong(0) else 0L
+        }
+    }
+
+    open suspend fun entryCount(): Int = withConnection { conn ->
+        conn.prepare("SELECT count(*) FROM entries").use { stmt ->
+            if (stmt.step()) stmt.getLong(0).toInt() else 0
+        }
+    }
+
+    open suspend fun entriesForSection(sectionId: String): List<Entry> = withConnection { conn ->
+        val result = mutableListOf<Entry>()
+        val sql = """
+            SELECT num, id, section_id, heading_id, ord, name, url, original_url,
+                   description, tags, heading_path, tier, is_inline_more, is_base64,
+                   mirrors, extra_links, first_seen, last_changed, starred_at
+            FROM entries
+            WHERE section_id = ?
+            ORDER BY ord ASC
+        """.trimIndent()
+        conn.prepare(sql).use { stmt ->
+            stmt.bindText(1, sectionId)
+            while (stmt.step()) {
+                result.add(readEntry(stmt))
+            }
+        }
+        result
+    }
+
     open suspend fun meta(): Map<String, String> = withConnection { conn ->
         val result = mutableMapOf<String, String>()
         conn.prepare("SELECT key, value FROM meta").use { stmt ->
@@ -505,6 +550,63 @@ open class DatasetStore(
     fun closeSync() {
         connection?.close()
         connection = null
+    }
+
+    companion object {
+        fun loadSchemaSql(): String {
+            val stream = DatasetStore::class.java.getResourceAsStream("/dataset.sql")
+                ?: error("Cannot find /dataset.sql on classpath")
+            return stream.bufferedReader().use { it.readText() }
+        }
+
+        fun executeSqlScript(conn: SQLiteConnection, sql: String) {
+            val statements = mutableListOf<String>()
+            val current = StringBuilder()
+            var inTrigger = false
+
+            for (line in sql.lines()) {
+                val trimmed = line.trim()
+                if (trimmed.startsWith("--") || trimmed.isEmpty()) continue
+
+                current.appendLine(line)
+                val upper = trimmed.uppercase()
+                if (upper.contains("BEGIN")) {
+                    inTrigger = true
+                }
+
+                if (trimmed.endsWith(";")) {
+                    if (inTrigger) {
+                        if (upper == "END;" || upper.endsWith(" END;")) {
+                            inTrigger = false
+                            statements.add(current.toString().trim())
+                            current.clear()
+                        }
+                    } else {
+                        statements.add(current.toString().trim())
+                        current.clear()
+                    }
+                }
+            }
+            if (current.isNotBlank()) {
+                statements.add(current.toString().trim())
+            }
+
+            for (stmt in statements) {
+                if (stmt.isNotBlank()) {
+                    conn.execSQL(stmt)
+                }
+            }
+        }
+
+        fun initDatabase(file: File, schemaSql: String = loadSchemaSql()) {
+            file.parentFile?.mkdirs()
+            val conn = BundledSQLiteDriver().open(file.absolutePath)
+            try {
+                executeSqlScript(conn, schemaSql)
+            } finally {
+                conn.close()
+            }
+        }
     }
 }
 

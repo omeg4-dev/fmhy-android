@@ -22,55 +22,9 @@ class DatasetStoreTest {
     val tempFolder = TemporaryFolder()
 
     companion object {
-        fun loadSchemaSql(): String {
-            val candidates = listOf(
-                File("../../schema/dataset.sql"),
-                File("schema/dataset.sql"),
-                File("../schema/dataset.sql"),
-            )
-            val f = candidates.firstOrNull { it.exists() }
-                ?: error("Cannot find dataset.sql in $candidates, cwd=${File(".").absolutePath}")
-            return f.readText()
-        }
+        fun loadSchemaSql(): String = DatasetStore.loadSchemaSql()
 
-        fun executeSqlScript(conn: SQLiteConnection, sql: String) {
-            val statements = mutableListOf<String>()
-            val current = StringBuilder()
-            var inTrigger = false
-
-            for (line in sql.lines()) {
-                val trimmed = line.trim()
-                if (trimmed.startsWith("--") || trimmed.isEmpty()) continue
-
-                current.appendLine(line)
-                val upper = trimmed.uppercase()
-                if (upper.contains("BEGIN")) {
-                    inTrigger = true
-                }
-
-                if (trimmed.endsWith(";")) {
-                    if (inTrigger) {
-                        if (upper == "END;" || upper.endsWith(" END;")) {
-                            inTrigger = false
-                            statements.add(current.toString().trim())
-                            current.clear()
-                        }
-                    } else {
-                        statements.add(current.toString().trim())
-                        current.clear()
-                    }
-                }
-            }
-            if (current.isNotBlank()) {
-                statements.add(current.toString().trim())
-            }
-
-            for (stmt in statements) {
-                if (stmt.isNotBlank()) {
-                    conn.execSQL(stmt)
-                }
-            }
-        }
+        fun executeSqlScript(conn: SQLiteConnection, sql: String) = DatasetStore.executeSqlScript(conn, sql)
 
         fun createSampleDb(dbFile: File, version: Long = 1L): DatasetStore {
             val conn = BundledSQLiteDriver().open(dbFile.absolutePath)
