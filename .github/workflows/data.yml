@@ -1,0 +1,87 @@
+name: Scheduled Data Build
+
+on:
+  schedule:
+    - cron: '17 */2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          path: .
+
+      - name: Checkout data branch into site/
+        uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          ref: data
+          path: site
+
+      - name: Ensure site/ is initialized
+        run: |
+          if [ ! -d site/.git ]; then
+            mkdir -p site
+            cd site
+            git init -b data
+          fi
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Clone fmhy/edit repository
+        run: |
+          git clone https://github.com/fmhy/edit .cache/fmhy-edit
+
+      - name: Download filterlists and rentry page
+        run: |
+          mkdir -p .cache
+          curl -fsSL -A 'Mozilla/5.0' https://rentry.co/FMHYB64 -o .cache/rentry-FMHYB64.html
+          curl -fsSL -A 'Mozilla/5.0' https://raw.githubusercontent.com/fmhy/FMHYFilterlist/main/filterlist-domains.txt -o .cache/filterlist-domains.txt
+          curl -fsSL -A 'Mozilla/5.0' https://raw.githubusercontent.com/fmhy/FMHYFilterlist/main/filterlists-reasons.json -o .cache/filterlists-reasons.json
+
+      - name: Restore history database
+        run: |
+          mkdir -p .cache/state
+          if [ -f site/state/history.sqlite.gz ]; then
+            gzip -dc site/state/history.sqlite.gz > .cache/state/history.sqlite
+          fi
+
+      - name: Build dataset and deltas
+        run: |
+          mkdir -p site/data
+          cd pipeline
+          uv run fmhy-build build \
+            --repo ../.cache/fmhy-edit \
+            --rev HEAD \
+            --rentry ../.cache/rentry-FMHYB64.html \
+            --unsafe ../.cache/filterlist-domains.txt \
+            --reasons ../.cache/filterlists-reasons.json \
+            --state ../.cache/state \
+            --out ../site/data
+
+      - name: Save history database
+        run: |
+          mkdir -p site/state
+          if [ -f .cache/state/history.sqlite ]; then
+            gzip -9c .cache/state/history.sqlite > site/state/history.sqlite.gz
+          fi
+
+      - name: Commit and push changes
+        run: |
+          cd site
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data state
+          if git diff --staged --quiet; then
+            echo "No changes to publish."
+          else
+            git commit -m "data: update dataset and deltas"
+            git push origin data
+          fi
