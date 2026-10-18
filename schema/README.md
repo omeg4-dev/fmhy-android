@@ -13,21 +13,22 @@ means bumping `schema` and handling both versions.
   "created": 1792345678,
   "source_commit": "f479740d…",
   "entries": 21345,
-  "full":   {"file": "full-42.sqlite.zst", "sha256": "…", "size": 3812345, "raw_size": 14123456},
+  "full":   {"file": "full-42.sqlite.gz", "sha256": "…", "size": 3812345, "raw_size": 14123456},
   "deltas": [
-    {"from": 41, "to": 42, "file": "delta-41-42.json.zst", "sha256": "…", "size": 1234},
-    {"from": 40, "to": 41, "file": "delta-40-41.json.zst", "sha256": "…", "size": 987}
+    {"from": 41, "to": 42, "file": "delta-41-42.json", "sha256": "…", "size": 1234},
+    {"from": 40, "to": 41, "file": "delta-40-41.json", "sha256": "…", "size": 987}
   ]
 }
 ```
 
 - `version` is a monotonic integer; a new version is published only when the content changed.
 - `deltas` covers at most the last 50 steps, newest first. Each delta goes exactly one version forward.
-- `sha256` is of the file as downloaded (the `.zst`), lowercase hex. `size` likewise.
-- Files are zstd-compressed (level 19). `full-*.sqlite.zst` decompresses to a SQLite file created from
-  `dataset.sql`.
+- `sha256` is of the file exactly as stored, lowercase hex; `size` likewise.
+- `full-*.sqlite.gz` is gzip (level 9, stdlib `gzip`) of a SQLite file created from `dataset.sql`.
+  Deltas are plain UTF-8 JSON (compact separators); GitHub Pages gzips them in transit and OkHttp
+  decompresses transparently, so the client hashes the plain JSON bytes. No zstd anywhere.
 
-## `delta-<from>-<to>.json.zst`
+## `delta-<from>-<to>.json`
 
 ```json
 {
