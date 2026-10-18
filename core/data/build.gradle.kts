@@ -25,3 +25,30 @@ dependencies {
   testImplementation(libs.kotlinx.coroutines.test)
   testImplementation(libs.okhttp.mockwebserver)
 }
+
+sourceSets {
+  create("parityTest") {
+    kotlin.srcDir("src/parityTest/kotlin")
+    compileClasspath += sourceSets["main"].output + sourceSets["test"].output
+    runtimeClasspath += output + compileClasspath
+  }
+}
+
+val parityTestImplementation by configurations.getting {
+  extendsFrom(configurations["testImplementation"], configurations["implementation"])
+}
+val parityTestRuntimeOnly by configurations.getting {
+  extendsFrom(configurations["testRuntimeOnly"])
+}
+
+tasks.register<Test>("parityTest") {
+  description = "Runs parity tests against reference Python parser output in .cache/parity"
+  group = "verification"
+  testClassesDirs = sourceSets["parityTest"].output.classesDirs
+  classpath = sourceSets["parityTest"].runtimeClasspath
+  workingDir = rootProject.rootDir
+  maxHeapSize = "2g"
+  testLogging {
+    showStandardStreams = true
+  }
+}
