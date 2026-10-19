@@ -1,6 +1,8 @@
 • Audio Tools and Educational Tools on the home screen, with site counts
 • Icon legend (Settings → Icon legend) explains every icon
 • Country flags for the Non-English categories
-• Haptic feedback, can be turned off in Settings
-• The Colourfulness slider for custom accent colours works now
+• Haptic feedback (can be turned off)
+• The Colourfulness slider works now
 • Holding the FMHY logo keeps the long name visible
+• The random pick shows which section and category it's from; tap it to go there
+• Fixed a crash on first start without the built-in wiki copy
