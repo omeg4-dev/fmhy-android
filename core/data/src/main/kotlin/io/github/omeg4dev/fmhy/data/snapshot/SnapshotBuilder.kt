@@ -155,9 +155,9 @@ object SnapshotBuilder {
             val sqlEntry = """
                 INSERT INTO entries (
                     num, id, section_id, heading_id, ord, name, url, original_url,
-                    description, tags, heading_path, tier, kind, is_inline_more, is_base64,
+                    description, tags, heading_path, tier, kind, line, is_inline_more, is_base64,
                     mirrors, extra_links, first_seen, last_changed, starred_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """.trimIndent()
             conn.prepare(sqlEntry).use { stmt ->
                 for (p in parsedSections) {
@@ -179,13 +179,14 @@ object SnapshotBuilder {
                         stmt.bindText(11, e.headingPath)
                         stmt.bindLong(12, e.tier.toLong())
                         stmt.bindLong(13, e.kind.toLong())
-                        stmt.bindLong(14, if (e.isInlineMore) 1L else 0L)
-                        stmt.bindLong(15, if (e.isBase64) 1L else 0L)
-                        stmt.bindText(16, json.encodeToString(e.mirrors))
-                        stmt.bindText(17, json.encodeToString(e.extraLinks))
-                        stmt.bindLong(18, now)
+                        stmt.bindLong(14, e.line.toLong())
+                        stmt.bindLong(15, if (e.isInlineMore) 1L else 0L)
+                        stmt.bindLong(16, if (e.isBase64) 1L else 0L)
+                        stmt.bindText(17, json.encodeToString(e.mirrors))
+                        stmt.bindText(18, json.encodeToString(e.extraLinks))
                         stmt.bindLong(19, now)
-                        if (starredAt != null) stmt.bindLong(20, starredAt) else stmt.bindNull(20)
+                        stmt.bindLong(20, now)
+                        if (starredAt != null) stmt.bindLong(21, starredAt) else stmt.bindNull(21)
                         stmt.step()
                         stmt.reset()
                     }

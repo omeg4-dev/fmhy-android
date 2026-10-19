@@ -301,5 +301,32 @@ class SectionStructureTest {
         assertEquals("h2", findCategoryHeadingId(structure, "h2"))
         assertNull(findCategoryHeadingId(structure, "nonexistent"))
     }
+
+    @Test
+    fun testEntryItemAlternativesCount() {
+        val h1 = SectionItem.HeadingItem(createHeading("h1", level = 1))
+        val e1 = SectionItem.EntryItem(
+            entry = createEntry("e1"),
+            alternatives = listOf(createEntry("e2"), createEntry("e3"))
+        )
+        val structure = buildSectionStructure(listOf(h1, e1))
+        assertEquals(1, structure.categories.size)
+        assertEquals(3, structure.categories[0].entryCount)
+    }
+
+    @Test
+    fun testFilterSectionItemsAlternatives() {
+        val h1 = SectionItem.HeadingItem(createHeading("h1", level = 1))
+        val ePrimaryIndex = SectionItem.EntryItem(
+            entry = createEntry("e1", kind = EntryKind.INDEX),
+            alternatives = listOf(createEntry("e2", kind = EntryKind.NORMAL), createEntry("e3", kind = EntryKind.INDEX))
+        )
+        val filtered = filterSectionItems(listOf(h1, ePrimaryIndex), starredOnly = false, showIndexes = false)
+        assertEquals(2, filtered.size)
+        assertEquals(h1, filtered[0])
+        val promoted = filtered[1] as SectionItem.EntryItem
+        assertEquals("e2", promoted.entry.id)
+        assertTrue(promoted.alternatives.isEmpty())
+    }
 }
 

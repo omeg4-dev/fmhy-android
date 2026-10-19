@@ -44,6 +44,7 @@ data class JsonEntry(
     val is_base64: Int,
     val tier: Int,
     val kind: Int = 0,
+    val line: Int = 0,
     val is_inline_more: Int,
     val mirrors: List<JsonLink> = emptyList(),
     val extra_links: List<JsonLink> = emptyList(),
@@ -219,6 +220,9 @@ class ParityTest {
                 if (act.kind != exp.kind) {
                     secMismatches.add("${sec.id} / ${act.ord} / entry.kind: expected ${exp.kind} got ${act.kind}")
                 }
+                if (act.line != exp.line) {
+                    secMismatches.add("${sec.id} / ${act.ord} / entry.line: expected ${exp.line} got ${act.line}")
+                }
                 val actMore = if (act.isInlineMore) 1 else 0
                 if (actMore != exp.is_inline_more) {
                     secMismatches.add("${sec.id} / ${act.ord} / entry.isInlineMore: expected ${exp.is_inline_more} got $actMore")
@@ -293,7 +297,7 @@ class ParityTest {
 
         assertEquals("Total mismatches must be 0", 0, mismatches.size)
         assertEquals("Total sections must be 23", 23, sections.size)
-        assertEquals("Total entries must be 21665", 21665, totalEntries)
+        assertEquals("Total entries must be 21718", 21718, totalEntries)
         assertTrue("Parse time must be < 500 ms (was ${elapsedMs}ms)", elapsedMs < 500)
     }
 }

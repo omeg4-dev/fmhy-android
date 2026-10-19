@@ -146,7 +146,7 @@ open class DatasetStore(
         val result = mutableListOf<Entry>()
         val sql = """
             SELECT num, id, section_id, heading_id, ord, name, url, original_url,
-                   description, tags, heading_path, tier, kind, is_inline_more, is_base64,
+                   description, tags, heading_path, tier, kind, line, is_inline_more, is_base64,
                    mirrors, extra_links, first_seen, last_changed, starred_at
             FROM entries
             WHERE section_id = ?
@@ -272,7 +272,7 @@ open class DatasetStore(
     open suspend fun entry(id: String): Entry? = withConnection { conn ->
         val sql = """
             SELECT num, id, section_id, heading_id, ord, name, url, original_url,
-                   description, tags, heading_path, tier, kind, is_inline_more, is_base64,
+                   description, tags, heading_path, tier, kind, line, is_inline_more, is_base64,
                    mirrors, extra_links, first_seen, last_changed, starred_at
             FROM entries
             WHERE id = ?
@@ -288,7 +288,7 @@ open class DatasetStore(
         val result = mutableListOf<Entry>()
         val sql = """
             SELECT num, id, section_id, heading_id, ord, name, url, original_url,
-                   description, tags, heading_path, tier, kind, is_inline_more, is_base64,
+                   description, tags, heading_path, tier, kind, line, is_inline_more, is_base64,
                    mirrors, extra_links, first_seen, last_changed, starred_at
             FROM entries
             WHERE id = ?
@@ -308,7 +308,7 @@ open class DatasetStore(
     open suspend fun randomTopPick(): Entry? = withConnection { conn ->
         val sql = """
             SELECT num, id, section_id, heading_id, ord, name, url, original_url,
-                   description, tags, heading_path, tier, kind, is_inline_more, is_base64,
+                   description, tags, heading_path, tier, kind, line, is_inline_more, is_base64,
                    mirrors, extra_links, first_seen, last_changed, starred_at
             FROM entries
             WHERE tier >= 1
@@ -472,7 +472,7 @@ open class DatasetStore(
         val entryList = mutableListOf<Entry>()
         conn.prepare("""
             SELECT num, id, section_id, heading_id, ord, name, url, original_url,
-                   description, tags, heading_path, tier, kind, is_inline_more, is_base64,
+                   description, tags, heading_path, tier, kind, line, is_inline_more, is_base64,
                    mirrors, extra_links, first_seen, last_changed, starred_at
             FROM entries
             WHERE section_id = ?
@@ -537,7 +537,18 @@ open class DatasetStore(
                         if (entry.headingId != null) {
                             currentHeadingId = entry.headingId
                         }
-                        finalItems.add(SectionItem.EntryItem(entry))
+                        val lastItem = finalItems.lastOrNull()
+                        if (lastItem is SectionItem.EntryItem &&
+                            lastItem.entry.line > 0 &&
+                            lastItem.entry.line == entry.line &&
+                            lastItem.entry.headingId == entry.headingId
+                        ) {
+                            finalItems[finalItems.size - 1] = lastItem.copy(
+                                alternatives = lastItem.alternatives + entry
+                            )
+                        } else {
+                            finalItems.add(SectionItem.EntryItem(entry))
+                        }
                     }
                 }
             }
@@ -562,13 +573,13 @@ open class DatasetStore(
     private fun readEntry(stmt: androidx.sqlite.SQLiteStatement): Entry {
         val tagsRaw = stmt.getText(9)
         val tagsList = if (tagsRaw.isEmpty()) emptyList() else tagsRaw.split('|')
-        val mirrorsRaw = stmt.getText(15)
+        val mirrorsRaw = stmt.getText(16)
         val mirrorsList = try {
             json.decodeFromString<List<Link>>(mirrorsRaw)
         } catch (_: Exception) {
             emptyList()
         }
-        val extraLinksRaw = stmt.getText(16)
+        val extraLinksRaw = stmt.getText(17)
         val extraLinksList = try {
             json.decodeFromString<List<Link>>(extraLinksRaw)
         } catch (_: Exception) {
@@ -589,13 +600,14 @@ open class DatasetStore(
             headingPath = stmt.getText(10),
             tier = Tier.fromInt(stmt.getLong(11).toInt()),
             kind = EntryKind.fromInt(stmt.getLong(12).toInt()),
-            isInlineMore = stmt.getLong(13) != 0L,
-            isBase64 = stmt.getLong(14) != 0L,
+            line = stmt.getLong(13).toInt(),
+            isInlineMore = stmt.getLong(14) != 0L,
+            isBase64 = stmt.getLong(15) != 0L,
             mirrors = mirrorsList,
             extraLinks = extraLinksList,
-            firstSeen = stmt.getLong(17),
-            lastChanged = stmt.getLong(18),
-            starredAt = if (stmt.isNull(19)) null else stmt.getLong(19),
+            firstSeen = stmt.getLong(18),
+            lastChanged = stmt.getLong(19),
+            starredAt = if (stmt.isNull(20)) null else stmt.getLong(20),
         )
     }
 

@@ -78,6 +78,7 @@ fun socialIconFor(label: String): Int? {
         "mastodon" -> R.drawable.ic_link_mastodon
         "bluesky" -> R.drawable.ic_link_bluesky
         ".onion", "onion" -> R.drawable.ic_link_onion
+        "note" -> R.drawable.ic_link_note
         else -> null
     }
 }

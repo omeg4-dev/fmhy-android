@@ -110,10 +110,10 @@ class FmhySyncSpeedTest {
         val updated = result as SyncResult.Updated
         assertEquals("Total sections should be 23", 23, updated.changedSections)
         assertEquals("Failed sections should be empty", emptyList<String>(), updated.failedSections)
-        assertEquals("Total entries should be 21665", 21665, updated.added)
+        assertEquals("Total entries should be 21718", 21718, updated.added)
 
         val totalInDb = store.entryCount()
-        assertEquals(21665, totalInDb)
+        assertEquals(21718, totalInDb)
 
         println("Entries in DB: $totalInDb")
         println("Sync speed verification: ${elapsedMs}ms < 3000ms")

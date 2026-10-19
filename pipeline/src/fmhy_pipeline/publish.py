@@ -87,9 +87,9 @@ def check_guards(
 
     if manifest:
         # Check schema match
-        if manifest.get("schema") != 2:
+        if manifest.get("schema") != 3:
             violations.append(
-                f"Schema mismatch: previous={manifest.get('schema')}, current=2"
+                f"Schema mismatch: previous={manifest.get('schema')}, current=3"
             )
 
         # Check entry drop > 5%
@@ -214,7 +214,7 @@ def publish(
 
         # Build manifest
         new_manifest = {
-            "schema": 2,
+            "schema": 3,
             "version": new_version,
             "created": int(time.time()),
             "source_commit": _get_meta(new_db_path, "source_commit"),

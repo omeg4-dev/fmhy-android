@@ -43,7 +43,7 @@ def dump(repo: str, rev: str, rentry_html: str, out: str) -> dict:
             b64 = resolver.resolve_entry(e.url, e.mirrors)
             out_entries.append({
                 "id": eid, "name": e.name, "url": b64["url"], "original_url": b64["original_url"],
-                "is_base64": b64["is_base64"], "tier": e.tier, "kind": e.kind, "is_inline_more": e.is_inline_more,
+                "is_base64": b64["is_base64"], "tier": e.tier, "kind": e.kind, "line": e.line, "is_inline_more": e.is_inline_more,
                 "mirrors": b64["mirrors"], "extra_links": e.extra_links, "description": e.description,
                 "tags": e.tags, "heading_id": e.heading_id, "heading_path": e.heading_path,
                 "ord": e.ord,

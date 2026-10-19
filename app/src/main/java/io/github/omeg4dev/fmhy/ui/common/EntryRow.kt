@@ -1,5 +1,9 @@
 package io.github.omeg4dev.fmhy.ui.common
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItemDefaults
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -103,6 +107,7 @@ fun parseHighlight(text: String, highlightColor: Color): AnnotatedString {
 fun EntryRow(
     entry: Entry,
     modifier: Modifier = Modifier,
+    alternatives: List<Entry> = emptyList(),
     nameHl: String? = null,
     descHl: String? = null,
     onOpenUrl: (String) -> Unit,
@@ -262,6 +267,23 @@ fun EntryRow(
                     overflow = TextOverflow.Ellipsis,
                 )
 
+                if (alternatives.isNotEmpty()) {
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                        modifier = Modifier
+                            .semantics { contentDescription = "${alternatives.size} more on this line" }
+                            .clickable { showBottomSheet = true },
+                    ) {
+                        Text(
+                            text = "+${alternatives.size}",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
+                        )
+                    }
+                }
+
                 if (entry.mirrors.isNotEmpty()) {
                     // "7Movies, 2, 3" as on fmhy.net: the comma hugs the name, so no row spacing here.
                     Row(
@@ -309,12 +331,24 @@ fun EntryRow(
                     )
                 }
 
-                if (entry.id in LocalBookmarks.current.savedIds) {
+                val bookmarksState = LocalBookmarks.current
+                val isPrimarySaved = entry.id in bookmarksState.savedIds
+                val isAnyAlternativeSaved = alternatives.any { it.id in bookmarksState.savedIds }
+                if (isPrimarySaved || isAnyAlternativeSaved) {
                     Icon(
                         imageVector = Icons.Filled.Bookmark,
                         contentDescription = "Saved",
                         tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(16.dp),
+                        modifier = Modifier
+                            .size(16.dp)
+                            .clickable {
+                                if (alternatives.isNotEmpty()) {
+                                    showBottomSheet = true
+                                } else {
+                                    bookmarksState.toggle(entry)
+                                    onShowSnackbar("Removed from Saved")
+                                }
+                            },
                     )
                 }
 
@@ -356,6 +390,7 @@ fun EntryRow(
         val context = LocalContext.current
         EntryDetailBottomSheet(
             entry = entry,
+            alternatives = alternatives,
             onDismiss = { showBottomSheet = false },
             onOpenUrl = { url ->
                 showBottomSheet = false
@@ -384,6 +419,7 @@ fun EntryRow(
 @Composable
 fun EntryDetailBottomSheet(
     entry: Entry,
+    alternatives: List<Entry> = emptyList(),
     onDismiss: () -> Unit,
     onOpenUrl: (String) -> Unit,
     onCopyLink: (String) -> Unit,
@@ -392,15 +428,6 @@ fun EntryDetailBottomSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val bookmarksState = LocalBookmarks.current
-    val isSaved = entry.id in bookmarksState.savedIds
-
-    val host = remember(entry.url) {
-        try {
-            Uri.parse(entry.url).host?.removePrefix("www.").orEmpty()
-        } catch (_: Exception) {
-            ""
-        }
-    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -410,154 +437,349 @@ fun EntryDetailBottomSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(bottom = 24.dp)
         ) {
-            // Header
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp)
-            ) {
-                Text(
-                    text = entry.name,
-                    style = MaterialTheme.typography.titleLarge,
-                )
-                if (host.isNotEmpty()) {
-                    Spacer(Modifier.height(2.dp))
+            if (alternatives.isEmpty()) {
+                val host = remember(entry.url) {
+                    try {
+                        Uri.parse(entry.url).host?.removePrefix("www.").orEmpty()
+                    } catch (_: Exception) {
+                        ""
+                    }
+                }
+                val isSaved = entry.id in bookmarksState.savedIds
+
+                // Header
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp)
+                ) {
                     Text(
-                        text = host,
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        text = entry.name,
+                        style = MaterialTheme.typography.titleLarge,
                     )
-                }
-                if (entry.description.isNotEmpty()) {
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        text = entry.description,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-
-            // Action row
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                // Open
-                Column(
-                    modifier = Modifier.weight(1f),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    FilledTonalIconButton(
-                        onClick = { onOpenUrl(entry.url) },
-                        modifier = Modifier.size(56.dp),
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Open")
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    Text("Open", style = MaterialTheme.typography.labelMedium)
-                }
-
-                // Copy
-                Column(
-                    modifier = Modifier.weight(1f),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    FilledTonalIconButton(
-                        onClick = { onCopyLink(entry.url) },
-                        modifier = Modifier.size(56.dp),
-                    ) {
-                        Icon(Icons.Default.ContentCopy, contentDescription = "Copy link")
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    Text("Copy", style = MaterialTheme.typography.labelMedium)
-                }
-
-                // Share
-                Column(
-                    modifier = Modifier.weight(1f),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    FilledTonalIconButton(
-                        onClick = { onShareLink(entry.url) },
-                        modifier = Modifier.size(56.dp),
-                    ) {
-                        Icon(Icons.Default.Share, contentDescription = "Share")
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    Text("Share", style = MaterialTheme.typography.labelMedium)
-                }
-
-                // Save / Saved
-                Column(
-                    modifier = Modifier.weight(1f),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    FilledTonalIconButton(
-                        onClick = {
-                            bookmarksState.toggle(entry)
-                            onShowSnackbar(if (isSaved) "Removed from Saved" else "Saved")
-                            onDismiss()
-                        },
-                        modifier = Modifier.size(56.dp),
-                    ) {
-                        Icon(
-                            imageVector = if (isSaved) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
-                            contentDescription = if (isSaved) "Saved" else "Save",
-                            tint = if (isSaved) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                    if (host.isNotEmpty()) {
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            text = host,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
+                    if (entry.description.isNotEmpty()) {
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            text = entry.description,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+
+                // Action row
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    // Open
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        FilledTonalIconButton(
+                            onClick = { onOpenUrl(entry.url) },
+                            modifier = Modifier.size(56.dp),
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Open")
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Text("Open", style = MaterialTheme.typography.labelMedium)
+                    }
+
+                    // Copy
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        FilledTonalIconButton(
+                            onClick = { onCopyLink(entry.url) },
+                            modifier = Modifier.size(56.dp),
+                        ) {
+                            Icon(Icons.Default.ContentCopy, contentDescription = "Copy link")
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Text("Copy", style = MaterialTheme.typography.labelMedium)
+                    }
+
+                    // Share
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        FilledTonalIconButton(
+                            onClick = { onShareLink(entry.url) },
+                            modifier = Modifier.size(56.dp),
+                        ) {
+                            Icon(Icons.Default.Share, contentDescription = "Share")
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Text("Share", style = MaterialTheme.typography.labelMedium)
+                    }
+
+                    // Save / Saved
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        FilledTonalIconButton(
+                            onClick = {
+                                bookmarksState.toggle(entry)
+                                onShowSnackbar(if (isSaved) "Removed from Saved" else "Saved")
+                                onDismiss()
+                            },
+                            modifier = Modifier.size(56.dp),
+                        ) {
+                            Icon(
+                                imageVector = if (isSaved) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
+                                contentDescription = if (isSaved) "Saved" else "Save",
+                                tint = if (isSaved) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Text(if (isSaved) "Saved" else "Save", style = MaterialTheme.typography.labelMedium)
+                    }
+                }
+
+                val origUrl = entry.originalUrl
+                if (entry.isBase64 && !origUrl.isNullOrEmpty()) {
+                    ListItem(
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                        headlineContent = { Text("Open original (base64)") },
+                        supportingContent = { Text(origUrl, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        leadingContent = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null) },
+                        modifier = Modifier.clickable { onOpenUrl(origUrl) }
+                    )
+                }
+
+                if (entry.mirrors.isNotEmpty()) {
+                    Text(
+                        text = "Mirrors",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+                    )
+                    entry.mirrors.forEach { mirror ->
+                        ListItem(
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                            headlineContent = { Text("Mirror ${mirror.label}") },
+                            supportingContent = { Text(mirror.url, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                            modifier = Modifier.clickable { onOpenUrl(mirror.url) }
+                        )
+                    }
+                }
+
+                if (entry.extraLinks.isNotEmpty()) {
+                    Text(
+                        text = "Extra Links",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+                    )
+                    entry.extraLinks.forEach { extra ->
+                        ListItem(
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                            headlineContent = { Text(extra.label) },
+                            supportingContent = { Text(extra.url, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                            modifier = Modifier.clickable { onOpenUrl(extra.url) }
+                        )
+                    }
+                }
+            } else {
+                val allSites = listOf(entry) + alternatives
+                allSites.forEachIndexed { index, site ->
+                    if (index > 0) {
+                        HorizontalDivider(
+                            modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
+                            thickness = 0.5.dp,
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                        )
+                    }
+
+                    val siteHost = try {
+                        Uri.parse(site.url).host?.removePrefix("www.").orEmpty()
+                    } catch (_: Exception) {
+                        ""
+                    }
+                    val isSiteSaved = site.id in bookmarksState.savedIds
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 24.dp)
+                    ) {
+                        Text(
+                            text = site.name,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = if (index == 0) FontWeight.Bold else FontWeight.Normal,
+                        )
+                        if (siteHost.isNotEmpty()) {
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                text = siteHost,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+
+                    // Action row for THIS site
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        // Open
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            FilledTonalIconButton(
+                                onClick = { onOpenUrl(site.url) },
+                                modifier = Modifier.size(48.dp),
+                            ) {
+                                Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Open")
+                            }
+                            Spacer(Modifier.height(4.dp))
+                            Text("Open", style = MaterialTheme.typography.labelSmall)
+                        }
+
+                        // Copy
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            FilledTonalIconButton(
+                                onClick = { onCopyLink(site.url) },
+                                modifier = Modifier.size(48.dp),
+                            ) {
+                                Icon(Icons.Default.ContentCopy, contentDescription = "Copy link")
+                            }
+                            Spacer(Modifier.height(4.dp))
+                            Text("Copy", style = MaterialTheme.typography.labelSmall)
+                        }
+
+                        // Share
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            FilledTonalIconButton(
+                                onClick = { onShareLink(site.url) },
+                                modifier = Modifier.size(48.dp),
+                            ) {
+                                Icon(Icons.Default.Share, contentDescription = "Share")
+                            }
+                            Spacer(Modifier.height(4.dp))
+                            Text("Share", style = MaterialTheme.typography.labelSmall)
+                        }
+
+                        // Save
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            FilledTonalIconButton(
+                                onClick = {
+                                    bookmarksState.toggle(site)
+                                    onShowSnackbar(if (isSiteSaved) "Removed from Saved" else "Saved")
+                                },
+                                modifier = Modifier.size(48.dp),
+                            ) {
+                                Icon(
+                                    imageVector = if (isSiteSaved) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
+                                    contentDescription = if (isSiteSaved) "Saved" else "Save",
+                                    tint = if (isSiteSaved) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                )
+                            }
+                            Spacer(Modifier.height(4.dp))
+                            Text(if (isSiteSaved) "Saved" else "Save", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+
+                    val siteOrigUrl = site.originalUrl
+                    if (site.isBase64 && !siteOrigUrl.isNullOrEmpty()) {
+                        ListItem(
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                            headlineContent = { Text("Open original (base64)") },
+                            supportingContent = { Text(siteOrigUrl, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                            leadingContent = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null) },
+                            modifier = Modifier.clickable { onOpenUrl(siteOrigUrl) }
+                        )
+                    }
+
+                    // Mirrors for this site
+                    if (site.mirrors.isNotEmpty()) {
+                        Text(
+                            text = "Mirrors",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp),
+                        )
+                        site.mirrors.forEach { mirror ->
+                            ListItem(
+                                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                headlineContent = { Text("Mirror ${mirror.label}") },
+                                supportingContent = { Text(mirror.url, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                modifier = Modifier.clickable { onOpenUrl(mirror.url) }
+                            )
+                        }
+                    }
+                }
+
+                // Shared description / extra links below once
+                val sharedDesc = entry.description.ifEmpty {
+                    alternatives.firstOrNull { it.description.isNotEmpty() }?.description.orEmpty()
+                }
+                if (sharedDesc.isNotEmpty()) {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
+                        thickness = 0.5.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                    )
+                    Text(
+                        text = sharedDesc,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 24.dp),
+                    )
+                }
+
+                val sharedExtras = if (entry.extraLinks.isNotEmpty()) {
+                    entry.extraLinks
+                } else {
+                    alternatives.firstOrNull { it.extraLinks.isNotEmpty() }?.extraLinks.orEmpty()
+                }
+                if (sharedExtras.isNotEmpty()) {
                     Spacer(Modifier.height(8.dp))
-                    Text(if (isSaved) "Saved" else "Save", style = MaterialTheme.typography.labelMedium)
-                }
-            }
-
-            val origUrl = entry.originalUrl
-            if (entry.isBase64 && !origUrl.isNullOrEmpty()) {
-                ListItem(
-                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                    headlineContent = { Text("Open original (base64)") },
-                    supportingContent = { Text(origUrl, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                    leadingContent = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null) },
-                    modifier = Modifier.clickable { onOpenUrl(origUrl) }
-                )
-            }
-
-            if (entry.mirrors.isNotEmpty()) {
-                Text(
-                    text = "Mirrors",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
-                )
-                entry.mirrors.forEach { mirror ->
-                    ListItem(
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        headlineContent = { Text("Mirror ${mirror.label}") },
-                        supportingContent = { Text(mirror.url, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                        modifier = Modifier.clickable { onOpenUrl(mirror.url) }
+                    Text(
+                        text = "Extra Links",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
                     )
-                }
-            }
-
-            if (entry.extraLinks.isNotEmpty()) {
-                Text(
-                    text = "Extra Links",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
-                )
-                entry.extraLinks.forEach { extra ->
-                    ListItem(
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        headlineContent = { Text(extra.label) },
-                        supportingContent = { Text(extra.url, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                        modifier = Modifier.clickable { onOpenUrl(extra.url) }
-                    )
+                    sharedExtras.forEach { extra ->
+                        ListItem(
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                            headlineContent = { Text(extra.label) },
+                            supportingContent = { Text(extra.url, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                            modifier = Modifier.clickable { onOpenUrl(extra.url) }
+                        )
+                    }
                 }
             }
         }

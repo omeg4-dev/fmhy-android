@@ -223,6 +223,7 @@ class ParsedEntry:
     url: str
     tier: int = 0
     kind: int = 0
+    line: int = 0
     is_inline_more: int = 0
     mirrors: list[dict] = field(default_factory=list)
     extra_links: list[dict] = field(default_factory=list)
@@ -262,17 +263,18 @@ def _parse_head_links(
     tier: int,
     is_inline_more: int,
     line_kind: int = 0,
+    line: int = 0,
 ) -> list[dict]:
     """
     Walk the links in HEAD text and produce a list of partial entry dicts.
-    Each dict has: name, url, tier, kind, is_inline_more, mirrors, extra_links.
+    Each dict has: name, url, tier, kind, line, is_inline_more, mirrors, extra_links.
 
     Rules:
     - First link encountered (not preceded by ' / ') starts a NEW entry.
     - A link with numeric label (>= 2) is a MIRROR of the current entry.
     - A link preceded by ' / ' in the source text is an EXTRA LINK of the current entry.
     - Separators ', ' or ' or ' start a NEW entry.
-    - Tier applies only to links inside **bold** spans; other entries get tier 0.
+    - Tier applies to all entries on the line.
     """
     tokens = _MD.parseInline(head_text)
     if not tokens:
@@ -299,6 +301,7 @@ def _parse_head_links(
             "url": url,
             "tier": link_tier,
             "kind": link_kind,
+            "line": line,
             "is_inline_more": is_inline_more,
             "mirrors": [],
             "extra_links": [],
@@ -359,7 +362,7 @@ def _parse_head_links(
                     # Separators: ', ', ' or ', text between links
                     # If sep_text has comma or 'or', it's a new entry
                     is_first_entry = len(entries) == 0 and current is None
-                    link_tier = tier if (in_bold or is_first_entry) else 0
+                    link_tier = tier
                     if "🌐" in label.lstrip()[:2] or "🌐" in sep_text:
                         link_kind = 1
                     elif "↪" in label.lstrip()[:2] or "↪" in sep_text:
@@ -739,6 +742,7 @@ def parse_section(
 
     while i < len(lines):
         line = lines[i]
+        line_number = i + 1
         i += 1
         raw = line
 
@@ -836,6 +840,7 @@ def parse_section(
                 heading_path=current_heading_path(),
                 ord_start=ord_counter,
                 is_inline_more=0,
+                line_number=line_number,
             )
             if result is None:
                 unparsed.append(raw.rstrip())
@@ -861,6 +866,7 @@ def parse_section(
                     heading_id=current_heading().id if current_heading() else None,
                     heading_path=current_heading_path(),
                     ord_start=ord_counter,
+                    line_number=line_number,
                 )
                 if result:
                     for e in result:
@@ -882,6 +888,7 @@ def _parse_bullet_line(
     heading_path: str,
     ord_start: int,
     is_inline_more: int = 0,
+    line_number: int = 0,
 ) -> tuple[list[ParsedEntry], list[ParsedNote]] | None:
     """
     Parse a bullet line's content (after the '* ' or '- ' marker).
@@ -894,12 +901,42 @@ def _parse_bullet_line(
     # Split HEAD and DESC
     head, desc = _split_head_desc(content)
 
-    if "[" not in head:
-        return None
+    links_in_head = _extract_inline_links(head)
+    if not links_in_head:
+        desc_links = _extract_inline_links(desc)
+        if not desc_links:
+            return None
+        raw_name = head.replace("**", "").strip()
+        name = strip_leading_emoji(raw_name).strip()
+        if not name:
+            return None
+        first_url = desc_links[0].url
+        extra_links = [{"label": l.label, "url": l.url} for l in desc_links]
+        _, non_link_desc = _split_head_desc(desc)
+        description = _markdown_to_plain(non_link_desc).strip() if non_link_desc else ""
+        tags = description
+
+        e = ParsedEntry(
+            name=name,
+            url=first_url,
+            tier=tier,
+            kind=0 if is_inline_more else kind,
+            line=line_number,
+            is_inline_more=is_inline_more,
+            mirrors=[],
+            extra_links=extra_links,
+            description=description,
+            tags=tags,
+            heading_id=heading_id,
+            heading_path=heading_path,
+            section_id=section_id,
+            ord=0,  # will be set by caller
+        )
+        return [e], []
 
     # Parse head links into entry candidates
     line_kind = 0 if is_inline_more else kind
-    entry_dicts = _parse_head_links(head, tier, is_inline_more, line_kind)
+    entry_dicts = _parse_head_links(head, tier, is_inline_more, line_kind, line=line_number)
     if not entry_dicts:
         return None
 
@@ -916,6 +953,7 @@ def _parse_bullet_line(
             url=ed["url"],
             tier=ed["tier"],
             kind=ed.get("kind", 0),
+            line=ed.get("line", line_number),
             is_inline_more=ed["is_inline_more"],
             mirrors=ed.get("mirrors", []),
             extra_links=ed.get("extra_links", []),
@@ -937,6 +975,7 @@ def _parse_inline_more_line(
     heading_id: Optional[str],
     heading_path: str,
     ord_start: int,
+    line_number: int = 0,
 ) -> list[ParsedEntry]:
     """Parse a non-bullet paragraph line as 'more' entries."""
     content = strip_invisible_chars(content)
@@ -945,7 +984,7 @@ def _parse_inline_more_line(
     if "[" not in head:
         return []
 
-    entry_dicts = _parse_head_links(head, tier, is_inline_more=1, line_kind=0)
+    entry_dicts = _parse_head_links(head, tier, is_inline_more=1, line_kind=0, line=line_number)
     if not entry_dicts:
         return []
 
@@ -960,6 +999,7 @@ def _parse_inline_more_line(
             url=ed["url"],
             tier=ed["tier"],
             kind=ed.get("kind", 0),
+            line=ed.get("line", line_number),
             is_inline_more=1,
             mirrors=ed.get("mirrors", []),
             extra_links=ed.get("extra_links", []),
