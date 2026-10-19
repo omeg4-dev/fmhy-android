@@ -1,5 +1,6 @@
 package io.github.omeg4dev.fmhy.ui.settings
 
+import androidx.compose.foundation.selection.toggleable
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.compose.foundation.BorderStroke
@@ -296,10 +297,16 @@ fun SettingsScreen(
                     trailingContent = {
                         Switch(
                             checked = state.appearance.pureBlack,
-                            onCheckedChange = { viewModel.setPureBlack(it) },
+                            onCheckedChange = null,
                             enabled = isDark,
                         )
-                    }
+                    },
+                    modifier = Modifier.toggleable(
+                        value = state.appearance.pureBlack,
+                        enabled = isDark,
+                        role = Role.Switch,
+                        onValueChange = { viewModel.setPureBlack(it) },
+                    ),
                 )
             }
 
@@ -367,9 +374,14 @@ fun SettingsScreen(
                     trailingContent = {
                         Switch(
                             checked = state.openInExternalBrowser,
-                            onCheckedChange = { viewModel.setOpenInExternalBrowser(it) }
+                            onCheckedChange = null,
                         )
-                    }
+                    },
+                    modifier = Modifier.toggleable(
+                        value = state.openInExternalBrowser,
+                        role = Role.Switch,
+                        onValueChange = { viewModel.setOpenInExternalBrowser(it) },
+                    ),
                 )
             }
 
