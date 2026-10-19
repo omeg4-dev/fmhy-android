@@ -1,16 +1,16 @@
 # FMHY Android: current status
 
-As of **2026-10-19**, version **0.2.0** (versionCode 2), `main` at `2de4b57`. Nothing pushed; the repo
-has no remote yet.
+As of **2026-10-19**, version **0.3.0** (versionCode 3). Nothing pushed; the repo has no remote yet.
 
 Unofficial native Android client for [FMHY](https://fmhy.net). It needs no account and no server of
 ours: data comes straight from FMHY's public sources and is parsed on the device.
 
 ## Install
 
-- APK: `dist/fmhy-0.2.0.apk` (11.6 MB, R8-shrunk release build, **signed with the debug key**, so
+- APK: `dist/fmhy-0.3.0.apk` (11.8 MB, R8-shrunk release build, **signed with the debug key**, so
   it can only be sideloaded).
-- `adb install -r dist/fmhy-0.2.0.apk` upgrades 0.1.0 in place and keeps data.
+- `adb install -r dist/fmhy-0.3.0.apk` upgrades in place and keeps bookmarks/settings. A DB with an
+  older schema is replaced by the bundled snapshot on first launch (schema is now 3).
 - Android 8.0+ (minSdk 26), target/compile SDK 36. Material You needs Android 12+.
 
 ## What the app does
@@ -18,7 +18,7 @@ ours: data comes straight from FMHY's public sources and is parsed on the device
 ### Data and sync
 - Sources: `raw.githubusercontent.com/fmhy/edit` (jsDelivr as automatic fallback),
   `rentry.co/FMHYB64` (base64 links), FMHYFilterlist (unsafe sites).
-- A snapshot (21,665 sites, 23 sections) ships in the APK, so the app works offline from the first
+- A snapshot (21,718 sites, 23 sections) ships in the APK, so the app works offline from the first
   launch.
 - Background sync on launch. Each of the 27 source files is checked with an ETag; only changed
   files are downloaded and re-parsed. Up to date: 0.3–0.6 s. Full refresh: ~2.5 s. A sync runs at
@@ -71,6 +71,26 @@ ours: data comes straight from FMHY's public sources and is parsed on the device
   - Data: sites count, last synced, Sync now.
   - About.
 
+### 0.3.0 additions
+- **Icons like fmhy.net** (Iconify sources in `tools/icons-src/`, `tools/svg2vd.py`, licences in
+  `THIRD_PARTY.md`): platform words (Windows, macOS, Linux, Android, iOS, Web, Docker) become inline
+  icons; Discord / GitHub / Telegram / Reddit / X / … links become tappable icons; `Note` links ⓘ;
+  markers ⭐ 🌟 🌐 (index) 🔁 (section link) before the name.
+- **One row per FMHY line** (`entries.line`): "uBlock Origin +2" — the ⭐ applies to the whole line,
+  so starred lines sit together as on fmhy.net. Lines with a plain-text head ("⭐ Report Issues -
+  uAssets / Hosts / …") are no longer dropped (+53 entries). Mirrors inline: "7Movies, 2".
+- **Tap a row → details sheet** (every site on the line with Open/Copy/Share/Save, mirrors, links);
+  **hold → open the site**. The `+N` pill also opens the sheet.
+- **Section pages:** category band (headlineSmall + site count), level-2 headings with an accent bar,
+  notes as TIP / WARNING callouts, tree Outline ("Return to top", current category highlighted, also
+  in the Categories layout), Legend & options sheet (filter icon) with "Starred only" / "Show indexes".
+  The Categories layout now shows the category heading first. Bottom bar reappears after a jump.
+- **Home:** FMHY logo, sections grouped Wiki / Tools / More in fmhy.net sidebar order (or A–Z),
+  section descriptions, random pick from ~2,100 starred sites (switch in Settings).
+- **Settings:** text size 85–130 %, Accent presets (10) + custom hue/colourfulness, Home and Lists
+  groups. Launcher icon / themed icon / splash use the FMHY logo.
+- Search shows "200+ results" at the cap. Invisible U+2060 etc. stripped from all text.
+
 ### Look
 - Own palette generated from one seed colour (FMHY violet `#7C5CFF`) with
   `com.materialkolor:material-color-utilities` 4.1.1, covering all M3 colour roles. A unit test
@@ -109,7 +129,7 @@ Build only with `./gw` (offline Gradle with a repo-local Gradle home). Use `GW_O
 when a new dependency has to be downloaded.
 
 ```bash
-./gw :core:data:test :app:testDebugUnitTest   # 102 unit tests (68 core + 34 app), all passing
+./gw :core:data:test :app:testDebugUnitTest   # 128 unit tests (78 core + 50 app), all passing
 ./gw :core:data:parityTest                    # Kotlin vs Python parser: 0 mismatches
 ./gw :app:assembleRelease                     # → app/build/outputs/apk/release/app-release.apk
 ```
@@ -127,21 +147,13 @@ Verified for 0.2.0 on the emulator (light, dark, pure black):
 
 ## Known issues and open work
 
-1. **Search caps results at 200.** The count shows "200 results" even when more match
-   (`SearchEngine` default `limit = 200`). Paging or a "200+" label is needed.
-2. **"Recently added" screen** is still missing. The data (added/removed per sync) is recorded, and
-   only the "new since last visit" row uses it.
-3. **Release signing:** the APK uses the debug key. A real keystore and a GitHub/F-Droid release
+1. **Release signing:** the APK uses the debug key. A real keystore and a GitHub/F-Droid release
    still need a decision; there is no git remote yet.
-4. **Custom accent colour:** the seed is already a preference (`accentSeed`) and `ColorSource` is an
-   enum, so a colour picker is a UI-only addition.
-5. Small polish:
-   - The bottom bar stays hidden after a chip-rail jump until you scroll up.
-   - Rows with mirrors are taller (48 dp touch target).
-   - The *Outline* button on the Categories list repeats the list.
-   - 9 cross-links don't resolve (stale FMHY anchors).
-6. `README.md` is outdated: it still says `pipeline/` builds the dataset.
-7. Old Python history/delta code in `pipeline/` is unused (kept as the reference parser).
+2. **"Recently added" screen** is still missing (data is recorded; only the "new since last visit" row uses it).
+3. Search lists single sites, not FMHY lines (a search hit on "AdGuard" shows only AdGuard).
+4. `Note` links open the GitHub markdown; fmhy.net shows the note text as a tooltip.
+5. 9 cross-links don't resolve (stale FMHY anchors).
+6. Old Python history/delta code in `pipeline/` is unused (kept as the reference parser).
 
 ## History
 
@@ -149,3 +161,4 @@ Verified for 0.2.0 on the emulator (light, dark, pure black):
 |---|---|---|
 | 0.1.0 | 2026-10-19 (night) | Direct sync from fmhy/edit, Kotlin parser, bundled snapshot, Home/Section/Search/Settings |
 | 0.2.0 | 2026-10-19 | Fixed section order, in-app cross-links, bottom-bar navigation, Saved, themes (System/Light/Dark, FMHY/Material You, pure black), Categories layout, calmer rows, search filters, splash |
+| 0.3.0 | 2026-10-19 | fmhy.net icons, one row per line, tap = details / hold = open, clear headings + tree outline, legend & filters, text size, accent colours, FMHY logo, website section order |
