@@ -1,6 +1,8 @@
 package io.github.omeg4dev.fmhy
 
 import android.app.Activity
+import io.github.omeg4dev.fmhy.ui.common.pasteResolverFor
+import io.github.omeg4dev.fmhy.ui.common.LocalPasteResolver
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -295,6 +297,7 @@ fun MainNavigation() {
         LocalBottomBarPadding provides bottomBarPadding,
         LocalBottomBarController provides bottomBarController,
         LocalCrossLinks provides crossLinks,
+        LocalPasteResolver provides remember(container) { pasteResolverFor(container) },
         LocalBookmarks provides bookmarksState,
     ) {
         Scaffold(

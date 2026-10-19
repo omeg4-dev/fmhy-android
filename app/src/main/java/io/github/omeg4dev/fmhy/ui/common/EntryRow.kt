@@ -1,6 +1,10 @@
 package io.github.omeg4dev.fmhy.ui.common
 
 import androidx.compose.foundation.rememberScrollState
+import io.github.omeg4dev.fmhy.data.link.PasteResolver
+import io.github.omeg4dev.fmhy.data.link.PasteLinks
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
@@ -389,6 +393,8 @@ fun EntryRow(
         }
     }
 
+    val scope = rememberCoroutineScope()
+    val pasteResolver = LocalPasteResolver.current
     if (showBottomSheet) {
         val context = LocalContext.current
         EntryDetailBottomSheet(
@@ -400,18 +406,24 @@ fun EntryRow(
                 onOpenUrl(url)
             },
             onCopyLink = { url ->
-                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                clipboard.setPrimaryClip(ClipData.newPlainText("URL", url))
-                onShowSnackbar("Link copied to clipboard")
                 showBottomSheet = false
+                scope.launch {
+                    val text = resolvedLinkText(url, pasteResolver, onShowSnackbar)
+                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    clipboard.setPrimaryClip(ClipData.newPlainText("URL", text))
+                    onShowSnackbar(if ('\n' in text) "Links copied to clipboard" else "Link copied to clipboard")
+                }
             },
             onShareLink = { url ->
-                val intent = Intent(Intent.ACTION_SEND).apply {
-                    type = "text/plain"
-                    putExtra(Intent.EXTRA_TEXT, url)
-                }
-                context.startActivity(Intent.createChooser(intent, "Share ${entry.name}"))
                 showBottomSheet = false
+                scope.launch {
+                    val text = resolvedLinkText(url, pasteResolver, onShowSnackbar)
+                    val intent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, text)
+                    }
+                    context.startActivity(Intent.createChooser(intent, "Share ${entry.name}"))
+                }
             },
             onShowSnackbar = onShowSnackbar,
         )
@@ -849,4 +861,15 @@ fun EntryDetailBottomSheet(
             }
         }
     }
+}
+
+/** The link to copy or share: a pastebin-hidden link is decoded first (several links → one per line). */
+private suspend fun resolvedLinkText(
+    url: String,
+    resolver: PasteResolver?,
+    onShowSnackbar: (String) -> Unit,
+): String {
+    if (resolver == null || PasteLinks.rawUrl(url) == null) return url
+    onShowSnackbar("Decoding hidden link…")
+    return resolver.resolve(url)?.joinToString("\n") ?: url
 }

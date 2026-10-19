@@ -196,7 +196,7 @@ private fun PasteChoiceDialog(opener: LinkOpener) {
 
 private var sharedPasteResolver: PasteResolver? = null
 
-private fun pasteResolverFor(container: AppContainer): PasteResolver =
+fun pasteResolverFor(container: AppContainer): PasteResolver =
     synchronized(PasteLinks) {
         sharedPasteResolver ?: PasteResolver(
             container.okHttpClient,
