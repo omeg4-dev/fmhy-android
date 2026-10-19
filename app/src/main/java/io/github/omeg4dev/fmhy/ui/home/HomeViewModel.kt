@@ -9,7 +9,9 @@ import io.github.omeg4dev.fmhy.data.Appearance
 import io.github.omeg4dev.fmhy.data.DatasetStore
 import io.github.omeg4dev.fmhy.data.SettingsRepository
 import io.github.omeg4dev.fmhy.data.model.Entry
+import io.github.omeg4dev.fmhy.data.link.CrossLinks
 import io.github.omeg4dev.fmhy.data.model.Section
+import io.github.omeg4dev.fmhy.ui.section.buildSectionStructure
 import io.github.omeg4dev.fmhy.data.sync.SyncResult
 import io.github.omeg4dev.fmhy.di.AppContainer
 import io.github.omeg4dev.fmhy.di.SyncStatus
@@ -64,10 +66,22 @@ val EDUCATIONAL_TOOLS_SECTION = Section(
     entryCount = 0,
 )
 
+/** Home row id → (section, level-1 category title) it opens. */
+private val ANCHOR_TARGETS = mapOf(
+    "audio-tools" to ("audio" to "Audio Tools"),
+    "educational-tools" to ("educational" to "Educational Tools"),
+)
+
 /** Groups like fmhy.net's sidebar: Wiki, Tools, then everything else. */
-internal fun groupSections(sections: List<Section>, order: SectionOrder): List<SectionGroup> {
+internal fun groupSections(
+    sections: List<Section>,
+    order: SectionOrder,
+    anchorCounts: Map<String, Int> = emptyMap(),
+): List<SectionGroup> {
+    val anchors = listOf(AUDIO_TOOLS_SECTION, EDUCATIONAL_TOOLS_SECTION)
+        .map { it.copy(entryCount = anchorCounts[it.id] ?: 0) }
     if (order != SectionOrder.WEBSITE) {
-        val allSections = (sections + listOf(AUDIO_TOOLS_SECTION, EDUCATIONAL_TOOLS_SECTION))
+        val allSections = (sections + anchors)
             .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.title })
         return listOf(SectionGroup(null, allSections.toImmutableList()))
     }
@@ -90,7 +104,7 @@ internal fun groupSections(sections: List<Section>, order: SectionOrder): List<S
         devToolsIdx != -1 -> devToolsIdx
         else -> toolsList.size
     }
-    toolsList.addAll(insertIdx, listOf(AUDIO_TOOLS_SECTION, EDUCATIONAL_TOOLS_SECTION))
+    toolsList.addAll(insertIdx, anchors)
     byGroup["Tools"] = toolsList
 
     return listOf("Wiki", "Tools", "More").mapNotNull { title ->
@@ -110,6 +124,14 @@ class HomeViewModel(
 
     private var syncingJob: Job? = null
     private var autoHideJob: Job? = null
+
+    /** Site counts for the Home rows that point at a category inside another section (Audio Tools, …). */
+    private suspend fun anchorCounts(): Map<String, Int> = ANCHOR_TARGETS.mapValues { (_, target) ->
+        val (sectionId, title) = target
+        buildSectionStructure(store.sectionItems(sectionId)).categories
+            .firstOrNull { CrossLinks.splitLinkTitle(it.heading.title).first.equals(title, ignoreCase = true) }
+            ?.entryCount ?: 0
+    }
 
     init {
         viewModelScope.launch {
@@ -238,7 +260,7 @@ class HomeViewModel(
                 isReady = true,
                 datasetVersion = version,
                 sections = sections,
-                sectionGroups = groupSections(sections, appearance.sectionOrder).toImmutableList(),
+                sectionGroups = groupSections(sections, appearance.sectionOrder, anchorCounts()).toImmutableList(),
                 newSinceLastVisitCount = newCount,
                 randomPick = pick,
                 isEmptyState = isEmpty,

@@ -10,6 +10,7 @@ import io.github.omeg4dev.fmhy.data.SettingsRepository
 import io.github.omeg4dev.fmhy.data.ThemeMode
 import io.github.omeg4dev.fmhy.data.model.Entry
 import io.github.omeg4dev.fmhy.data.model.Section
+import io.github.omeg4dev.fmhy.data.model.SectionItem
 import io.github.omeg4dev.fmhy.data.model.Tier
 import io.github.omeg4dev.fmhy.data.search.SearchEngine
 import io.github.omeg4dev.fmhy.data.sync.FmhySync
@@ -81,6 +82,7 @@ class HomeViewModelTest {
             return topPick
         }
         override suspend fun countAddedSince(ts: Long): Int = 5
+        override suspend fun sectionItems(sectionId: String): List<SectionItem> = emptyList()
         override suspend fun meta(): Map<String, String> = mapOf(
             "version" to versionVal.toString(),
             "created" to "1700000000"
@@ -459,5 +461,10 @@ class HomeViewModelTest {
         assertEquals(alphaTitles.sortedWith(String.CASE_INSENSITIVE_ORDER), alphaTitles)
         assertTrue(alphaTitles.contains("Audio Tools"))
         assertTrue(alphaTitles.contains("Educational Tools"))
+
+        val counted = groupSections(sections, SectionOrder.WEBSITE, mapOf("audio-tools" to 41, "educational-tools" to 7))
+            .first { it.title == "Tools" }.sections.associate { it.id to it.entryCount }
+        assertEquals(41, counted["audio-tools"])
+        assertEquals(7, counted["educational-tools"])
     }
 }
