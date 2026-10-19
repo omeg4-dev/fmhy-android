@@ -7,6 +7,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
+import io.github.omeg4dev.fmhy.data.link.CrossLinks
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -327,6 +329,53 @@ fun HomeScreen(
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis,
                                         )
+                                    }
+                                    // Where it lives: section icon + "Section › category"; tap opens the section
+                                    val sectionTitle = state.sections.firstOrNull { it.id == pick.sectionId }?.title
+                                    val origin = remember(pick.headingPath, sectionTitle) {
+                                        val segments = pick.headingPath
+                                            .split(Regex("""\s*[›>]\s*"""))
+                                            .filter { it.isNotBlank() }
+                                            .map { CrossLinks.splitLinkTitle(it).first }
+                                        val section = sectionTitle ?: segments.firstOrNull().orEmpty()
+                                        val category = segments.drop(1).lastOrNull()
+                                        listOfNotNull(section.ifEmpty { null }, category).joinToString(" › ")
+                                    }
+                                    if (origin.isNotEmpty()) {
+                                        Spacer(Modifier.height(10.dp))
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier
+                                                .clip(MaterialTheme.shapes.small)
+                                                .clickable {
+                                                    haptics.click()
+                                                    onNavigateToSection(pick.sectionId)
+                                                }
+                                                .padding(vertical = 2.dp),
+                                        ) {
+                                            Surface(
+                                                shape = CircleShape,
+                                                color = MaterialTheme.colorScheme.secondaryContainer,
+                                                modifier = Modifier.size(24.dp),
+                                            ) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Icon(
+                                                        imageVector = sectionIcon(pick.sectionId),
+                                                        contentDescription = null,
+                                                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                                        modifier = Modifier.size(14.dp),
+                                                    )
+                                                }
+                                            }
+                                            Spacer(Modifier.width(8.dp))
+                                            Text(
+                                                text = origin,
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                            )
+                                        }
                                     }
                                 }
                             }
