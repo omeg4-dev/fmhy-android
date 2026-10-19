@@ -235,12 +235,15 @@ fun EntryRow(
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = 56.dp)
+            // Tap shows the details (all sites on the line, mirrors, links); hold opens the site directly.
             .combinedClickable(
-                onClick = { onOpenUrl(entry.url) },
+                onClick = { showBottomSheet = true },
                 onLongClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    showBottomSheet = true
+                    onOpenUrl(entry.url)
                 },
+                onClickLabel = "Show details",
+                onLongClickLabel = "Open site",
             ),
         color = Color.Transparent,
     ) {
@@ -603,7 +606,7 @@ fun EntryDetailBottomSheet(
                 allSites.forEachIndexed { index, site ->
                     if (index > 0) {
                         HorizontalDivider(
-                            modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
+                            modifier = Modifier.padding(horizontal = 24.dp, vertical = if (index == 1) 12.dp else 4.dp),
                             thickness = 0.5.dp,
                             color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
                         )
@@ -616,98 +619,148 @@ fun EntryDetailBottomSheet(
                     }
                     val isSiteSaved = site.id in bookmarksState.savedIds
 
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 24.dp)
-                    ) {
-                        Text(
-                            text = site.name,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = if (index == 0) FontWeight.Bold else FontWeight.Normal,
-                        )
-                        if (siteHost.isNotEmpty()) {
-                            Spacer(Modifier.height(2.dp))
-                            Text(
-                                text = siteHost,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-
-                    // Action row for THIS site
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        // Open
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            horizontalAlignment = Alignment.CenterHorizontally,
+                    if (index > 0) {
+                        // Alternatives on the same line: one compact row, small icon actions.
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 24.dp, end = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            FilledTonalIconButton(
-                                onClick = { onOpenUrl(site.url) },
-                                modifier = Modifier.size(48.dp),
-                            ) {
-                                Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Open")
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = site.name,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                if (siteHost.isNotEmpty()) {
+                                    Text(
+                                        text = siteHost,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                    )
+                                }
                             }
-                            Spacer(Modifier.height(4.dp))
-                            Text("Open", style = MaterialTheme.typography.labelSmall)
-                        }
-
-                        // Copy
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                        ) {
-                            FilledTonalIconButton(
-                                onClick = { onCopyLink(site.url) },
-                                modifier = Modifier.size(48.dp),
-                            ) {
-                                Icon(Icons.Default.ContentCopy, contentDescription = "Copy link")
+                            IconButton(onClick = { onOpenUrl(site.url) }, modifier = Modifier.size(40.dp)) {
+                                Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Open ${site.name}", modifier = Modifier.size(20.dp))
                             }
-                            Spacer(Modifier.height(4.dp))
-                            Text("Copy", style = MaterialTheme.typography.labelSmall)
-                        }
-
-                        // Share
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                        ) {
-                            FilledTonalIconButton(
-                                onClick = { onShareLink(site.url) },
-                                modifier = Modifier.size(48.dp),
-                            ) {
-                                Icon(Icons.Default.Share, contentDescription = "Share")
+                            IconButton(onClick = { onCopyLink(site.url) }, modifier = Modifier.size(40.dp)) {
+                                Icon(Icons.Default.ContentCopy, contentDescription = "Copy link", modifier = Modifier.size(20.dp))
                             }
-                            Spacer(Modifier.height(4.dp))
-                            Text("Share", style = MaterialTheme.typography.labelSmall)
-                        }
-
-                        // Save
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                        ) {
-                            FilledTonalIconButton(
+                            IconButton(onClick = { onShareLink(site.url) }, modifier = Modifier.size(40.dp)) {
+                                Icon(Icons.Default.Share, contentDescription = "Share", modifier = Modifier.size(20.dp))
+                            }
+                            IconButton(
                                 onClick = {
                                     bookmarksState.toggle(site)
                                     onShowSnackbar(if (isSiteSaved) "Removed from Saved" else "Saved")
                                 },
-                                modifier = Modifier.size(48.dp),
+                                modifier = Modifier.size(40.dp),
                             ) {
                                 Icon(
                                     imageVector = if (isSiteSaved) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
                                     contentDescription = if (isSiteSaved) "Saved" else "Save",
-                                    tint = if (isSiteSaved) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                    tint = if (isSiteSaved) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp),
                                 )
                             }
-                            Spacer(Modifier.height(4.dp))
-                            Text(if (isSiteSaved) "Saved" else "Save", style = MaterialTheme.typography.labelSmall)
+                        }
+                    } else {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 24.dp)
+                        ) {
+                            Text(
+                                text = site.name,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = if (index == 0) FontWeight.Bold else FontWeight.Normal,
+                            )
+                            if (siteHost.isNotEmpty()) {
+                                Spacer(Modifier.height(2.dp))
+                                Text(
+                                    text = siteHost,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+
+                        // Action row for THIS site
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            // Open
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                            ) {
+                                FilledTonalIconButton(
+                                    onClick = { onOpenUrl(site.url) },
+                                    modifier = Modifier.size(48.dp),
+                                ) {
+                                    Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Open")
+                                }
+                                Spacer(Modifier.height(4.dp))
+                                Text("Open", style = MaterialTheme.typography.labelSmall)
+                            }
+
+                            // Copy
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                            ) {
+                                FilledTonalIconButton(
+                                    onClick = { onCopyLink(site.url) },
+                                    modifier = Modifier.size(48.dp),
+                                ) {
+                                    Icon(Icons.Default.ContentCopy, contentDescription = "Copy link")
+                                }
+                                Spacer(Modifier.height(4.dp))
+                                Text("Copy", style = MaterialTheme.typography.labelSmall)
+                            }
+
+                            // Share
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                            ) {
+                                FilledTonalIconButton(
+                                    onClick = { onShareLink(site.url) },
+                                    modifier = Modifier.size(48.dp),
+                                ) {
+                                    Icon(Icons.Default.Share, contentDescription = "Share")
+                                }
+                                Spacer(Modifier.height(4.dp))
+                                Text("Share", style = MaterialTheme.typography.labelSmall)
+                            }
+
+                            // Save
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                            ) {
+                                FilledTonalIconButton(
+                                    onClick = {
+                                        bookmarksState.toggle(site)
+                                        onShowSnackbar(if (isSiteSaved) "Removed from Saved" else "Saved")
+                                    },
+                                    modifier = Modifier.size(48.dp),
+                                ) {
+                                    Icon(
+                                        imageVector = if (isSiteSaved) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
+                                        contentDescription = if (isSiteSaved) "Saved" else "Save",
+                                        tint = if (isSiteSaved) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                    )
+                                }
+                                Spacer(Modifier.height(4.dp))
+                                Text(if (isSiteSaved) "Saved" else "Save", style = MaterialTheme.typography.labelSmall)
+                            }
                         }
                     }
 
