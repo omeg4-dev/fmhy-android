@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
@@ -261,23 +262,42 @@ fun EntryRow(
                     overflow = TextOverflow.Ellipsis,
                 )
 
-                entry.mirrors.forEach { mirror ->
-                    Text(
-                        text = ",",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text(
-                        text = mirror.label,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .clickable { onOpenUrl(mirror.url) }
-                            .padding(horizontal = 4.dp, vertical = 2.dp)
-                            .semantics { contentDescription = "Mirror ${mirror.label}" },
-                    )
+                if (entry.mirrors.isNotEmpty()) {
+                    // "7Movies, 2, 3" as on fmhy.net: the comma hugs the name, so no row spacing here.
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.offset(x = (-6).dp),
+                    ) {
+                        entry.mirrors.forEach { mirror ->
+                            Text(
+                                text = ",",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            val mirrorIcon = socialIconFor(mirror.label)
+                            val mirrorModifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .clickable { onOpenUrl(mirror.url) }
+                                .padding(start = 4.dp, end = 1.dp, top = 2.dp, bottom = 2.dp)
+                            if (mirrorIcon != null) {
+                                Icon(
+                                    painter = painterResource(mirrorIcon),
+                                    contentDescription = mirror.label,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = mirrorModifier.size(18.dp),
+                                )
+                            } else {
+                                Text(
+                                    text = mirror.label,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Medium,
+                                    modifier = mirrorModifier
+                                        .semantics { contentDescription = "Mirror ${mirror.label}" },
+                                )
+                            }
+                        }
+                    }
                 }
 
                 if (entry.isBase64) {
