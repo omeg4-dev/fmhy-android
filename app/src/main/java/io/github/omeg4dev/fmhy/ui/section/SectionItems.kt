@@ -201,7 +201,9 @@ fun NoteCallout(
         color = MaterialTheme.colorScheme.surfaceContainerLow,
     ) {
         Row(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier
+                .then(if (hasOverflow) Modifier.clickable { expanded = !expanded } else Modifier)
+                .padding(12.dp),
             verticalAlignment = Alignment.Top,
         ) {
             Icon(
@@ -226,16 +228,13 @@ fun NoteCallout(
                     },
                 )
                 if (hasOverflow) {
-                    TextButton(
-                        onClick = { expanded = !expanded },
-                        contentPadding = PaddingValues(0.dp),
-                        modifier = Modifier.padding(top = 4.dp),
-                    ) {
-                        Text(
-                            text = if (expanded) "Show less" else "Show more",
-                            style = MaterialTheme.typography.labelLarge,
-                        )
-                    }
+                    // A plain label: the whole callout toggles, so no tall button padding is needed.
+                    Text(
+                        text = if (expanded) "Show less" else "Show more",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(top = 6.dp),
+                    )
                 }
             }
         }
