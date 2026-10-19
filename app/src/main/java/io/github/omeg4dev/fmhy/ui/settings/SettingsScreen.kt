@@ -404,7 +404,7 @@ fun SettingsScreen(
                 ListItem(
                     headlineContent = { Text("Sites") },
                     supportingContent = {
-                        Text(if (state.entryCount > 0) "${state.entryCount} entries" else "No dataset loaded")
+                        Text(if (state.entryCount > 0) "%,d sites".format(state.entryCount) else "No dataset loaded")
                     },
                     leadingContent = { Icon(Icons.Default.Storage, contentDescription = null) }
                 )

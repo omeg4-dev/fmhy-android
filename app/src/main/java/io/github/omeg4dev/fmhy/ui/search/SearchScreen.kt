@@ -1,5 +1,6 @@
 package io.github.omeg4dev.fmhy.ui.search
 
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -475,6 +476,7 @@ fun SearchScreen(
                     modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
                 )
                 ListItem(
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                     headlineContent = { Text("Starred by FMHY") },
                     trailingContent = {
                         Switch(
@@ -485,6 +487,7 @@ fun SearchScreen(
                     modifier = Modifier.clickable { viewModel.toggleStarredOnly() },
                 )
                 ListItem(
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                     headlineContent = { Text("Hidden (base64) links") },
                     trailingContent = {
                         Switch(
@@ -505,6 +508,7 @@ fun SearchScreen(
                 state.availableSections.forEach { sec ->
                     val isChecked = state.selectedSectionFilters.contains(sec.id)
                     ListItem(
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                         leadingContent = {
                             Icon(
                                 imageVector = sectionIcon(sec.id),

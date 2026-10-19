@@ -1,5 +1,6 @@
 package io.github.omeg4dev.fmhy.ui.common
 
+import androidx.compose.material3.ListItemDefaults
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -436,6 +437,7 @@ fun EntryDetailBottomSheet(
             val origUrl = entry.originalUrl
             if (entry.isBase64 && !origUrl.isNullOrEmpty()) {
                 ListItem(
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                     headlineContent = { Text("Open original (base64)") },
                     supportingContent = { Text(origUrl, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     leadingContent = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null) },
@@ -452,6 +454,7 @@ fun EntryDetailBottomSheet(
                 )
                 entry.mirrors.forEach { mirror ->
                     ListItem(
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                         headlineContent = { Text("Mirror ${mirror.label}") },
                         supportingContent = { Text(mirror.url, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                         modifier = Modifier.clickable { onOpenUrl(mirror.url) }
@@ -468,6 +471,7 @@ fun EntryDetailBottomSheet(
                 )
                 entry.extraLinks.forEach { extra ->
                     ListItem(
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                         headlineContent = { Text(extra.label) },
                         supportingContent = { Text(extra.url, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                         modifier = Modifier.clickable { onOpenUrl(extra.url) }
