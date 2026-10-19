@@ -10,4 +10,9 @@ data class Appearance(
     val pureBlack: Boolean = false,
     val accentSeed: Int = 0xFF7C5CFF.toInt(),   // FMHY violet; ARGB
     val sectionLayout: SectionLayout = SectionLayout.CONTINUOUS,
+    val textScale: Float = 1.0f,
+    val sectionOrder: SectionOrder = SectionOrder.WEBSITE,
+    val showRandomPick: Boolean = true,
+    val starredOnly: Boolean = false,
+    val showIndexes: Boolean = true,
 )
