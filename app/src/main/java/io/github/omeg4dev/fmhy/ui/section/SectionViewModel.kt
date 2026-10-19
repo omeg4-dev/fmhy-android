@@ -29,6 +29,8 @@ data class SectionUiState(
     val headings: ImmutableList<Heading> = persistentListOf(),
     val structure: SectionStructure = SectionStructure(emptyList(), emptyList(), IntArray(0)),
     val layout: SectionLayout = SectionLayout.CONTINUOUS,
+    val starredOnly: Boolean = false,
+    val showIndexes: Boolean = true,
 )
 
 class SectionViewModel(
@@ -46,22 +48,36 @@ class SectionViewModel(
         settingsRepository.appearance,
     ) { _, _, appearance ->
         if (!store.isAvailable) {
-            return@combine SectionUiState(isLoading = false, layout = appearance.sectionLayout)
+            return@combine SectionUiState(
+                isLoading = false,
+                layout = appearance.sectionLayout,
+                starredOnly = appearance.starredOnly,
+                showIndexes = appearance.showIndexes,
+            )
         }
         withContext(Dispatchers.Default) {
             val sections = store.sections()
             val currentSection = sections.firstOrNull { it.id == sectionId }
-            val sectionItems = store.sectionItems(sectionId).toImmutableList()
-            val sectionHeadings = store.headings(sectionId).toImmutableList()
-            val structure = buildSectionStructure(sectionItems)
+            val rawItems = store.sectionItems(sectionId)
+            val filteredItems = filterSectionItems(
+                items = rawItems,
+                starredOnly = appearance.starredOnly,
+                showIndexes = appearance.showIndexes,
+            ).toImmutableList()
+            val allHeadings = store.headings(sectionId)
+            val keptHeadingIds = filteredItems.filterIsInstance<SectionItem.HeadingItem>().map { it.heading.id }.toSet()
+            val sectionHeadings = allHeadings.filter { it.id in keptHeadingIds }.toImmutableList()
+            val structure = buildSectionStructure(filteredItems)
 
             SectionUiState(
                 isLoading = false,
                 section = currentSection,
-                items = sectionItems,
+                items = filteredItems,
                 headings = sectionHeadings,
                 structure = structure,
                 layout = appearance.sectionLayout,
+                starredOnly = appearance.starredOnly,
+                showIndexes = appearance.showIndexes,
             )
         }
     }.stateIn(
@@ -69,6 +85,18 @@ class SectionViewModel(
         SharingStarted.WhileSubscribed(5000),
         SectionUiState(isLoading = true)
     )
+
+    fun setStarredOnly(starredOnly: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.setStarredOnly(starredOnly)
+        }
+    }
+
+    fun setShowIndexes(showIndexes: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.setShowIndexes(showIndexes)
+        }
+    }
 
     fun refresh() {
         _refreshTrigger.value++
