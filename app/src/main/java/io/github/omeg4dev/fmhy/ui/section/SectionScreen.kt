@@ -191,8 +191,12 @@ fun SectionScreen(
                 )
 
                 if (state.layout == SectionLayout.CONTINUOUS && state.structure.categories.size >= 2) {
-                    val chips = remember(state.structure.categories) {
-                        state.structure.categories.map { CrossLinks.splitLinkTitle(it.heading.title).first }
+                    val chips = remember(state.structure.categories, state.section?.id) {
+                        val sectionId = state.section?.id ?: viewModel.sectionId
+                        state.structure.categories.map {
+                            val title = CrossLinks.splitLinkTitle(it.heading.title).first
+                            flagFor(sectionId, it.heading.title)?.let { flag -> "$flag $title" } ?: title
+                        }
                     }
                     val isAtTop by remember {
                         derivedStateOf {

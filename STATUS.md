@@ -1,15 +1,15 @@
 # FMHY Android: current status
 
-As of **2026-10-19**, version **0.3.0** (versionCode 3). Public repo: https://github.com/omeg4-dev/fmhy-android (`main`).
+As of **2026-10-19**, version **0.4.0** (versionCode 4). Public repo: https://github.com/omeg4-dev/fmhy-android (`main`).
 
 Unofficial native Android client for [FMHY](https://fmhy.net). It needs no account and no server of
 ours: data comes straight from FMHY's public sources and is parsed on the device.
 
 ## Install
 
-- APK: `dist/fmhy-0.3.0.apk` (11.8 MB, R8-shrunk release build, **signed with the debug key**, so
+- APK: `dist/fmhy-0.4.0.apk` (11.8 MB, R8-shrunk release build, **signed with the debug key**, so
   it can only be sideloaded).
-- `adb install -r dist/fmhy-0.3.0.apk` upgrades in place and keeps bookmarks/settings. A DB with an
+- `adb install -r dist/fmhy-0.4.0.apk` upgrades in place and keeps bookmarks/settings. A DB with an
   older schema is replaced by the bundled snapshot on first launch (schema is now 3).
 - Android 8.0+ (minSdk 26), target/compile SDK 36. Material You needs Android 12+.
 
@@ -94,8 +94,17 @@ ours: data comes straight from FMHY's public sources and is parsed on the device
   chooser when it hides several. Results are cached in `files/paste-links.json` (`PasteLinks.kt`).
 - **Random pick** = a safe star: starred, a real site (not an index / section link), not base64, not on
   the unsafe list. The ⭐ shows next to the name in the details sheet; section links say "Opens in the app".
-- **FMHY wordmark** on Home: tap → colour sweep; hold → "FreeMediaHeckYeah".
+- **FMHY wordmark** on Home: tap → colour sweep; hold → "FreeMediaHeckYeah" (stays; hold again folds it).
 - Search shows "200+ results" at the cap. Invisible U+2060 etc. stripped from all text.
+
+### 0.4.0 additions
+- Home Tools group lists **Audio Tools** and **Educational Tools** (fmhy.net sidebar anchors
+  `/audio#audio-tools`, `/educational#educational-tools`), opening the section at that category.
+- **Haptic feedback** (Settings toggle, default on): rows, sheet buttons, Home, wordmark, bottom bar, switches, sliders.
+- Custom accent **Colourfulness** works: schemes use `SchemeFidelity` (honours seed chroma) instead of TonalSpot.
+- **Icon legend** screen (Settings → Icon legend, and "All icons…" in the section Legend sheet): markers,
+  platforms, link icons, row elements, gestures.
+- **Country flags** for Non-English categories (band, outline, Categories list, chips) via `ui/section/LanguageFlags.kt`.
 
 ### Look
 - Own palette generated from one seed colour (FMHY violet `#7C5CFF`) with
@@ -167,4 +176,5 @@ Verified for 0.2.0 on the emulator (light, dark, pure black):
 |---|---|---|
 | 0.1.0 | 2026-10-19 (night) | Direct sync from fmhy/edit, Kotlin parser, bundled snapshot, Home/Section/Search/Settings |
 | 0.2.0 | 2026-10-19 | Fixed section order, in-app cross-links, bottom-bar navigation, Saved, themes (System/Light/Dark, FMHY/Material You, pure black), Categories layout, calmer rows, search filters, splash |
+| 0.4.0 | 2026-10-19 | Audio/Educational Tools on Home, haptics, working colourfulness, icon legend, Non-English flags, wordmark stays expanded |
 | 0.3.0 | 2026-10-19 | fmhy.net icons, one row per line, tap = details / hold = open, clear headings + tree outline, legend & filters, text size, accent colours, FMHY logo, website section order |

@@ -298,12 +298,6 @@ fun LegendScreen(
                                 tint = MaterialTheme.colorScheme.tertiary,
                                 modifier = Modifier.size(14.dp),
                             )
-                            Text(
-                                text = "TIP",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.tertiary,
-                            )
                         }
                     }
                 }
@@ -328,12 +322,6 @@ fun LegendScreen(
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.error,
                                 modifier = Modifier.size(14.dp),
-                            )
-                            Text(
-                                text = "WARNING",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.error,
                             )
                         }
                     }
