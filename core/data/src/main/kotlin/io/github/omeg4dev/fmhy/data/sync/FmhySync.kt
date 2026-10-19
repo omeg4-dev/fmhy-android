@@ -493,6 +493,7 @@ open class FmhySync(
                         oldTagsStr != newRow.tags ||
                         old.headingPath != newRow.headingPath ||
                         old.tier.value != newRow.tier ||
+                        old.kind.value != newRow.kind ||
                         old.isInlineMore != newRow.isInlineMore ||
                         old.isBase64 != newRow.isBase64 ||
                         oldMirrorsJson != newMirrorsJson ||
@@ -632,9 +633,9 @@ open class FmhySync(
                         val sqlInsertEntry = """
                             INSERT INTO entries (
                                 num, id, section_id, heading_id, ord, name, url, original_url,
-                                description, tags, heading_path, tier, is_inline_more, is_base64,
+                                description, tags, heading_path, tier, kind, is_inline_more, is_base64,
                                 mirrors, extra_links, first_seen, last_changed, starred_at
-                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """.trimIndent()
                         conn.prepare(sqlInsertEntry).use { insStmt ->
                             conn.prepare("INSERT INTO changes (ts, kind, entry_id, section_id, name, url, detail, commit_sha) VALUES (?, 'added', ?, ?, ?, ?, '', '')").use { chStmt ->
@@ -654,13 +655,14 @@ open class FmhySync(
                                     insStmt.bindText(10, ins.tags)
                                     insStmt.bindText(11, ins.headingPath)
                                     insStmt.bindLong(12, ins.tier.toLong())
-                                    insStmt.bindLong(13, if (ins.isInlineMore) 1L else 0L)
-                                    insStmt.bindLong(14, if (ins.isBase64) 1L else 0L)
-                                    insStmt.bindText(15, json.encodeToString(ins.mirrors))
-                                    insStmt.bindText(16, json.encodeToString(ins.extraLinks))
-                                    insStmt.bindLong(17, now)
+                                    insStmt.bindLong(13, ins.kind.toLong())
+                                    insStmt.bindLong(14, if (ins.isInlineMore) 1L else 0L)
+                                    insStmt.bindLong(15, if (ins.isBase64) 1L else 0L)
+                                    insStmt.bindText(16, json.encodeToString(ins.mirrors))
+                                    insStmt.bindText(17, json.encodeToString(ins.extraLinks))
                                     insStmt.bindLong(18, now)
-                                    if (starredAt != null) insStmt.bindLong(19, starredAt) else insStmt.bindNull(19)
+                                    insStmt.bindLong(19, now)
+                                    if (starredAt != null) insStmt.bindLong(20, starredAt) else insStmt.bindNull(20)
                                     insStmt.step()
                                     insStmt.reset()
 
@@ -680,7 +682,7 @@ open class FmhySync(
                             UPDATE entries SET
                                 section_id = ?, heading_id = ?, ord = ?, name = ?, url = ?,
                                 original_url = ?, description = ?, tags = ?, heading_path = ?,
-                                tier = ?, is_inline_more = ?, is_base64 = ?, mirrors = ?,
+                                tier = ?, kind = ?, is_inline_more = ?, is_base64 = ?, mirrors = ?,
                                 extra_links = ?, last_changed = ?, starred_at = ?
                             WHERE id = ?
                         """.trimIndent()
@@ -705,13 +707,14 @@ open class FmhySync(
                                     upStmt.bindText(8, row.tags)
                                     upStmt.bindText(9, row.headingPath)
                                     upStmt.bindLong(10, row.tier.toLong())
-                                    upStmt.bindLong(11, if (row.isInlineMore) 1L else 0L)
-                                    upStmt.bindLong(12, if (row.isBase64) 1L else 0L)
-                                    upStmt.bindText(13, json.encodeToString(row.mirrors))
-                                    upStmt.bindText(14, json.encodeToString(row.extraLinks))
-                                    upStmt.bindLong(15, now)
-                                    if (starredAt != null) upStmt.bindLong(16, starredAt) else upStmt.bindNull(16)
-                                    upStmt.bindText(17, row.id)
+                                    upStmt.bindLong(11, row.kind.toLong())
+                                    upStmt.bindLong(12, if (row.isInlineMore) 1L else 0L)
+                                    upStmt.bindLong(13, if (row.isBase64) 1L else 0L)
+                                    upStmt.bindText(14, json.encodeToString(row.mirrors))
+                                    upStmt.bindText(15, json.encodeToString(row.extraLinks))
+                                    upStmt.bindLong(16, now)
+                                    if (starredAt != null) upStmt.bindLong(17, starredAt) else upStmt.bindNull(17)
+                                    upStmt.bindText(18, row.id)
                                     upStmt.step()
                                     upStmt.reset()
 

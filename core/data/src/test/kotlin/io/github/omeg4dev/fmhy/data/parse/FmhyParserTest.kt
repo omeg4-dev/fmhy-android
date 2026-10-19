@@ -204,4 +204,45 @@ class FmhyParserTest {
         assertTrue(parsed.entries[0].headingPath.contains("Level 1"))
         assertTrue(parsed.entries[0].headingPath.contains("Level 2"))
     }
+
+    @Test
+    fun testEntryKinds() {
+        val line1 = "* 🌐 **[Foo](https://a)** - Bar"
+        val p1 = parseLine(line1)
+        assertEquals(1, p1.entries.size)
+        assertEquals(1, p1.entries[0].kind)
+        assertEquals("Foo", p1.entries[0].name)
+
+        val line2 = "* ↪️ [Baz](https://b)"
+        val p2 = parseLine(line2)
+        assertEquals(1, p2.entries.size)
+        assertEquals(2, p2.entries[0].kind)
+        assertEquals("Baz", p2.entries[0].name)
+
+        val line3 = "* ⭐ 🌐 [Q](https://q)"
+        val p3 = parseLine(line3)
+        assertEquals(1, p3.entries.size)
+        assertEquals(1, p3.entries[0].tier)
+        assertEquals(1, p3.entries[0].kind)
+        assertEquals("Q", p3.entries[0].name)
+    }
+
+    @Test
+    fun testInvisibleCharsStripped() {
+        val line = "* [\u2060Foo\u2060Bar\u200B](https://example.com) - \u200CTest\uFEFF"
+        val parsed = parseLine(line)
+        assertEquals(1, parsed.entries.size)
+        assertEquals("FooBar", parsed.entries[0].name)
+        assertEquals("Test", parsed.entries[0].description)
+    }
+
+    @Test
+    fun testSocialLinksExtractionFromMixedSegment() {
+        val line = "* [Movy](https://m) - Movies / TV / Join our [Discord](https://d)"
+        val parsed = parseLine(line)
+        assertEquals(1, parsed.entries.size)
+        val e = parsed.entries[0]
+        assertTrue(e.extraLinks.any { it.label == "Discord" && it.url == "https://d" })
+        assertTrue(!e.description.contains("Discord"))
+    }
 }

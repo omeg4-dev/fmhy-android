@@ -30,7 +30,7 @@ class DatasetStoreTest {
         fun createSampleDb(dbFile: File, version: Long = 1L): DatasetStore {
             val conn = BundledSQLiteDriver().open(dbFile.absolutePath)
             executeSqlScript(conn, loadSchemaSql())
-            conn.execSQL("INSERT INTO meta (key, value) VALUES ('schema', '1'), ('version', '$version');")
+            conn.execSQL("INSERT INTO meta (key, value) VALUES ('schema', '$DATASET_SCHEMA'), ('version', '$version');")
             conn.close()
             return DatasetStore(dbFile)
         }
@@ -220,6 +220,69 @@ class DatasetStoreTest {
             }
         }
         assertTrue("checked only $checked items", checked > 15_000)
+        store.close()
+    }
+
+    @Test
+    fun testSchemaCurrentCheck() = runTest {
+        val dbCurrent = tempFolder.newFile("current_schema.db")
+        val storeCurrent = createSampleDb(dbCurrent)
+        assertTrue(storeCurrent.isSchemaCurrent())
+        assertEquals(DATASET_SCHEMA, storeCurrent.schemaVersion())
+        storeCurrent.close()
+
+        val dbOld = tempFolder.newFile("old_schema.db")
+        val conn = BundledSQLiteDriver().open(dbOld.absolutePath)
+        executeSqlScript(conn, loadSchemaSql())
+        conn.execSQL("INSERT INTO meta (key, value) VALUES ('schema', '1'), ('version', '1');")
+        conn.close()
+
+        val storeOld = DatasetStore(dbOld)
+        assertEquals(false, storeOld.isSchemaCurrent())
+        assertEquals(1, storeOld.schemaVersion())
+        storeOld.close()
+
+        val nonExistent = DatasetStore(File(tempFolder.root, "does_not_exist.db"))
+        assertEquals(false, nonExistent.isSchemaCurrent())
+        assertNull(nonExistent.schemaVersion())
+    }
+
+    @Test
+    fun testRandomTopPickDrawsFromTier1And2() = runTest {
+        val dbFile = tempFolder.newFile("sample_pick.db")
+        val store = createSampleDb(dbFile)
+
+        store.withConnection { conn ->
+            conn.execSQL("INSERT INTO sections (id, title, description, file, ord) VALUES ('s1', 'S1', '', 's1.md', 1);")
+            conn.execSQL("INSERT INTO entries (num, id, section_id, heading_id, ord, name, url, original_url, description, tags, heading_path, tier, kind, is_inline_more, is_base64, mirrors, extra_links, first_seen, last_changed, starred_at) VALUES (1, 'star1', 's1', NULL, 1, 'Star 1', 'https://star1.com', NULL, '', '', '', 1, 0, 0, 0, '[]', '[]', 1000, 1000, 1000);")
+            conn.execSQL("INSERT INTO entries (num, id, section_id, heading_id, ord, name, url, original_url, description, tags, heading_path, tier, kind, is_inline_more, is_base64, mirrors, extra_links, first_seen, last_changed, starred_at) VALUES (2, 'norm1', 's1', NULL, 2, 'Norm 1', 'https://norm1.com', NULL, '', '', '', 0, 0, 0, 0, '[]', '[]', 1000, 1000, NULL);")
+        }
+
+        val pick = store.randomTopPick()
+        assertNotNull(pick)
+        assertEquals("star1", pick?.id)
+        assertEquals(Tier.STAR, pick?.tier)
+        store.close()
+    }
+
+    @Test
+    fun testSectionOrderingWebsiteAndAlphabetical() = runTest {
+        val dbFile = tempFolder.newFile("sample_order.db")
+        val store = createSampleDb(dbFile)
+
+        store.withConnection { conn ->
+            conn.execSQL("INSERT INTO sections (id, title, description, file, ord) VALUES ('video', 'Video', '', 'video.md', 1);")
+            conn.execSQL("INSERT INTO sections (id, title, description, file, ord) VALUES ('ai', 'Artificial Intelligence', '', 'ai.md', 2);")
+            conn.execSQL("INSERT INTO sections (id, title, description, file, ord) VALUES ('privacy', 'Privacy', '', 'privacy.md', 3);")
+            conn.execSQL("INSERT INTO sections (id, title, description, file, ord) VALUES ('zzz', 'Zzz', '', 'zzz.md', 4);")
+        }
+
+        val websiteOrder = store.sections(SectionOrder.WEBSITE).map { it.id }
+        assertEquals(listOf("privacy", "ai", "video", "zzz"), websiteOrder)
+
+        val alphaOrder = store.sections(SectionOrder.ALPHABETICAL).map { it.id }
+        assertEquals(listOf("ai", "privacy", "video", "zzz"), alphaOrder)
+
         store.close()
     }
 }

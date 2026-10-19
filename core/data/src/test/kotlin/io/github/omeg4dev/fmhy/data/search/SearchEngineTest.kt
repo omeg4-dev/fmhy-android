@@ -135,7 +135,7 @@ class SearchEngineTest {
         val dbFile = tempFolder.newFile("perf_30k.db")
         val conn = BundledSQLiteDriver().open(dbFile.absolutePath)
         DatasetStoreTest.executeSqlScript(conn, DatasetStoreTest.loadSchemaSql())
-        conn.execSQL("INSERT INTO meta (key, value) VALUES ('schema', '1'), ('version', '1');")
+        conn.execSQL("INSERT INTO meta (key, value) VALUES ('schema', '2'), ('version', '1');")
         conn.execSQL("INSERT INTO sections (id, title, description, file, ord) VALUES ('sec1', 'Main Section', 'Desc', 'sec1.md', 1);")
 
         conn.execSQL("BEGIN TRANSACTION;")

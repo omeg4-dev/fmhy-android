@@ -16,7 +16,7 @@ object FmhyParser {
     private val BACK_TO_TOP_RE = Regex("""^\[.*]\(#\S*\)\s*$""")
 
     fun parseSection(section: SectionInfo, markdown: String, b64: Base64Map): ParsedSection {
-        val lines = markdown.lines()
+        val lines = markdown.lines().map { stripInvisibleChars(it) }
         val headings = mutableListOf<HeadingRow>()
         val entries = mutableListOf<EntryRow>()
         val notes = mutableListOf<NoteRow>()
@@ -180,6 +180,7 @@ object FmhyParser {
                             tags = p.tags,
                             headingPath = p.headingPath,
                             tier = p.tier,
+                            kind = p.kind,
                             isInlineMore = p.isInlineMore,
                             isBase64 = originalUrl != null,
                             mirrors = allMirrors,
@@ -218,6 +219,7 @@ object FmhyParser {
                                     tags = p.tags,
                                     headingPath = p.headingPath,
                                     tier = p.tier,
+                                    kind = p.kind,
                                     isInlineMore = p.isInlineMore,
                                     isBase64 = originalUrl != null,
                                     mirrors = allMirrors,
@@ -235,10 +237,49 @@ object FmhyParser {
         return ParsedSection(section, headings, entries, notes, unparsedLines)
     }
 
+    fun stripInvisibleChars(text: String): String {
+        if (!text.any { it == '\u2060' || it == '\u200B' || it == '\u200C' || it == '\uFEFF' }) {
+            return text
+        }
+        val sb = StringBuilder(text.length)
+        for (i in 0 until text.length) {
+            val c = text[i]
+            if (c != '\u2060' && c != '\u200B' && c != '\u200C' && c != '\uFEFF') {
+                sb.append(c)
+            }
+        }
+        return sb.toString()
+    }
+
+    private val SOCIAL_LABELS = setOf(
+        "discord", "github", "gitlab", "source code", "telegram",
+        "subreddit", "x", "mastodon", "bluesky", ".onion", "status"
+    )
+
+    fun cleanDanglingSeparators(s: String): String {
+        var str = s.trim()
+        var changed = true
+        while (changed && str.isNotEmpty()) {
+            changed = false
+            str = str.trim()
+            if (str.endsWith(",") || str.endsWith("/")) {
+                str = str.dropLast(1).trim()
+                changed = true
+            }
+            if (str.startsWith(",") || str.startsWith("/")) {
+                str = str.drop(1).trim()
+                changed = true
+            }
+        }
+        str = str.replace(Regex("""\s+"""), " ")
+        return str
+    }
+
     private data class PartialEntry(
         val name: String,
         val url: String,
         val tier: Int,
+        var kind: Int = 0,
         val isInlineMore: Boolean,
         val headingId: String?,
         val headingPath: String,
@@ -255,14 +296,16 @@ object FmhyParser {
         headingPath: String,
         isInlineMore: Boolean
     ): List<PartialEntry>? {
-        val (tier, withoutTier) = detectTier(content)
-        val (head, desc) = splitHeadDesc(withoutTier)
+        val cleaned = stripInvisibleChars(content)
+        val (tier, kind, withoutTierAndKind) = detectTierAndKind(cleaned)
+        val (head, desc) = splitHeadDesc(withoutTierAndKind)
 
         if (!head.contains('[')) {
             return null
         }
 
-        val entryCandidates = parseHeadLinks(head, tier, isInlineMore, headingId, headingPath)
+        val lineKind = if (isInlineMore) 0 else kind
+        val entryCandidates = parseHeadLinks(head, tier, lineKind, isInlineMore, headingId, headingPath)
         if (entryCandidates.isEmpty()) {
             return null
         }
@@ -280,15 +323,48 @@ object FmhyParser {
         return entryCandidates
     }
 
+    fun detectTierAndKind(line: String): Triple<Int, Int, String> {
+        var tier = 0
+        var kind = 0
+        var s = line.trimStart()
+
+        for (step in 0 until 2) {
+            s = s.trimStart()
+            if (tier == 0) {
+                if (s.startsWith("🌟")) {
+                    tier = 2
+                    s = s.substring("🌟".length)
+                    continue
+                } else if (s.startsWith("⭐")) {
+                    tier = 1
+                    s = s.substring("⭐".length)
+                    continue
+                }
+            }
+            if (kind == 0) {
+                if (s.startsWith("🌐")) {
+                    kind = 1
+                    s = s.substring("🌐".length)
+                    if (s.startsWith("\uFE0F")) s = s.substring(1)
+                    continue
+                } else if (s.startsWith("↪️")) {
+                    kind = 2
+                    s = s.substring("↪️".length)
+                    continue
+                } else if (s.startsWith("↪")) {
+                    kind = 2
+                    s = s.substring("↪".length)
+                    if (s.startsWith("\uFE0F")) s = s.substring(1)
+                    continue
+                }
+            }
+        }
+        return Triple(tier, kind, s.trimStart())
+    }
+
     fun detectTier(line: String): Pair<Int, String> {
-        val stripped = line.trimStart()
-        if (stripped.startsWith("🌟")) {
-            return 2 to stripped.substring("🌟".length).trimStart()
-        }
-        if (stripped.startsWith("⭐")) {
-            return 1 to stripped.substring("⭐".length).trimStart()
-        }
-        return 0 to stripped
+        val (tier, _, rest) = detectTierAndKind(line)
+        return tier to rest
     }
 
     fun splitHeadDesc(line: String): Pair<String, String> {
@@ -331,6 +407,7 @@ object FmhyParser {
     private fun parseHeadLinks(
         headText: String,
         tier: Int,
+        lineKind: Int,
         isInlineMore: Boolean,
         headingId: String?,
         headingPath: String
@@ -345,12 +422,13 @@ object FmhyParser {
             current = null
         }
 
-        fun newEntry(name: String, url: String, linkTier: Int) {
+        fun newEntry(name: String, url: String, linkTier: Int, linkKind: Int) {
             finishEntry()
             current = PartialEntry(
                 name = stripLeadingEmoji(name).trim(),
                 url = url,
                 tier = linkTier,
+                kind = linkKind,
                 isInlineMore = isInlineMore,
                 headingId = headingId,
                 headingPath = headingPath
@@ -378,8 +456,15 @@ object FmhyParser {
                     if (isExtra) {
                         current!!.extraLinks.add(LinkRow(link.label, link.url))
                     } else {
-                        val linkTier = if (inBold) tier else 0
-                        newEntry(link.label, link.url, linkTier)
+                        val isFirstEntry = entries.isEmpty() && current == null
+                        val linkTier = if (inBold || isFirstEntry) tier else 0
+                        val linkKind = when {
+                            link.label.trimStart().startsWith("🌐") || sepText.contains("🌐") -> 1
+                            link.label.trimStart().startsWith("↪") || sepText.contains("↪") -> 2
+                            isFirstEntry -> lineKind
+                            else -> 0
+                        }
+                        newEntry(link.label, link.url, linkTier, linkKind)
                     }
                 }
                 i = link.endIndex
@@ -417,7 +502,20 @@ object FmhyParser {
             if (links.size == 1 && isSoleLink(partTrimmed, links[0])) {
                 extraLinks.add(LinkRow(links[0].label, links[0].url))
             } else {
-                tagParts.add(markdownToPlain(partTrimmed))
+                val socialLinks = links.filter { it.label.trim().lowercase() in SOCIAL_LABELS }
+                if (socialLinks.isNotEmpty()) {
+                    extraLinks.addAll(socialLinks.map { LinkRow(it.label, it.url) })
+                    var currentText = partTrimmed
+                    for (sl in socialLinks.sortedByDescending { it.startIndex }) {
+                        currentText = currentText.substring(0, sl.startIndex) + currentText.substring(sl.endIndex)
+                    }
+                    val cleaned = cleanDanglingSeparators(currentText)
+                    if (cleaned.isNotEmpty()) {
+                        tagParts.add(markdownToPlain(cleaned))
+                    }
+                } else {
+                    tagParts.add(markdownToPlain(partTrimmed))
+                }
             }
         }
 

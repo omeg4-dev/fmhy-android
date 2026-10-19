@@ -2,6 +2,7 @@ package io.github.omeg4dev.fmhy.data.snapshot
 
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import androidx.sqlite.execSQL
+import io.github.omeg4dev.fmhy.data.DATASET_SCHEMA
 import io.github.omeg4dev.fmhy.data.DatasetStore
 import io.github.omeg4dev.fmhy.data.parse.Base64Map
 import io.github.omeg4dev.fmhy.data.parse.FmhyParser
@@ -154,9 +155,9 @@ object SnapshotBuilder {
             val sqlEntry = """
                 INSERT INTO entries (
                     num, id, section_id, heading_id, ord, name, url, original_url,
-                    description, tags, heading_path, tier, is_inline_more, is_base64,
+                    description, tags, heading_path, tier, kind, is_inline_more, is_base64,
                     mirrors, extra_links, first_seen, last_changed, starred_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """.trimIndent()
             conn.prepare(sqlEntry).use { stmt ->
                 for (p in parsedSections) {
@@ -177,13 +178,14 @@ object SnapshotBuilder {
                         stmt.bindText(10, e.tags)
                         stmt.bindText(11, e.headingPath)
                         stmt.bindLong(12, e.tier.toLong())
-                        stmt.bindLong(13, if (e.isInlineMore) 1L else 0L)
-                        stmt.bindLong(14, if (e.isBase64) 1L else 0L)
-                        stmt.bindText(15, json.encodeToString(e.mirrors))
-                        stmt.bindText(16, json.encodeToString(e.extraLinks))
-                        stmt.bindLong(17, now)
+                        stmt.bindLong(13, e.kind.toLong())
+                        stmt.bindLong(14, if (e.isInlineMore) 1L else 0L)
+                        stmt.bindLong(15, if (e.isBase64) 1L else 0L)
+                        stmt.bindText(16, json.encodeToString(e.mirrors))
+                        stmt.bindText(17, json.encodeToString(e.extraLinks))
                         stmt.bindLong(18, now)
-                        if (starredAt != null) stmt.bindLong(19, starredAt) else stmt.bindNull(19)
+                        stmt.bindLong(19, now)
+                        if (starredAt != null) stmt.bindLong(20, starredAt) else stmt.bindNull(20)
                         stmt.step()
                         stmt.reset()
                     }
@@ -205,7 +207,7 @@ object SnapshotBuilder {
             val sqlMeta = "INSERT INTO meta (key, value) VALUES (?, ?)"
             conn.prepare(sqlMeta).use { stmt ->
                 val metaRows = listOf(
-                    "schema" to "1",
+                    "schema" to DATASET_SCHEMA.toString(),
                     "version" to "1",
                     "created" to now.toString(),
                     "last_sync" to now.toString(),

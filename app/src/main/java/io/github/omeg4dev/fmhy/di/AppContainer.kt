@@ -151,7 +151,8 @@ class DefaultAppContainer(override val context: Context) : AppContainer {
     override fun initialize() {
         appScope.launch(Dispatchers.IO) {
             try {
-                if (!dbFile.exists()) {
+                if (!dbFile.exists() || !datasetStore.isSchemaCurrent()) {
+                    datasetStore.close()
                     installSnapshotIfAvailable()
                 }
             } catch (e: Exception) {

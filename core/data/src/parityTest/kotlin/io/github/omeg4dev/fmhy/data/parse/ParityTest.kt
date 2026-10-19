@@ -43,6 +43,7 @@ data class JsonEntry(
     val original_url: String? = null,
     val is_base64: Int,
     val tier: Int,
+    val kind: Int = 0,
     val is_inline_more: Int,
     val mirrors: List<JsonLink> = emptyList(),
     val extra_links: List<JsonLink> = emptyList(),
@@ -214,6 +215,9 @@ class ParityTest {
                 }
                 if (act.tier != exp.tier) {
                     secMismatches.add("${sec.id} / ${act.ord} / entry.tier: expected ${exp.tier} got ${act.tier}")
+                }
+                if (act.kind != exp.kind) {
+                    secMismatches.add("${sec.id} / ${act.ord} / entry.kind: expected ${exp.kind} got ${act.kind}")
                 }
                 val actMore = if (act.isInlineMore) 1 else 0
                 if (actMore != exp.is_inline_more) {
