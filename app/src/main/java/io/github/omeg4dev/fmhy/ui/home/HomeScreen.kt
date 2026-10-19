@@ -330,17 +330,18 @@ fun HomeScreen(
                     }
 
                     // Sections header
-                    item(key = "sections-header") {
+                    state.sectionGroups.forEach { group ->
+                    item(key = "sections-header-${group.title}") {
                         Text(
-                            text = "Sections",
+                            text = group.title ?: "Sections",
                             style = MaterialTheme.typography.titleSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(start = 16.dp, top = 20.dp, bottom = 8.dp),
                         )
                     }
 
-                    // Sections list inside one Surface
-                    item(key = "sections-list") {
+                    // Sections of one group inside one Surface
+                    item(key = "sections-list-${group.title}") {
                         Surface(
                             shape = MaterialTheme.shapes.large,
                             color = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -349,7 +350,7 @@ fun HomeScreen(
                                 .padding(horizontal = 16.dp),
                         ) {
                             Column(modifier = Modifier.fillMaxWidth()) {
-                                state.sections.forEachIndexed { index, section ->
+                                group.sections.forEachIndexed { index, section ->
                                     if (index > 0) {
                                         HorizontalDivider(
                                             modifier = Modifier.padding(start = 72.dp),
@@ -387,10 +388,19 @@ fun HomeScreen(
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis,
                                             )
+                                            if (section.description.isNotBlank()) {
+                                                Text(
+                                                    text = section.description,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    maxLines = 2,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                )
+                                            }
                                             Text(
                                                 text = "${"%,d".format(section.entryCount)} sites",
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = MaterialTheme.colorScheme.primary,
                                             )
                                         }
                                         Icon(
@@ -402,6 +412,7 @@ fun HomeScreen(
                                 }
                             }
                         }
+                    }
                     }
                 }
             }

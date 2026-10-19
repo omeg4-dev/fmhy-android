@@ -1,6 +1,8 @@
 package io.github.omeg4dev.fmhy.ui.home
 
 import androidx.compose.runtime.Immutable
+import io.github.omeg4dev.fmhy.data.parse.Sections
+import io.github.omeg4dev.fmhy.data.SectionOrder
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.omeg4dev.fmhy.data.Appearance
@@ -36,11 +38,33 @@ data class HomeUiState(
     val isReady: Boolean = false,
     val datasetVersion: Long = 0L,
     val sections: ImmutableList<Section> = persistentListOf(),
+    val sectionGroups: ImmutableList<SectionGroup> = persistentListOf(),
     val newSinceLastVisitCount: Int = 0,
     val randomPick: Entry? = null,
     val isEmptyState: Boolean = false,
     val syncBanner: SyncBannerUiState? = null,
 )
+
+/** A titled block of sections on Home; [title] is null when the list is not grouped (A–Z). */
+data class SectionGroup(val title: String?, val sections: ImmutableList<Section>)
+
+/** Groups like fmhy.net's sidebar: Wiki, Tools, then everything else. */
+internal fun groupSections(sections: List<Section>, order: SectionOrder): List<SectionGroup> {
+    if (order != SectionOrder.WEBSITE) return listOf(SectionGroup(null, sections.toImmutableList()))
+    val toolsStart = Sections.SIDEBAR_ORDER.indexOf("system-tools")
+    val toolsEnd = Sections.SIDEBAR_ORDER.indexOf("developer-tools")
+    val byGroup = sections.groupBy {
+        val idx = Sections.SIDEBAR_ORDER.indexOf(it.id)
+        when {
+            idx in 0 until toolsStart -> "Wiki"
+            idx in toolsStart..toolsEnd -> "Tools"
+            else -> "More"
+        }
+    }
+    return listOf("Wiki", "Tools", "More").mapNotNull { title ->
+        byGroup[title]?.let { SectionGroup(title, it.toImmutableList()) }
+    }
+}
 
 class HomeViewModel(
     private val store: DatasetStore,
@@ -182,6 +206,7 @@ class HomeViewModel(
                 isReady = true,
                 datasetVersion = version,
                 sections = sections,
+                sectionGroups = groupSections(sections, appearance.sectionOrder).toImmutableList(),
                 newSinceLastVisitCount = newCount,
                 randomPick = pick,
                 isEmptyState = isEmpty,
