@@ -62,6 +62,7 @@ import io.github.omeg4dev.fmhy.nav.LocalBottomBarPadding
 import io.github.omeg4dev.fmhy.nav.Tab
 import io.github.omeg4dev.fmhy.ui.common.SyncBanner
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
+import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
 import io.github.omeg4dev.fmhy.ui.common.sectionIcon
 import kotlinx.coroutines.flow.filter
@@ -80,6 +81,7 @@ fun HomeScreen(
     val linkOpener = rememberLinkOpener(container, onShowSnackbar)
     val listState = rememberLazyListState()
     val nav = LocalAppNav.current
+    val haptics = rememberHaptics()
 
     LaunchedEffect(nav) {
         nav.reselect.filter { it == Tab.BROWSE }.collect {
@@ -262,7 +264,10 @@ fun HomeScreen(
                     state.randomPick?.let { pick ->
                         item(key = "random-pick") {
                             Surface(
-                                onClick = { linkOpener.openUrl(pick.url) },
+                                onClick = {
+                                    haptics.click()
+                                    linkOpener.openUrl(pick.url)
+                                },
                                 shape = MaterialTheme.shapes.large,
                                 color = MaterialTheme.colorScheme.surfaceContainerLow,
                                 modifier = Modifier
@@ -292,7 +297,10 @@ fun HomeScreen(
                                             modifier = Modifier.weight(1f),
                                         )
                                         IconButton(
-                                            onClick = { viewModel.refreshRandomPick() },
+                                            onClick = {
+                                                haptics.click()
+                                                viewModel.refreshRandomPick()
+                                            },
                                             modifier = Modifier.size(24.dp),
                                         ) {
                                             Icon(
@@ -359,7 +367,14 @@ fun HomeScreen(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .heightIn(min = 64.dp)
-                                            .clickable { onNavigateToSection(section.id) }
+                                            .clickable {
+                                                haptics.click()
+                                                when (section.id) {
+                                                    "audio-tools" -> linkOpener.openUrl("https://fmhy.net/audio#audio-tools")
+                                                    "educational-tools" -> linkOpener.openUrl("https://fmhy.net/educational#educational-tools")
+                                                    else -> onNavigateToSection(section.id)
+                                                }
+                                            }
                                             .padding(horizontal = 16.dp, vertical = 8.dp),
                                     ) {
                                         Surface(
@@ -393,11 +408,13 @@ fun HomeScreen(
                                                     overflow = TextOverflow.Ellipsis,
                                                 )
                                             }
-                                            Text(
-                                                text = "${"%,d".format(section.entryCount)} sites",
-                                                style = MaterialTheme.typography.labelMedium,
-                                                color = MaterialTheme.colorScheme.primary,
-                                            )
+                                            if (section.entryCount > 0) {
+                                                Text(
+                                                    text = "${"%,d".format(section.entryCount)} sites",
+                                                    style = MaterialTheme.typography.labelMedium,
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                )
+                                            }
                                         }
                                         Icon(
                                             imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,

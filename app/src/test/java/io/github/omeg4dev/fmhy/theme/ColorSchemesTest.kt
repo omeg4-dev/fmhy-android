@@ -1,6 +1,8 @@
 package io.github.omeg4dev.fmhy.theme
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import com.materialkolor.hct.Hct
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -99,5 +101,19 @@ class ColorSchemesTest {
             assertEquals(Color(0xFF232327), pureBlackScheme.surfaceContainerHighest)
             assertEquals(darkScheme.primary, pureBlackScheme.primary)
         }
+    }
+
+    @Test
+    fun testColourfulnessSliderChromaDifference() {
+        val seedMuted = Hct.from(0.0, 20.0, 50.0).toInt()
+        val seedSaturated = Hct.from(0.0, 100.0, 50.0).toInt()
+        val schemeMuted = seedColorScheme(seedMuted, dark = false)
+        val schemeSaturated = seedColorScheme(seedSaturated, dark = false)
+
+        val chromaMuted = Hct.fromInt(schemeMuted.primary.toArgb()).chroma
+        val chromaSaturated = Hct.fromInt(schemeSaturated.primary.toArgb()).chroma
+        val diff = chromaSaturated - chromaMuted
+
+        assertTrue("Expected chroma difference >= 25, got $diff (muted: $chromaMuted, saturated: $chromaSaturated)", diff >= 25.0)
     }
 }

@@ -6,7 +6,7 @@ import com.materialkolor.dynamiccolor.ColorSpec
 import com.materialkolor.dynamiccolor.MaterialDynamicColors
 import com.materialkolor.hct.Hct
 import com.materialkolor.scheme.DynamicScheme
-import com.materialkolor.scheme.SchemeTonalSpot
+import com.materialkolor.scheme.SchemeFidelity
 
 data class AccentPreset(val name: String, val seed: Int)
 
@@ -19,7 +19,7 @@ val ACCENT_PRESETS = listOf(
 )
 
 fun seedColorScheme(seedArgb: Int, dark: Boolean): ColorScheme {
-    val scheme = SchemeTonalSpot(
+    val scheme = SchemeFidelity(
         Hct.fromInt(seedArgb),
         dark,
         0.0,

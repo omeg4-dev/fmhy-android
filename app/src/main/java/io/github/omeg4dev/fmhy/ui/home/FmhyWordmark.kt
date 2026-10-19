@@ -20,26 +20,24 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.CompositingStrategy
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
+import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import kotlinx.coroutines.launch
 
 /** "FMHY" spelled out: each initial grows the rest of its word. */
@@ -50,16 +48,15 @@ private val SWEEP = listOf(Color(0xFF00E5FF), Color(0xFF7C5CFF), Color(0xFFFF3EC
 
 /**
  * The Home title. Tap: a colourful sweep runs across the letters with a small bounce.
- * Hold: it spells out "FreeMediaHeckYeah" and folds back shortly after release.
+ * Hold: toggles spelling out "FreeMediaHeckYeah", staying expanded until held again. Survives rotation.
  */
 @Composable
 fun FmhyWordmark(modifier: Modifier = Modifier) {
     val scope = rememberCoroutineScope()
-    val haptic = LocalHapticFeedback.current
+    val haptics = rememberHaptics()
     val sweep = remember { Animatable(0f) }      // 0 = plain, 0..1 = gradient travelling across
     val bounce = remember { Animatable(1f) }
-    var expanded by remember { mutableStateOf(false) }
-    var collapseJob by remember { mutableStateOf<Job?>(null) }
+    var expanded by rememberSaveable { mutableStateOf(false) }
 
     fun playSweep() {
         scope.launch {
@@ -112,22 +109,14 @@ fun FmhyWordmark(modifier: Modifier = Modifier) {
             .semantics { contentDescription = if (expanded) "FreeMediaHeckYeah" else "FMHY" }
             .pointerInput(Unit) {
                 detectTapGestures(
-                    onTap = { playSweep() },
-                    onLongPress = {
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        collapseJob?.cancel()
-                        expanded = true
+                    onTap = {
+                        haptics.click()
                         playSweep()
                     },
-                    onPress = {
-                        tryAwaitRelease()
-                        if (expanded) {
-                            collapseJob?.cancel()
-                            collapseJob = scope.launch {
-                                delay(1500)
-                                expanded = false
-                            }
-                        }
+                    onLongPress = {
+                        haptics.longPress()
+                        expanded = !expanded
+                        playSweep()
                     },
                 )
             },

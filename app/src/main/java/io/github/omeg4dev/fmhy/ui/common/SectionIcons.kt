@@ -29,10 +29,10 @@ import androidx.compose.ui.graphics.vector.ImageVector
 
 fun sectionIcon(id: String): ImageVector = when (id) {
     "ai" -> Icons.Outlined.AutoAwesome
-    "audio" -> Icons.Outlined.Headphones
+    "audio", "audio-tools" -> Icons.Outlined.Headphones
     "developer-tools" -> Icons.Outlined.Code
     "downloading" -> Icons.Outlined.Download
-    "educational" -> Icons.Outlined.School
+    "educational", "educational-tools" -> Icons.Outlined.School
     "file-tools" -> Icons.Outlined.FolderOpen
     "gaming" -> Icons.Outlined.SportsEsports
     "gaming-tools" -> Icons.Outlined.VideogameAsset

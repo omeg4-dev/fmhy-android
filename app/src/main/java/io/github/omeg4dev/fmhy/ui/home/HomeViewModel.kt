@@ -48,9 +48,29 @@ data class HomeUiState(
 /** A titled block of sections on Home; [title] is null when the list is not grouped (A–Z). */
 data class SectionGroup(val title: String?, val sections: ImmutableList<Section>)
 
+val AUDIO_TOOLS_SECTION = Section(
+    id = "audio-tools",
+    title = "Audio Tools",
+    description = "Audio editors, converters, players & more",
+    ord = 0,
+    entryCount = 0,
+)
+
+val EDUCATIONAL_TOOLS_SECTION = Section(
+    id = "educational-tools",
+    title = "Educational Tools",
+    description = "Learning tools, calculators, typing & more",
+    ord = 0,
+    entryCount = 0,
+)
+
 /** Groups like fmhy.net's sidebar: Wiki, Tools, then everything else. */
 internal fun groupSections(sections: List<Section>, order: SectionOrder): List<SectionGroup> {
-    if (order != SectionOrder.WEBSITE) return listOf(SectionGroup(null, sections.toImmutableList()))
+    if (order != SectionOrder.WEBSITE) {
+        val allSections = (sections + listOf(AUDIO_TOOLS_SECTION, EDUCATIONAL_TOOLS_SECTION))
+            .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.title })
+        return listOf(SectionGroup(null, allSections.toImmutableList()))
+    }
     val toolsStart = Sections.SIDEBAR_ORDER.indexOf("system-tools")
     val toolsEnd = Sections.SIDEBAR_ORDER.indexOf("developer-tools")
     val byGroup = sections.groupBy {
@@ -60,7 +80,19 @@ internal fun groupSections(sections: List<Section>, order: SectionOrder): List<S
             idx in toolsStart..toolsEnd -> "Tools"
             else -> "More"
         }
+    }.toMutableMap()
+
+    val toolsList = byGroup["Tools"]?.toMutableList() ?: mutableListOf()
+    val videoToolsIdx = toolsList.indexOfFirst { it.id == "video-tools" }
+    val devToolsIdx = toolsList.indexOfFirst { it.id == "developer-tools" }
+    val insertIdx = when {
+        videoToolsIdx != -1 -> videoToolsIdx + 1
+        devToolsIdx != -1 -> devToolsIdx
+        else -> toolsList.size
     }
+    toolsList.addAll(insertIdx, listOf(AUDIO_TOOLS_SECTION, EDUCATIONAL_TOOLS_SECTION))
+    byGroup["Tools"] = toolsList
+
     return listOf("Wiki", "Tools", "More").mapNotNull { title ->
         byGroup[title]?.let { SectionGroup(title, it.toImmutableList()) }
     }
