@@ -90,6 +90,8 @@ dependencies {
   implementation(libs.androidx.profileinstaller)
   implementation(libs.kotlinx.collections.immutable)
   implementation(libs.kotlinx.serialization.json)
+  implementation(libs.material.color.utilities)
+  implementation(libs.androidx.core.splashscreen)
 
   // Navigation
   implementation(libs.androidx.navigation3.ui)
