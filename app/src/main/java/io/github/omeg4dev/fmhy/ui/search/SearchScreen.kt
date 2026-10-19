@@ -369,7 +369,7 @@ fun SearchScreen(
             } else {
                 // Results count line (drop the ms)
                 Text(
-                    text = "${"%,d".format(state.total)} results",
+                    text = if (state.total >= 200) "200+ results" else "${"%,d".format(state.total)} results",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.outline,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
