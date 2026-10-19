@@ -759,11 +759,10 @@ fun EntryDetailBottomSheet(
                     )
                 }
 
-                val sharedExtras = if (entry.extraLinks.isNotEmpty()) {
-                    entry.extraLinks
-                } else {
-                    alternatives.firstOrNull { it.extraLinks.isNotEmpty() }?.extraLinks.orEmpty()
-                }
+                // Every site's own links (e.g. uBO Lite's Note), each once; an alternative's are tagged with its name.
+                val sharedExtras = allSites
+                    .flatMap { site -> site.extraLinks.map { site to it } }
+                    .distinctBy { (_, link) -> link.url }
                 if (sharedExtras.isNotEmpty()) {
                     Spacer(Modifier.height(8.dp))
                     Text(
@@ -772,10 +771,10 @@ fun EntryDetailBottomSheet(
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
                     )
-                    sharedExtras.forEach { extra ->
+                    sharedExtras.forEach { (site, extra) ->
                         ListItem(
                             colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                            headlineContent = { Text(extra.label) },
+                            headlineContent = { Text(if (site === entry) extra.label else "${extra.label} · ${site.name}") },
                             supportingContent = { Text(extra.url, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                             modifier = Modifier.clickable { onOpenUrl(extra.url) }
                         )
