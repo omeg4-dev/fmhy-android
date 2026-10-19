@@ -3,6 +3,7 @@ package io.github.omeg4dev.fmhy.ui.home
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import io.github.omeg4dev.fmhy.data.Appearance
 import io.github.omeg4dev.fmhy.data.DatasetStore
 import io.github.omeg4dev.fmhy.data.SettingsRepository
 import io.github.omeg4dev.fmhy.data.model.Entry
@@ -146,21 +147,34 @@ class HomeViewModel(
         container.markSyncBannerConsumed()
     }
 
+    private data class HomeInitData(
+        val initialized: Boolean,
+        val version: Long,
+        val lastVisitTs: Long,
+        val appearance: Appearance,
+    )
+
     val uiState: StateFlow<HomeUiState> = combine(
-        container.isInitialized,
-        store.changes,
-        settingsRepository.lastVisitTs,
+        combine(
+            container.isInitialized,
+            store.changes,
+            settingsRepository.lastVisitTs,
+            settingsRepository.appearance,
+        ) { initialized, version, lastVisitTs, appearance ->
+            HomeInitData(initialized, version, lastVisitTs, appearance)
+        },
         _randomPick,
-        combine(_isRefreshing, _syncBanner) { refreshing, banner -> refreshing to banner },
-    ) { initialized, version, lastVisitTs, randomPick, (refreshing, banner) ->
+        _isRefreshing,
+        _syncBanner,
+    ) { (initialized, version, lastVisitTs, appearance), randomPick, refreshing, banner ->
         if (!initialized) {
             HomeUiState(isLoading = true, isReady = false, syncBanner = banner)
         } else if (!store.isAvailable) {
             HomeUiState(isLoading = refreshing, isReady = true, isEmptyState = true, syncBanner = banner)
         } else {
-            val sections = store.sections().toImmutableList()
+            val sections = store.sections(appearance.sectionOrder).toImmutableList()
             val newCount = if (lastVisitTs > 0L) store.countAddedSince(lastVisitTs) else 0
-            val pick = randomPick ?: store.randomTopPick()
+            val pick = if (appearance.showRandomPick) (randomPick ?: store.randomTopPick()) else null
             val isEmpty = sections.isEmpty() && version == 0L
 
             HomeUiState(

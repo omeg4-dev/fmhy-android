@@ -10,6 +10,8 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import io.github.omeg4dev.fmhy.data.Appearance
 import io.github.omeg4dev.fmhy.data.ColorSource
 import io.github.omeg4dev.fmhy.data.ThemeMode
@@ -48,7 +50,12 @@ fun FMHYTheme(
             colorScheme = colorScheme,
             typography = Typography,
             shapes = Shapes,
-            content = content,
-        )
+        ) {
+            val d = LocalDensity.current
+            CompositionLocalProvider(
+                LocalDensity provides Density(d.density, d.fontScale * appearance.textScale),
+                content = content,
+            )
+        }
     }
 }

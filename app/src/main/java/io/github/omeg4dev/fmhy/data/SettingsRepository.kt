@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -34,6 +35,11 @@ interface SettingsRepository {
     suspend fun setPureBlack(enabled: Boolean)
     suspend fun setAccentSeed(argb: Int)
     suspend fun setSectionLayout(layout: SectionLayout)
+    suspend fun setTextScale(scale: Float)
+    suspend fun setSectionOrder(order: SectionOrder)
+    suspend fun setShowRandomPick(show: Boolean)
+    suspend fun setStarredOnly(starredOnly: Boolean)
+    suspend fun setShowIndexes(showIndexes: Boolean)
 }
 
 class DefaultSettingsRepository(private val context: Context) : SettingsRepository {
@@ -49,6 +55,11 @@ class DefaultSettingsRepository(private val context: Context) : SettingsReposito
         private val KEY_SECTION_LAYOUT = stringPreferencesKey("section_layout")
         private val KEY_PURE_BLACK = booleanPreferencesKey("pure_black")
         private val KEY_ACCENT_SEED = intPreferencesKey("accent_seed")
+        private val KEY_TEXT_SCALE = floatPreferencesKey("text_scale")
+        private val KEY_SECTION_ORDER = stringPreferencesKey("section_order")
+        private val KEY_SHOW_RANDOM_PICK = booleanPreferencesKey("show_random_pick")
+        private val KEY_STARRED_ONLY = booleanPreferencesKey("starred_only")
+        private val KEY_SHOW_INDEXES = booleanPreferencesKey("show_indexes")
     }
 
     override val lastVisitTs: Flow<Long> = context.dataStore.data.map { prefs ->
@@ -134,6 +145,15 @@ class DefaultSettingsRepository(private val context: Context) : SettingsReposito
         }
         val pureBlack = prefs[KEY_PURE_BLACK] ?: false
         val accentSeed = prefs[KEY_ACCENT_SEED] ?: 0xFF7C5CFF.toInt()
+        val textScale = (prefs[KEY_TEXT_SCALE] ?: 1.0f).coerceIn(0.85f, 1.30f)
+        val sectionOrder = try {
+            prefs[KEY_SECTION_ORDER]?.let { SectionOrder.valueOf(it) } ?: SectionOrder.WEBSITE
+        } catch (_: IllegalArgumentException) {
+            SectionOrder.WEBSITE
+        }
+        val showRandomPick = prefs[KEY_SHOW_RANDOM_PICK] ?: true
+        val starredOnly = prefs[KEY_STARRED_ONLY] ?: false
+        val showIndexes = prefs[KEY_SHOW_INDEXES] ?: true
 
         Appearance(
             themeMode = themeMode,
@@ -141,6 +161,11 @@ class DefaultSettingsRepository(private val context: Context) : SettingsReposito
             pureBlack = pureBlack,
             accentSeed = accentSeed,
             sectionLayout = sectionLayout,
+            textScale = textScale,
+            sectionOrder = sectionOrder,
+            showRandomPick = showRandomPick,
+            starredOnly = starredOnly,
+            showIndexes = showIndexes,
         )
     }.distinctUntilChanged()
 
@@ -171,6 +196,36 @@ class DefaultSettingsRepository(private val context: Context) : SettingsReposito
     override suspend fun setSectionLayout(layout: SectionLayout) {
         context.dataStore.edit { prefs ->
             prefs[KEY_SECTION_LAYOUT] = layout.name
+        }
+    }
+
+    override suspend fun setTextScale(scale: Float) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_TEXT_SCALE] = scale.coerceIn(0.85f, 1.30f)
+        }
+    }
+
+    override suspend fun setSectionOrder(order: SectionOrder) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_SECTION_ORDER] = order.name
+        }
+    }
+
+    override suspend fun setShowRandomPick(show: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_SHOW_RANDOM_PICK] = show
+        }
+    }
+
+    override suspend fun setStarredOnly(starredOnly: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_STARRED_ONLY] = starredOnly
+        }
+    }
+
+    override suspend fun setShowIndexes(showIndexes: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_SHOW_INDEXES] = showIndexes
         }
     }
 }

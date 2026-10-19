@@ -5,6 +5,7 @@ import io.github.omeg4dev.fmhy.data.Appearance
 import io.github.omeg4dev.fmhy.data.ColorSource
 import io.github.omeg4dev.fmhy.data.DatasetStore
 import io.github.omeg4dev.fmhy.data.SectionLayout
+import io.github.omeg4dev.fmhy.data.SectionOrder
 import io.github.omeg4dev.fmhy.data.SettingsRepository
 import io.github.omeg4dev.fmhy.data.ThemeMode
 import io.github.omeg4dev.fmhy.data.sync.FmhySync
@@ -118,6 +119,11 @@ class SettingsViewModelTest {
         override suspend fun setPureBlack(enabled: Boolean) { _appearance.value = _appearance.value.copy(pureBlack = enabled) }
         override suspend fun setAccentSeed(argb: Int) { _appearance.value = _appearance.value.copy(accentSeed = argb) }
         override suspend fun setSectionLayout(layout: SectionLayout) { _appearance.value = _appearance.value.copy(sectionLayout = layout) }
+        override suspend fun setTextScale(scale: Float) { _appearance.value = _appearance.value.copy(textScale = scale) }
+        override suspend fun setSectionOrder(order: SectionOrder) { _appearance.value = _appearance.value.copy(sectionOrder = order) }
+        override suspend fun setShowRandomPick(show: Boolean) { _appearance.value = _appearance.value.copy(showRandomPick = show) }
+        override suspend fun setStarredOnly(starredOnly: Boolean) { _appearance.value = _appearance.value.copy(starredOnly = starredOnly) }
+        override suspend fun setShowIndexes(showIndexes: Boolean) { _appearance.value = _appearance.value.copy(showIndexes = showIndexes) }
     }
 
     @Test
@@ -190,5 +196,41 @@ class SettingsViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(ThemeMode.DARK, viewModel.uiState.value.appearance.themeMode)
+    }
+
+    @Test
+    fun testNewAppearanceSettingsUpdateUiState() = runTest {
+        val store = FakeDatasetStore()
+        val settings = FakeSettingsRepository()
+        val container = FakeContainer(store, settings)
+
+        val viewModel = SettingsViewModel(store, settings, container)
+        backgroundScope.launch(kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect() }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(1.0f, viewModel.uiState.value.appearance.textScale)
+        viewModel.setTextScale(1.15f)
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(1.15f, viewModel.uiState.value.appearance.textScale)
+
+        assertEquals(SectionOrder.WEBSITE, viewModel.uiState.value.appearance.sectionOrder)
+        viewModel.setSectionOrder(SectionOrder.ALPHABETICAL)
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(SectionOrder.ALPHABETICAL, viewModel.uiState.value.appearance.sectionOrder)
+
+        assertTrue(viewModel.uiState.value.appearance.showRandomPick)
+        viewModel.setShowRandomPick(false)
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertFalse(viewModel.uiState.value.appearance.showRandomPick)
+
+        assertFalse(viewModel.uiState.value.appearance.starredOnly)
+        viewModel.setStarredOnly(true)
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.appearance.starredOnly)
+
+        assertTrue(viewModel.uiState.value.appearance.showIndexes)
+        viewModel.setShowIndexes(false)
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertFalse(viewModel.uiState.value.appearance.showIndexes)
     }
 }

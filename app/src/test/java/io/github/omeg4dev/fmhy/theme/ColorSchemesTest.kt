@@ -31,15 +31,15 @@ class ColorSchemesTest {
         return (lighter + 0.05) / (darker + 0.05)
     }
 
+    private val sharedSeeds = (ACCENT_PRESETS.map { it.seed } + listOf(
+        0xFF7C5CFF.toInt(),
+        0xFF00897B.toInt(),
+        0xFFE53935.toInt(),
+    )).distinct()
+
     @Test
     fun testWcagContrastRequirements() {
-        val seeds = listOf(
-            0xFF7C5CFF.toInt(),
-            0xFF00897B.toInt(),
-            0xFFE53935.toInt(),
-        )
-
-        for (seed in seeds) {
+        for (seed in sharedSeeds) {
             for (dark in listOf(false, true)) {
                 val scheme = seedColorScheme(seed, dark)
 
@@ -66,13 +66,7 @@ class ColorSchemesTest {
 
     @Test
     fun testSurfaceLuminanceRequirements() {
-        val seeds = listOf(
-            0xFF7C5CFF.toInt(),
-            0xFF00897B.toInt(),
-            0xFFE53935.toInt(),
-        )
-
-        for (seed in seeds) {
+        for (seed in sharedSeeds) {
             val lightScheme = seedColorScheme(seed, dark = false)
             val lightLuminance = relativeLuminance(lightScheme.surface)
             assertTrue(
@@ -91,13 +85,7 @@ class ColorSchemesTest {
 
     @Test
     fun testToPureBlackModifiesSurfaceLeavesPrimaryUnchanged() {
-        val seeds = listOf(
-            0xFF7C5CFF.toInt(),
-            0xFF00897B.toInt(),
-            0xFFE53935.toInt(),
-        )
-
-        for (seed in seeds) {
+        for (seed in sharedSeeds) {
             val darkScheme = seedColorScheme(seed, dark = true)
             val pureBlackScheme = darkScheme.toPureBlack()
 

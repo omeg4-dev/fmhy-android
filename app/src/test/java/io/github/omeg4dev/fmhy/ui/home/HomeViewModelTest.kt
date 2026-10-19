@@ -70,8 +70,16 @@ class HomeViewModelTest {
         override val isAvailable = true
         override val changes = MutableStateFlow(versionVal)
         override suspend fun version(): Long = versionVal
-        override suspend fun sections(order: SectionOrder): List<Section> = sectionsList
-        override suspend fun randomTopPick(): Entry? = topPick
+        var lastSectionOrderCalledWith: SectionOrder? = null
+        override suspend fun sections(order: SectionOrder): List<Section> {
+            lastSectionOrderCalledWith = order
+            return sectionsList
+        }
+        var randomTopPickCallCount: Int = 0
+        override suspend fun randomTopPick(): Entry? {
+            randomTopPickCallCount++
+            return topPick
+        }
         override suspend fun countAddedSince(ts: Long): Int = 5
         override suspend fun meta(): Map<String, String> = mapOf(
             "version" to versionVal.toString(),
@@ -113,7 +121,9 @@ class HomeViewModelTest {
         }
     }
 
-    private class FakeSettingsRepository : SettingsRepository {
+    private class FakeSettingsRepository(
+        initialAppearance: Appearance = Appearance(),
+    ) : SettingsRepository {
         private val _lastVisit = MutableStateFlow(1000L)
         private val _openExternal = MutableStateFlow(false)
         private val _recents = MutableStateFlow<List<String>>(emptyList())
@@ -129,13 +139,18 @@ class HomeViewModelTest {
         override suspend fun removeRecentSearch(query: String) { _recents.value = _recents.value - query }
         override suspend fun clearRecentSearches() { _recents.value = emptyList() }
 
-        private val _appearance = MutableStateFlow(Appearance())
+        private val _appearance = MutableStateFlow(initialAppearance)
         override val appearance: Flow<Appearance> = _appearance.asStateFlow()
         override suspend fun setThemeMode(mode: ThemeMode) { _appearance.value = _appearance.value.copy(themeMode = mode) }
         override suspend fun setColorSource(source: ColorSource) { _appearance.value = _appearance.value.copy(colorSource = source) }
         override suspend fun setPureBlack(enabled: Boolean) { _appearance.value = _appearance.value.copy(pureBlack = enabled) }
         override suspend fun setAccentSeed(argb: Int) { _appearance.value = _appearance.value.copy(accentSeed = argb) }
         override suspend fun setSectionLayout(layout: SectionLayout) { _appearance.value = _appearance.value.copy(sectionLayout = layout) }
+        override suspend fun setTextScale(scale: Float) { _appearance.value = _appearance.value.copy(textScale = scale) }
+        override suspend fun setSectionOrder(order: SectionOrder) { _appearance.value = _appearance.value.copy(sectionOrder = order) }
+        override suspend fun setShowRandomPick(show: Boolean) { _appearance.value = _appearance.value.copy(showRandomPick = show) }
+        override suspend fun setStarredOnly(starredOnly: Boolean) { _appearance.value = _appearance.value.copy(starredOnly = starredOnly) }
+        override suspend fun setShowIndexes(showIndexes: Boolean) { _appearance.value = _appearance.value.copy(showIndexes = showIndexes) }
     }
 
     @Test
@@ -357,5 +372,53 @@ class HomeViewModelTest {
         testDispatcher.scheduler.runCurrent()
 
         assertEquals(true, fakeContainer.forceSyncCalledWith)
+    }
+
+    @Test
+    fun testShowRandomPickFalseAndAlphabeticalOrder() = runTest(testDispatcher) {
+        val sampleSections = listOf(
+            Section(id = "audio", title = "Audio", description = "Music", ord = 1, entryCount = 10),
+            Section(id = "video", title = "Video", description = "Streaming", ord = 2, entryCount = 42),
+        )
+        val samplePick = Entry(
+            num = 1,
+            id = "e1",
+            sectionId = "video",
+            headingId = null,
+            ord = 1,
+            name = "Top Movie",
+            url = "https://movie.org",
+            originalUrl = null,
+            description = "Top movies",
+            tags = emptyList(),
+            headingPath = "Video",
+            tier = Tier.TOP,
+            isInlineMore = false,
+            isBase64 = false,
+            mirrors = emptyList(),
+            extraLinks = emptyList(),
+            firstSeen = 1000,
+            lastChanged = 1000,
+            starredAt = 1000,
+        )
+
+        val store = FakeDatasetStore(sectionsList = sampleSections, topPick = samplePick, versionVal = 10L)
+        val fakeSettings = FakeSettingsRepository(
+            initialAppearance = Appearance(
+                showRandomPick = false,
+                sectionOrder = SectionOrder.ALPHABETICAL,
+            )
+        )
+        val fakeContainer = FakeContainer(store, fakeSettings)
+
+        val viewModel = HomeViewModel(store, fakeSettings, fakeContainer)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect() }
+        testDispatcher.scheduler.runCurrent()
+
+        val readyState = viewModel.uiState.filter { it.isReady }.first()
+        assertTrue(readyState.isReady)
+        assertNull(readyState.randomPick)
+        assertEquals(0, store.randomTopPickCallCount)
+        assertEquals(SectionOrder.ALPHABETICAL, store.lastSectionOrderCalledWith)
     }
 }

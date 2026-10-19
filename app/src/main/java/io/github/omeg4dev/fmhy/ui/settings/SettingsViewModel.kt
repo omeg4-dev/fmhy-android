@@ -7,6 +7,7 @@ import io.github.omeg4dev.fmhy.data.Appearance
 import io.github.omeg4dev.fmhy.data.ColorSource
 import io.github.omeg4dev.fmhy.data.DatasetStore
 import io.github.omeg4dev.fmhy.data.SectionLayout
+import io.github.omeg4dev.fmhy.data.SectionOrder
 import io.github.omeg4dev.fmhy.data.SettingsRepository
 import io.github.omeg4dev.fmhy.data.ThemeMode
 import io.github.omeg4dev.fmhy.data.sync.SyncResult
@@ -112,6 +113,36 @@ class SettingsViewModel(
     fun setSectionLayout(layout: SectionLayout) {
         viewModelScope.launch {
             settingsRepository.setSectionLayout(layout)
+        }
+    }
+
+    fun setTextScale(scale: Float) {
+        viewModelScope.launch {
+            settingsRepository.setTextScale(scale)
+        }
+    }
+
+    fun setSectionOrder(order: SectionOrder) {
+        viewModelScope.launch {
+            settingsRepository.setSectionOrder(order)
+        }
+    }
+
+    fun setShowRandomPick(show: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.setShowRandomPick(show)
+        }
+    }
+
+    fun setStarredOnly(starredOnly: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.setStarredOnly(starredOnly)
+        }
+    }
+
+    fun setShowIndexes(showIndexes: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.setShowIndexes(showIndexes)
         }
     }
 
