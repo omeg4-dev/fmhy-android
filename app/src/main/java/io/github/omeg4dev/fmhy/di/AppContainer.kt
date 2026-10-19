@@ -7,6 +7,9 @@ import io.github.omeg4dev.fmhy.data.SettingsRepository
 import io.github.omeg4dev.fmhy.data.search.SearchEngine
 import io.github.omeg4dev.fmhy.data.sync.FmhySync
 import io.github.omeg4dev.fmhy.data.sync.SyncResult
+import io.github.omeg4dev.fmhy.data.BookmarksRepository
+import io.github.omeg4dev.fmhy.data.bookmarksDataStore
+import io.github.omeg4dev.fmhy.data.link.CrossLinks
 import java.io.File
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineScope
@@ -15,10 +18,14 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -39,6 +46,8 @@ interface AppContainer {
     val fmhySync: FmhySync
     val searchEngine: SearchEngine
     val settingsRepository: SettingsRepository
+    val bookmarks: BookmarksRepository
+    val crossLinks: StateFlow<CrossLinks?>
     val isInitialized: StateFlow<Boolean>
     val syncStatus: StateFlow<SyncStatus>
     val snackbarEvents: SharedFlow<String>
@@ -53,6 +62,17 @@ interface AppContainer {
 class DefaultAppContainer(override val context: Context) : AppContainer {
 
     override val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    override val bookmarks: BookmarksRepository by lazy {
+        BookmarksRepository(context.bookmarksDataStore)
+    }
+
+    override val crossLinks: StateFlow<CrossLinks?> by lazy {
+        datasetStore.changes
+            .map { if (datasetStore.isAvailable) CrossLinks(datasetStore.allHeadings()) else null }
+            .flowOn(Dispatchers.IO)
+            .stateIn(appScope, SharingStarted.Eagerly, null)
+    }
 
     override val okHttpClient: OkHttpClient by lazy {
         val cacheDir = File(context.cacheDir, "http")

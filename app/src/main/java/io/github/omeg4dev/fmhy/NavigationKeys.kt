@@ -15,8 +15,12 @@ data class SearchNavKey(val initialQuery: String = "") : NavKey
 @Serializable
 data object SettingsNavKey : NavKey
 
+@Serializable
+data object SavedNavKey : NavKey
+
 // Also aliases matching the brief names:
 typealias Home = HomeNavKey
 typealias Section = SectionNavKey
 typealias Search = SearchNavKey
 typealias Settings = SettingsNavKey
+typealias Saved = SavedNavKey

@@ -19,8 +19,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -175,6 +177,16 @@ fun EntryRow(
                         )
                     }
                 }
+
+                if (entry.id in LocalBookmarks.current.savedIds) {
+                    Spacer(Modifier.width(6.dp))
+                    Icon(
+                        imageVector = Icons.Filled.Bookmark,
+                        contentDescription = "Saved",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
             }
 
             // Description (max 2 lines, ellipsis)
@@ -239,7 +251,8 @@ fun EntryRow(
                 }
                 context.startActivity(Intent.createChooser(intent, "Share ${entry.name}"))
                 showBottomSheet = false
-            }
+            },
+            onShowSnackbar = onShowSnackbar,
         )
     }
 }
@@ -252,8 +265,11 @@ fun EntryDetailBottomSheet(
     onOpenUrl: (String) -> Unit,
     onCopyLink: (String) -> Unit,
     onShareLink: (String) -> Unit,
+    onShowSnackbar: (String) -> Unit = {},
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val bookmarksState = LocalBookmarks.current
+    val isSaved = entry.id in bookmarksState.savedIds
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -280,6 +296,22 @@ fun EntryDetailBottomSheet(
             }
 
             Spacer(Modifier.height(8.dp))
+
+            ListItem(
+                headlineContent = { Text(if (isSaved) "Remove from Saved" else "Save") },
+                leadingContent = {
+                    Icon(
+                        imageVector = if (isSaved) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
+                        contentDescription = null,
+                        tint = if (isSaved) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                    )
+                },
+                modifier = Modifier.combinedClickable(onClick = {
+                    bookmarksState.toggle(entry)
+                    onShowSnackbar(if (isSaved) "Removed from Saved" else "Saved")
+                    onDismiss()
+                })
+            )
 
             ListItem(
                 headlineContent = { Text("Open") },

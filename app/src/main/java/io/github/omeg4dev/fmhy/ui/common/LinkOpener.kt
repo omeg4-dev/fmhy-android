@@ -12,9 +12,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
+import io.github.omeg4dev.fmhy.SectionNavKey
 import io.github.omeg4dev.fmhy.data.DatasetStore
 import io.github.omeg4dev.fmhy.data.SettingsRepository
+import io.github.omeg4dev.fmhy.data.link.CrossLinks
+import io.github.omeg4dev.fmhy.data.link.LinkTarget
+import io.github.omeg4dev.fmhy.di.AppContainer
+import io.github.omeg4dev.fmhy.nav.LocalAppNav
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -24,6 +33,8 @@ class LinkOpener(
     private val settingsRepository: SettingsRepository,
     private val coroutineScope: CoroutineScope,
     private val onShowSnackbar: (String) -> Unit,
+    private val crossLinks: StateFlow<CrossLinks?>? = null,
+    private val onOpenInternal: (LinkTarget) -> Unit = {},
 ) {
     var pendingUnsafeUrl by mutableStateOf<String?>(null)
         private set
@@ -31,6 +42,11 @@ class LinkOpener(
         private set
 
     fun openUrl(url: String) {
+        val target = crossLinks?.value?.resolve(url)
+        if (target != null) {
+            onOpenInternal(target)
+            return
+        }
         coroutineScope.launch {
             val reason = if (store.isAvailable) store.unsafeReason(url) else null
             if (reason != null) {
@@ -112,3 +128,27 @@ fun UnsafeWarningDialog(opener: LinkOpener) {
         }
     )
 }
+
+@Composable
+fun rememberLinkOpener(
+    container: AppContainer,
+    onShowSnackbar: (String) -> Unit,
+): LinkOpener {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val nav = LocalAppNav.current
+    return remember(container, onShowSnackbar, nav) {
+        LinkOpener(
+            context = context,
+            store = container.datasetStore,
+            settingsRepository = container.settingsRepository,
+            coroutineScope = scope,
+            onShowSnackbar = onShowSnackbar,
+            crossLinks = container.crossLinks,
+            onOpenInternal = { target ->
+                nav.push(SectionNavKey(target.sectionId, anchor = target.headingId))
+            },
+        )
+    }
+}
+

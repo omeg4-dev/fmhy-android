@@ -73,6 +73,8 @@ class SettingsViewModelTest {
         override val appScope: CoroutineScope get() = CoroutineScope(Dispatchers.Unconfined)
         override val okHttpClient: OkHttpClient get() = error("Not needed")
         override val searchEngine get() = error("Not needed")
+        override val bookmarks: io.github.omeg4dev.fmhy.data.BookmarksRepository get() = error("Not needed")
+        override val crossLinks: StateFlow<io.github.omeg4dev.fmhy.data.link.CrossLinks?> = MutableStateFlow(null)
         override val isInitialized: StateFlow<Boolean> = MutableStateFlow(true).asStateFlow()
         override val syncStatus: StateFlow<SyncStatus> = MutableStateFlow<SyncStatus>(SyncStatus.Idle).asStateFlow()
         override val snackbarEvents: SharedFlow<String> = MutableSharedFlow<String>().asSharedFlow()

@@ -60,11 +60,17 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.foundation.lazy.rememberLazyListState
 import io.github.omeg4dev.fmhy.data.search.SearchGroup
 import io.github.omeg4dev.fmhy.di.AppContainer
+import io.github.omeg4dev.fmhy.nav.LocalAppNav
+import io.github.omeg4dev.fmhy.nav.LocalBottomBarPadding
+import io.github.omeg4dev.fmhy.nav.Tab
 import io.github.omeg4dev.fmhy.ui.common.EntryRow
 import io.github.omeg4dev.fmhy.ui.common.LinkOpener
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
+import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
+import kotlinx.coroutines.flow.filter
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -72,6 +78,7 @@ fun SearchScreen(
     viewModel: SearchViewModel,
     container: AppContainer,
     onBack: () -> Unit,
+    showBack: Boolean = true,
     onShowSnackbar: (String) -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -80,19 +87,24 @@ fun SearchScreen(
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusRequester = remember { FocusRequester() }
+    val nav = LocalAppNav.current
+    val resultsListState = rememberLazyListState()
 
-    val linkOpener = remember {
-        LinkOpener(
-            context = context,
-            store = container.datasetStore,
-            settingsRepository = container.settingsRepository,
-            coroutineScope = scope,
-            onShowSnackbar = onShowSnackbar,
-        )
+    val linkOpener = rememberLinkOpener(container, onShowSnackbar)
+
+    LaunchedEffect(nav) {
+        nav.searchFocusRequests.collect {
+            val forced = nav.consumeSearchFocusForced()
+            if (forced || viewModel.queryText.isEmpty()) {
+                focusRequester.requestFocus()
+            }
+        }
     }
 
-    LaunchedEffect(Unit) {
-        focusRequester.requestFocus()
+    LaunchedEffect(nav) {
+        nav.reselect.filter { it == Tab.SEARCH }.collect {
+            resultsListState.animateScrollToItem(0)
+        }
     }
 
     Scaffold(
@@ -130,8 +142,10 @@ fun SearchScreen(
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    if (showBack) {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        }
                     }
                 }
             )
@@ -251,8 +265,9 @@ fun SearchScreen(
                 )
 
                 LazyColumn(
+                    state = resultsListState,
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(bottom = 24.dp)
+                    contentPadding = PaddingValues(bottom = 24.dp + LocalBottomBarPadding.current)
                 ) {
                     state.groups.forEach { group ->
                         stickyHeader(key = "hdr_${group.section.id}") {

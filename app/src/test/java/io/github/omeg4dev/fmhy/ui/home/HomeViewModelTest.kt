@@ -88,6 +88,8 @@ class HomeViewModelTest {
         override val okHttpClient: OkHttpClient get() = error("Not needed")
         override val fmhySync: FmhySync get() = error("Not needed")
         override val searchEngine: SearchEngine get() = SearchEngine(datasetStore)
+        override val bookmarks: io.github.omeg4dev.fmhy.data.BookmarksRepository get() = error("Not needed")
+        override val crossLinks: StateFlow<io.github.omeg4dev.fmhy.data.link.CrossLinks?> = MutableStateFlow(null)
         private val _isInit = MutableStateFlow(true)
         override val isInitialized: StateFlow<Boolean> = _isInit.asStateFlow()
         private val _events = MutableSharedFlow<String>()

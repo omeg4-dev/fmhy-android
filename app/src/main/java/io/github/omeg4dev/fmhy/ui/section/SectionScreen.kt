@@ -1,6 +1,8 @@
 package io.github.omeg4dev.fmhy.ui.section
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -22,6 +24,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FormatListNumbered
@@ -57,15 +60,19 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.omeg4dev.fmhy.data.link.CrossLinks
 import io.github.omeg4dev.fmhy.data.model.Entry
 import io.github.omeg4dev.fmhy.data.model.Heading
 import io.github.omeg4dev.fmhy.data.model.Note
 import io.github.omeg4dev.fmhy.data.model.SectionItem
 import io.github.omeg4dev.fmhy.di.AppContainer
+import io.github.omeg4dev.fmhy.nav.LocalBottomBarPadding
 import io.github.omeg4dev.fmhy.ui.common.EntryRow
 import io.github.omeg4dev.fmhy.ui.common.LinkOpener
 import io.github.omeg4dev.fmhy.ui.common.MarkdownText
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
+import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -77,22 +84,14 @@ fun SectionScreen(
     onShowSnackbar: (String) -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val linkOpener = remember {
-        LinkOpener(
-            context = context,
-            store = container.datasetStore,
-            settingsRepository = container.settingsRepository,
-            coroutineScope = scope,
-            onShowSnackbar = onShowSnackbar,
-        )
-    }
+    val linkOpener = rememberLinkOpener(container, onShowSnackbar)
 
     val listState = rememberLazyListState()
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(topAppBarState)
     var showJumpBottomSheet by remember { mutableStateOf(false) }
+    var highlightedHeadingId by remember { mutableStateOf<String?>(null) }
 
     // Handle initial scroll to anchor
     LaunchedEffect(state.items, viewModel.anchor) {
@@ -104,6 +103,10 @@ fun SectionScreen(
             }
             if (targetIdx != -1) {
                 listState.scrollToItem(targetIdx)
+                val matchedHeading = (state.items[targetIdx] as SectionItem.HeadingItem).heading
+                highlightedHeadingId = matchedHeading.id
+                delay(1200)
+                highlightedHeadingId = null
             }
         }
     }
@@ -157,7 +160,7 @@ fun SectionScreen(
                 state = listState,
                 contentPadding = PaddingValues(
                     top = innerPadding.calculateTopPadding(),
-                    bottom = innerPadding.calculateBottomPadding() + 80.dp,
+                    bottom = innerPadding.calculateBottomPadding() + 80.dp + LocalBottomBarPadding.current,
                 ),
                 modifier = Modifier.fillMaxSize(),
             ) {
@@ -170,14 +173,24 @@ fun SectionScreen(
                                     key = "h_${heading.id}",
                                     contentType = "heading"
                                 ) {
-                                    HeadingHeader(heading = heading, isSticky = true)
+                                    HeadingHeader(
+                                        heading = heading,
+                                        isSticky = true,
+                                        isHighlighted = heading.id == highlightedHeadingId,
+                                        onOpenUrl = { linkOpener.openUrl(it) },
+                                    )
                                 }
                             } else {
                                 item(
                                     key = "h_${heading.id}",
                                     contentType = "heading"
                                 ) {
-                                    HeadingHeader(heading = heading, isSticky = false)
+                                    HeadingHeader(
+                                        heading = heading,
+                                        isSticky = false,
+                                        isHighlighted = heading.id == highlightedHeadingId,
+                                        onOpenUrl = { linkOpener.openUrl(it) },
+                                    )
                                 }
                             }
                         }
@@ -240,10 +253,28 @@ fun SectionScreen(
 }
 
 @Composable
-fun HeadingHeader(heading: Heading, isSticky: Boolean) {
+fun HeadingHeader(
+    heading: Heading,
+    isSticky: Boolean,
+    isHighlighted: Boolean = false,
+    onOpenUrl: (String) -> Unit = {},
+) {
+    val (splitTitle, url) = remember(heading.title) { CrossLinks.splitLinkTitle(heading.title) }
+    val defaultBg = if (isSticky) MaterialTheme.colorScheme.surfaceContainer else MaterialTheme.colorScheme.surface
+    val targetBg = if (isHighlighted) {
+        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+    } else {
+        defaultBg
+    }
+    val animatedBg by animateColorAsState(targetBg, animationSpec = tween(300), label = "heading_bg")
+
     Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = if (isSticky) MaterialTheme.colorScheme.surfaceContainer else MaterialTheme.colorScheme.surface,
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(
+                if (url != null) Modifier.clickable { onOpenUrl(url) } else Modifier
+            ),
+        color = animatedBg,
         shadowElevation = if (isSticky) 2.dp else 0.dp,
     ) {
         Column(
@@ -262,11 +293,25 @@ fun HeadingHeader(heading: Heading, isSticky: Boolean) {
                 3 -> MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold)
                 else -> MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
             }
-            Text(
-                text = heading.title,
-                style = style,
-                color = MaterialTheme.colorScheme.primary,
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    text = splitTitle,
+                    style = style,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = if (url != null) Modifier.weight(1f, fill = false) else Modifier,
+                )
+                if (url != null) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+            }
             if (isSticky) {
                 HorizontalDivider(modifier = Modifier.padding(top = 8.dp), thickness = 0.5.dp)
             }
@@ -405,8 +450,9 @@ fun JumpToHeadingBottomSheet(
                             .clickable { onSelectHeading(heading) }
                             .padding(start = 24.dp + indent, end = 24.dp, top = 12.dp, bottom = 12.dp)
                     ) {
+                        val (splitTitle, _) = remember(heading.title) { CrossLinks.splitLinkTitle(heading.title) }
                         Text(
-                            text = heading.title,
+                            text = splitTitle,
                             style = when (heading.level) {
                                 1 -> MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                                 2 -> MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold)

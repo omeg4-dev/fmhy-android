@@ -37,7 +37,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -52,8 +54,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.omeg4dev.fmhy.data.model.Entry
 import io.github.omeg4dev.fmhy.data.model.Section
 import io.github.omeg4dev.fmhy.di.AppContainer
+import io.github.omeg4dev.fmhy.nav.LocalAppNav
+import io.github.omeg4dev.fmhy.nav.LocalBottomBarPadding
+import io.github.omeg4dev.fmhy.nav.Tab
 import io.github.omeg4dev.fmhy.ui.common.LinkOpener
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
+import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
+import kotlinx.coroutines.flow.filter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -66,16 +73,14 @@ fun HomeScreen(
     onShowSnackbar: (String) -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val linkOpener = remember {
-        LinkOpener(
-            context = context,
-            store = container.datasetStore,
-            settingsRepository = container.settingsRepository,
-            coroutineScope = scope,
-            onShowSnackbar = onShowSnackbar,
-        )
+    val linkOpener = rememberLinkOpener(container, onShowSnackbar)
+    val gridState = rememberLazyGridState()
+    val nav = LocalAppNav.current
+
+    LaunchedEffect(nav) {
+        nav.reselect.filter { it == Tab.BROWSE }.collect {
+            gridState.animateScrollToItem(0)
+        }
     }
 
     Scaffold(
@@ -135,12 +140,13 @@ fun HomeScreen(
                 }
             } else {
                 LazyVerticalGrid(
+                    state = gridState,
                     columns = GridCells.Adaptive(minSize = 160.dp),
                     contentPadding = PaddingValues(
                         start = 16.dp,
                         end = 16.dp,
                         top = 8.dp,
-                        bottom = 16.dp,
+                        bottom = 16.dp + LocalBottomBarPadding.current,
                     ),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
