@@ -5,6 +5,13 @@ import android.content.Context
 import android.content.Intent
 import androidx.core.net.toUri
 import androidx.browser.customtabs.CustomTabsIntent
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -20,12 +27,15 @@ import io.github.omeg4dev.fmhy.data.DatasetStore
 import io.github.omeg4dev.fmhy.data.SettingsRepository
 import io.github.omeg4dev.fmhy.data.link.CrossLinks
 import io.github.omeg4dev.fmhy.data.link.LinkTarget
+import io.github.omeg4dev.fmhy.data.link.PasteLinks
+import io.github.omeg4dev.fmhy.data.link.PasteResolver
 import io.github.omeg4dev.fmhy.di.AppContainer
 import io.github.omeg4dev.fmhy.nav.LocalAppNav
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import java.io.File
 
 class LinkOpener(
     private val context: Context,
@@ -35,7 +45,12 @@ class LinkOpener(
     private val onShowSnackbar: (String) -> Unit,
     private val crossLinks: StateFlow<CrossLinks?>? = null,
     private val onOpenInternal: (LinkTarget) -> Unit = {},
+    private val pasteResolver: PasteResolver? = null,
 ) {
+    /** Links decoded from a pastebin page that hides several; the chooser dialog shows them. */
+    var pendingPasteChoices by mutableStateOf<List<String>?>(null)
+        private set
+
     var pendingUnsafeUrl by mutableStateOf<String?>(null)
         private set
     var pendingUnsafeReason by mutableStateOf<String?>(null)
@@ -47,6 +62,27 @@ class LinkOpener(
             onOpenInternal(target)
             return
         }
+        if (pasteResolver != null && PasteLinks.rawUrl(url) != null) {
+            coroutineScope.launch {
+                onShowSnackbar("Decoding hidden link…")
+                val urls = pasteResolver.resolve(url)
+                when {
+                    urls == null -> openChecked(url)       // not decodable: show the paste itself
+                    urls.size == 1 -> openChecked(urls[0])
+                    else -> pendingPasteChoices = urls
+                }
+            }
+            return
+        }
+        openChecked(url)
+    }
+
+    fun choosePasteLink(url: String?) {
+        pendingPasteChoices = null
+        if (url != null) openChecked(url)
+    }
+
+    private fun openChecked(url: String) {
         coroutineScope.launch {
             val reason = if (store.isAvailable) store.unsafeReason(url) else null
             if (reason != null) {
@@ -111,6 +147,7 @@ class LinkOpener(
 
 @Composable
 fun UnsafeWarningDialog(opener: LinkOpener) {
+    PasteChoiceDialog(opener)
     val reason = opener.pendingUnsafeReason ?: return
     AlertDialog(
         onDismissRequest = { opener.cancelOpenUnsafe() },
@@ -128,6 +165,44 @@ fun UnsafeWarningDialog(opener: LinkOpener) {
         }
     )
 }
+
+@Composable
+private fun PasteChoiceDialog(opener: LinkOpener) {
+    val urls = opener.pendingPasteChoices ?: return
+    AlertDialog(
+        onDismissRequest = { opener.choosePasteLink(null) },
+        title = { Text("This link hides ${urls.size} links") },
+        text = {
+            Column {
+                urls.forEach { url ->
+                    Text(
+                        text = url,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { opener.choosePasteLink(url) }
+                            .padding(vertical = 10.dp),
+                    )
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = { opener.choosePasteLink(null) }) { Text("Cancel") }
+        },
+    )
+}
+
+private var sharedPasteResolver: PasteResolver? = null
+
+private fun pasteResolverFor(container: AppContainer): PasteResolver =
+    synchronized(PasteLinks) {
+        sharedPasteResolver ?: PasteResolver(
+            container.okHttpClient,
+            File(container.context.filesDir, "paste-links.json"),
+        ).also { sharedPasteResolver = it }
+    }
 
 @Composable
 fun rememberLinkOpener(
@@ -148,6 +223,7 @@ fun rememberLinkOpener(
             onOpenInternal = { target ->
                 nav.push(SectionNavKey(target.sectionId, anchor = target.headingId))
             },
+            pasteResolver = pasteResolverFor(container),
         )
     }
 }

@@ -98,11 +98,7 @@ fun HomeScreen(
                             modifier = Modifier.size(28.dp),
                         )
                         Spacer(Modifier.width(10.dp))
-                        Text(
-                            text = "FMHY",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                        )
+                        FmhyWordmark()
                     }
                 },
                 actions = {

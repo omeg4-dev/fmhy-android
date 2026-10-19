@@ -444,8 +444,14 @@ fun EntryDetailBottomSheet(
                 .padding(bottom = 24.dp)
         ) {
             if (alternatives.isEmpty()) {
-                val host = remember(entry.url) {
-                    try {
+                val crossLinks = LocalCrossLinks.current
+                val host = remember(entry.url, crossLinks) {
+                    // A link to another FMHY page opens in the app: say so instead of "reddit.com".
+                    val target = crossLinks?.resolve(entry.url)
+                    if (target != null) {
+                        val heading = crossLinks.headingTitle(target)
+                        if (heading != null && heading != entry.name) "Opens in the app · $heading" else "Opens in the app"
+                    } else try {
                         Uri.parse(entry.url).host?.removePrefix("www.").orEmpty()
                     } catch (_: Exception) {
                         ""
@@ -459,10 +465,13 @@ fun EntryDetailBottomSheet(
                         .fillMaxWidth()
                         .padding(horizontal = 24.dp)
                 ) {
-                    Text(
-                        text = entry.name,
-                        style = MaterialTheme.typography.titleLarge,
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        EntryMarker(entry, size = 22.dp, modifier = Modifier.padding(end = 8.dp))
+                        Text(
+                            text = entry.name,
+                            style = MaterialTheme.typography.titleLarge,
+                        )
+                    }
                     if (host.isNotEmpty()) {
                         Spacer(Modifier.height(2.dp))
                         Text(
@@ -627,6 +636,7 @@ fun EntryDetailBottomSheet(
                                 .padding(start = 24.dp, end = 12.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
+                            EntryMarker(site, size = 16.dp, modifier = Modifier.padding(end = 8.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = site.name,
@@ -673,11 +683,14 @@ fun EntryDetailBottomSheet(
                                 .fillMaxWidth()
                                 .padding(horizontal = 24.dp)
                         ) {
-                            Text(
-                                text = site.name,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = if (index == 0) FontWeight.Bold else FontWeight.Normal,
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                EntryMarker(site, size = 20.dp, modifier = Modifier.padding(end = 8.dp))
+                                Text(
+                                    text = site.name,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = if (index == 0) FontWeight.Bold else FontWeight.Normal,
+                                )
+                            }
                             if (siteHost.isNotEmpty()) {
                                 Spacer(Modifier.height(2.dp))
                                 Text(

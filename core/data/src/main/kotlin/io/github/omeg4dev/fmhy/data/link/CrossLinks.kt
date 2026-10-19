@@ -21,6 +21,11 @@ class CrossLinks(headings: List<Heading>) {
     private val byAnchor: Map<String, Map<String, Heading>> = headings
         .groupBy { it.sectionId }
         .mapValues { (_, list) -> list.reversed().associateBy { it.anchor.lowercase() } }
+    private val headingById: Map<String, Heading> = headings.associateBy { it.id }
+
+    /** Plain title of the heading [target] points to, or null when it points at a section top. */
+    fun headingTitle(target: LinkTarget): String? =
+        target.headingId?.let { headingById[it] }?.let { splitLinkTitle(it.title).first }
 
     /** The in-app target of [url], or null when it is not an FMHY page the dataset contains. */
     fun resolve(url: String): LinkTarget? {

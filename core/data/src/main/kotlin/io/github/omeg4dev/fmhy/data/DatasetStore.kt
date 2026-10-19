@@ -305,19 +305,24 @@ open class DatasetStore(
         result
     }
 
-    open suspend fun randomTopPick(): Entry? = withConnection { conn ->
-        val sql = """
-            SELECT num, id, section_id, heading_id, ord, name, url, original_url,
-                   description, tags, heading_path, tier, kind, line, is_inline_more, is_base64,
-                   mirrors, extra_links, first_seen, last_changed, starred_at
-            FROM entries
-            WHERE tier >= 1
-            ORDER BY RANDOM()
-            LIMIT 1
-        """.trimIndent()
-        conn.prepare(sql).use { stmt ->
-            if (stmt.step()) readEntry(stmt) else null
+    /** A random safe star: starred by FMHY, a real site (not an index or a link to another section),
+     *  not a hidden base64 link, and not on FMHY's unsafe list. */
+    open suspend fun randomTopPick(): Entry? {
+        val candidates = withConnection { conn ->
+            val sql = """
+                SELECT num, id, section_id, heading_id, ord, name, url, original_url,
+                       description, tags, heading_path, tier, kind, line, is_inline_more, is_base64,
+                       mirrors, extra_links, first_seen, last_changed, starred_at
+                FROM entries
+                WHERE tier >= 1 AND kind = 0 AND is_base64 = 0
+                ORDER BY RANDOM()
+                LIMIT 20
+            """.trimIndent()
+            conn.prepare(sql).use { stmt ->
+                buildList { while (stmt.step()) add(readEntry(stmt)) }
+            }
         }
+        return candidates.firstOrNull { unsafeReason(it.url) == null }
     }
 
     open suspend fun changes(

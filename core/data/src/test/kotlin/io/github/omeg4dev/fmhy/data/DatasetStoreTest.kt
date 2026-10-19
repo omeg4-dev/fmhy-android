@@ -266,6 +266,27 @@ class DatasetStoreTest {
     }
 
     @Test
+    fun testRandomTopPickIsASafeStar() = runTest {
+        val dbFile = tempFolder.newFile("sample_safe_pick.db")
+        val store = createSampleDb(dbFile)
+        val cols = "num, id, section_id, heading_id, ord, name, url, original_url, description, tags, heading_path, tier, kind, is_inline_more, is_base64, mirrors, extra_links, first_seen, last_changed, starred_at"
+
+        store.withConnection { conn ->
+            conn.execSQL("INSERT INTO sections (id, title, description, file, ord) VALUES ('s1', 'S1', '', 's1.md', 1);")
+            conn.execSQL("INSERT INTO unsafe_domains (domain, reason) VALUES ('bad.example', 'malware');")
+            // starred but: unsafe host, an index, a section link, a base64 link — none may be picked
+            conn.execSQL("INSERT INTO entries ($cols) VALUES (1, 'unsafe', 's1', NULL, 1, 'U', 'https://www.bad.example/x', NULL, '', '', '', 1, 0, 0, 0, '[]', '[]', 1, 1, 1);")
+            conn.execSQL("INSERT INTO entries ($cols) VALUES (2, 'index', 's1', NULL, 2, 'I', 'https://i.example', NULL, '', '', '', 1, 1, 0, 0, '[]', '[]', 1, 1, 1);")
+            conn.execSQL("INSERT INTO entries ($cols) VALUES (3, 'xlink', 's1', NULL, 3, 'X', 'https://fmhy.net/ai', NULL, '', '', '', 1, 2, 0, 0, '[]', '[]', 1, 1, 1);")
+            conn.execSQL("INSERT INTO entries ($cols) VALUES (4, 'b64', 's1', NULL, 4, 'B', 'https://pastebin.com/abcd', 'https://rentry.co/FMHYB64#b', '', '', '', 1, 0, 0, 1, '[]', '[]', 1, 1, 1);")
+            conn.execSQL("INSERT INTO entries ($cols) VALUES (5, 'good', 's1', NULL, 5, 'G', 'https://good.example', NULL, '', '', '', 1, 0, 0, 0, '[]', '[]', 1, 1, 1);")
+        }
+
+        repeat(10) { assertEquals("good", store.randomTopPick()?.id) }
+        store.close()
+    }
+
+    @Test
     fun testSectionOrderingWebsiteAndAlphabetical() = runTest {
         val dbFile = tempFolder.newFile("sample_order.db")
         val store = createSampleDb(dbFile)
