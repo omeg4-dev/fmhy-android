@@ -1,20 +1,24 @@
 # FMHY Android: current status
 
-As of **2026-10-19**, version **0.4.0** (versionCode 4). Public repo: https://github.com/omeg4-dev/fmhy-android (`main`).
+As of **2026-10-19**, version **0.4.1** (versionCode 5). Public repo: https://github.com/omeg4-dev/fmhy-android (`main`).
 
 Unofficial native Android client for [FMHY](https://fmhy.net). It needs no account and no server of
 ours: data comes straight from FMHY's public sources and is parsed on the device.
 
 ## Install
 
-- APK: `dist/fmhy-0.4.0.apk` (R8-shrunk release build), also on
+- APK: `dist/fmhy-0.4.1.apk` (R8-shrunk release build), also on
   [GitHub Releases](https://github.com/omeg4-dev/fmhy-android/releases). Signed with the release key
   (cert SHA-256 `5e072450…70df5d`) since 0.4.0; builds before 0.4.0 used the debug key, so they must be
   uninstalled once before installing 0.4.0+.
 - Signing: `app/build.gradle.kts` reads `$FMHY_KEYSTORE_PROPERTIES` or
   `~/.local/share/fmhy-android/keystore.properties` (outside the repo); without it, release builds
-  fall back to the debug key.
-- `adb install -r dist/fmhy-0.4.0.apk` upgrades in place and keeps bookmarks/settings. A DB with an
+  are unsigned (that is what F-Droid's build server gets).
+- **F-Droid:** store texts, icon and screenshots in `fastlane/metadata/android/en-US/`; draft fdroiddata
+  metadata in `fdroid/io.github.omeg4dev.fmhy.yml` (passes `fdroid lint`). F-Droid builds from the tag
+  without the bundled snapshot (fmhy/edit has no licence, so its markdown stays out of git); that APK
+  downloads the wiki on first launch. F-Droid signs with its own key. `dependenciesInfo` is off.
+- `adb install -r dist/fmhy-0.4.1.apk` upgrades in place and keeps bookmarks/settings. A DB with an
   older schema is replaced by the bundled snapshot on first launch (schema is now 3).
 - Android 8.0+ (minSdk 26), target/compile SDK 36. Material You needs Android 12+.
 
@@ -179,5 +183,6 @@ Verified for 0.2.0 on the emulator (light, dark, pure black):
 |---|---|---|
 | 0.1.0 | 2026-10-19 (night) | Direct sync from fmhy/edit, Kotlin parser, bundled snapshot, Home/Section/Search/Settings |
 | 0.2.0 | 2026-10-19 | Fixed section order, in-app cross-links, bottom-bar navigation, Saved, themes (System/Light/Dark, FMHY/Material You, pure black), Categories layout, calmer rows, search filters, splash |
+| 0.4.1 | 2026-10-20 | F-Droid prep: fastlane metadata + screenshots, unsigned release without key, no dependency-info blob, README rewrite |
 | 0.4.0 | 2026-10-19 | Audio/Educational Tools on Home, haptics, working colourfulness, icon legend, Non-English flags, wordmark stays expanded |
 | 0.3.0 | 2026-10-19 | fmhy.net icons, one row per line, tap = details / hold = open, clear headings + tree outline, legend & filters, text size, accent colours, FMHY logo, website section order |

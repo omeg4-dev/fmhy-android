@@ -13,11 +13,11 @@ android {
         applicationId = "io.github.omeg4dev.fmhy"
         minSdk = 26
         targetSdk = 36
-        versionCode = 4
-        versionName = "0.4.0"
+        versionCode = 5
+        versionName = "0.4.1"
     }
 
-    // Release key lives outside the repo; without it, release builds fall back to the debug key.
+    // Release key lives outside the repo; without it (e.g. on F-Droid's build server) release builds are unsigned.
     val keystoreProps = file(
         System.getenv("FMHY_KEYSTORE_PROPERTIES")
             ?: "${System.getProperty("user.home")}/.local/share/fmhy-android/keystore.properties"
@@ -39,8 +39,13 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = signingConfigs.getByName(if (keystoreProps != null) "release" else "debug")
+            signingConfig = if (keystoreProps != null) signingConfigs.getByName("release") else null
         }
+    }
+    // No Google-encrypted dependency metadata blob in the APK (F-Droid requirement).
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

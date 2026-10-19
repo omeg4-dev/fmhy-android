@@ -1,0 +1,26 @@
+Categories:
+  - Internet
+  - Reading
+License: GPL-3.0-or-later
+AuthorName: omeg4-dev
+SourceCode: https://github.com/omeg4-dev/fmhy-android
+IssueTracker: https://github.com/omeg4-dev/fmhy-android/issues
+Changelog: https://github.com/omeg4-dev/fmhy-android/releases
+
+AutoName: FMHY
+
+RepoType: git
+Repo: https://github.com/omeg4-dev/fmhy-android.git
+
+Builds:
+  - versionName: 0.4.1
+    versionCode: 5
+    commit: v0.4.1
+    subdir: app
+    gradle:
+      - yes
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags
+CurrentVersion: 0.4.1
+CurrentVersionCode: 5

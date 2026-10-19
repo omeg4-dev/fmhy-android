@@ -1,0 +1,17 @@
+An unofficial app for FMHY (FreeMediaHeckYeah), the big community-run list of free stuff on the internet: streaming, downloading, adblocking, reading, software and a lot more.
+
+fmhy.net works on a phone, but it's a big website. This app puts the same list into a native app that's quick to scroll and search and keeps working without a connection. It downloads the wiki's markdown straight from FMHY's GitHub repo and reads it on the phone. There's no server of ours in between, no account, no ads and no tracking.
+
+What you get:
+• Every section in the same order as fmhy.net, with the same stars and icons
+• One row per line of the wiki. Tap it to see every site on that line with its mirrors and extra links, hold it to open the site
+• Search across all ~21,000 sites, with filters for section, starred sites and more
+• Bookmarks that stay put when the wiki changes
+• Links that FMHY hides behind base64 are decoded for you
+• A warning before you open a site that's on FMHY's unsafe list
+• Checks for wiki changes when you open it and only downloads what changed
+• Light and dark theme, pure black, Material You or your own accent colour, adjustable text size
+
+After the first sync everything is stored on the phone, so browsing and search work offline.
+
+This is a fan project, not made by the FMHY team. Which sites get listed is up to them: suggestions for the wiki go to fmhy.net, problems with the app go to the GitHub issue tracker.
