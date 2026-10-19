@@ -86,7 +86,12 @@ class SearchViewModelTest {
             starredAt = 1000,
         )
 
+        var lastQuery: String? = null
+        val queries = MutableStateFlow<List<String>>(emptyList())
+
         override suspend fun search(query: String, sectionFilter: Set<String>, limit: Int): SearchResults {
+            lastQuery = query
+            queries.value = queries.value + query
             val group = SearchGroup(
                 section = Section("video", "Video", "", 1, 10),
                 hits = listOf(SearchHit(sampleEntry, sampleEntry.name, sampleEntry.description))
@@ -131,5 +136,34 @@ class SearchViewModelTest {
         viewModel.onSearchSubmitted("new search")
         val recents = fakeSettings.recentSearches.filter { it.contains("new search") }.first()
         assertEquals("new search", recents[0])
+    }
+
+    @Test
+    fun testTogglingStarredOnlyPassesIsStarredToEngine() = runTest {
+        val store = FakeDatasetStore()
+        val fakeSettings = FakeSettingsRepository()
+        val searchEngine = FakeSearchEngine(store)
+        val viewModel = SearchViewModel(
+            initialQuery = "stremio",
+            store = store,
+            searchEngine = searchEngine,
+            settingsRepository = fakeSettings,
+        )
+
+        // Wait for initial search
+        viewModel.uiState.filter { it.hasSearched }.first()
+        assertEquals("stremio", searchEngine.lastQuery)
+
+        // Toggle starredOnly
+        viewModel.toggleStarredOnly()
+        val starredState = viewModel.uiState.filter { it.starredOnly }.first()
+        assertTrue(starredState.starredOnly)
+
+        // Wait for searchEngine to receive query containing is:starred
+        searchEngine.queries.filter { list -> list.any { it.contains("is:starred") } }.first()
+        assertTrue(searchEngine.queries.value.last().contains("is:starred"))
+
+        // Ensure visible query in state remains what user typed
+        assertEquals("stremio", viewModel.uiState.value.query)
     }
 }

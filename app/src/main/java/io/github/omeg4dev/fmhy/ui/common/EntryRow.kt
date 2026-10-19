@@ -4,36 +4,39 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.outlined.BookmarkBorder
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material.icons.outlined.Key
+import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
-import androidx.compose.material3.SuggestionChip
-import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -43,13 +46,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import io.github.omeg4dev.fmhy.data.model.Entry
 import io.github.omeg4dev.fmhy.data.model.Tier
@@ -78,7 +83,7 @@ fun parseHighlight(text: String, highlightColor: Color): AnnotatedString {
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun EntryRow(
     entry: Entry,
@@ -88,8 +93,8 @@ fun EntryRow(
     onOpenUrl: (String) -> Unit,
     onShowSnackbar: (String) -> Unit = {},
 ) {
-    val context = LocalContext.current
     var showBottomSheet by remember { mutableStateOf(false) }
+    val haptic = LocalHapticFeedback.current
 
     val primaryColor = MaterialTheme.colorScheme.primary
 
@@ -109,77 +114,87 @@ fun EntryRow(
         }
     }
 
+    val crossLinks = LocalCrossLinks.current
+    val isCrossLink = remember(entry.url, crossLinks) {
+        crossLinks?.resolve(entry.url) != null
+    }
+
     Surface(
         modifier = modifier
             .fillMaxWidth()
+            .heightIn(min = 56.dp)
             .combinedClickable(
                 onClick = { onOpenUrl(entry.url) },
-                onLongClick = { showBottomSheet = true },
+                onLongClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    showBottomSheet = true
+                },
             ),
         color = Color.Transparent,
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 10.dp)
+                .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
-            // Title row with tier chip and badges
+            // Title row
             Row(
                 verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
                     text = displayName,
                     style = MaterialTheme.typography.titleMedium,
+                    color = if (isCrossLink) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                     fontWeight = if (entry.tier != Tier.NORMAL) FontWeight.Bold else FontWeight.Medium,
                     modifier = Modifier.weight(1f, fill = false),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
 
-                if (entry.tier == Tier.TOP) {
-                    Spacer(Modifier.width(8.dp))
-                    SuggestionChip(
-                        onClick = {},
-                        label = { Text("🌟 Top", style = MaterialTheme.typography.labelSmall) },
-                        colors = SuggestionChipDefaults.suggestionChipColors(
-                            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                            labelColor = MaterialTheme.colorScheme.onTertiaryContainer,
-                        ),
-                        border = null,
-                        modifier = Modifier.height(24.dp),
+                if (entry.tier == Tier.STAR) {
+                    Icon(
+                        imageVector = Icons.Rounded.Star,
+                        contentDescription = "Starred by FMHY",
+                        tint = MaterialTheme.colorScheme.tertiary,
+                        modifier = Modifier.size(16.dp),
                     )
-                } else if (entry.tier == Tier.STAR) {
-                    Spacer(Modifier.width(8.dp))
-                    SuggestionChip(
-                        onClick = {},
-                        label = { Text("⭐ Star", style = MaterialTheme.typography.labelSmall) },
-                        colors = SuggestionChipDefaults.suggestionChipColors(
-                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                            labelColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                        ),
-                        border = null,
-                        modifier = Modifier.height(24.dp),
-                    )
-                }
-
-                if (entry.isBase64) {
-                    Spacer(Modifier.width(6.dp))
+                } else if (entry.tier == Tier.TOP) {
                     Surface(
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                        shape = MaterialTheme.shapes.extraSmall,
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.tertiaryContainer,
                     ) {
-                        Text(
-                            text = "b64",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(2.dp),
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Star,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                                modifier = Modifier.size(12.dp),
+                            )
+                            Text(
+                                text = "Top",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer,
+                            )
+                        }
                     }
                 }
 
+                if (entry.isBase64) {
+                    Icon(
+                        imageVector = Icons.Outlined.Key,
+                        contentDescription = "Hidden link, decoded",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(14.dp),
+                    )
+                }
+
                 if (entry.id in LocalBookmarks.current.savedIds) {
-                    Spacer(Modifier.width(6.dp))
                     Icon(
                         imageVector = Icons.Filled.Bookmark,
                         contentDescription = "Saved",
@@ -187,11 +202,20 @@ fun EntryRow(
                         modifier = Modifier.size(16.dp),
                     )
                 }
+
+                if (isCrossLink) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
             }
 
-            // Description (max 2 lines, ellipsis)
+            // Description
             if (entry.description.isNotEmpty()) {
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(2.dp))
                 Text(
                     text = displayDesc,
                     style = MaterialTheme.typography.bodyMedium,
@@ -199,30 +223,45 @@ fun EntryRow(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
+            } else if (isCrossLink) {
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = "Opens in the app",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
 
-            // Mirrors as small assist chips ("2", "3")
+            // Mirrors
             if (entry.mirrors.isNotEmpty()) {
-                Spacer(Modifier.height(6.dp))
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                Spacer(Modifier.height(4.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        text = "Mirrors:",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.outline,
-                        modifier = Modifier.align(Alignment.CenterVertically),
+                        text = "Mirrors",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    entry.mirrors.forEach { mirror ->
-                        AssistChip(
-                            onClick = { onOpenUrl(mirror.url) },
-                            label = { Text(mirror.label, style = MaterialTheme.typography.labelSmall) },
-                            modifier = Modifier.height(24.dp),
-                            colors = AssistChipDefaults.assistChipColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceContainerHighest
-                            ),
-                            border = null,
+                    Spacer(Modifier.width(4.dp))
+                    entry.mirrors.forEachIndexed { index, mirror ->
+                        if (index > 0) {
+                            Text(
+                                text = " · ",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Text(
+                            text = mirror.label,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .minimumInteractiveComponentSize()
+                                .padding(horizontal = 4.dp)
+                                .clickable { onOpenUrl(mirror.url) },
                         )
                     }
                 }
@@ -231,6 +270,7 @@ fun EntryRow(
     }
 
     if (showBottomSheet) {
+        val context = LocalContext.current
         EntryDetailBottomSheet(
             entry = entry,
             onDismiss = { showBottomSheet = false },
@@ -271,66 +311,127 @@ fun EntryDetailBottomSheet(
     val bookmarksState = LocalBookmarks.current
     val isSaved = entry.id in bookmarksState.savedIds
 
+    val host = remember(entry.url) {
+        try {
+            Uri.parse(entry.url).host?.removePrefix("www.").orEmpty()
+        } catch (_: Exception) {
+            ""
+        }
+    }
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 24.dp)
         ) {
-            Text(
-                text = entry.name,
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
-            )
-
-            if (entry.description.isNotEmpty()) {
+            // Header
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+            ) {
                 Text(
-                    text = entry.description,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp),
+                    text = entry.name,
+                    style = MaterialTheme.typography.titleLarge,
                 )
+                if (host.isNotEmpty()) {
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = host,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (entry.description.isNotEmpty()) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        text = entry.description,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
 
-            Spacer(Modifier.height(8.dp))
+            // Action row
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // Open
+                Column(
+                    modifier = Modifier.weight(1f),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    FilledTonalIconButton(
+                        onClick = { onOpenUrl(entry.url) },
+                        modifier = Modifier.size(56.dp),
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Open")
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text("Open", style = MaterialTheme.typography.labelMedium)
+                }
 
-            ListItem(
-                headlineContent = { Text(if (isSaved) "Remove from Saved" else "Save") },
-                leadingContent = {
-                    Icon(
-                        imageVector = if (isSaved) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
-                        contentDescription = null,
-                        tint = if (isSaved) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                    )
-                },
-                modifier = Modifier.combinedClickable(onClick = {
-                    bookmarksState.toggle(entry)
-                    onShowSnackbar(if (isSaved) "Removed from Saved" else "Saved")
-                    onDismiss()
-                })
-            )
+                // Copy
+                Column(
+                    modifier = Modifier.weight(1f),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    FilledTonalIconButton(
+                        onClick = { onCopyLink(entry.url) },
+                        modifier = Modifier.size(56.dp),
+                    ) {
+                        Icon(Icons.Default.ContentCopy, contentDescription = "Copy link")
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text("Copy", style = MaterialTheme.typography.labelMedium)
+                }
 
-            ListItem(
-                headlineContent = { Text("Open") },
-                supportingContent = { Text(entry.url, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                leadingContent = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null) },
-                modifier = Modifier.combinedClickable(onClick = { onOpenUrl(entry.url) })
-            )
+                // Share
+                Column(
+                    modifier = Modifier.weight(1f),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    FilledTonalIconButton(
+                        onClick = { onShareLink(entry.url) },
+                        modifier = Modifier.size(56.dp),
+                    ) {
+                        Icon(Icons.Default.Share, contentDescription = "Share")
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text("Share", style = MaterialTheme.typography.labelMedium)
+                }
 
-            ListItem(
-                headlineContent = { Text("Copy link") },
-                leadingContent = { Icon(Icons.Default.ContentCopy, contentDescription = null) },
-                modifier = Modifier.combinedClickable(onClick = { onCopyLink(entry.url) })
-            )
-
-            ListItem(
-                headlineContent = { Text("Share") },
-                leadingContent = { Icon(Icons.Default.Share, contentDescription = null) },
-                modifier = Modifier.combinedClickable(onClick = { onShareLink(entry.url) })
-            )
+                // Save / Saved
+                Column(
+                    modifier = Modifier.weight(1f),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    FilledTonalIconButton(
+                        onClick = {
+                            bookmarksState.toggle(entry)
+                            onShowSnackbar(if (isSaved) "Removed from Saved" else "Saved")
+                            onDismiss()
+                        },
+                        modifier = Modifier.size(56.dp),
+                    ) {
+                        Icon(
+                            imageVector = if (isSaved) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
+                            contentDescription = if (isSaved) "Saved" else "Save",
+                            tint = if (isSaved) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text(if (isSaved) "Saved" else "Save", style = MaterialTheme.typography.labelMedium)
+                }
+            }
 
             val origUrl = entry.originalUrl
             if (entry.isBase64 && !origUrl.isNullOrEmpty()) {
@@ -338,7 +439,7 @@ fun EntryDetailBottomSheet(
                     headlineContent = { Text("Open original (base64)") },
                     supportingContent = { Text(origUrl, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     leadingContent = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null) },
-                    modifier = Modifier.combinedClickable(onClick = { onOpenUrl(origUrl) })
+                    modifier = Modifier.clickable { onOpenUrl(origUrl) }
                 )
             }
 
@@ -353,7 +454,7 @@ fun EntryDetailBottomSheet(
                     ListItem(
                         headlineContent = { Text("Mirror ${mirror.label}") },
                         supportingContent = { Text(mirror.url, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                        modifier = Modifier.combinedClickable(onClick = { onOpenUrl(mirror.url) })
+                        modifier = Modifier.clickable { onOpenUrl(mirror.url) }
                     )
                 }
             }
@@ -369,7 +470,7 @@ fun EntryDetailBottomSheet(
                     ListItem(
                         headlineContent = { Text(extra.label) },
                         supportingContent = { Text(extra.url, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                        modifier = Modifier.combinedClickable(onClick = { onOpenUrl(extra.url) })
+                        modifier = Modifier.clickable { onOpenUrl(extra.url) }
                     )
                 }
             }
