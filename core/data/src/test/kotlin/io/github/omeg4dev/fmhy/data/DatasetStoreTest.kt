@@ -12,6 +12,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -151,6 +152,74 @@ class DatasetStoreTest {
         val allChanges = store.changes()
         assertEquals(2, allChanges.size)
 
+        store.close()
+    }
+    // The parser numbers headings and entries/notes with separate counters (FmhyParser:
+    // headingOrd vs ordCounter), so items must be placed under their heading, not merged by ord.
+    @Test
+    fun testSectionItemsPlaceItemsUnderTheirHeadingWithSeparateOrdCounters() = runTest {
+        val dbFile = tempFolder.newFile("separate-ords.db")
+        val store = createSampleDb(dbFile)
+
+        store.withConnection { conn ->
+            conn.execSQL("INSERT INTO sections (id, title, description, file, ord) VALUES ('privacy', 'Privacy', '', 'privacy.md', 1);")
+            conn.execSQL("INSERT INTO headings (id, section_id, parent_id, level, title, anchor, ord) VALUES ('privacy/adblocking', 'privacy', NULL, 1, 'Adblocking', 'adblocking', 0);")
+            conn.execSQL("INSERT INTO headings (id, section_id, parent_id, level, title, anchor, ord) VALUES ('privacy/filters', 'privacy', 'privacy/adblocking', 2, 'Filters', 'filters', 1);")
+            conn.execSQL("INSERT INTO headings (id, section_id, parent_id, level, title, anchor, ord) VALUES ('privacy/antivirus', 'privacy', NULL, 1, 'Antivirus', 'antivirus', 2);")
+            conn.execSQL("INSERT INTO notes (id, section_id, heading_id, ord, text_md) VALUES ('n0', 'privacy', 'privacy/adblocking', 0, 'note');")
+            listOf(
+                Triple(1, "ublock", "privacy/adblocking"),
+                Triple(2, "adguard", "privacy/adblocking"),
+                Triple(3, "easylist", "privacy/filters"),
+                Triple(4, "malwarebytes", "privacy/antivirus"),
+                Triple(5, "virustotal", "privacy/antivirus"),
+            ).forEach { (ord, id, heading) ->
+                conn.execSQL("INSERT INTO entries (num, id, section_id, heading_id, ord, name, url, original_url, description, tags, heading_path, tier, is_inline_more, is_base64, mirrors, extra_links, first_seen, last_changed, starred_at) VALUES ($ord, '$id', 'privacy', '$heading', $ord, '$id', 'https://$id.example', NULL, '', '', '', 0, 0, 0, '[]', '[]', 1000, 1000, NULL);")
+            }
+        }
+
+        val order = store.sectionItems("privacy").map {
+            when (it) {
+                is SectionItem.HeadingItem -> "H:" + it.heading.id.substringAfter('/')
+                is SectionItem.EntryItem -> it.entry.id
+                is SectionItem.NoteItem -> "N:" + it.note.id
+                is SectionItem.MoreGroup -> "M:" + it.entries.joinToString(",") { e -> e.id }
+            }
+        }
+        assertEquals(
+            listOf("H:adblocking", "N:n0", "ublock", "adguard", "H:filters", "easylist",
+                "H:antivirus", "malwarebytes", "virustotal"),
+            order,
+        )
+        store.close()
+    }
+
+    @Test
+    fun testBundledSnapshotEveryItemFollowsItsOwnHeading() = runTest {
+        val snapshot = File("../../app/src/main/assets/dataset/snapshot.gzbin")
+        assumeTrue("bundled snapshot not built", snapshot.exists())
+        val dbFile = tempFolder.newFile("snapshot.db")
+        java.util.zip.GZIPInputStream(snapshot.inputStream()).use { input ->
+            dbFile.outputStream().use { input.copyTo(it) }
+        }
+        val store = DatasetStore(dbFile)
+        var checked = 0
+        for (section in store.sections()) {
+            var current: String? = null
+            for (item in store.sectionItems(section.id)) {
+                val headingId = when (item) {
+                    is SectionItem.HeadingItem -> { current = item.heading.id; continue }
+                    is SectionItem.EntryItem -> item.entry.headingId
+                    is SectionItem.NoteItem -> item.note.headingId
+                    is SectionItem.MoreGroup -> item.entries.first().headingId
+                }
+                if (headingId != null) {
+                    assertEquals("${section.id}: item under the wrong heading", headingId, current)
+                }
+                checked++
+            }
+        }
+        assertTrue("checked only $checked items", checked > 15_000)
         store.close()
     }
 }

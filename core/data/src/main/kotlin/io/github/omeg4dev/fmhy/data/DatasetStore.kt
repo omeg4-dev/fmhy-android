@@ -206,6 +206,22 @@ open class DatasetStore(
         result
     }
 
+    /** Every heading of every section, in section then document order (for [link.CrossLinks]). */
+    open suspend fun allHeadings(): List<Heading> = withConnection { conn ->
+        val result = mutableListOf<Heading>()
+        val sql = """
+            SELECT h.id, h.section_id, h.parent_id, h.level, h.title, h.anchor, h.ord
+            FROM headings h JOIN sections s ON s.id = h.section_id
+            ORDER BY s.ord ASC, h.ord ASC
+        """.trimIndent()
+        conn.prepare(sql).use { stmt ->
+            while (stmt.step()) {
+                result.add(readHeading(stmt))
+            }
+        }
+        result
+    }
+
     open suspend fun entry(id: String): Entry? = withConnection { conn ->
         val sql = """
             SELECT num, id, section_id, heading_id, ord, name, url, original_url,
@@ -421,12 +437,22 @@ open class DatasetStore(
             }
         }
 
-        val allRaw = ArrayList<RawItem>(headingList.size + noteList.size + entryList.size)
-        headingList.forEach { allRaw.add(RawItem.H(it)) }
-        noteList.forEach { allRaw.add(RawItem.N(it)) }
-        entryList.forEach { allRaw.add(RawItem.E(it)) }
+        // Headings and notes/entries are numbered by separate counters (headings: document order
+        // among headings; notes + entries: one shared counter), so their ords must not be compared.
+        // Place each heading's own notes/entries right after it; orphans go first.
+        val content = ArrayList<RawItem>(noteList.size + entryList.size)
+        noteList.forEach { content.add(RawItem.N(it)) }
+        entryList.forEach { content.add(RawItem.E(it)) }
+        content.sortBy { it.ord }
+        val knownHeadings = headingList.mapTo(HashSet()) { it.id }
+        val byHeading = content.groupBy { it.headingId?.takeIf(knownHeadings::contains) }
 
-        allRaw.sortWith(compareBy({ it.ord }, { if (it is RawItem.H) 0 else 1 }))
+        val allRaw = ArrayList<RawItem>(headingList.size + content.size)
+        byHeading[null]?.let(allRaw::addAll)
+        for (heading in headingList) {
+            allRaw.add(RawItem.H(heading))
+            byHeading[heading.id]?.let(allRaw::addAll)
+        }
 
         val finalItems = mutableListOf<SectionItem>()
         var currentMoreEntries = mutableListOf<Entry>()
@@ -612,7 +638,17 @@ open class DatasetStore(
 
 private sealed interface RawItem {
     val ord: Int
-    data class H(val heading: Heading) : RawItem { override val ord get() = heading.ord }
-    data class N(val note: Note) : RawItem { override val ord get() = note.ord }
-    data class E(val entry: Entry) : RawItem { override val ord get() = entry.ord }
+    val headingId: String?
+    data class H(val heading: Heading) : RawItem {
+        override val ord get() = heading.ord
+        override val headingId get() = heading.id
+    }
+    data class N(val note: Note) : RawItem {
+        override val ord get() = note.ord
+        override val headingId get() = note.headingId
+    }
+    data class E(val entry: Entry) : RawItem {
+        override val ord get() = entry.ord
+        override val headingId get() = entry.headingId
+    }
 }
