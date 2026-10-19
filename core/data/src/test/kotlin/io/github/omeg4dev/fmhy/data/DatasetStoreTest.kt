@@ -285,4 +285,51 @@ class DatasetStoreTest {
 
         store.close()
     }
+
+    @Test
+    fun testSectionItemsLineGrouping() = runTest {
+        val dbFile = tempFolder.newFile("sample_line_grouping.db")
+        val store = createSampleDb(dbFile)
+
+        store.withConnection { conn ->
+            conn.execSQL("INSERT INTO sections (id, title, description, file, ord) VALUES ('adblock', 'Adblocking', '', 'adblock.md', 1);")
+            conn.execSQL("INSERT INTO headings (id, section_id, parent_id, level, title, anchor, ord) VALUES ('adblock/tools', 'adblock', NULL, 1, 'Tools', 'tools', 1);")
+            conn.execSQL("INSERT INTO entries (num, id, section_id, heading_id, ord, name, url, original_url, description, tags, heading_path, tier, kind, line, is_inline_more, is_base64, mirrors, extra_links, first_seen, last_changed, starred_at) VALUES (1, 'e1', 'adblock', 'adblock/tools', 1, 'uBlock Origin', 'https://ubo.org', NULL, '', '', '', 1, 0, 2, 0, 0, '[]', '[]', 1000, 1000, 1000);")
+            conn.execSQL("INSERT INTO entries (num, id, section_id, heading_id, ord, name, url, original_url, description, tags, heading_path, tier, kind, line, is_inline_more, is_base64, mirrors, extra_links, first_seen, last_changed, starred_at) VALUES (2, 'e2', 'adblock', 'adblock/tools', 2, 'AdGuard', 'https://adguard.com', NULL, '', '', '', 1, 0, 2, 0, 0, '[]', '[]', 1000, 1000, 1000);")
+            conn.execSQL("INSERT INTO entries (num, id, section_id, heading_id, ord, name, url, original_url, description, tags, heading_path, tier, kind, line, is_inline_more, is_base64, mirrors, extra_links, first_seen, last_changed, starred_at) VALUES (3, 'e3', 'adblock', 'adblock/tools', 3, 'uBO Lite', 'https://ubol.org', NULL, '', '', '', 1, 0, 2, 0, 0, '[]', '[]', 1000, 1000, 1000);")
+            conn.execSQL("INSERT INTO entries (num, id, section_id, heading_id, ord, name, url, original_url, description, tags, heading_path, tier, kind, line, is_inline_more, is_base64, mirrors, extra_links, first_seen, last_changed, starred_at) VALUES (4, 'e4', 'adblock', 'adblock/tools', 4, 'Report Issues', 'https://uassets.org', NULL, '', '', '', 1, 0, 3, 0, 0, '[]', '[{\"label\":\"uAssets\",\"url\":\"https://uassets.org\"}]', 1000, 1000, 1000);")
+            conn.execSQL("INSERT INTO entries (num, id, section_id, heading_id, ord, name, url, original_url, description, tags, heading_path, tier, kind, line, is_inline_more, is_base64, mirrors, extra_links, first_seen, last_changed, starred_at) VALUES (5, 'e5', 'adblock', 'adblock/tools', 5, 'SponsorBlock', 'https://sponsor.org', NULL, '', '', '', 1, 0, 4, 0, 0, '[]', '[]', 1000, 1000, 1000);")
+        }
+
+        val items = store.sectionItems("adblock")
+        assertEquals(4, items.size)
+        assertTrue(items[0] is SectionItem.HeadingItem)
+
+        assertTrue(items[1] is SectionItem.EntryItem)
+        val uBlockItem = items[1] as SectionItem.EntryItem
+        assertEquals("e1", uBlockItem.entry.id)
+        assertEquals("uBlock Origin", uBlockItem.entry.name)
+        assertEquals(Tier.STAR, uBlockItem.entry.tier)
+        assertEquals(2, uBlockItem.alternatives.size)
+        assertEquals("e2", uBlockItem.alternatives[0].id)
+        assertEquals("AdGuard", uBlockItem.alternatives[0].name)
+        assertEquals(Tier.STAR, uBlockItem.alternatives[0].tier)
+        assertEquals("e3", uBlockItem.alternatives[1].id)
+        assertEquals("uBO Lite", uBlockItem.alternatives[1].name)
+        assertEquals(Tier.STAR, uBlockItem.alternatives[1].tier)
+
+        assertTrue(items[2] is SectionItem.EntryItem)
+        val reportItem = items[2] as SectionItem.EntryItem
+        assertEquals("e4", reportItem.entry.id)
+        assertEquals("Report Issues", reportItem.entry.name)
+        assertTrue(reportItem.alternatives.isEmpty())
+
+        assertTrue(items[3] is SectionItem.EntryItem)
+        val sponsorItem = items[3] as SectionItem.EntryItem
+        assertEquals("e5", sponsorItem.entry.id)
+        assertEquals("SponsorBlock", sponsorItem.entry.name)
+        assertTrue(sponsorItem.alternatives.isEmpty())
+
+        store.close()
+    }
 }

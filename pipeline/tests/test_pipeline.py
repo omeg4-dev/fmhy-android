@@ -246,7 +246,7 @@ class TestParseFixtures:
         assert entries[0].tier == 2
         assert entries[1].name == "BingeBox"
         assert entries[1].url == "https://bingebox.ac/"
-        assert entries[1].tier == 0
+        assert entries[1].tier == 2
         # Both have same description and tags
         assert entries[0].tags == "Movies|TV|Anime|Auto-Next"
         assert entries[1].tags == "Movies|TV|Anime|Auto-Next"
@@ -326,15 +326,16 @@ class TestParseFixtures:
         drawdb = next(e for e in entries if e.name == "DrawDB")
         assert any(l["label"] == "Discord" for l in drawdb.extra_links)
 
-    def test_fixture6_steamunlocked_unparsed(self):
-        """
-        * SteamUnlocked - [IGG / NosTeam uploads](...) + very slow file host
-        → no link in HEAD → unparsed
-        """
+    def test_fixture6_steamunlocked_parsed(self):
         line = "* SteamUnlocked - [IGG / NosTeam uploads](https://i.ibb.co/VgW2ymY/YUnRNpN.png) + very slow file host"
         entries, notes = _parse_line(line)
-        # No link in HEAD (before ' - '), so it should be unparsed (return None)
-        # Our _parse_line returns ([], []) for None
+        assert len(entries) == 1
+        assert entries[0].name == "SteamUnlocked"
+        assert entries[0].url == "https://i.ibb.co/VgW2ymY/YUnRNpN.png"
+
+    def test_no_links_in_head_or_desc_unparsed(self):
+        line = "* SteamUnlocked - very slow file host"
+        entries, notes = _parse_line(line)
         assert len(entries) == 0
 
     def test_fixture7_note(self):
@@ -446,7 +447,7 @@ def _make_test_db(path: str, entries: list[dict], version: int = 1) -> None:
 
     # Insert meta
     ts = int(time.time())
-    for k, v in [("schema", "2"), ("version", str(version)), ("created", str(ts)),
+    for k, v in [("schema", "3"), ("version", str(version)), ("created", str(ts)),
                  ("source_commit", "abc123"), ("history_start", str(ts - 1000))]:
         con.execute("INSERT OR REPLACE INTO meta(key,value) VALUES(?,?)", (k, v))
 
@@ -461,15 +462,15 @@ def _make_test_db(path: str, entries: list[dict], version: int = 1) -> None:
         con.execute(
             "INSERT OR REPLACE INTO entries"
             "(num, id, section_id, heading_id, ord, name, url, original_url, "
-            "description, tags, heading_path, tier, kind, is_inline_more, is_base64, "
+            "description, tags, heading_path, tier, kind, line, is_inline_more, is_base64, "
             "mirrors, extra_links, first_seen, last_changed, starred_at) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 e["num"], e["id"], e.get("section_id", "test"),
                 None, e.get("ord", 0), e["name"], e["url"],
                 None, e.get("description", ""), e.get("tags", ""),
                 e.get("heading_path", "Test Section"), e.get("tier", 0),
-                e.get("kind", 0), 0, 0, "[]", "[]",
+                e.get("kind", 0), e.get("line", 0), 0, 0, "[]", "[]",
                 e.get("first_seen", ts), e.get("last_changed", ts), None,
             ),
         )

@@ -32,7 +32,7 @@ class FmhyParserTest {
         assertEquals(2, entries[0].tier)
         assertEquals("BingeBox", entries[1].name)
         assertEquals("https://bingebox.ac/", entries[1].url)
-        assertEquals(0, entries[1].tier)
+        assertEquals(2, entries[1].tier)
 
         assertEquals("Movies|TV|Anime|Auto-Next", entries[0].tags)
         assertEquals("Movies|TV|Anime|Auto-Next", entries[1].tags)
@@ -107,8 +107,18 @@ class FmhyParserTest {
     }
 
     @Test
-    fun testFixture6SteamunlockedUnparsed() {
+    fun testFixture6SteamunlockedParsed() {
         val line = "* SteamUnlocked - [IGG / NosTeam uploads](https://i.ibb.co/VgW2ymY/YUnRNpN.png) + very slow file host"
+        val parsed = parseLine(line)
+        assertEquals(1, parsed.entries.size)
+        assertEquals("SteamUnlocked", parsed.entries[0].name)
+        assertEquals("https://i.ibb.co/VgW2ymY/YUnRNpN.png", parsed.entries[0].url)
+        assertEquals(0, parsed.unparsedLines)
+    }
+
+    @Test
+    fun testNoLinksInHeadOrDescIsUnparsed() {
+        val line = "* SteamUnlocked - very slow file host"
         val parsed = parseLine(line)
         assertEquals(0, parsed.entries.size)
         assertEquals(1, parsed.unparsedLines)
@@ -244,5 +254,54 @@ class FmhyParserTest {
         val e = parsed.entries[0]
         assertTrue(e.extraLinks.any { it.label == "Discord" && it.url == "https://d" })
         assertTrue(!e.description.contains("Discord"))
+    }
+
+    @Test
+    fun testPlainTextHeadReportIssues() {
+        val line = "* ⭐ **Report Issues** - [uAssets](https://github.com/uBlockOrigin/uAssets/issues) / [Hosts](https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts) / [AdGuard](https://github.com/AdguardTeam/AdguardFilters/issues) / [EasyList](https://github.com/easylist/easylist/issues)"
+        val parsed = parseLine(line)
+        assertEquals(1, parsed.entries.size)
+        val e = parsed.entries[0]
+        assertEquals("Report Issues", e.name)
+        assertEquals("https://github.com/uBlockOrigin/uAssets/issues", e.url)
+        assertEquals(1, e.tier)
+        assertEquals(4, e.extraLinks.size)
+        assertEquals(LinkRow("uAssets", "https://github.com/uBlockOrigin/uAssets/issues"), e.extraLinks[0])
+        assertEquals(LinkRow("Hosts", "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts"), e.extraLinks[1])
+        assertEquals(LinkRow("AdGuard", "https://github.com/AdguardTeam/AdguardFilters/issues"), e.extraLinks[2])
+        assertEquals(LinkRow("EasyList", "https://github.com/easylist/easylist/issues"), e.extraLinks[3])
+        assertEquals("", e.description)
+    }
+
+    @Test
+    fun testConsecutiveLinesNumbering() {
+        val markdown = """
+            # Adblocking
+            * ⭐ **[uBlock Origin](https://ublockorigin.pages.dev/)**, [AdGuard](https://adguard.com/) or [uBO Lite](https://github.com/uBlockOrigin/uBOL-home) (MV3) / [Note](https://reddit.com/r/uBlockOrigin) - Adblockers / [Redundant Extensions](https://reddit.com/r/uBlockOrigin)
+            * ⭐ **Report Issues** - [uAssets](https://github.com/uBlockOrigin/uAssets/issues) / [Hosts](https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts)
+            * ⭐ **[SponsorBlock](https://sponsor.ajay.app/)** - Skip Sponsored YouTube Ads
+        """.trimIndent()
+        val parsed = FmhyParser.parseSection(testSection, markdown, emptyB64)
+        val entries = parsed.entries
+        // line 1 is heading (# Adblocking)
+        // line 2 has uBlock Origin, AdGuard, uBO Lite
+        val uBlockEntries = entries.filter { it.line == 2 }
+        assertEquals(3, uBlockEntries.size)
+        assertEquals("uBlock Origin", uBlockEntries[0].name)
+        assertEquals("AdGuard", uBlockEntries[1].name)
+        assertEquals("uBO Lite", uBlockEntries[2].name)
+        assertEquals(1, uBlockEntries[0].tier)
+        assertEquals(1, uBlockEntries[1].tier)
+        assertEquals(1, uBlockEntries[2].tier)
+
+        // line 3 has Report Issues
+        val reportIssues = entries.first { it.line == 3 }
+        assertEquals("Report Issues", reportIssues.name)
+        assertEquals(1, reportIssues.tier)
+
+        // line 4 has SponsorBlock
+        val sponsorBlock = entries.first { it.line == 4 }
+        assertEquals("SponsorBlock", sponsorBlock.name)
+        assertEquals(1, sponsorBlock.tier)
     }
 }

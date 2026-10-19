@@ -14,6 +14,7 @@ data class Entry(
     val headingPath: String,
     val tier: Tier,
     val kind: EntryKind = EntryKind.NORMAL,
+    val line: Int = 0,
     val isInlineMore: Boolean,
     val isBase64: Boolean,
     val mirrors: List<Link>,

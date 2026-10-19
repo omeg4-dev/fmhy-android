@@ -86,6 +86,8 @@ class EntryIconsTest {
         assertEquals(R.drawable.ic_link_mastodon, socialIconFor("Mastodon"))
         assertEquals(R.drawable.ic_link_bluesky, socialIconFor("BlueSky"))
         assertEquals(R.drawable.ic_link_onion, socialIconFor(".onion"))
+        assertEquals(R.drawable.ic_link_note, socialIconFor("Note"))
+        assertEquals(R.drawable.ic_link_note, socialIconFor("note"))
 
         assertNull(socialIconFor("Status"))
         assertNull(socialIconFor("Guide"))

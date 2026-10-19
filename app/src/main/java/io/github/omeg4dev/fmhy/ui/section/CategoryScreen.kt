@@ -325,6 +325,7 @@ fun CategoryScreen(
                                 Column {
                                     EntryRow(
                                         entry = item.entry,
+                                        alternatives = item.alternatives,
                                         onOpenUrl = { linkOpener.openUrl(it) },
                                         onShowSnackbar = onShowSnackbar,
                                     )

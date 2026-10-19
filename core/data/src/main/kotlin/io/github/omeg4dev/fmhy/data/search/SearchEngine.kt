@@ -128,7 +128,7 @@ open class SearchEngine(private val store: DatasetStore) {
         val sql = """
             SELECT
                 e.num, e.id, e.section_id, e.heading_id, e.ord, e.name, e.url, e.original_url,
-                e.description, e.tags, e.heading_path, e.tier, e.is_inline_more, e.is_base64,
+                e.description, e.tags, e.heading_path, e.tier, e.kind, e.line, e.is_inline_more, e.is_base64,
                 e.mirrors, e.extra_links, e.first_seen, e.last_changed, e.starred_at,
                 highlight(fts_words, 0, char(2), char(3)) AS name_hl,
                 highlight(fts_words, 2, char(2), char(3)) AS desc_hl,
@@ -160,8 +160,8 @@ open class SearchEngine(private val store: DatasetStore) {
 
                 while (stmt.step()) {
                     val entry = readEntry(stmt)
-                    val nameHl = stmt.getText(19)
-                    val descHl = stmt.getText(20)
+                    val nameHl = stmt.getText(20)
+                    val descHl = stmt.getText(21)
                     hits.add(SearchHit(entry, nameHl, descHl))
                 }
             }
@@ -218,7 +218,7 @@ open class SearchEngine(private val store: DatasetStore) {
         val sql = """
             SELECT
                 e.num, e.id, e.section_id, e.heading_id, e.ord, e.name, e.url, e.original_url,
-                e.description, e.tags, e.heading_path, e.tier, e.kind, e.is_inline_more, e.is_base64,
+                e.description, e.tags, e.heading_path, e.tier, e.kind, e.line, e.is_inline_more, e.is_base64,
                 e.mirrors, e.extra_links, e.first_seen, e.last_changed, e.starred_at
             FROM fts_tri
             JOIN entries e ON fts_tri.rowid = e.num
@@ -284,7 +284,7 @@ open class SearchEngine(private val store: DatasetStore) {
         val sql = """
             SELECT
                 e.num, e.id, e.section_id, e.heading_id, e.ord, e.name, e.url, e.original_url,
-                e.description, e.tags, e.heading_path, e.tier, e.kind, e.is_inline_more, e.is_base64,
+                e.description, e.tags, e.heading_path, e.tier, e.kind, e.line, e.is_inline_more, e.is_base64,
                 e.mirrors, e.extra_links, e.first_seen, e.last_changed, e.starred_at
             FROM entries e
             $whereClause
@@ -317,13 +317,13 @@ open class SearchEngine(private val store: DatasetStore) {
     private fun readEntry(stmt: androidx.sqlite.SQLiteStatement): Entry {
         val tagsRaw = stmt.getText(9)
         val tagsList = if (tagsRaw.isEmpty()) emptyList() else tagsRaw.split('|')
-        val mirrorsRaw = stmt.getText(15)
+        val mirrorsRaw = stmt.getText(16)
         val mirrorsList = try {
             json.decodeFromString<List<Link>>(mirrorsRaw)
         } catch (_: Exception) {
             emptyList()
         }
-        val extraLinksRaw = stmt.getText(16)
+        val extraLinksRaw = stmt.getText(17)
         val extraLinksList = try {
             json.decodeFromString<List<Link>>(extraLinksRaw)
         } catch (_: Exception) {
@@ -344,13 +344,14 @@ open class SearchEngine(private val store: DatasetStore) {
             headingPath = stmt.getText(10),
             tier = Tier.fromInt(stmt.getLong(11).toInt()),
             kind = EntryKind.fromInt(stmt.getLong(12).toInt()),
-            isInlineMore = stmt.getLong(13) != 0L,
-            isBase64 = stmt.getLong(14) != 0L,
+            line = stmt.getLong(13).toInt(),
+            isInlineMore = stmt.getLong(14) != 0L,
+            isBase64 = stmt.getLong(15) != 0L,
             mirrors = mirrorsList,
             extraLinks = extraLinksList,
-            firstSeen = stmt.getLong(17),
-            lastChanged = stmt.getLong(18),
-            starredAt = if (stmt.isNull(19)) null else stmt.getLong(19),
+            firstSeen = stmt.getLong(18),
+            lastChanged = stmt.getLong(19),
+            starredAt = if (stmt.isNull(20)) null else stmt.getLong(20),
         )
     }
 }

@@ -6,7 +6,7 @@ package io.github.omeg4dev.fmhy.data.model
  */
 sealed interface SectionItem {
     data class HeadingItem(val heading: Heading) : SectionItem
-    data class EntryItem(val entry: Entry) : SectionItem
+    data class EntryItem(val entry: Entry, val alternatives: List<Entry> = emptyList()) : SectionItem
     data class NoteItem(val note: Note) : SectionItem
     data class MoreGroup(val entries: List<Entry>) : SectionItem
 }

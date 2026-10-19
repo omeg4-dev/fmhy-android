@@ -65,6 +65,7 @@ object FmhyParser {
 
         while (i < lines.size) {
             val line = lines[i]
+            val lineNumber = i + 1
             i++
 
             if (line.startsWith(":::")) {
@@ -156,7 +157,8 @@ object FmhyParser {
                     sectionId = section.id,
                     headingId = currentHeading()?.id,
                     headingPath = currentHeadingPath(),
-                    isInlineMore = false
+                    isInlineMore = false,
+                    line = lineNumber
                 )
 
                 if (parsed == null || parsed.isEmpty()) {
@@ -181,6 +183,7 @@ object FmhyParser {
                             headingPath = p.headingPath,
                             tier = p.tier,
                             kind = p.kind,
+                            line = p.line,
                             isInlineMore = p.isInlineMore,
                             isBase64 = originalUrl != null,
                             mirrors = allMirrors,
@@ -200,7 +203,8 @@ object FmhyParser {
                         sectionId = section.id,
                         headingId = currentHeading()?.id,
                         headingPath = currentHeadingPath(),
-                        isInlineMore = true
+                        isInlineMore = true,
+                        line = lineNumber
                     )
                     if (!parsed.isNullOrEmpty()) {
                         for (p in parsed) {
@@ -220,6 +224,7 @@ object FmhyParser {
                                     headingPath = p.headingPath,
                                     tier = p.tier,
                                     kind = p.kind,
+                                    line = p.line,
                                     isInlineMore = p.isInlineMore,
                                     isBase64 = originalUrl != null,
                                     mirrors = allMirrors,
@@ -280,6 +285,7 @@ object FmhyParser {
         val url: String,
         val tier: Int,
         var kind: Int = 0,
+        val line: Int = 0,
         val isInlineMore: Boolean,
         val headingId: String?,
         val headingPath: String,
@@ -294,18 +300,50 @@ object FmhyParser {
         sectionId: String,
         headingId: String?,
         headingPath: String,
-        isInlineMore: Boolean
+        isInlineMore: Boolean,
+        line: Int
     ): List<PartialEntry>? {
         val cleaned = stripInvisibleChars(content)
         val (tier, kind, withoutTierAndKind) = detectTierAndKind(cleaned)
         val (head, desc) = splitHeadDesc(withoutTierAndKind)
 
-        if (!head.contains('[')) {
-            return null
+        val headLinks = extractInlineLinks(head)
+        if (headLinks.isEmpty()) {
+            val descLinks = extractInlineLinks(desc)
+            if (descLinks.isEmpty()) {
+                return null
+            }
+            val rawName = head.replace("**", "").trim()
+            val name = stripLeadingEmoji(rawName).trim()
+            if (name.isEmpty()) {
+                return null
+            }
+            val firstUrl = descLinks[0].url
+            val extraLinks = descLinks.map { LinkRow(it.label, it.url) }.toMutableList()
+            val (_, nonLinkDesc) = splitHeadDesc(desc)
+            val description = if (nonLinkDesc.isNotEmpty()) markdownToPlain(nonLinkDesc).trim() else ""
+            val tags = description
+
+            return listOf(
+                PartialEntry(
+                    name = name,
+                    url = firstUrl,
+                    tier = tier,
+                    kind = if (isInlineMore) 0 else kind,
+                    line = line,
+                    isInlineMore = isInlineMore,
+                    headingId = headingId,
+                    headingPath = headingPath,
+                    description = description,
+                    tags = tags,
+                    mirrors = mutableListOf(),
+                    extraLinks = extraLinks
+                )
+            )
         }
 
         val lineKind = if (isInlineMore) 0 else kind
-        val entryCandidates = parseHeadLinks(head, tier, lineKind, isInlineMore, headingId, headingPath)
+        val entryCandidates = parseHeadLinks(head, tier, lineKind, line, isInlineMore, headingId, headingPath)
         if (entryCandidates.isEmpty()) {
             return null
         }
@@ -408,6 +446,7 @@ object FmhyParser {
         headText: String,
         tier: Int,
         lineKind: Int,
+        line: Int,
         isInlineMore: Boolean,
         headingId: String?,
         headingPath: String
@@ -429,6 +468,7 @@ object FmhyParser {
                 url = url,
                 tier = linkTier,
                 kind = linkKind,
+                line = line,
                 isInlineMore = isInlineMore,
                 headingId = headingId,
                 headingPath = headingPath
@@ -457,7 +497,7 @@ object FmhyParser {
                         current!!.extraLinks.add(LinkRow(link.label, link.url))
                     } else {
                         val isFirstEntry = entries.isEmpty() && current == null
-                        val linkTier = if (inBold || isFirstEntry) tier else 0
+                        val linkTier = tier
                         val linkKind = when {
                             link.label.trimStart().startsWith("🌐") || sepText.contains("🌐") -> 1
                             link.label.trimStart().startsWith("↪") || sepText.contains("↪") -> 2

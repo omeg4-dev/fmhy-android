@@ -461,6 +461,7 @@ open class FmhySync(
                 val inserted: List<EntryRow>,
                 val updated: List<Pair<Entry, EntryRow>>,
                 val starredOldEntries: List<Entry>, // old entries where tier goes 0 -> >= 1
+                val lineOnlyUpdated: List<Pair<Entry, EntryRow>> = emptyList(),
             )
 
             val sectionDiffs = mutableListOf<EntryDiff>()
@@ -474,6 +475,7 @@ open class FmhySync(
                 val vanished = existingEntries.values.filter { it.id !in newEntriesById }
                 val inserted = newEntries.filter { it.id !in existingEntries }
                 val toUpdate = mutableListOf<Pair<Entry, EntryRow>>()
+                val lineOnlyUpdate = mutableListOf<Pair<Entry, EntryRow>>()
                 val starred = mutableListOf<Entry>()
 
                 for (newRow in newEntries) {
@@ -499,11 +501,15 @@ open class FmhySync(
                         oldMirrorsJson != newMirrorsJson ||
                         oldExtraJson != newExtraJson
 
+                    val lineChanged = old.line != newRow.line
+
                     if (changed) {
                         toUpdate.add(old to newRow)
                         if (old.tier.value == 0 && newRow.tier >= 1) {
                             starred.add(old)
                         }
+                    } else if (lineChanged) {
+                        lineOnlyUpdate.add(old to newRow)
                     }
                 }
 
@@ -514,7 +520,7 @@ open class FmhySync(
                     changedHeadingsOrNotes = true
                 }
 
-                sectionDiffs.add(EntryDiff(secId, vanished, inserted, toUpdate, starred))
+                sectionDiffs.add(EntryDiff(secId, vanished, inserted, toUpdate, starred, lineOnlyUpdate))
             }
 
             val absentSectionEntries = absentSections.associateWith { store.entriesForSection(it.id) }
@@ -633,9 +639,9 @@ open class FmhySync(
                         val sqlInsertEntry = """
                             INSERT INTO entries (
                                 num, id, section_id, heading_id, ord, name, url, original_url,
-                                description, tags, heading_path, tier, kind, is_inline_more, is_base64,
+                                description, tags, heading_path, tier, kind, line, is_inline_more, is_base64,
                                 mirrors, extra_links, first_seen, last_changed, starred_at
-                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """.trimIndent()
                         conn.prepare(sqlInsertEntry).use { insStmt ->
                             conn.prepare("INSERT INTO changes (ts, kind, entry_id, section_id, name, url, detail, commit_sha) VALUES (?, 'added', ?, ?, ?, ?, '', '')").use { chStmt ->
@@ -656,13 +662,14 @@ open class FmhySync(
                                     insStmt.bindText(11, ins.headingPath)
                                     insStmt.bindLong(12, ins.tier.toLong())
                                     insStmt.bindLong(13, ins.kind.toLong())
-                                    insStmt.bindLong(14, if (ins.isInlineMore) 1L else 0L)
-                                    insStmt.bindLong(15, if (ins.isBase64) 1L else 0L)
-                                    insStmt.bindText(16, json.encodeToString(ins.mirrors))
-                                    insStmt.bindText(17, json.encodeToString(ins.extraLinks))
-                                    insStmt.bindLong(18, now)
+                                    insStmt.bindLong(14, ins.line.toLong())
+                                    insStmt.bindLong(15, if (ins.isInlineMore) 1L else 0L)
+                                    insStmt.bindLong(16, if (ins.isBase64) 1L else 0L)
+                                    insStmt.bindText(17, json.encodeToString(ins.mirrors))
+                                    insStmt.bindText(18, json.encodeToString(ins.extraLinks))
                                     insStmt.bindLong(19, now)
-                                    if (starredAt != null) insStmt.bindLong(20, starredAt) else insStmt.bindNull(20)
+                                    insStmt.bindLong(20, now)
+                                    if (starredAt != null) insStmt.bindLong(21, starredAt) else insStmt.bindNull(21)
                                     insStmt.step()
                                     insStmt.reset()
 
@@ -682,7 +689,7 @@ open class FmhySync(
                             UPDATE entries SET
                                 section_id = ?, heading_id = ?, ord = ?, name = ?, url = ?,
                                 original_url = ?, description = ?, tags = ?, heading_path = ?,
-                                tier = ?, kind = ?, is_inline_more = ?, is_base64 = ?, mirrors = ?,
+                                tier = ?, kind = ?, line = ?, is_inline_more = ?, is_base64 = ?, mirrors = ?,
                                 extra_links = ?, last_changed = ?, starred_at = ?
                             WHERE id = ?
                         """.trimIndent()
@@ -708,13 +715,14 @@ open class FmhySync(
                                     upStmt.bindText(9, row.headingPath)
                                     upStmt.bindLong(10, row.tier.toLong())
                                     upStmt.bindLong(11, row.kind.toLong())
-                                    upStmt.bindLong(12, if (row.isInlineMore) 1L else 0L)
-                                    upStmt.bindLong(13, if (row.isBase64) 1L else 0L)
-                                    upStmt.bindText(14, json.encodeToString(row.mirrors))
-                                    upStmt.bindText(15, json.encodeToString(row.extraLinks))
-                                    upStmt.bindLong(16, now)
-                                    if (starredAt != null) upStmt.bindLong(17, starredAt) else upStmt.bindNull(17)
-                                    upStmt.bindText(18, row.id)
+                                    upStmt.bindLong(12, row.line.toLong())
+                                    upStmt.bindLong(13, if (row.isInlineMore) 1L else 0L)
+                                    upStmt.bindLong(14, if (row.isBase64) 1L else 0L)
+                                    upStmt.bindText(15, json.encodeToString(row.mirrors))
+                                    upStmt.bindText(16, json.encodeToString(row.extraLinks))
+                                    upStmt.bindLong(17, now)
+                                    if (starredAt != null) upStmt.bindLong(18, starredAt) else upStmt.bindNull(18)
+                                    upStmt.bindText(19, row.id)
                                     upStmt.step()
                                     upStmt.reset()
 
@@ -727,6 +735,18 @@ open class FmhySync(
                                         chStmt.step()
                                         chStmt.reset()
                                     }
+                                }
+                            }
+                        }
+
+                        // Line-only updated entries: update line silently without recording change or updating last_changed
+                        if (diff.lineOnlyUpdated.isNotEmpty()) {
+                            conn.prepare("UPDATE entries SET line = ? WHERE id = ?").use { stmt ->
+                                for ((_, row) in diff.lineOnlyUpdated) {
+                                    stmt.bindLong(1, row.line.toLong())
+                                    stmt.bindText(2, row.id)
+                                    stmt.step()
+                                    stmt.reset()
                                 }
                             }
                         }

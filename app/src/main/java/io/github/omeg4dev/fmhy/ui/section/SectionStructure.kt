@@ -84,7 +84,7 @@ fun buildSectionStructure(items: List<SectionItem>): SectionStructure {
         var entryCount = 0
         for (item in catItems) {
             when (item) {
-                is SectionItem.EntryItem -> entryCount++
+                is SectionItem.EntryItem -> entryCount += 1 + item.alternatives.size
                 is SectionItem.MoreGroup -> entryCount += item.entries.size
                 else -> {}
             }
@@ -129,22 +129,35 @@ fun filterSectionItems(
         return items
     }
 
+    fun matches(entry: io.github.omeg4dev.fmhy.data.model.Entry): Boolean {
+        val matchesStarred = !starredOnly || entry.tier == Tier.STAR || entry.tier == Tier.TOP
+        val matchesIndex = showIndexes || entry.kind != EntryKind.INDEX
+        return matchesStarred && matchesIndex
+    }
+
     // 1. Filter entries and MoreGroups
     val candidateItems = ArrayList<SectionItem>(items.size)
     for (item in items) {
         when (item) {
             is SectionItem.EntryItem -> {
-                val matchesStarred = !starredOnly || item.entry.tier == Tier.STAR || item.entry.tier == Tier.TOP
-                val matchesIndex = showIndexes || item.entry.kind != EntryKind.INDEX
-                if (matchesStarred && matchesIndex) {
-                    candidateItems.add(item)
+                val primaryMatches = matches(item.entry)
+                val remainingAlternatives = item.alternatives.filter { matches(it) }
+                if (primaryMatches) {
+                    candidateItems.add(
+                        if (remainingAlternatives.size == item.alternatives.size) item
+                        else item.copy(alternatives = remainingAlternatives)
+                    )
+                } else if (remainingAlternatives.isNotEmpty()) {
+                    candidateItems.add(
+                        SectionItem.EntryItem(
+                            entry = remainingAlternatives.first(),
+                            alternatives = remainingAlternatives.drop(1)
+                        )
+                    )
                 }
             }
             is SectionItem.MoreGroup -> {
-                val filteredEntries = item.entries.filter { entry ->
-                    (!starredOnly || entry.tier == Tier.STAR || entry.tier == Tier.TOP) &&
-                    (showIndexes || entry.kind != EntryKind.INDEX)
-                }
+                val filteredEntries = item.entries.filter { matches(it) }
                 if (filteredEntries.isNotEmpty()) {
                     candidateItems.add(SectionItem.MoreGroup(filteredEntries))
                 }
