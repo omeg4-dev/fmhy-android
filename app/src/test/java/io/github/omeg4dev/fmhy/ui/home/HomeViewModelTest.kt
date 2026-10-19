@@ -151,6 +151,7 @@ class HomeViewModelTest {
         override suspend fun setShowRandomPick(show: Boolean) { _appearance.value = _appearance.value.copy(showRandomPick = show) }
         override suspend fun setStarredOnly(starredOnly: Boolean) { _appearance.value = _appearance.value.copy(starredOnly = starredOnly) }
         override suspend fun setShowIndexes(showIndexes: Boolean) { _appearance.value = _appearance.value.copy(showIndexes = showIndexes) }
+        override suspend fun setHapticFeedback(enabled: Boolean) { _appearance.value = _appearance.value.copy(hapticFeedback = enabled) }
     }
 
     @Test
@@ -420,5 +421,43 @@ class HomeViewModelTest {
         assertNull(readyState.randomPick)
         assertEquals(0, store.randomTopPickCallCount)
         assertEquals(SectionOrder.ALPHABETICAL, store.lastSectionOrderCalledWith)
+    }
+
+    @Test
+    fun testGroupSectionsToolsContainsAudioAndEducationalToolsVirtualRows() {
+        val sections = listOf(
+            Section(id = "privacy", title = "Privacy", description = "", ord = 1, entryCount = 10),
+            Section(id = "system-tools", title = "System Tools", description = "", ord = 2, entryCount = 10),
+            Section(id = "image-tools", title = "Image Tools", description = "", ord = 3, entryCount = 10),
+            Section(id = "video-tools", title = "Video Tools", description = "", ord = 4, entryCount = 10),
+            Section(id = "developer-tools", title = "Developer Tools", description = "", ord = 5, entryCount = 10),
+            Section(id = "storage", title = "Storage", description = "", ord = 6, entryCount = 10),
+        )
+
+        val groups = groupSections(sections, SectionOrder.WEBSITE)
+        val toolsGroup = groups.firstOrNull { it.title == "Tools" }
+        assertNotNull(toolsGroup)
+        val toolIds = toolsGroup!!.sections.map { it.id }
+        assertEquals(
+            listOf("system-tools", "image-tools", "video-tools", "audio-tools", "educational-tools", "developer-tools"),
+            toolIds,
+        )
+
+        val videoIdx = toolIds.indexOf("video-tools")
+        val audioIdx = toolIds.indexOf("audio-tools")
+        val eduIdx = toolIds.indexOf("educational-tools")
+        val devIdx = toolIds.indexOf("developer-tools")
+        assertEquals(videoIdx + 1, audioIdx)
+        assertEquals(audioIdx + 1, eduIdx)
+        assertEquals(eduIdx + 1, devIdx)
+
+        val alphaSections = sections.sortedBy { it.title }
+        val alphaGroups = groupSections(alphaSections, SectionOrder.ALPHABETICAL)
+        assertEquals(1, alphaGroups.size)
+        assertNull(alphaGroups[0].title)
+        val alphaTitles = alphaGroups[0].sections.map { it.title }
+        assertEquals(alphaTitles.sortedWith(String.CASE_INSENSITIVE_ORDER), alphaTitles)
+        assertTrue(alphaTitles.contains("Audio Tools"))
+        assertTrue(alphaTitles.contains("Educational Tools"))
     }
 }

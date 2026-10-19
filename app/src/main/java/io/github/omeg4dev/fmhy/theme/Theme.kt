@@ -16,6 +16,8 @@ import io.github.omeg4dev.fmhy.data.Appearance
 import io.github.omeg4dev.fmhy.data.ColorSource
 import io.github.omeg4dev.fmhy.data.ThemeMode
 
+import io.github.omeg4dev.fmhy.ui.common.LocalHapticsEnabled
+
 val LocalIsDarkTheme = staticCompositionLocalOf { false }
 
 @Composable
@@ -45,7 +47,10 @@ fun FMHYTheme(
         baseScheme
     }
 
-    CompositionLocalProvider(LocalIsDarkTheme provides dark) {
+    CompositionLocalProvider(
+        LocalIsDarkTheme provides dark,
+        LocalHapticsEnabled provides appearance.hapticFeedback,
+    ) {
         MaterialTheme(
             colorScheme = colorScheme,
             typography = Typography,

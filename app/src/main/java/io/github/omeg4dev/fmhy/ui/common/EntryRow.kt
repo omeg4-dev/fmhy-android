@@ -118,7 +118,7 @@ fun EntryRow(
     onShowSnackbar: (String) -> Unit = {},
 ) {
     var showBottomSheet by remember { mutableStateOf(false) }
-    val haptic = LocalHapticFeedback.current
+    val haptics = rememberHaptics()
 
     val primaryColor = MaterialTheme.colorScheme.primary
     val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
@@ -241,9 +241,12 @@ fun EntryRow(
             .heightIn(min = 56.dp)
             // Tap shows the details (all sites on the line, mirrors, links); hold opens the site directly.
             .combinedClickable(
-                onClick = { showBottomSheet = true },
+                onClick = {
+                    haptics.click()
+                    showBottomSheet = true
+                },
                 onLongClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    haptics.longPress()
                     onOpenUrl(entry.url)
                 },
                 onClickLabel = "Show details",
@@ -280,7 +283,10 @@ fun EntryRow(
                         color = MaterialTheme.colorScheme.secondaryContainer,
                         modifier = Modifier
                             .semantics { contentDescription = "${alternatives.size} more on this line" }
-                            .clickable { showBottomSheet = true },
+                            .clickable {
+                                haptics.click()
+                                showBottomSheet = true
+                            },
                     ) {
                         Text(
                             text = "+${alternatives.size}",
@@ -443,6 +449,7 @@ fun EntryDetailBottomSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val bookmarksState = LocalBookmarks.current
+    val haptics = rememberHaptics()
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -515,7 +522,10 @@ fun EntryDetailBottomSheet(
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         FilledTonalIconButton(
-                            onClick = { onOpenUrl(entry.url) },
+                            onClick = {
+                                haptics.click()
+                                onOpenUrl(entry.url)
+                            },
                             modifier = Modifier.size(56.dp),
                         ) {
                             Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Open")
@@ -530,7 +540,10 @@ fun EntryDetailBottomSheet(
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         FilledTonalIconButton(
-                            onClick = { onCopyLink(entry.url) },
+                            onClick = {
+                                haptics.confirm()
+                                onCopyLink(entry.url)
+                            },
                             modifier = Modifier.size(56.dp),
                         ) {
                             Icon(Icons.Default.ContentCopy, contentDescription = "Copy link")
@@ -545,7 +558,10 @@ fun EntryDetailBottomSheet(
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         FilledTonalIconButton(
-                            onClick = { onShareLink(entry.url) },
+                            onClick = {
+                                haptics.click()
+                                onShareLink(entry.url)
+                            },
                             modifier = Modifier.size(56.dp),
                         ) {
                             Icon(Icons.Default.Share, contentDescription = "Share")
@@ -561,6 +577,7 @@ fun EntryDetailBottomSheet(
                     ) {
                         FilledTonalIconButton(
                             onClick = {
+                                haptics.click()
                                 bookmarksState.toggle(entry)
                                 onShowSnackbar(if (isSaved) "Removed from Saved" else "Saved")
                                 onDismiss()
@@ -665,17 +682,36 @@ fun EntryDetailBottomSheet(
                                     )
                                 }
                             }
-                            IconButton(onClick = { onOpenUrl(site.url) }, modifier = Modifier.size(40.dp)) {
+                            IconButton(
+                                onClick = {
+                                    haptics.click()
+                                    onOpenUrl(site.url)
+                                },
+                                modifier = Modifier.size(40.dp)
+                            ) {
                                 Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Open ${site.name}", modifier = Modifier.size(20.dp))
                             }
-                            IconButton(onClick = { onCopyLink(site.url) }, modifier = Modifier.size(40.dp)) {
+                            IconButton(
+                                onClick = {
+                                    haptics.confirm()
+                                    onCopyLink(site.url)
+                                },
+                                modifier = Modifier.size(40.dp)
+                            ) {
                                 Icon(Icons.Default.ContentCopy, contentDescription = "Copy link", modifier = Modifier.size(20.dp))
                             }
-                            IconButton(onClick = { onShareLink(site.url) }, modifier = Modifier.size(40.dp)) {
+                            IconButton(
+                                onClick = {
+                                    haptics.click()
+                                    onShareLink(site.url)
+                                },
+                                modifier = Modifier.size(40.dp)
+                            ) {
                                 Icon(Icons.Default.Share, contentDescription = "Share", modifier = Modifier.size(20.dp))
                             }
                             IconButton(
                                 onClick = {
+                                    haptics.click()
                                     bookmarksState.toggle(site)
                                     onShowSnackbar(if (isSiteSaved) "Removed from Saved" else "Saved")
                                 },
@@ -726,7 +762,10 @@ fun EntryDetailBottomSheet(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                             ) {
                                 FilledTonalIconButton(
-                                    onClick = { onOpenUrl(site.url) },
+                                    onClick = {
+                                        haptics.click()
+                                        onOpenUrl(site.url)
+                                    },
                                     modifier = Modifier.size(48.dp),
                                 ) {
                                     Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Open")
@@ -741,7 +780,10 @@ fun EntryDetailBottomSheet(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                             ) {
                                 FilledTonalIconButton(
-                                    onClick = { onCopyLink(site.url) },
+                                    onClick = {
+                                        haptics.confirm()
+                                        onCopyLink(site.url)
+                                    },
                                     modifier = Modifier.size(48.dp),
                                 ) {
                                     Icon(Icons.Default.ContentCopy, contentDescription = "Copy link")
@@ -756,7 +798,10 @@ fun EntryDetailBottomSheet(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                             ) {
                                 FilledTonalIconButton(
-                                    onClick = { onShareLink(site.url) },
+                                    onClick = {
+                                        haptics.click()
+                                        onShareLink(site.url)
+                                    },
                                     modifier = Modifier.size(48.dp),
                                 ) {
                                     Icon(Icons.Default.Share, contentDescription = "Share")
@@ -772,6 +817,7 @@ fun EntryDetailBottomSheet(
                             ) {
                                 FilledTonalIconButton(
                                     onClick = {
+                                        haptics.click()
                                         bookmarksState.toggle(site)
                                         onShowSnackbar(if (isSiteSaved) "Removed from Saved" else "Saved")
                                     },

@@ -77,6 +77,7 @@ import io.github.omeg4dev.fmhy.ui.saved.SavedViewModel
 import io.github.omeg4dev.fmhy.ui.search.SearchScreen
 import io.github.omeg4dev.fmhy.ui.search.SearchViewModel
 import io.github.omeg4dev.fmhy.ui.section.CategoryScreen
+import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import io.github.omeg4dev.fmhy.ui.section.SectionScreen
 import io.github.omeg4dev.fmhy.ui.section.SectionViewModel
 import io.github.omeg4dev.fmhy.ui.settings.SettingsScreen
@@ -95,6 +96,7 @@ fun MainNavigation() {
     val app = context.applicationContext as FmhyApp
     val container = app.container
     val activity = context as? Activity
+    val haptics = rememberHaptics()
 
     val browseStack = rememberNavBackStack(HomeNavKey)
     val searchStack = rememberNavBackStack(SearchNavKey())
@@ -365,7 +367,10 @@ fun MainNavigation() {
                     ) {
                         NavigationBarItem(
                             selected = nav.current == Tab.BROWSE,
-                            onClick = { nav.select(Tab.BROWSE) },
+                            onClick = {
+                                haptics.tick()
+                                nav.select(Tab.BROWSE)
+                            },
                             icon = {
                                 Icon(
                                     imageVector = if (nav.current == Tab.BROWSE) Icons.Filled.Explore else Icons.Outlined.Explore,
@@ -377,7 +382,10 @@ fun MainNavigation() {
                         )
                         NavigationBarItem(
                             selected = nav.current == Tab.SEARCH,
-                            onClick = { nav.select(Tab.SEARCH) },
+                            onClick = {
+                                haptics.tick()
+                                nav.select(Tab.SEARCH)
+                            },
                             icon = {
                                 Icon(
                                     imageVector = if (nav.current == Tab.SEARCH) Icons.Filled.Search else Icons.Outlined.Search,
@@ -389,7 +397,10 @@ fun MainNavigation() {
                         )
                         NavigationBarItem(
                             selected = nav.current == Tab.SAVED,
-                            onClick = { nav.select(Tab.SAVED) },
+                            onClick = {
+                                haptics.tick()
+                                nav.select(Tab.SAVED)
+                            },
                             icon = {
                                 Icon(
                                     imageVector = if (nav.current == Tab.SAVED) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,

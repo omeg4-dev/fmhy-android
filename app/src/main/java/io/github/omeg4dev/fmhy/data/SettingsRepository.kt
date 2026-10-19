@@ -40,6 +40,7 @@ interface SettingsRepository {
     suspend fun setShowRandomPick(show: Boolean)
     suspend fun setStarredOnly(starredOnly: Boolean)
     suspend fun setShowIndexes(showIndexes: Boolean)
+    suspend fun setHapticFeedback(enabled: Boolean)
 }
 
 class DefaultSettingsRepository(private val context: Context) : SettingsRepository {
@@ -60,6 +61,7 @@ class DefaultSettingsRepository(private val context: Context) : SettingsReposito
         private val KEY_SHOW_RANDOM_PICK = booleanPreferencesKey("show_random_pick")
         private val KEY_STARRED_ONLY = booleanPreferencesKey("starred_only")
         private val KEY_SHOW_INDEXES = booleanPreferencesKey("show_indexes")
+        private val KEY_HAPTIC_FEEDBACK = booleanPreferencesKey("haptic_feedback")
     }
 
     override val lastVisitTs: Flow<Long> = context.dataStore.data.map { prefs ->
@@ -154,6 +156,7 @@ class DefaultSettingsRepository(private val context: Context) : SettingsReposito
         val showRandomPick = prefs[KEY_SHOW_RANDOM_PICK] ?: true
         val starredOnly = prefs[KEY_STARRED_ONLY] ?: false
         val showIndexes = prefs[KEY_SHOW_INDEXES] ?: true
+        val hapticFeedback = prefs[KEY_HAPTIC_FEEDBACK] ?: true
 
         Appearance(
             themeMode = themeMode,
@@ -166,6 +169,7 @@ class DefaultSettingsRepository(private val context: Context) : SettingsReposito
             showRandomPick = showRandomPick,
             starredOnly = starredOnly,
             showIndexes = showIndexes,
+            hapticFeedback = hapticFeedback,
         )
     }.distinctUntilChanged()
 
@@ -226,6 +230,12 @@ class DefaultSettingsRepository(private val context: Context) : SettingsReposito
     override suspend fun setShowIndexes(showIndexes: Boolean) {
         context.dataStore.edit { prefs ->
             prefs[KEY_SHOW_INDEXES] = showIndexes
+        }
+    }
+
+    override suspend fun setHapticFeedback(enabled: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_HAPTIC_FEEDBACK] = enabled
         }
     }
 }

@@ -81,6 +81,7 @@ import io.github.omeg4dev.fmhy.data.ThemeMode
 import io.github.omeg4dev.fmhy.theme.ACCENT_PRESETS
 import io.github.omeg4dev.fmhy.theme.LocalIsDarkTheme
 import io.github.omeg4dev.fmhy.theme.seedColorScheme
+import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -92,6 +93,7 @@ fun SettingsScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val isDark = LocalIsDarkTheme.current
+    val haptics = rememberHaptics()
 
     Scaffold(
         topBar = {
@@ -135,7 +137,10 @@ fun SettingsScreen(
                     themeModes.forEachIndexed { index, (mode, label) ->
                         SegmentedButton(
                             selected = state.appearance.themeMode == mode,
-                            onClick = { viewModel.setThemeMode(mode) },
+                            onClick = {
+                                haptics.tick()
+                                viewModel.setThemeMode(mode)
+                            },
                             shape = SegmentedButtonDefaults.itemShape(index = index, count = themeModes.size),
                             label = { Text(label) },
                         )
@@ -164,7 +169,12 @@ fun SettingsScreen(
                 }
                 Slider(
                     value = textScaleSliderValue,
-                    onValueChange = { textScaleSliderValue = it },
+                    onValueChange = {
+                        if ((it * 100).roundToInt() != (textScaleSliderValue * 100).roundToInt()) {
+                            haptics.tick()
+                        }
+                        textScaleSliderValue = it
+                    },
                     onValueChangeFinished = { viewModel.setTextScale(textScaleSliderValue) },
                     valueRange = 0.85f..1.30f,
                     steps = 8,
@@ -216,7 +226,10 @@ fun SettingsScreen(
                             .selectable(
                                 selected = isFmhySelected,
                                 role = Role.RadioButton,
-                                onClick = { viewModel.setColorSource(ColorSource.FMHY) }
+                                onClick = {
+                                    haptics.tick()
+                                    viewModel.setColorSource(ColorSource.FMHY)
+                                }
                             ),
                         border = BorderStroke(
                             if (isFmhySelected) 2.dp else 1.dp,
@@ -277,6 +290,7 @@ fun SettingsScreen(
                                 role = Role.RadioButton,
                                 onClick = {
                                     if (isMaterialYouAvailable) {
+                                        haptics.tick()
                                         viewModel.setColorSource(ColorSource.MATERIAL_YOU)
                                     }
                                 }
@@ -391,7 +405,10 @@ fun SettingsScreen(
                                     .selectable(
                                         selected = isSelected,
                                         role = Role.RadioButton,
-                                        onClick = { viewModel.setAccentSeed(preset.seed) }
+                                        onClick = {
+                                            haptics.tick()
+                                            viewModel.setAccentSeed(preset.seed)
+                                        }
                                     )
                                     .semantics { contentDescription = preset.name },
                                 contentAlignment = Alignment.Center,
@@ -434,7 +451,10 @@ fun SettingsScreen(
                                 .selectable(
                                     selected = isCustomSelected,
                                     role = Role.RadioButton,
-                                    onClick = { showCustomDialog = true }
+                                    onClick = {
+                                        haptics.tick()
+                                        showCustomDialog = true
+                                    }
                                 )
                                 .semantics { contentDescription = "Custom" },
                             contentAlignment = Alignment.Center,
@@ -491,7 +511,34 @@ fun SettingsScreen(
                         value = state.appearance.pureBlack,
                         enabled = isDark,
                         role = Role.Switch,
-                        onValueChange = { viewModel.setPureBlack(it) },
+                        onValueChange = {
+                            haptics.tick()
+                            viewModel.setPureBlack(it)
+                        },
+                    ),
+                )
+            }
+
+            // Haptic feedback switch
+            item {
+                ListItem(
+                    headlineContent = { Text("Haptic feedback") },
+                    supportingContent = {
+                        Text("Vibration on taps, holds, and toggles")
+                    },
+                    trailingContent = {
+                        Switch(
+                            checked = state.appearance.hapticFeedback,
+                            onCheckedChange = null,
+                        )
+                    },
+                    modifier = Modifier.toggleable(
+                        value = state.appearance.hapticFeedback,
+                        role = Role.Switch,
+                        onValueChange = {
+                            haptics.tick()
+                            viewModel.setHapticFeedback(it)
+                        },
                     ),
                 )
             }
@@ -516,7 +563,10 @@ fun SettingsScreen(
                         layouts.forEachIndexed { index, (layout, label) ->
                             SegmentedButton(
                                 selected = state.appearance.sectionLayout == layout,
-                                onClick = { viewModel.setSectionLayout(layout) },
+                                onClick = {
+                                    haptics.tick()
+                                    viewModel.setSectionLayout(layout)
+                                },
                                 shape = SegmentedButtonDefaults.itemShape(index = index, count = layouts.size),
                                 label = { Text(label) }
                             )
@@ -563,7 +613,10 @@ fun SettingsScreen(
                     modifier = Modifier.toggleable(
                         value = state.appearance.showRandomPick,
                         role = Role.Switch,
-                        onValueChange = { viewModel.setShowRandomPick(it) },
+                        onValueChange = {
+                            haptics.tick()
+                            viewModel.setShowRandomPick(it)
+                        },
                     ),
                 )
             }
@@ -587,7 +640,10 @@ fun SettingsScreen(
                         orders.forEachIndexed { index, (order, label) ->
                             SegmentedButton(
                                 selected = state.appearance.sectionOrder == order,
-                                onClick = { viewModel.setSectionOrder(order) },
+                                onClick = {
+                                    haptics.tick()
+                                    viewModel.setSectionOrder(order)
+                                },
                                 shape = SegmentedButtonDefaults.itemShape(index = index, count = orders.size),
                                 label = { Text(label) }
                             )
@@ -631,7 +687,10 @@ fun SettingsScreen(
                     modifier = Modifier.toggleable(
                         value = state.appearance.starredOnly,
                         role = Role.Switch,
-                        onValueChange = { viewModel.setStarredOnly(it) },
+                        onValueChange = {
+                            haptics.tick()
+                            viewModel.setStarredOnly(it)
+                        },
                     ),
                 )
             }
@@ -649,7 +708,10 @@ fun SettingsScreen(
                     modifier = Modifier.toggleable(
                         value = state.appearance.showIndexes,
                         role = Role.Switch,
-                        onValueChange = { viewModel.setShowIndexes(it) },
+                        onValueChange = {
+                            haptics.tick()
+                            viewModel.setShowIndexes(it)
+                        },
                     ),
                 )
             }
@@ -685,7 +747,10 @@ fun SettingsScreen(
                     modifier = Modifier.toggleable(
                         value = state.openInExternalBrowser,
                         role = Role.Switch,
-                        onValueChange = { viewModel.setOpenInExternalBrowser(it) },
+                        onValueChange = {
+                            haptics.tick()
+                            viewModel.setOpenInExternalBrowser(it)
+                        },
                     ),
                 )
             }
@@ -815,6 +880,7 @@ private fun CustomColorDialog(
     onDismiss: () -> Unit,
     onConfirm: (Int) -> Unit,
 ) {
+    val haptics = rememberHaptics()
     val initialHct = remember(initialSeed) { Hct.fromInt(initialSeed) }
     var hue by remember { mutableFloatStateOf(initialHct.hue.toFloat()) }
     var chroma by remember { mutableFloatStateOf(initialHct.chroma.toFloat().coerceIn(20f, 100f)) }
@@ -860,7 +926,12 @@ private fun CustomColorDialog(
                 }
                 Slider(
                     value = hue,
-                    onValueChange = { hue = it },
+                    onValueChange = {
+                        if (it.roundToInt() != hue.roundToInt()) {
+                            haptics.tick()
+                        }
+                        hue = it
+                    },
                     valueRange = 0f..360f,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -876,7 +947,12 @@ private fun CustomColorDialog(
                 }
                 Slider(
                     value = chroma,
-                    onValueChange = { chroma = it },
+                    onValueChange = {
+                        if (it.roundToInt() != chroma.roundToInt()) {
+                            haptics.tick()
+                        }
+                        chroma = it
+                    },
                     valueRange = 20f..100f,
                     modifier = Modifier.fillMaxWidth(),
                 )

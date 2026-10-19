@@ -15,4 +15,5 @@ data class Appearance(
     val showRandomPick: Boolean = true,
     val starredOnly: Boolean = false,
     val showIndexes: Boolean = true,
+    val hapticFeedback: Boolean = true,
 )

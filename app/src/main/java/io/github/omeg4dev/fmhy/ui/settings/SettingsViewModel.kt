@@ -146,6 +146,12 @@ class SettingsViewModel(
         }
     }
 
+    fun setHapticFeedback(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.setHapticFeedback(enabled)
+        }
+    }
+
     fun updateNow() {
         viewModelScope.launch {
             _isUpdating.value = true
