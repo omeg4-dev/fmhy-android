@@ -46,6 +46,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
+
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -78,6 +80,12 @@ import io.github.omeg4dev.fmhy.ui.section.SectionViewModel
 import io.github.omeg4dev.fmhy.ui.settings.SettingsScreen
 import io.github.omeg4dev.fmhy.ui.settings.SettingsViewModel
 import kotlinx.coroutines.launch
+
+fun interface BottomBarController {
+    fun show()
+}
+
+val LocalBottomBarController = staticCompositionLocalOf { BottomBarController {} }
 
 @Composable
 fun MainNavigation() {
@@ -153,6 +161,11 @@ fun MainNavigation() {
     }
 
     var isBarVisible by remember { mutableStateOf(true) }
+    val bottomBarController = remember {
+        BottomBarController {
+            isBarVisible = true
+        }
+    }
     val currentTopKey = nav.currentStack.lastOrNull()
     LaunchedEffect(nav.current, currentTopKey) {
         isBarVisible = true
@@ -280,6 +293,7 @@ fun MainNavigation() {
     CompositionLocalProvider(
         LocalAppNav provides nav,
         LocalBottomBarPadding provides bottomBarPadding,
+        LocalBottomBarController provides bottomBarController,
         LocalCrossLinks provides crossLinks,
         LocalBookmarks provides bookmarksState,
     ) {

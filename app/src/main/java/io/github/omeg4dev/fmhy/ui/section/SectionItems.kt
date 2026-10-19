@@ -4,6 +4,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -24,21 +26,27 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Lightbulb
+import androidx.compose.material.icons.outlined.WarningAmber
+import androidx.compose.material.icons.rounded.VerticalAlignTop
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -48,12 +56,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.github.omeg4dev.fmhy.R
 import io.github.omeg4dev.fmhy.data.link.CrossLinks
 import io.github.omeg4dev.fmhy.data.model.Entry
 import io.github.omeg4dev.fmhy.data.model.Heading
@@ -79,76 +92,98 @@ fun HeadingHeader(
     }
     val animatedBg by animateColorAsState(targetBg, animationSpec = tween(300), label = "heading_bg")
 
-    val topPadding = when (heading.level) {
-        1 -> if (isFirstItem) 12.dp else 28.dp
-        2 -> 20.dp
-        else -> 14.dp
-    }
-    val bottomPadding = when (heading.level) {
-        1 -> 4.dp
-        2 -> 6.dp
-        else -> 4.dp
-    }
-
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(animatedBg)
-            .then(
-                if (url != null) Modifier.clickable { onOpenUrl(url) } else Modifier
-            )
-            .padding(
-                start = 16.dp,
-                end = 16.dp,
-                top = topPadding,
-                bottom = bottomPadding,
-            )
-    ) {
-        when (heading.level) {
-            1 -> {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
+    when (heading.level) {
+        1 -> {
+            Box(
+                modifier = modifier
+                    .fillMaxWidth()
+                    .padding(
+                        start = 12.dp,
+                        end = 12.dp,
+                        top = if (isFirstItem) 12.dp else 32.dp,
+                        bottom = 8.dp,
+                    )
+            ) {
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(if (url != null) Modifier.clickable { onOpenUrl(url) } else Modifier),
                 ) {
-                    Row(
-                        modifier = Modifier.weight(1f, fill = false),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(animatedBg)
+                            .padding(horizontal = 16.dp, vertical = 14.dp)
                     ) {
-                        Text(
-                            text = splitTitle,
-                            style = MaterialTheme.typography.titleLarge,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        if (url != null) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(18.dp),
-                            )
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                Text(
+                                    text = splitTitle,
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.weight(1f, fill = false),
+                                )
+                                if (url != null) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(20.dp),
+                                    )
+                                }
+                            }
+                            if (entryCount != null) {
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    text = "$entryCount sites",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                         }
-                    }
-                    if (entryCount != null) {
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = "$entryCount sites",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
                     }
                 }
             }
-            2 -> {
+        }
+        2 -> {
+            Box(
+                modifier = modifier
+                    .fillMaxWidth()
+                    .background(animatedBg)
+                    .then(if (url != null) Modifier.clickable { onOpenUrl(url) } else Modifier)
+                    .padding(
+                        start = 16.dp,
+                        end = 16.dp,
+                        top = 24.dp,
+                        bottom = 6.dp,
+                    )
+            ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
+                    Box(
+                        modifier = Modifier
+                            .size(width = 3.dp, height = 18.dp)
+                            .background(
+                                color = MaterialTheme.colorScheme.primary,
+                                shape = RoundedCornerShape(1.5.dp),
+                            )
+                    )
                     Text(
                         text = splitTitle,
-                        style = MaterialTheme.typography.labelLarge.copy(letterSpacing = 0.4.sp),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.weight(1f, fill = false),
                     )
                     if (url != null) {
                         Icon(
@@ -160,7 +195,20 @@ fun HeadingHeader(
                     }
                 }
             }
-            else -> {
+        }
+        else -> {
+            Box(
+                modifier = modifier
+                    .fillMaxWidth()
+                    .background(animatedBg)
+                    .then(if (url != null) Modifier.clickable { onOpenUrl(url) } else Modifier)
+                    .padding(
+                        start = 28.dp,
+                        end = 16.dp,
+                        top = 16.dp,
+                        bottom = 4.dp,
+                    )
+            ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -168,8 +216,9 @@ fun HeadingHeader(
                 ) {
                     Text(
                         text = splitTitle,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f, fill = false),
                     )
                     if (url != null) {
                         Icon(
@@ -193,49 +242,78 @@ fun NoteCallout(
     var expanded by remember { mutableStateOf(false) }
     var hasOverflow by remember { mutableStateOf(false) }
 
+    val isWarning = remember(note.textMd) {
+        note.textMd.trim().trimStart('*').trimStart().startsWith("warning", ignoreCase = true)
+    }
+
+    val containerColor = if (isWarning) {
+        MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.55f)
+    } else {
+        MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.55f)
+    }
+    val borderColor = if (isWarning) {
+        MaterialTheme.colorScheme.error.copy(alpha = 0.35f)
+    } else {
+        MaterialTheme.colorScheme.tertiary.copy(alpha = 0.35f)
+    }
+    val accentColor = if (isWarning) {
+        MaterialTheme.colorScheme.error
+    } else {
+        MaterialTheme.colorScheme.tertiary
+    }
+    val icon = if (isWarning) Icons.Outlined.WarningAmber else Icons.Outlined.Lightbulb
+    val label = if (isWarning) "WARNING" else "TIP"
+
     Surface(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp),
-        shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        shape = RoundedCornerShape(12.dp),
+        color = containerColor,
+        border = BorderStroke(1.dp, borderColor),
     ) {
-        Row(
+        Column(
             modifier = Modifier
+                .fillMaxWidth()
                 .then(if (hasOverflow) Modifier.clickable { expanded = !expanded } else Modifier)
                 .padding(12.dp),
-            verticalAlignment = Alignment.Top,
         ) {
-            Icon(
-                imageVector = Icons.Outlined.Info,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier
-                    .size(18.dp)
-                    .padding(top = 2.dp),
-            )
-            Spacer(Modifier.width(10.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                MarkdownText(
-                    markdown = note.textMd,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = if (expanded) Int.MAX_VALUE else 3,
-                    overflow = if (expanded) TextOverflow.Clip else TextOverflow.Ellipsis,
-                    onTextLayout = { layoutResult ->
-                        if (!expanded && layoutResult.hasVisualOverflow) {
-                            hasOverflow = true
-                        }
-                    },
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = accentColor,
+                    modifier = Modifier.size(18.dp),
                 )
-                if (hasOverflow) {
-                    // A plain label: the whole callout toggles, so no tall button padding is needed.
-                    Text(
-                        text = if (expanded) "Show less" else "Show more",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(top = 6.dp),
-                    )
-                }
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = accentColor,
+                )
+            }
+            Spacer(Modifier.height(6.dp))
+            MarkdownText(
+                markdown = note.textMd,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = if (expanded) Int.MAX_VALUE else 3,
+                overflow = if (expanded) TextOverflow.Clip else TextOverflow.Ellipsis,
+                onTextLayout = { layoutResult ->
+                    if (!expanded && layoutResult.hasVisualOverflow) {
+                        hasOverflow = true
+                    }
+                },
+            )
+            if (hasOverflow) {
+                Text(
+                    text = if (expanded) "Show less" else "Show more",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 6.dp),
+                )
             }
         }
     }
@@ -382,16 +460,50 @@ fun CategoryChipRail(
     }
 }
 
+sealed interface OutlineItem {
+    data object ReturnToTop : OutlineItem
+    data class CategoryItem(val category: Category) : OutlineItem
+    data class SubHeadingItem(val heading: Heading, val relativeLevel: Int) : OutlineItem
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun JumpToHeadingBottomSheet(
-    headings: List<Heading>,
     categories: List<Category>,
     currentCategoryId: String?,
     onDismiss: () -> Unit,
     onSelectHeading: (Heading) -> Unit,
+    onReturnToTop: () -> Unit = {},
+    headings: List<Heading> = emptyList(),
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    val outlineItems = remember(categories) {
+        buildList {
+            add(OutlineItem.ReturnToTop)
+            val hasLevel1 = categories.any { it.heading.level == 1 }
+            val baseLevel = if (hasLevel1) 1 else 2
+            for (category in categories) {
+                add(OutlineItem.CategoryItem(category))
+                for (sub in category.subHeadings) {
+                    val relLevel = (sub.level - baseLevel).coerceAtLeast(1)
+                    add(OutlineItem.SubHeadingItem(sub, relLevel))
+                }
+            }
+        }
+    }
+
+    val currentCategoryIndex = remember(outlineItems, currentCategoryId) {
+        if (currentCategoryId == null) 0
+        else {
+            val idx = outlineItems.indexOfFirst {
+                it is OutlineItem.CategoryItem && it.category.heading.id == currentCategoryId
+            }
+            if (idx != -1) idx else 0
+        }
+    }
+
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = currentCategoryIndex)
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -410,55 +522,144 @@ fun JumpToHeadingBottomSheet(
             )
 
             LazyColumn(
+                state = listState,
                 modifier = Modifier.fillMaxWidth(),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
             ) {
-                itemsIndexed(headings, key = { _, h -> h.id }) { _, heading ->
-                    val (splitTitle, _) = remember(heading.title) { CrossLinks.splitLinkTitle(heading.title) }
-                    val isCurrentCategory = heading.id == currentCategoryId
-                    val rowBg = if (isCurrentCategory) {
-                        MaterialTheme.colorScheme.secondaryContainer
-                    } else {
-                        Color.Transparent
+                items(
+                    count = outlineItems.size,
+                    key = { idx ->
+                        when (val item = outlineItems[idx]) {
+                            is OutlineItem.ReturnToTop -> "return_to_top"
+                            is OutlineItem.CategoryItem -> "cat_${item.category.heading.id}"
+                            is OutlineItem.SubHeadingItem -> "sub_${item.heading.id}"
+                        }
                     }
-                    val category = remember(categories, heading.id) {
-                        categories.firstOrNull { it.heading.id == heading.id }
-                    }
+                ) { idx ->
+                    when (val item = outlineItems[idx]) {
+                        is OutlineItem.ReturnToTop -> {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onReturnToTop() }
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.VerticalAlignTop,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp),
+                                )
+                                Text(
+                                    text = "Return to top",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                            }
+                        }
+                        is OutlineItem.CategoryItem -> {
+                            val category = item.category
+                            val isCurrentCategory = category.heading.id == currentCategoryId
+                            val (splitTitle, _) = remember(category.heading.title) {
+                                CrossLinks.splitLinkTitle(category.heading.title)
+                            }
+                            val rowBg = if (isCurrentCategory) {
+                                MaterialTheme.colorScheme.secondaryContainer
+                            } else {
+                                Color.Transparent
+                            }
+                            val textColor = if (isCurrentCategory) {
+                                MaterialTheme.colorScheme.onSecondaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.onSurface
+                            }
+                            val countColor = if (isCurrentCategory) {
+                                MaterialTheme.colorScheme.onSecondaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            }
 
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(color = rowBg, shape = MaterialTheme.shapes.small)
-                            .clickable { onSelectHeading(heading) }
-                            .padding(
-                                start = if (heading.level >= 2) 28.dp else 12.dp,
-                                end = 12.dp,
-                                top = 10.dp,
-                                bottom = 10.dp,
-                            )
-                    ) {
-                        Text(
-                            text = splitTitle,
-                            style = when (heading.level) {
-                                1 -> MaterialTheme.typography.titleSmall
-                                else -> MaterialTheme.typography.bodyMedium
-                            },
-                            color = when (heading.level) {
-                                1 -> MaterialTheme.colorScheme.onSurface
-                                else -> MaterialTheme.colorScheme.onSurfaceVariant
-                            },
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f),
-                        )
-                        if (heading.level == 1 && category != null) {
-                            Text(
-                                text = "${category.entryCount} sites",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(start = 8.dp),
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(color = rowBg, shape = MaterialTheme.shapes.small)
+                                    .clickable { onSelectHeading(category.heading) }
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                            ) {
+                                Text(
+                                    text = splitTitle,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = textColor,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                Text(
+                                    text = "${category.entryCount} sites",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = countColor,
+                                    modifier = Modifier.padding(start = 8.dp),
+                                )
+                            }
+                        }
+                        is OutlineItem.SubHeadingItem -> {
+                            val heading = item.heading
+                            val (splitTitle, _) = remember(heading.title) {
+                                CrossLinks.splitLinkTitle(heading.title)
+                            }
+                            val isLevel3 = item.relativeLevel >= 2
+                            val indentDp = if (isLevel3) 32.dp else 16.dp
+                            val textStyle = if (isLevel3) {
+                                MaterialTheme.typography.bodySmall
+                            } else {
+                                MaterialTheme.typography.bodyMedium
+                            }
+                            val outlineVariantColor = MaterialTheme.colorScheme.outlineVariant
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .drawBehind {
+                                        val strokeWidth = 1.dp.toPx()
+                                        val x1 = 12.dp.toPx()
+                                        drawLine(
+                                            color = outlineVariantColor,
+                                            start = Offset(x1, 0f),
+                                            end = Offset(x1, size.height),
+                                            strokeWidth = strokeWidth,
+                                        )
+                                        if (isLevel3) {
+                                            val x2 = 28.dp.toPx()
+                                            drawLine(
+                                                color = outlineVariantColor,
+                                                start = Offset(x2, 0f),
+                                                end = Offset(x2, size.height),
+                                                strokeWidth = strokeWidth,
+                                            )
+                                        }
+                                    }
+                                    .clickable { onSelectHeading(heading) }
+                                    .padding(
+                                        start = 12.dp + indentDp,
+                                        end = 12.dp,
+                                        top = 8.dp,
+                                        bottom = 8.dp,
+                                    ),
+                            ) {
+                                Text(
+                                    text = splitTitle,
+                                    style = textStyle,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f),
+                                )
+                            }
                         }
                     }
                 }
@@ -466,3 +667,136 @@ fun JumpToHeadingBottomSheet(
         }
     }
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun LegendBottomSheet(
+    starredOnly: Boolean,
+    showIndexes: Boolean,
+    onToggleStarredOnly: (Boolean) -> Unit,
+    onToggleShowIndexes: (Boolean) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 24.dp)
+        ) {
+            Text(
+                text = "Legend",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
+            )
+
+            val legendItems = listOf(
+                R.drawable.ic_marker_index to "Indexes — sites that list other sites",
+                R.drawable.ic_marker_section_link to "Section links — opens another part of FMHY",
+                R.drawable.ic_marker_star to "Recommended",
+                R.drawable.ic_marker_top to "Top pick",
+            )
+
+            legendItems.forEach { (drawableRes, label) ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp, vertical = 8.dp),
+                ) {
+                    Image(
+                        painter = painterResource(drawableRes),
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                    )
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+            }
+
+            Text(
+                text = "Options",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 16.dp, bottom = 8.dp),
+            )
+
+            ListItem(
+                headlineContent = {
+                    Text("Starred only")
+                },
+                supportingContent = {
+                    Text("Show only sites FMHY recommends (⭐ / 🌟)")
+                },
+                trailingContent = {
+                    Switch(
+                        checked = starredOnly,
+                        onCheckedChange = null,
+                    )
+                },
+                modifier = Modifier.toggleable(
+                    value = starredOnly,
+                    role = Role.Switch,
+                    onValueChange = onToggleStarredOnly,
+                ),
+            )
+
+            ListItem(
+                headlineContent = {
+                    Text("Show indexes")
+                },
+                supportingContent = {
+                    Text("Include 🌐 index sites that list other sites")
+                },
+                trailingContent = {
+                    Switch(
+                        checked = showIndexes,
+                        onCheckedChange = null,
+                    )
+                },
+                modifier = Modifier.toggleable(
+                    value = showIndexes,
+                    role = Role.Switch,
+                    onValueChange = onToggleShowIndexes,
+                ),
+            )
+        }
+    }
+}
+
+@Composable
+fun FilterEmptyState(
+    onShowAll: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(32.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Text(
+                text = "Nothing matches the filters",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Button(onClick = onShowAll) {
+                Text("Show all")
+            }
+        }
+    }
+}
+

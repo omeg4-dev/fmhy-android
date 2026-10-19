@@ -1,8 +1,10 @@
 package io.github.omeg4dev.fmhy.ui.section
 
 import androidx.compose.runtime.Immutable
+import io.github.omeg4dev.fmhy.data.model.EntryKind
 import io.github.omeg4dev.fmhy.data.model.Heading
 import io.github.omeg4dev.fmhy.data.model.SectionItem
+import io.github.omeg4dev.fmhy.data.model.Tier
 
 @Immutable
 data class Category(
@@ -110,3 +112,120 @@ fun buildSectionStructure(items: List<SectionItem>): SectionStructure {
         categoryIndexOfItem = categoryIndexOfItem,
     )
 }
+
+/**
+ * Filter section items based on user preferences.
+ * - [starredOnly]: keep only entries with tier STAR or TOP (in EntryItem and inside MoreGroup).
+ * - [showIndexes]: if false, drop entries whose entry.kind == EntryKind.INDEX.
+ * - Drop headings that have no remaining entries in their subtree.
+ * - Drop notes whose heading was dropped.
+ */
+fun filterSectionItems(
+    items: List<SectionItem>,
+    starredOnly: Boolean,
+    showIndexes: Boolean,
+): List<SectionItem> {
+    if (!starredOnly && showIndexes) {
+        return items
+    }
+
+    // 1. Filter entries and MoreGroups
+    val candidateItems = ArrayList<SectionItem>(items.size)
+    for (item in items) {
+        when (item) {
+            is SectionItem.EntryItem -> {
+                val matchesStarred = !starredOnly || item.entry.tier == Tier.STAR || item.entry.tier == Tier.TOP
+                val matchesIndex = showIndexes || item.entry.kind != EntryKind.INDEX
+                if (matchesStarred && matchesIndex) {
+                    candidateItems.add(item)
+                }
+            }
+            is SectionItem.MoreGroup -> {
+                val filteredEntries = item.entries.filter { entry ->
+                    (!starredOnly || entry.tier == Tier.STAR || entry.tier == Tier.TOP) &&
+                    (showIndexes || entry.kind != EntryKind.INDEX)
+                }
+                if (filteredEntries.isNotEmpty()) {
+                    candidateItems.add(SectionItem.MoreGroup(filteredEntries))
+                }
+            }
+            is SectionItem.HeadingItem -> {
+                candidateItems.add(item)
+            }
+            is SectionItem.NoteItem -> {
+                candidateItems.add(item)
+            }
+        }
+    }
+
+    // 2. Identify which headings have remaining entries in their subtree.
+    // A heading is kept if any entry/MoreGroup remains before the next heading of the same or higher level.
+    val keptHeadingIds = HashSet<String>()
+    for (i in candidateItems.indices) {
+        val item = candidateItems[i]
+        if (item is SectionItem.HeadingItem) {
+            val headingLevel = item.heading.level
+            var hasEntry = false
+            for (j in (i + 1) until candidateItems.size) {
+                val nextItem = candidateItems[j]
+                if (nextItem is SectionItem.HeadingItem && nextItem.heading.level <= headingLevel) {
+                    break
+                }
+                if (nextItem is SectionItem.EntryItem || nextItem is SectionItem.MoreGroup) {
+                    hasEntry = true
+                    break
+                }
+            }
+            if (hasEntry) {
+                keptHeadingIds.add(item.heading.id)
+            }
+        }
+    }
+
+    // Map each note to its heading (by note.headingId if set, or nearest preceding heading in original items)
+    val noteHeadingMap = HashMap<String, String?>()
+    var currentHeadingId: String? = null
+    for (item in items) {
+        when (item) {
+            is SectionItem.HeadingItem -> currentHeadingId = item.heading.id
+            is SectionItem.NoteItem -> {
+                noteHeadingMap[item.note.id] = item.note.headingId ?: currentHeadingId
+            }
+            else -> {}
+        }
+    }
+
+    // 3. Filter candidateItems: keep only kept headings and notes whose heading was not dropped
+    val result = ArrayList<SectionItem>(candidateItems.size)
+    for (item in candidateItems) {
+        when (item) {
+            is SectionItem.HeadingItem -> {
+                if (item.heading.id in keptHeadingIds) {
+                    result.add(item)
+                }
+            }
+            is SectionItem.NoteItem -> {
+                val hId = noteHeadingMap[item.note.id]
+                if (hId == null || hId in keptHeadingIds) {
+                    result.add(item)
+                }
+            }
+            else -> {
+                result.add(item)
+            }
+        }
+    }
+
+    return result
+}
+
+/**
+ * Finds the category heading id that owns the given heading id (or "__overview" if in overview).
+ */
+fun findCategoryHeadingId(structure: SectionStructure, headingId: String): String? {
+    val cat = structure.categories.firstOrNull { c ->
+        c.heading.id == headingId || c.subHeadings.any { it.id == headingId } || c.items.any { it is SectionItem.HeadingItem && it.heading.id == headingId }
+    }
+    return cat?.heading?.id ?: if (structure.overview.any { it is SectionItem.HeadingItem && it.heading.id == headingId }) "__overview" else null
+}
+

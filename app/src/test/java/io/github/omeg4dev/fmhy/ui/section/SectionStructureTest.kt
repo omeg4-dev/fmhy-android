@@ -1,12 +1,14 @@
 package io.github.omeg4dev.fmhy.ui.section
 
 import io.github.omeg4dev.fmhy.data.model.Entry
+import io.github.omeg4dev.fmhy.data.model.EntryKind
 import io.github.omeg4dev.fmhy.data.model.Heading
 import io.github.omeg4dev.fmhy.data.model.Note
 import io.github.omeg4dev.fmhy.data.model.SectionItem
 import io.github.omeg4dev.fmhy.data.model.Tier
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -24,7 +26,12 @@ class SectionStructureTest {
         )
     }
 
-    private fun createEntry(id: String, name: String = id): Entry {
+    private fun createEntry(
+        id: String,
+        name: String = id,
+        tier: Tier = Tier.NORMAL,
+        kind: EntryKind = EntryKind.NORMAL,
+    ): Entry {
         return Entry(
             id = id,
             num = 1,
@@ -37,7 +44,8 @@ class SectionStructureTest {
             description = "desc",
             tags = emptyList(),
             headingPath = "",
-            tier = Tier.NORMAL,
+            tier = tier,
+            kind = kind,
             isInlineMore = false,
             isBase64 = false,
             mirrors = emptyList(),
@@ -182,4 +190,116 @@ class SectionStructureTest {
         assertTrue(structure.categories.isEmpty())
         assertArrayEquals(intArrayOf(-1, -1), structure.categoryIndexOfItem)
     }
+
+    @Test
+    fun testFilterSectionItems_noFilterReturnsSame() {
+        val h1 = SectionItem.HeadingItem(createHeading("h1", level = 1))
+        val e1 = SectionItem.EntryItem(createEntry("e1", tier = Tier.NORMAL, kind = EntryKind.NORMAL))
+        val e2 = SectionItem.EntryItem(createEntry("e2", tier = Tier.STAR, kind = EntryKind.INDEX))
+        val items = listOf(h1, e1, e2)
+
+        val filtered = filterSectionItems(items, starredOnly = false, showIndexes = true)
+        assertEquals(items, filtered)
+    }
+
+    @Test
+    fun testFilterSectionItems_starredOnly_dropsNormalAndEmptyHeadings() {
+        // Cat 1 has Sub 1 (only normal) and Sub 2 (has star)
+        val h1 = SectionItem.HeadingItem(createHeading("h1", level = 1, title = "Cat 1"))
+        val hSub1 = SectionItem.HeadingItem(createHeading("sub1", level = 2, title = "Sub 1"))
+        val e1 = SectionItem.EntryItem(createEntry("e1", tier = Tier.NORMAL))
+        val hSub2 = SectionItem.HeadingItem(createHeading("sub2", level = 2, title = "Sub 2"))
+        val e2 = SectionItem.EntryItem(createEntry("e2", tier = Tier.STAR))
+
+        // Cat 2 has only normal entry
+        val h2 = SectionItem.HeadingItem(createHeading("h2", level = 1, title = "Cat 2"))
+        val e3 = SectionItem.EntryItem(createEntry("e3", tier = Tier.NORMAL))
+
+        val items = listOf(h1, hSub1, e1, hSub2, e2, h2, e3)
+        val filtered = filterSectionItems(items, starredOnly = true, showIndexes = true)
+
+        // Sub 1 dropped (e1 dropped, no entries before sub2), Cat 2 dropped (e3 dropped, no entries before end)
+        assertEquals(listOf(h1, hSub2, e2), filtered)
+    }
+
+    @Test
+    fun testFilterSectionItems_showIndexes_dropsIndexEntries() {
+        val h1 = SectionItem.HeadingItem(createHeading("h1", level = 1))
+        val eIndexStar = SectionItem.EntryItem(createEntry("e1", tier = Tier.STAR, kind = EntryKind.INDEX))
+        val eNormal = SectionItem.EntryItem(createEntry("e2", tier = Tier.NORMAL, kind = EntryKind.NORMAL))
+
+        val items = listOf(h1, eIndexStar, eNormal)
+
+        // Drop indexes while starredOnly = false -> eIndexStar dropped, eNormal kept, h1 kept
+        val filteredNoIndex = filterSectionItems(items, starredOnly = false, showIndexes = false)
+        assertEquals(listOf(h1, eNormal), filteredNoIndex)
+
+        // Drop indexes AND starredOnly = true -> both entries dropped, h1 dropped (empty subtree)
+        val filteredBoth = filterSectionItems(items, starredOnly = true, showIndexes = false)
+        assertTrue(filteredBoth.isEmpty())
+    }
+
+    @Test
+    fun testFilterSectionItems_moreGroup_partialAndFullFiltering() {
+        val h1 = SectionItem.HeadingItem(createHeading("h1", level = 1))
+        val mg1 = SectionItem.MoreGroup(
+            listOf(
+                createEntry("m1", tier = Tier.STAR),
+                createEntry("m2", tier = Tier.NORMAL),
+            )
+        )
+        val h2 = SectionItem.HeadingItem(createHeading("h2", level = 1))
+        val mg2 = SectionItem.MoreGroup(
+            listOf(
+                createEntry("m3", tier = Tier.NORMAL),
+                createEntry("m4", tier = Tier.NORMAL),
+            )
+        )
+
+        val items = listOf(h1, mg1, h2, mg2)
+        val filtered = filterSectionItems(items, starredOnly = true, showIndexes = true)
+
+        // mg1 filtered to only [m1]; mg2 dropped entirely; h2 dropped because no remaining entries
+        assertEquals(2, filtered.size)
+        assertEquals(h1, filtered[0])
+        val filteredMg = filtered[1] as SectionItem.MoreGroup
+        assertEquals(1, filteredMg.entries.size)
+        assertEquals("m1", filteredMg.entries[0].id)
+    }
+
+    @Test
+    fun testFilterSectionItems_nestedHeadingsAndNotes() {
+        val noteOverview = SectionItem.NoteItem(createNote("n0", "Overview Note"))
+        val h1 = SectionItem.HeadingItem(createHeading("h1", level = 1))
+        val note1 = SectionItem.NoteItem(createNote("n1", "Cat 1 Note"))
+        val hSub1 = SectionItem.HeadingItem(createHeading("sub1", level = 2))
+        val note2 = SectionItem.NoteItem(createNote("n2", "Sub 1 Note"))
+        val hSubSub = SectionItem.HeadingItem(createHeading("subsub", level = 3))
+        val e1 = SectionItem.EntryItem(createEntry("e1", tier = Tier.NORMAL))
+
+        val items = listOf(noteOverview, h1, note1, hSub1, note2, hSubSub, e1)
+        val filtered = filterSectionItems(items, starredOnly = true, showIndexes = true)
+
+        // e1 dropped -> all subheadings and their notes dropped, overview note preserved
+        assertEquals(listOf(noteOverview), filtered)
+    }
+
+    @Test
+    fun testFindCategoryHeadingId() {
+        val h1 = SectionItem.HeadingItem(createHeading("h1", level = 1))
+        val sub1 = SectionItem.HeadingItem(createHeading("sub1", level = 2))
+        val e1 = SectionItem.EntryItem(createEntry("e1"))
+        val h2 = SectionItem.HeadingItem(createHeading("h2", level = 1))
+        val e2 = SectionItem.EntryItem(createEntry("e2"))
+        val n0 = SectionItem.NoteItem(createNote("n0"))
+
+        val items = listOf(n0, h1, sub1, e1, h2, e2)
+        val structure = buildSectionStructure(items)
+
+        assertEquals("h1", findCategoryHeadingId(structure, "h1"))
+        assertEquals("h1", findCategoryHeadingId(structure, "sub1"))
+        assertEquals("h2", findCategoryHeadingId(structure, "h2"))
+        assertNull(findCategoryHeadingId(structure, "nonexistent"))
+    }
 }
+

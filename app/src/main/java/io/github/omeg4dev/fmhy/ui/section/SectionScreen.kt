@@ -16,6 +16,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.outlined.List
+import androidx.compose.material.icons.outlined.FilterList
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -42,6 +45,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.omeg4dev.fmhy.CategoryNavKey
+import io.github.omeg4dev.fmhy.LocalBottomBarController
 import io.github.omeg4dev.fmhy.data.SectionLayout
 import io.github.omeg4dev.fmhy.data.link.CrossLinks
 import io.github.omeg4dev.fmhy.data.model.Heading
@@ -69,9 +73,13 @@ fun SectionScreen(
     val linkOpener = rememberLinkOpener(container, onShowSnackbar)
 
     val listState = rememberLazyListState()
+    val bottomBarController = LocalBottomBarController.current
     var showJumpBottomSheet by remember { mutableStateOf(false) }
+    var showLegendBottomSheet by remember { mutableStateOf(false) }
     var highlightedHeadingId by remember { mutableStateOf<String?>(null) }
     var pendingSelection by remember { mutableStateOf<Int?>(null) }
+
+    val isFilterActive = state.starredOnly || !state.showIndexes
 
     // In CATEGORIES mode: handle anchor navigation by opening CategoryNavKey
     var hasPushedAnchorByCategory by rememberSaveable { mutableStateOf(false) }
@@ -82,10 +90,7 @@ fun SectionScreen(
                 it.anchor.equals(anchor, ignoreCase = true) || it.id.endsWith(anchor) || it.id == anchor
             }
             if (anchorHeading != null) {
-                val cat = state.structure.categories.firstOrNull { c ->
-                    c.heading.id == anchorHeading.id || c.items.any { it is SectionItem.HeadingItem && it.heading.id == anchorHeading.id }
-                }
-                val categoryHeadingId = cat?.heading?.id ?: if (state.structure.overview.any { it is SectionItem.HeadingItem && it.heading.id == anchorHeading.id }) "__overview" else null
+                val categoryHeadingId = findCategoryHeadingId(state.structure, anchorHeading.id)
                 if (categoryHeadingId != null) {
                     hasPushedAnchorByCategory = true
                     nav.push(
@@ -161,8 +166,21 @@ fun SectionScreen(
                         }
                     },
                     actions = {
-                        IconButton(onClick = { showJumpBottomSheet = true }) {
-                            Icon(Icons.AutoMirrored.Outlined.List, contentDescription = "Outline")
+                        IconButton(onClick = { showLegendBottomSheet = true }) {
+                            BadgedBox(
+                                badge = {
+                                    if (isFilterActive) {
+                                        Badge()
+                                    }
+                                }
+                            ) {
+                                Icon(Icons.Outlined.FilterList, contentDescription = "Legend and options")
+                            }
+                        }
+                        if (state.layout == SectionLayout.CONTINUOUS) {
+                            IconButton(onClick = { showJumpBottomSheet = true }) {
+                                Icon(Icons.AutoMirrored.Outlined.List, contentDescription = "Outline")
+                            }
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
@@ -189,6 +207,7 @@ fun SectionScreen(
                         chips = chips,
                         selectedIndex = pendingSelection ?: derivedSelectedCategoryIndex,
                         onSelectChip = { index ->
+                            bottomBarController.show()
                             val category = state.structure.categories.getOrNull(index) ?: return@CategoryChipRail
                             val targetIdx = state.items.indexOfFirst {
                                 it is SectionItem.HeadingItem && it.heading.id == category.heading.id
@@ -220,6 +239,16 @@ fun SectionScreen(
             ) {
                 CircularProgressIndicator()
             }
+        } else if (state.items.isEmpty() && isFilterActive) {
+            FilterEmptyState(
+                onShowAll = {
+                    viewModel.setStarredOnly(false)
+                    viewModel.setShowIndexes(true)
+                },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+            )
         } else if (state.layout == SectionLayout.CATEGORIES) {
             LazyColumn(
                 contentPadding = PaddingValues(
@@ -396,17 +425,21 @@ fun SectionScreen(
 
     if (showJumpBottomSheet) {
         JumpToHeadingBottomSheet(
-            headings = state.headings,
             categories = state.structure.categories,
             currentCategoryId = currentCategoryHeadingId,
             onDismiss = { showJumpBottomSheet = false },
+            onReturnToTop = {
+                showJumpBottomSheet = false
+                bottomBarController.show()
+                scope.launch {
+                    listState.animateScrollToItem(0)
+                }
+            },
             onSelectHeading = { heading ->
                 showJumpBottomSheet = false
+                bottomBarController.show()
                 if (state.layout == SectionLayout.CATEGORIES) {
-                    val cat = state.structure.categories.firstOrNull { c ->
-                        c.heading.id == heading.id || c.items.any { it is SectionItem.HeadingItem && it.heading.id == heading.id }
-                    }
-                    val categoryHeadingId = cat?.heading?.id ?: if (state.structure.overview.any { it is SectionItem.HeadingItem && it.heading.id == heading.id }) "__overview" else null
+                    val categoryHeadingId = findCategoryHeadingId(state.structure, heading.id)
                     if (categoryHeadingId != null) {
                         nav.push(
                             CategoryNavKey(
@@ -426,7 +459,18 @@ fun SectionScreen(
                         }
                     }
                 }
-            }
+            },
+            headings = state.headings,
+        )
+    }
+
+    if (showLegendBottomSheet) {
+        LegendBottomSheet(
+            starredOnly = state.starredOnly,
+            showIndexes = state.showIndexes,
+            onToggleStarredOnly = { viewModel.setStarredOnly(it) },
+            onToggleShowIndexes = { viewModel.setShowIndexes(it) },
+            onDismiss = { showLegendBottomSheet = false },
         )
     }
 
