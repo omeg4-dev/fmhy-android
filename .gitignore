@@ -15,3 +15,5 @@ out/
 
 # bundled snapshot, copied from pipeline output at build time
 app/src/main/assets/dataset/
+
+NIGHT-REPORT.md
