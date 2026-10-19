@@ -3,8 +3,12 @@ package io.github.omeg4dev.fmhy.ui.settings
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import io.github.omeg4dev.fmhy.data.Appearance
+import io.github.omeg4dev.fmhy.data.ColorSource
 import io.github.omeg4dev.fmhy.data.DatasetStore
+import io.github.omeg4dev.fmhy.data.SectionLayout
 import io.github.omeg4dev.fmhy.data.SettingsRepository
+import io.github.omeg4dev.fmhy.data.ThemeMode
 import io.github.omeg4dev.fmhy.data.sync.SyncResult
 import io.github.omeg4dev.fmhy.data.sync.SyncState
 import io.github.omeg4dev.fmhy.di.AppContainer
@@ -23,6 +27,7 @@ data class SettingsUiState(
     val openInExternalBrowser: Boolean = false,
     val isUpdating: Boolean = false,
     val updateStatusMessage: String? = null,
+    val appearance: Appearance = Appearance(),
 )
 
 class SettingsViewModel(
@@ -35,11 +40,16 @@ class SettingsViewModel(
     private val _updateStatusMessage = MutableStateFlow<String?>(null)
 
     val uiState: StateFlow<SettingsUiState> = combine(
-        store.changes,
-        settingsRepository.openInExternalBrowser,
+        combine(
+            store.changes,
+            settingsRepository.openInExternalBrowser,
+            settingsRepository.appearance,
+        ) { version, openExternal, appearance ->
+            Triple(version, openExternal, appearance)
+        },
         _isUpdating,
         _updateStatusMessage,
-    ) { version, openExternal, updating, statusMsg ->
+    ) { (version, openExternal, appearance), updating, statusMsg ->
         val count = try { store.entryCount() } catch (_: Exception) { 0 }
         val syncState = try { container.fmhySync.loadState() } catch (_: Exception) { SyncState() }
         val lastSyncedStr = when {
@@ -61,6 +71,7 @@ class SettingsViewModel(
             openInExternalBrowser = openExternal,
             isUpdating = updating,
             updateStatusMessage = statusMsg,
+            appearance = appearance,
         )
     }.stateIn(
         viewModelScope,
@@ -71,6 +82,36 @@ class SettingsViewModel(
     fun setOpenInExternalBrowser(open: Boolean) {
         viewModelScope.launch {
             settingsRepository.setOpenInExternalBrowser(open)
+        }
+    }
+
+    fun setThemeMode(mode: ThemeMode) {
+        viewModelScope.launch {
+            settingsRepository.setThemeMode(mode)
+        }
+    }
+
+    fun setColorSource(source: ColorSource) {
+        viewModelScope.launch {
+            settingsRepository.setColorSource(source)
+        }
+    }
+
+    fun setPureBlack(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.setPureBlack(enabled)
+        }
+    }
+
+    fun setAccentSeed(argb: Int) {
+        viewModelScope.launch {
+            settingsRepository.setAccentSeed(argb)
+        }
+    }
+
+    fun setSectionLayout(layout: SectionLayout) {
+        viewModelScope.launch {
+            settingsRepository.setSectionLayout(layout)
         }
     }
 

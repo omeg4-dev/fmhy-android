@@ -1,8 +1,12 @@
 package io.github.omeg4dev.fmhy.ui.settings
 
 import android.content.Context
+import io.github.omeg4dev.fmhy.data.Appearance
+import io.github.omeg4dev.fmhy.data.ColorSource
 import io.github.omeg4dev.fmhy.data.DatasetStore
+import io.github.omeg4dev.fmhy.data.SectionLayout
 import io.github.omeg4dev.fmhy.data.SettingsRepository
+import io.github.omeg4dev.fmhy.data.ThemeMode
 import io.github.omeg4dev.fmhy.data.sync.FmhySync
 import io.github.omeg4dev.fmhy.data.sync.SyncResult
 import io.github.omeg4dev.fmhy.data.sync.SyncState
@@ -104,6 +108,14 @@ class SettingsViewModelTest {
         override suspend fun addRecentSearch(query: String) {}
         override suspend fun removeRecentSearch(query: String) {}
         override suspend fun clearRecentSearches() {}
+
+        private val _appearance = MutableStateFlow(Appearance())
+        override val appearance: Flow<Appearance> = _appearance.asStateFlow()
+        override suspend fun setThemeMode(mode: ThemeMode) { _appearance.value = _appearance.value.copy(themeMode = mode) }
+        override suspend fun setColorSource(source: ColorSource) { _appearance.value = _appearance.value.copy(colorSource = source) }
+        override suspend fun setPureBlack(enabled: Boolean) { _appearance.value = _appearance.value.copy(pureBlack = enabled) }
+        override suspend fun setAccentSeed(argb: Int) { _appearance.value = _appearance.value.copy(accentSeed = argb) }
+        override suspend fun setSectionLayout(layout: SectionLayout) { _appearance.value = _appearance.value.copy(sectionLayout = layout) }
     }
 
     @Test
@@ -159,5 +171,22 @@ class SettingsViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertTrue(viewModel.uiState.value.openInExternalBrowser)
+    }
+
+    @Test
+    fun testSetThemeModeUpdatesUiState() = runTest {
+        val store = FakeDatasetStore()
+        val settings = FakeSettingsRepository()
+        val container = FakeContainer(store, settings)
+
+        val viewModel = SettingsViewModel(store, settings, container)
+        backgroundScope.launch(kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect() }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(ThemeMode.SYSTEM, viewModel.uiState.value.appearance.themeMode)
+        viewModel.setThemeMode(ThemeMode.DARK)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(ThemeMode.DARK, viewModel.uiState.value.appearance.themeMode)
     }
 }

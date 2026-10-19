@@ -1,7 +1,11 @@
 package io.github.omeg4dev.fmhy.ui.search
 
+import io.github.omeg4dev.fmhy.data.Appearance
+import io.github.omeg4dev.fmhy.data.ColorSource
 import io.github.omeg4dev.fmhy.data.DatasetStore
+import io.github.omeg4dev.fmhy.data.SectionLayout
 import io.github.omeg4dev.fmhy.data.SettingsRepository
+import io.github.omeg4dev.fmhy.data.ThemeMode
 import io.github.omeg4dev.fmhy.data.model.Entry
 import io.github.omeg4dev.fmhy.data.model.Section
 import io.github.omeg4dev.fmhy.data.model.Tier
@@ -49,6 +53,14 @@ class SearchViewModelTest {
         override suspend fun addRecentSearch(query: String) { _recents.value = listOf(query) + (_recents.value - query) }
         override suspend fun removeRecentSearch(query: String) { _recents.value = _recents.value - query }
         override suspend fun clearRecentSearches() { _recents.value = emptyList() }
+
+        private val _appearance = MutableStateFlow(Appearance())
+        override val appearance: Flow<Appearance> = _appearance.asStateFlow()
+        override suspend fun setThemeMode(mode: ThemeMode) { _appearance.value = _appearance.value.copy(themeMode = mode) }
+        override suspend fun setColorSource(source: ColorSource) { _appearance.value = _appearance.value.copy(colorSource = source) }
+        override suspend fun setPureBlack(enabled: Boolean) { _appearance.value = _appearance.value.copy(pureBlack = enabled) }
+        override suspend fun setAccentSeed(argb: Int) { _appearance.value = _appearance.value.copy(accentSeed = argb) }
+        override suspend fun setSectionLayout(layout: SectionLayout) { _appearance.value = _appearance.value.copy(sectionLayout = layout) }
     }
 
     private class FakeSearchEngine(store: DatasetStore) : SearchEngine(store) {
