@@ -64,6 +64,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
@@ -373,7 +374,8 @@ fun SettingsScreen(
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
                         ACCENT_PRESETS.forEach { preset ->
-                            val scheme = remember(preset.seed, isDark) { seedColorScheme(preset.seed, isDark) }
+                            // The raw seed reads better than the pastel scheme primary: red, orange and pink stay distinct.
+                            val swatch = Color(preset.seed)
                             val isSelected = state.appearance.accentSeed == preset.seed
                             Box(
                                 modifier = Modifier
@@ -385,7 +387,7 @@ fun SettingsScreen(
                                             Modifier
                                         }
                                     )
-                                    .background(scheme.primary, CircleShape)
+                                    .background(swatch, CircleShape)
                                     .selectable(
                                         selected = isSelected,
                                         role = Role.RadioButton,
@@ -398,7 +400,7 @@ fun SettingsScreen(
                                     Icon(
                                         imageVector = Icons.Default.Check,
                                         contentDescription = null,
-                                        tint = scheme.onPrimary,
+                                        tint = if (swatch.luminance() > 0.4f) Color.Black else Color.White,
                                         modifier = Modifier.size(20.dp),
                                     )
                                 }

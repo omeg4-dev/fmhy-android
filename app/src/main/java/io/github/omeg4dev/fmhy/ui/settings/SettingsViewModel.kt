@@ -172,10 +172,12 @@ class SettingsViewModel(
         val diff = nowSec - seconds
         return when {
             diff < 60 -> "Just now"
-            diff < 3600 -> "${diff / 60} minutes ago"
-            diff < 86400 -> "${diff / 3600} hours ago"
-            diff < 604800 -> "${diff / 86400} days ago"
-            else -> "${diff / 604800} weeks ago"
+            diff < 3600 -> ago(diff / 60, "minute")
+            diff < 86400 -> ago(diff / 3600, "hour")
+            diff < 604800 -> ago(diff / 86400, "day")
+            else -> ago(diff / 604800, "week")
         }
     }
+
+    private fun ago(n: Long, unit: String) = if (n == 1L) "1 $unit ago" else "$n ${unit}s ago"
 }
