@@ -41,6 +41,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.omeg4dev.fmhy.CategoryNavKey
+import io.github.omeg4dev.fmhy.LegendNavKey
 import io.github.omeg4dev.fmhy.LocalBottomBarController
 import io.github.omeg4dev.fmhy.data.link.CrossLinks
 import io.github.omeg4dev.fmhy.data.model.Heading
@@ -115,10 +116,14 @@ fun CategoryScreen(
         }
     }
 
-    val categoryTitle = remember(isOverview, category) {
+    val categoryTitle = remember(isOverview, category, key.sectionId) {
         when {
             isOverview -> "Overview"
-            category != null -> CrossLinks.splitLinkTitle(category.heading.title).first
+            category != null -> {
+                val title = CrossLinks.splitLinkTitle(category.heading.title).first
+                val flag = flagFor(key.sectionId, category.heading.title)
+                if (flag != null) "$flag $title" else title
+            }
             else -> "Category"
         }
     }
@@ -319,6 +324,7 @@ fun CategoryScreen(
                                     isFirstItem = index == 0,
                                     entryCount = entryCount,
                                     onOpenUrl = { linkOpener.openUrl(it) },
+                                    sectionId = key.sectionId,
                                 )
                             }
                             is SectionItem.EntryItem -> {
@@ -389,6 +395,7 @@ fun CategoryScreen(
                 }
             },
             headings = state.headings,
+            sectionId = key.sectionId,
         )
     }
 
@@ -398,6 +405,10 @@ fun CategoryScreen(
             showIndexes = state.showIndexes,
             onToggleStarredOnly = { viewModel.setStarredOnly(it) },
             onToggleShowIndexes = { viewModel.setShowIndexes(it) },
+            onOpenFullLegend = {
+                showLegendBottomSheet = false
+                nav.push(LegendNavKey)
+            },
             onDismiss = { showLegendBottomSheet = false },
         )
     }
