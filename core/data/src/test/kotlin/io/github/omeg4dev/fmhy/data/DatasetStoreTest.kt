@@ -353,4 +353,20 @@ class DatasetStoreTest {
 
         store.close()
     }
+
+    @Test
+    fun testInitDatabaseAppearsOnlyWhenComplete() = runTest {
+        val dbFile = File(tempFolder.root, "fresh/fmhy.db")
+        DatasetStore.initDatabase(dbFile)
+
+        assertTrue(dbFile.exists())
+        assertTrue(!File(dbFile.parentFile, "fmhy.db.init").exists())
+        val store = DatasetStore(dbFile)
+        val tables = store.withConnection { conn ->
+            conn.prepare("SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name IN ('meta', 'sections', 'entries')")
+                .use { it.step(); it.getLong(0) }
+        }
+        assertEquals(3L, tables)
+        store.close()
+    }
 }

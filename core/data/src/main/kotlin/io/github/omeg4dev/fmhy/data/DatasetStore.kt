@@ -16,6 +16,8 @@ import io.github.omeg4dev.fmhy.data.model.SectionItem
 import io.github.omeg4dev.fmhy.data.model.Tier
 import java.io.File
 import java.net.URI
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -51,6 +53,7 @@ open class DatasetStore(
     private fun openInternal() {
         if (!dbFile.exists()) return
         val conn = BundledSQLiteDriver().open(dbFile.absolutePath)
+        conn.execSQL("PRAGMA busy_timeout = 5000;")
         conn.execSQL("PRAGMA journal_mode = WAL;")
         conn.execSQL("PRAGMA foreign_keys = OFF;")
         connection = conn
@@ -691,12 +694,17 @@ open class DatasetStore(
 
         fun initDatabase(file: File, schemaSql: String = loadSchemaSql()) {
             file.parentFile?.mkdirs()
-            val conn = BundledSQLiteDriver().open(file.absolutePath)
+            // Built under another name and moved in: readers poll dbFile.exists(), and opening a
+            // half-created database while the schema script holds its lock crashed with SQLITE_BUSY.
+            val tmp = File(file.parentFile, "${file.name}.init")
+            tmp.delete()
+            val conn = BundledSQLiteDriver().open(tmp.absolutePath)
             try {
                 executeSqlScript(conn, schemaSql)
             } finally {
                 conn.close()
             }
+            Files.move(tmp.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
         }
     }
 }
