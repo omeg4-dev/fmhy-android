@@ -47,6 +47,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -81,9 +82,13 @@ fun HeadingHeader(
     isFirstItem: Boolean = false,
     entryCount: Int? = null,
     onOpenUrl: (String) -> Unit = {},
+    flag: String? = null,
+    sectionId: String? = null,
     modifier: Modifier = Modifier,
 ) {
     val (splitTitle, url) = remember(heading.title) { CrossLinks.splitLinkTitle(heading.title) }
+    val effectiveFlag = flag ?: if (heading.level == 1) flagFor(sectionId, heading.title) else null
+    val displayTitle = if (effectiveFlag != null && heading.level == 1) "$effectiveFlag $splitTitle" else splitTitle
 
     val targetBg = if (isHighlighted) {
         MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
@@ -124,7 +129,7 @@ fun HeadingHeader(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
                                 Text(
-                                    text = splitTitle,
+                                    text = displayTitle,
                                     style = MaterialTheme.typography.headlineSmall,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface,
@@ -475,6 +480,7 @@ fun JumpToHeadingBottomSheet(
     onSelectHeading: (Heading) -> Unit,
     onReturnToTop: () -> Unit = {},
     headings: List<Heading> = emptyList(),
+    sectionId: String? = null,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -565,6 +571,10 @@ fun JumpToHeadingBottomSheet(
                             val (splitTitle, _) = remember(category.heading.title) {
                                 CrossLinks.splitLinkTitle(category.heading.title)
                             }
+                            val flag = remember(category.heading.title, sectionId) {
+                                flagFor(sectionId, category.heading.title)
+                            }
+                            val titleWithFlag = if (flag != null) "$flag $splitTitle" else splitTitle
                             val rowBg = if (isCurrentCategory) {
                                 MaterialTheme.colorScheme.secondaryContainer
                             } else {
@@ -590,7 +600,7 @@ fun JumpToHeadingBottomSheet(
                                     .padding(horizontal = 12.dp, vertical = 10.dp),
                             ) {
                                 Text(
-                                    text = splitTitle,
+                                    text = titleWithFlag,
                                     style = MaterialTheme.typography.titleSmall,
                                     fontWeight = FontWeight.Bold,
                                     color = textColor,
@@ -676,6 +686,7 @@ fun LegendBottomSheet(
     onToggleStarredOnly: (Boolean) -> Unit,
     onToggleShowIndexes: (Boolean) -> Unit,
     onDismiss: () -> Unit,
+    onOpenFullLegend: () -> Unit = {},
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -721,6 +732,15 @@ fun LegendBottomSheet(
                         color = MaterialTheme.colorScheme.onSurface,
                     )
                 }
+            }
+
+            TextButton(
+                onClick = onOpenFullLegend,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+            ) {
+                Text("All icons…")
             }
 
             Text(

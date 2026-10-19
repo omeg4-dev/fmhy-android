@@ -80,6 +80,7 @@ import io.github.omeg4dev.fmhy.ui.section.CategoryScreen
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import io.github.omeg4dev.fmhy.ui.section.SectionScreen
 import io.github.omeg4dev.fmhy.ui.section.SectionViewModel
+import io.github.omeg4dev.fmhy.ui.legend.LegendScreen
 import io.github.omeg4dev.fmhy.ui.settings.SettingsScreen
 import io.github.omeg4dev.fmhy.ui.settings.SettingsViewModel
 import kotlinx.coroutines.launch
@@ -188,7 +189,7 @@ fun MainNavigation() {
         }
     }
 
-    val shouldShowBar = isBarVisible && currentTopKey !is SettingsNavKey
+    val shouldShowBar = isBarVisible && currentTopKey !is SettingsNavKey && currentTopKey !is LegendNavKey
 
     BackHandler(enabled = nav.current != Tab.BROWSE && nav.currentStack.size == 1) {
         nav.back()
@@ -273,7 +274,14 @@ fun MainNavigation() {
             }
             SettingsScreen(
                 viewModel = settingsViewModel,
-                onBack = { if (!nav.back()) activity?.finish() }
+                onBack = { if (!nav.back()) activity?.finish() },
+                onNavigateToLegend = { nav.push(LegendNavKey) },
+            )
+        }
+
+        entry<LegendNavKey> {
+            LegendScreen(
+                onBack = { if (!nav.back()) activity?.finish() },
             )
         }
 

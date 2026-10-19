@@ -45,6 +45,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.omeg4dev.fmhy.CategoryNavKey
+import io.github.omeg4dev.fmhy.LegendNavKey
 import io.github.omeg4dev.fmhy.LocalBottomBarController
 import io.github.omeg4dev.fmhy.data.SectionLayout
 import io.github.omeg4dev.fmhy.data.link.CrossLinks
@@ -301,6 +302,10 @@ fun SectionScreen(
                     val (splitTitle, _) = remember(category.heading.title) {
                         CrossLinks.splitLinkTitle(category.heading.title)
                     }
+                    val flag = remember(category.heading.title, state.section?.id) {
+                        flagFor(state.section?.id ?: viewModel.sectionId, category.heading.title)
+                    }
+                    val titleWithFlag = if (flag != null) "$flag $splitTitle" else splitTitle
                     val supportingText = remember(category) {
                         val subNames = category.subHeadings.take(3).map { CrossLinks.splitLinkTitle(it.title).first }
                         if (subNames.isNotEmpty()) {
@@ -313,7 +318,7 @@ fun SectionScreen(
                     ListItem(
                         headlineContent = {
                             Text(
-                                text = splitTitle,
+                                text = titleWithFlag,
                                 style = MaterialTheme.typography.titleMedium,
                             )
                         },
@@ -388,6 +393,7 @@ fun SectionScreen(
                                     isFirstItem = index == 0,
                                     entryCount = entryCount,
                                     onOpenUrl = { linkOpener.openUrl(it) },
+                                    sectionId = state.section?.id ?: viewModel.sectionId,
                                 )
                             }
                             is SectionItem.EntryItem -> {
@@ -462,6 +468,7 @@ fun SectionScreen(
                 }
             },
             headings = state.headings,
+            sectionId = state.section?.id ?: viewModel.sectionId,
         )
     }
 
@@ -471,6 +478,10 @@ fun SectionScreen(
             showIndexes = state.showIndexes,
             onToggleStarredOnly = { viewModel.setStarredOnly(it) },
             onToggleShowIndexes = { viewModel.setShowIndexes(it) },
+            onOpenFullLegend = {
+                showLegendBottomSheet = false
+                nav.push(LegendNavKey)
+            },
             onDismiss = { showLegendBottomSheet = false },
         )
     }

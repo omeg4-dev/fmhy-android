@@ -1,5 +1,6 @@
 package io.github.omeg4dev.fmhy.ui.settings
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.selection.toggleable
 import android.content.pm.PackageManager
 import android.os.Build
@@ -89,6 +90,7 @@ import kotlin.math.roundToInt
 fun SettingsScreen(
     viewModel: SettingsViewModel,
     onBack: () -> Unit,
+    onNavigateToLegend: () -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -713,6 +715,14 @@ fun SettingsScreen(
                             viewModel.setShowIndexes(it)
                         },
                     ),
+                )
+            }
+
+            item {
+                ListItem(
+                    headlineContent = { Text("Icon legend") },
+                    supportingContent = { Text("What every icon means") },
+                    modifier = Modifier.clickable { onNavigateToLegend() },
                 )
             }
 
