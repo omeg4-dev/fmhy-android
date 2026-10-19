@@ -1,6 +1,6 @@
 # FMHY Android: current status
 
-As of **2026-10-19**, version **0.3.0** (versionCode 3). Nothing pushed; the repo has no remote yet.
+As of **2026-10-19**, version **0.3.0** (versionCode 3). Public repo: https://github.com/omeg4-dev/fmhy-android (`main`).
 
 Unofficial native Android client for [FMHY](https://fmhy.net). It needs no account and no server of
 ours: data comes straight from FMHY's public sources and is parsed on the device.
@@ -89,6 +89,12 @@ ours: data comes straight from FMHY's public sources and is parsed on the device
   section descriptions, random pick from ~2,100 starred sites (switch in Settings).
 - **Settings:** text size 85–130 %, Accent presets (10) + custom hue/colourfulness, Home and Lists
   groups. Launcher icon / themed icon / splash use the FMHY logo.
+- **Hidden links behind pastebin** (63 of 121 base64 links): opening one fetches
+  `pastebin.com/raw/<id>`, decodes the base64 inside (also nested) and opens the link, or offers a
+  chooser when it hides several. Results are cached in `files/paste-links.json` (`PasteLinks.kt`).
+- **Random pick** = a safe star: starred, a real site (not an index / section link), not base64, not on
+  the unsafe list. The ⭐ shows next to the name in the details sheet; section links say "Opens in the app".
+- **FMHY wordmark** on Home: tap → colour sweep; hold → "FreeMediaHeckYeah".
 - Search shows "200+ results" at the cap. Invisible U+2060 etc. stripped from all text.
 
 ### Look
@@ -129,7 +135,7 @@ Build only with `./gw` (offline Gradle with a repo-local Gradle home). Use `GW_O
 when a new dependency has to be downloaded.
 
 ```bash
-./gw :core:data:test :app:testDebugUnitTest   # 128 unit tests (78 core + 50 app), all passing
+./gw :core:data:test :app:testDebugUnitTest   # 134 unit tests (84 core + 50 app), all passing
 ./gw :core:data:parityTest                    # Kotlin vs Python parser: 0 mismatches
 ./gw :app:assembleRelease                     # → app/build/outputs/apk/release/app-release.apk
 ```
@@ -148,7 +154,7 @@ Verified for 0.2.0 on the emulator (light, dark, pure black):
 ## Known issues and open work
 
 1. **Release signing:** the APK uses the debug key. A real keystore and a GitHub/F-Droid release
-   still need a decision; there is no git remote yet.
+   still need a decision.
 2. **"Recently added" screen** is still missing (data is recorded; only the "new since last visit" row uses it).
 3. Search lists single sites, not FMHY lines (a search hit on "AdGuard" shows only AdGuard).
 4. `Note` links open the GitHub markdown; fmhy.net shows the note text as a tooltip.
