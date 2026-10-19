@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.compose.compiler)
@@ -15,13 +17,29 @@ android {
         versionName = "0.4.0"
     }
 
+    // Release key lives outside the repo; without it, release builds fall back to the debug key.
+    val keystoreProps = file(
+        System.getenv("FMHY_KEYSTORE_PROPERTIES")
+            ?: "${System.getProperty("user.home")}/.local/share/fmhy-android/keystore.properties"
+    ).takeIf { it.isFile }?.let { f -> Properties().apply { f.inputStream().use { load(it) } } }
+
+    signingConfigs {
+        if (keystoreProps != null) {
+            create("release") {
+                storeFile = file(keystoreProps.getProperty("storeFile"))
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // Sideload builds until a real release key exists.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName(if (keystoreProps != null) "release" else "debug")
         }
     }
     compileOptions {

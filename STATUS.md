@@ -7,8 +7,13 @@ ours: data comes straight from FMHY's public sources and is parsed on the device
 
 ## Install
 
-- APK: `dist/fmhy-0.4.0.apk` (11.8 MB, R8-shrunk release build, **signed with the debug key**, so
-  it can only be sideloaded).
+- APK: `dist/fmhy-0.4.0.apk` (R8-shrunk release build), also on
+  [GitHub Releases](https://github.com/omeg4-dev/fmhy-android/releases). Signed with the release key
+  (cert SHA-256 `5e072450…70df5d`) since 0.4.0; builds before 0.4.0 used the debug key, so they must be
+  uninstalled once before installing 0.4.0+.
+- Signing: `app/build.gradle.kts` reads `$FMHY_KEYSTORE_PROPERTIES` or
+  `~/.local/share/fmhy-android/keystore.properties` (outside the repo); without it, release builds
+  fall back to the debug key.
 - `adb install -r dist/fmhy-0.4.0.apk` upgrades in place and keeps bookmarks/settings. A DB with an
   older schema is replaced by the bundled snapshot on first launch (schema is now 3).
 - Android 8.0+ (minSdk 26), target/compile SDK 36. Material You needs Android 12+.
@@ -162,13 +167,11 @@ Verified for 0.2.0 on the emulator (light, dark, pure black):
 
 ## Known issues and open work
 
-1. **Release signing:** the APK uses the debug key. A real keystore and a GitHub/F-Droid release
-   still need a decision.
-2. **"Recently added" screen** is still missing (data is recorded; only the "new since last visit" row uses it).
-3. Search lists single sites, not FMHY lines (a search hit on "AdGuard" shows only AdGuard).
-4. `Note` links open the GitHub markdown; fmhy.net shows the note text as a tooltip.
-5. 9 cross-links don't resolve (stale FMHY anchors).
-6. Old Python history/delta code in `pipeline/` is unused (kept as the reference parser).
+1. **"Recently added" screen** is still missing (data is recorded; only the "new since last visit" row uses it).
+2. Search lists single sites, not FMHY lines (a search hit on "AdGuard" shows only AdGuard).
+3. `Note` links open the GitHub markdown; fmhy.net shows the note text as a tooltip.
+4. 9 cross-links don't resolve (stale FMHY anchors).
+5. Old Python history/delta code in `pipeline/` is unused (kept as the reference parser).
 
 ## History
 
