@@ -1,7 +1,11 @@
 package io.github.omeg4dev.fmhy.ui.home
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -10,56 +14,53 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Casino
-import androidx.compose.material.icons.filled.NewReleases
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.outlined.Casino
+import androidx.compose.material.icons.outlined.NewReleases
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import io.github.omeg4dev.fmhy.data.model.Entry
-import io.github.omeg4dev.fmhy.data.model.Section
 import io.github.omeg4dev.fmhy.di.AppContainer
 import io.github.omeg4dev.fmhy.nav.LocalAppNav
 import io.github.omeg4dev.fmhy.nav.LocalBottomBarPadding
 import io.github.omeg4dev.fmhy.nav.Tab
-import io.github.omeg4dev.fmhy.ui.common.LinkOpener
+import io.github.omeg4dev.fmhy.ui.common.SyncBanner
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
 import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
+import io.github.omeg4dev.fmhy.ui.common.sectionIcon
 import kotlinx.coroutines.flow.filter
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -74,19 +75,25 @@ fun HomeScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val linkOpener = rememberLinkOpener(container, onShowSnackbar)
-    val gridState = rememberLazyGridState()
+    val listState = rememberLazyListState()
     val nav = LocalAppNav.current
 
     LaunchedEffect(nav) {
         nav.reselect.filter { it == Tab.BROWSE }.collect {
-            gridState.animateScrollToItem(0)
+            listState.animateScrollToItem(0)
         }
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("FMHY", fontWeight = FontWeight.Bold) },
+                title = {
+                    Text(
+                        text = "FMHY",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                    )
+                },
                 actions = {
                     IconButton(onClick = onNavigateToSettings) {
                         Icon(Icons.Default.Settings, contentDescription = "Settings")
@@ -94,7 +101,8 @@ fun HomeScreen(
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
-                )
+                    scrolledContainerColor = MaterialTheme.colorScheme.surface,
+                ),
             )
         }
     ) { innerPadding ->
@@ -139,29 +147,31 @@ fun HomeScreen(
                     }
                 }
             } else {
-                LazyVerticalGrid(
-                    state = gridState,
-                    columns = GridCells.Adaptive(minSize = 160.dp),
+                val totalEntries = remember(state.sections) { state.sections.sumOf { it.entryCount } }
+
+                LazyColumn(
+                    state = listState,
                     contentPadding = PaddingValues(
-                        start = 16.dp,
-                        end = 16.dp,
                         top = 8.dp,
                         bottom = 16.dp + LocalBottomBarPadding.current,
                     ),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.fillMaxSize(),
                 ) {
-                    // Sync result: in the flow above the search bar so it never covers content.
-                    item(span = { GridItemSpan(maxLineSpan) }, key = "sync-banner") {
-                        androidx.compose.animation.AnimatedVisibility(
+                    // Sync banner item
+                    item(key = "sync-banner") {
+                        AnimatedVisibility(
                             visible = state.syncBanner != null,
-                            enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.expandVertically(),
-                            exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.shrinkVertically(),
+                            enter = fadeIn() + expandVertically(),
+                            exit = fadeOut() + shrinkVertically(),
                         ) {
-                            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
                                 state.syncBanner?.let { banner ->
-                                    io.github.omeg4dev.fmhy.ui.common.SyncBanner(
+                                    SyncBanner(
                                         text = banner.text,
                                         isLoading = banner.isLoading,
                                         isError = banner.isError,
@@ -171,192 +181,221 @@ fun HomeScreen(
                             }
                         }
                     }
-                    // Search tap bar
-                    item(span = { GridItemSpan(maxLineSpan) }) {
-                        OutlinedCard(
+
+                    // Search pill (16dp horizontal margin, 8dp bottom)
+                    item(key = "search-pill") {
+                        Surface(
                             onClick = onNavigateToSearch,
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.outlinedCardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                            )
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(52.dp)
+                                .padding(horizontal = 16.dp),
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 14.dp)
+                                    .fillMaxSize()
+                                    .padding(start = 16.dp, end = 16.dp),
                             ) {
                                 Icon(
-                                    Icons.Default.Search,
+                                    imageVector = Icons.Default.Search,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                                 Spacer(Modifier.width(12.dp))
                                 Text(
-                                    "Search FMHY...",
+                                    text = "Search ${"%,d".format(totalEntries)} sites",
                                     style = MaterialTheme.typography.bodyLarge,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
                         }
+                        Spacer(Modifier.height(8.dp))
                     }
 
-                    // "New since last visit: N" card (hidden when 0)
+                    // "New since last visit: N" card (when > 0)
                     if (state.newSinceLastVisitCount > 0) {
-                        item(span = { GridItemSpan(maxLineSpan) }) {
-                            Card(
+                        item(key = "new-since-last-visit") {
+                            Surface(
                                 onClick = onNavigateToSearch,
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                                ),
-                                modifier = Modifier.fillMaxWidth()
+                                shape = MaterialTheme.shapes.large,
+                                color = MaterialTheme.colorScheme.secondaryContainer,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
                             ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
+                                ListItem(
+                                    colors = ListItemDefaults.colors(
+                                        containerColor = Color.Transparent,
+                                        headlineColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                        leadingIconColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                        trailingIconColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    ),
+                                    leadingContent = {
+                                        Icon(Icons.Outlined.NewReleases, contentDescription = null)
+                                    },
+                                    headlineContent = {
+                                        Text(
+                                            text = "${state.newSinceLastVisitCount} new since your last visit",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Medium,
+                                        )
+                                    },
+                                    trailingContent = {
+                                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
+                                    },
+                                )
+                            }
+                        }
+                    }
+
+                    // Random pick card
+                    state.randomPick?.let { pick ->
+                        item(key = "random-pick") {
+                            Surface(
+                                onClick = { linkOpener.openUrl(pick.url) },
+                                shape = MaterialTheme.shapes.large,
+                                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
+                            ) {
+                                Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(16.dp)
+                                        .padding(14.dp),
                                 ) {
-                                    Icon(Icons.Default.NewReleases, contentDescription = null)
-                                    Spacer(Modifier.width(12.dp))
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.Casino,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(18.dp),
+                                        )
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(
+                                            text = "Random pick",
+                                            style = MaterialTheme.typography.labelLarge,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.weight(1f),
+                                        )
+                                        IconButton(
+                                            onClick = { viewModel.refreshRandomPick() },
+                                            modifier = Modifier.size(24.dp),
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Refresh,
+                                                contentDescription = "Reroll random pick",
+                                                modifier = Modifier.size(18.dp),
+                                            )
+                                        }
+                                    }
+                                    Spacer(Modifier.height(8.dp))
                                     Text(
-                                        text = "New since last visit: ${state.newSinceLastVisitCount}",
+                                        text = pick.name,
                                         style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.SemiBold,
+                                        fontWeight = FontWeight.Medium,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
                                     )
+                                    if (pick.description.isNotEmpty()) {
+                                        Spacer(Modifier.height(2.dp))
+                                        Text(
+                                            text = pick.description,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
 
-                    // "Random pick" card
-                    state.randomPick?.let { pick ->
-                        item(span = { GridItemSpan(maxLineSpan) }) {
-                            RandomPickCard(
-                                entry = pick,
-                                onOpen = { linkOpener.openUrl(pick.url) },
-                                onRefresh = { viewModel.refreshRandomPick() }
-                            )
-                        }
+                    // Sections header
+                    item(key = "sections-header") {
+                        Text(
+                            text = "Sections",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 16.dp, top = 20.dp, bottom = 8.dp),
+                        )
                     }
 
-                    // Section cards
-                    items(
-                        items = state.sections,
-                        key = { it.id }
-                    ) { section ->
-                        SectionCard(
-                            section = section,
-                            onClick = { onNavigateToSection(section.id) }
-                        )
+                    // Sections list inside one Surface
+                    item(key = "sections-list") {
+                        Surface(
+                            shape = MaterialTheme.shapes.large,
+                            color = MaterialTheme.colorScheme.surfaceContainerLow,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp),
+                        ) {
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                state.sections.forEachIndexed { index, section ->
+                                    if (index > 0) {
+                                        HorizontalDivider(
+                                            modifier = Modifier.padding(start = 72.dp),
+                                            color = MaterialTheme.colorScheme.outlineVariant,
+                                            thickness = 0.5.dp,
+                                        )
+                                    }
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .heightIn(min = 64.dp)
+                                            .clickable { onNavigateToSection(section.id) }
+                                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                                    ) {
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = MaterialTheme.colorScheme.secondaryContainer,
+                                            modifier = Modifier.size(40.dp),
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(
+                                                    imageVector = sectionIcon(section.id),
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                                    modifier = Modifier.size(22.dp),
+                                                )
+                                            }
+                                        }
+                                        Spacer(Modifier.width(16.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = section.title,
+                                                style = MaterialTheme.typography.titleMedium,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                            )
+                                            Text(
+                                                text = "${"%,d".format(section.entryCount)} sites",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
-
         }
     }
 
     UnsafeWarningDialog(linkOpener)
-}
-
-@Composable
-fun RandomPickCard(
-    entry: Entry,
-    onOpen: () -> Unit,
-    onRefresh: () -> Unit,
-) {
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer,
-            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-        ),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(
-                    Icons.Default.Casino,
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = "Random pick",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.weight(1f),
-                )
-                IconButton(
-                    onClick = onRefresh,
-                    modifier = Modifier.size(24.dp)
-                ) {
-                    Icon(
-                        Icons.Default.Refresh,
-                        contentDescription = "Reroll random pick",
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-            }
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = entry.name,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.clickable { onOpen() }
-            )
-            if (entry.description.isNotEmpty()) {
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text = entry.description,
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.clickable { onOpen() }
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun SectionCard(
-    section: Section,
-    onClick: () -> Unit,
-) {
-    Card(
-        onClick = onClick,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-        ),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-        ) {
-            Text(
-                text = section.title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = "${section.entryCount} sites",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.outline,
-            )
-        }
-    }
 }

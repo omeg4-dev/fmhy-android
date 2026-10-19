@@ -24,8 +24,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
@@ -34,6 +32,8 @@ import kotlinx.coroutines.launch
 @Immutable
 data class SearchUiState(
     val query: String = "",
+    val starredOnly: Boolean = false,
+    val b64Only: Boolean = false,
     val selectedSectionFilters: Set<String> = emptySet(),
     val availableSections: ImmutableList<Section> = persistentListOf(),
     val groups: ImmutableList<SearchGroup> = persistentListOf(),
@@ -53,6 +53,8 @@ class SearchViewModel(
 ) : ViewModel() {
 
     val query = MutableStateFlow(initialQuery)
+    val starredOnly = MutableStateFlow(false)
+    val b64Only = MutableStateFlow(false)
     val selectedSectionFilters = MutableStateFlow<Set<String>>(emptySet())
     private val allSections = MutableStateFlow<ImmutableList<Section>>(persistentListOf())
 
@@ -62,19 +64,36 @@ class SearchViewModel(
         }
     }
 
-    private data class SearchParams(val query: String, val filters: Set<String>)
+    private data class SearchParams(
+        val query: String,
+        val filters: Set<String>,
+        val starredOnly: Boolean,
+        val b64Only: Boolean,
+    )
 
-    private val searchParams = combine(query, selectedSectionFilters) { q, filters ->
-        SearchParams(q, filters)
+    private val searchParams = combine(query, selectedSectionFilters, starredOnly, b64Only) { q, filters, starred, b64 ->
+        SearchParams(q, filters, starred, b64)
     }.debounce(40L)
      .distinctUntilChanged()
 
     private val searchResults = searchParams.mapLatest { params ->
-        if ((params.query.isBlank() && params.filters.isEmpty()) || !store.isAvailable) {
+        val effectiveQuery = buildString {
+            append(params.query.trim())
+            if (params.starredOnly) {
+                if (isNotEmpty()) append(" ")
+                append("is:starred")
+            }
+            if (params.b64Only) {
+                if (isNotEmpty()) append(" ")
+                append("is:b64")
+            }
+        }
+
+        if ((effectiveQuery.isBlank() && params.filters.isEmpty()) || !store.isAvailable) {
             null
         } else {
             searchEngine.search(
-                query = params.query,
+                query = effectiveQuery,
                 sectionFilter = params.filters,
                 limit = 200
             )
@@ -82,14 +101,16 @@ class SearchViewModel(
     }.flowOn(Dispatchers.IO)
 
     val uiState: StateFlow<SearchUiState> = combine(
-        query,
+        combine(query, starredOnly, b64Only) { q, starred, b64 -> Triple(q, starred, b64) },
         selectedSectionFilters,
         allSections,
         settingsRepository.recentSearches,
         searchResults,
-    ) { q, filters, sections, recents, results ->
+    ) { (q, starred, b64), filters, sections, recents, results ->
         SearchUiState(
             query = q,
+            starredOnly = starred,
+            b64Only = b64,
             selectedSectionFilters = filters,
             availableSections = sections,
             groups = (results?.groups ?: emptyList()).toImmutableList(),
@@ -115,6 +136,14 @@ class SearchViewModel(
         query.value = newQuery
     }
 
+    fun toggleStarredOnly() {
+        starredOnly.value = !starredOnly.value
+    }
+
+    fun toggleB64Only() {
+        b64Only.value = !b64Only.value
+    }
+
     fun toggleSectionFilter(sectionId: String) {
         val current = selectedSectionFilters.value
         selectedSectionFilters.value = if (current.contains(sectionId)) {
@@ -122,6 +151,12 @@ class SearchViewModel(
         } else {
             current + sectionId
         }
+    }
+
+    fun clearAllFilters() {
+        selectedSectionFilters.value = emptySet()
+        starredOnly.value = false
+        b64Only.value = false
     }
 
     fun onSearchSubmitted(submittedQuery: String) {
