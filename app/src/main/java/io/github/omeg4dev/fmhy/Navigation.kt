@@ -72,6 +72,7 @@ import io.github.omeg4dev.fmhy.ui.saved.SavedScreen
 import io.github.omeg4dev.fmhy.ui.saved.SavedViewModel
 import io.github.omeg4dev.fmhy.ui.search.SearchScreen
 import io.github.omeg4dev.fmhy.ui.search.SearchViewModel
+import io.github.omeg4dev.fmhy.ui.section.CategoryScreen
 import io.github.omeg4dev.fmhy.ui.section.SectionScreen
 import io.github.omeg4dev.fmhy.ui.section.SectionViewModel
 import io.github.omeg4dev.fmhy.ui.settings.SettingsScreen
@@ -198,9 +199,24 @@ fun MainNavigation() {
 
         entry<SectionNavKey> { key ->
             val sectionViewModel: SectionViewModel = viewModel(key = key.sectionId) {
-                SectionViewModel(key.sectionId, key.anchor, container.datasetStore)
+                SectionViewModel(key.sectionId, key.anchor, container.datasetStore, container.settingsRepository)
             }
             SectionScreen(
+                viewModel = sectionViewModel,
+                container = container,
+                onBack = { if (!nav.back()) activity?.finish() },
+                onShowSnackbar = { msg ->
+                    scope.launch { snackbarHostState.showSnackbar(msg) }
+                }
+            )
+        }
+
+        entry<CategoryNavKey> { key ->
+            val sectionViewModel: SectionViewModel = viewModel(key = key.sectionId) {
+                SectionViewModel(key.sectionId, null, container.datasetStore, container.settingsRepository)
+            }
+            CategoryScreen(
+                key = key,
                 viewModel = sectionViewModel,
                 container = container,
                 onBack = { if (!nav.back()) activity?.finish() },

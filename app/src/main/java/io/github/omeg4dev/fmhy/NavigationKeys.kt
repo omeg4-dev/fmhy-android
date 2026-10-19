@@ -10,6 +10,9 @@ data object HomeNavKey : NavKey
 data class SectionNavKey(val sectionId: String, val anchor: String? = null) : NavKey
 
 @Serializable
+data class CategoryNavKey(val sectionId: String, val categoryHeadingId: String, val focusHeadingId: String? = null) : NavKey
+
+@Serializable
 data class SearchNavKey(val initialQuery: String = "") : NavKey
 
 @Serializable

@@ -1,81 +1,61 @@
 package io.github.omeg4dev.fmhy.ui.section
 
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.FormatListNumbered
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.outlined.List
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.InputChip
-import androidx.compose.material3.LargeTopAppBar
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.omeg4dev.fmhy.CategoryNavKey
+import io.github.omeg4dev.fmhy.data.SectionLayout
 import io.github.omeg4dev.fmhy.data.link.CrossLinks
-import io.github.omeg4dev.fmhy.data.model.Entry
 import io.github.omeg4dev.fmhy.data.model.Heading
-import io.github.omeg4dev.fmhy.data.model.Note
 import io.github.omeg4dev.fmhy.data.model.SectionItem
 import io.github.omeg4dev.fmhy.di.AppContainer
+import io.github.omeg4dev.fmhy.nav.LocalAppNav
 import io.github.omeg4dev.fmhy.nav.LocalBottomBarPadding
 import io.github.omeg4dev.fmhy.ui.common.EntryRow
-import io.github.omeg4dev.fmhy.ui.common.LinkOpener
-import io.github.omeg4dev.fmhy.ui.common.MarkdownText
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
 import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SectionScreen(
     viewModel: SectionViewModel,
@@ -85,21 +65,48 @@ fun SectionScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
+    val nav = LocalAppNav.current
     val linkOpener = rememberLinkOpener(container, onShowSnackbar)
 
     val listState = rememberLazyListState()
-    val topAppBarState = rememberTopAppBarState()
-    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(topAppBarState)
     var showJumpBottomSheet by remember { mutableStateOf(false) }
     var highlightedHeadingId by remember { mutableStateOf<String?>(null) }
+    var pendingSelection by remember { mutableStateOf<Int?>(null) }
 
-    // Handle initial scroll to anchor
-    LaunchedEffect(state.items, viewModel.anchor) {
+    // In CATEGORIES mode: handle anchor navigation by opening CategoryNavKey
+    var hasPushedAnchorByCategory by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(state.items, state.headings, state.layout, viewModel.anchor) {
         val anchor = viewModel.anchor
-        if (!anchor.isNullOrEmpty() && state.items.isNotEmpty()) {
+        if (state.layout == SectionLayout.CATEGORIES && !hasPushedAnchorByCategory && !anchor.isNullOrEmpty() && state.items.isNotEmpty()) {
+            val anchorHeading = state.headings.firstOrNull {
+                it.anchor.equals(anchor, ignoreCase = true) || it.id.endsWith(anchor) || it.id == anchor
+            }
+            if (anchorHeading != null) {
+                val cat = state.structure.categories.firstOrNull { c ->
+                    c.heading.id == anchorHeading.id || c.items.any { it is SectionItem.HeadingItem && it.heading.id == anchorHeading.id }
+                }
+                val categoryHeadingId = cat?.heading?.id ?: if (state.structure.overview.any { it is SectionItem.HeadingItem && it.heading.id == anchorHeading.id }) "__overview" else null
+                if (categoryHeadingId != null) {
+                    hasPushedAnchorByCategory = true
+                    nav.push(
+                        CategoryNavKey(
+                            sectionId = state.section?.id ?: viewModel.sectionId,
+                            categoryHeadingId = categoryHeadingId,
+                            focusHeadingId = anchorHeading.id,
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    // In CONTINUOUS mode: handle initial scroll to anchor
+    LaunchedEffect(state.items, state.layout, viewModel.anchor) {
+        val anchor = viewModel.anchor
+        if (state.layout == SectionLayout.CONTINUOUS && !anchor.isNullOrEmpty() && state.items.isNotEmpty()) {
             val targetIdx = state.items.indexOfFirst {
                 it is SectionItem.HeadingItem &&
-                    (it.heading.anchor.equals(anchor, ignoreCase = true) || it.heading.id.endsWith(anchor))
+                    (it.heading.anchor.equals(anchor, ignoreCase = true) || it.heading.id.endsWith(anchor) || it.heading.id == anchor)
             }
             if (targetIdx != -1) {
                 listState.scrollToItem(targetIdx)
@@ -111,37 +118,95 @@ fun SectionScreen(
         }
     }
 
+    val derivedSelectedCategoryIndex by remember {
+        derivedStateOf {
+            val idx = listState.firstVisibleItemIndex
+            val map = state.structure.categoryIndexOfItem
+            if (map.isNotEmpty() && idx in map.indices) {
+                map[idx]
+            } else {
+                -1
+            }
+        }
+    }
+
+    val currentCategoryHeadingId = remember(state.structure.categories, pendingSelection, derivedSelectedCategoryIndex) {
+        val sel = pendingSelection ?: derivedSelectedCategoryIndex
+        if (sel in state.structure.categories.indices) {
+            state.structure.categories[sel].heading.id
+        } else {
+            null
+        }
+    }
+
     Scaffold(
-        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            LargeTopAppBar(
-                title = {
-                    Text(
-                        text = state.section?.title ?: "Section",
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                scrollBehavior = scrollBehavior,
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.surface)
+            ) {
+                TopAppBar(
+                    title = {
+                        Text(
+                            text = state.section?.title ?: "Section",
+                            style = MaterialTheme.typography.titleLarge,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = { showJumpBottomSheet = true }) {
+                            Icon(Icons.AutoMirrored.Outlined.List, contentDescription = "Outline")
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        scrolledContainerColor = MaterialTheme.colorScheme.surface,
+                    ),
                 )
-            )
-        },
-        floatingActionButton = {
-            if (state.headings.isNotEmpty()) {
-                FloatingActionButton(
-                    onClick = { showJumpBottomSheet = true },
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                ) {
-                    Icon(Icons.Default.FormatListNumbered, contentDescription = "Jump to heading")
+
+                if (state.layout == SectionLayout.CONTINUOUS && state.structure.categories.size >= 2) {
+                    val chips = remember(state.structure.categories) {
+                        state.structure.categories.map { CrossLinks.splitLinkTitle(it.heading.title).first }
+                    }
+                    val isAtTop by remember {
+                        derivedStateOf {
+                            listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0
+                        }
+                    }
+                    val dividerAlpha by animateFloatAsState(
+                        targetValue = if (isAtTop) 0f else 1f,
+                        label = "rail_divider_alpha",
+                    )
+
+                    CategoryChipRail(
+                        chips = chips,
+                        selectedIndex = pendingSelection ?: derivedSelectedCategoryIndex,
+                        onSelectChip = { index ->
+                            val category = state.structure.categories.getOrNull(index) ?: return@CategoryChipRail
+                            val targetIdx = state.items.indexOfFirst {
+                                it is SectionItem.HeadingItem && it.heading.id == category.heading.id
+                            }
+                            if (targetIdx != -1) {
+                                scope.launch {
+                                    pendingSelection = index
+                                    listState.animateScrollToItem(targetIdx)
+                                    pendingSelection = null
+                                }
+                            }
+                        },
+                    )
+
+                    HorizontalDivider(
+                        thickness = 1.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = dividerAlpha),
+                    )
                 }
             }
         }
@@ -151,77 +216,175 @@ fun SectionScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
-                contentAlignment = Alignment.Center
+                contentAlignment = Alignment.Center,
             ) {
                 CircularProgressIndicator()
+            }
+        } else if (state.layout == SectionLayout.CATEGORIES) {
+            LazyColumn(
+                contentPadding = PaddingValues(
+                    top = innerPadding.calculateTopPadding(),
+                    bottom = LocalBottomBarPadding.current + 16.dp,
+                ),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.surface),
+            ) {
+                if (state.structure.overview.isNotEmpty()) {
+                    item(key = "cat_overview") {
+                        ListItem(
+                            headlineContent = {
+                                Text(
+                                    text = "Overview",
+                                    style = MaterialTheme.typography.titleMedium,
+                                )
+                            },
+                            trailingContent = {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    nav.push(
+                                        CategoryNavKey(
+                                            sectionId = state.section?.id ?: viewModel.sectionId,
+                                            categoryHeadingId = "__overview",
+                                        )
+                                    )
+                                },
+                        )
+                        HorizontalDivider(
+                            modifier = Modifier.padding(start = 16.dp),
+                            thickness = 0.5.dp,
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
+                        )
+                    }
+                }
+
+                itemsIndexed(
+                    state.structure.categories,
+                    key = { _, category -> "cat_${category.heading.id}" }
+                ) { index, category ->
+                    val (splitTitle, _) = remember(category.heading.title) {
+                        CrossLinks.splitLinkTitle(category.heading.title)
+                    }
+                    val supportingText = remember(category) {
+                        val subNames = category.subHeadings.take(3).map { CrossLinks.splitLinkTitle(it.title).first }
+                        if (subNames.isNotEmpty()) {
+                            "${category.entryCount} sites · " + subNames.joinToString(", ")
+                        } else {
+                            "${category.entryCount} sites"
+                        }
+                    }
+
+                    ListItem(
+                        headlineContent = {
+                            Text(
+                                text = splitTitle,
+                                style = MaterialTheme.typography.titleMedium,
+                            )
+                        },
+                        supportingContent = {
+                            Text(
+                                text = supportingText,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        },
+                        trailingContent = {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                nav.push(
+                                    CategoryNavKey(
+                                        sectionId = state.section?.id ?: viewModel.sectionId,
+                                        categoryHeadingId = category.heading.id,
+                                    )
+                                )
+                            },
+                    )
+
+                    if (index < state.structure.categories.lastIndex) {
+                        HorizontalDivider(
+                            modifier = Modifier.padding(start = 16.dp),
+                            thickness = 0.5.dp,
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
+                        )
+                    }
+                }
             }
         } else {
             LazyColumn(
                 state = listState,
                 contentPadding = PaddingValues(
                     top = innerPadding.calculateTopPadding(),
-                    bottom = innerPadding.calculateBottomPadding() + 80.dp + LocalBottomBarPadding.current,
+                    bottom = LocalBottomBarPadding.current + 16.dp,
                 ),
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.surface),
             ) {
-                state.items.forEachIndexed { index, item ->
-                    when (item) {
-                        is SectionItem.HeadingItem -> {
-                            val heading = item.heading
-                            if (heading.level in 1..2) {
-                                stickyHeader(
-                                    key = "h_${heading.id}",
-                                    contentType = "heading"
-                                ) {
-                                    HeadingHeader(
-                                        heading = heading,
-                                        isSticky = true,
-                                        isHighlighted = heading.id == highlightedHeadingId,
-                                        onOpenUrl = { linkOpener.openUrl(it) },
-                                    )
-                                }
-                            } else {
-                                item(
-                                    key = "h_${heading.id}",
-                                    contentType = "heading"
-                                ) {
-                                    HeadingHeader(
-                                        heading = heading,
-                                        isSticky = false,
-                                        isHighlighted = heading.id == highlightedHeadingId,
-                                        onOpenUrl = { linkOpener.openUrl(it) },
-                                    )
-                                }
-                            }
+                itemsIndexed(
+                    state.items,
+                    key = { _, item ->
+                        when (item) {
+                            is SectionItem.HeadingItem -> "h_${item.heading.id}"
+                            is SectionItem.EntryItem -> "e_${item.entry.id}"
+                            is SectionItem.NoteItem -> "n_${item.note.id}"
+                            is SectionItem.MoreGroup -> "mg_${item.entries.first().id}"
                         }
-                        is SectionItem.EntryItem -> {
-                            item(
-                                key = "e_${item.entry.id}",
-                                contentType = "entry"
-                            ) {
-                                EntryRow(
-                                    entry = item.entry,
+                    }
+                ) { index, item ->
+                    Box(modifier = Modifier.animateItem()) {
+                        when (item) {
+                            is SectionItem.HeadingItem -> {
+                                val entryCount = remember(state.structure.categories, item.heading.id) {
+                                    state.structure.categories.firstOrNull { it.heading.id == item.heading.id }?.entryCount
+                                }
+                                HeadingHeader(
+                                    heading = item.heading,
+                                    isHighlighted = item.heading.id == highlightedHeadingId,
+                                    isFirstItem = index == 0,
+                                    entryCount = entryCount,
                                     onOpenUrl = { linkOpener.openUrl(it) },
-                                    onShowSnackbar = onShowSnackbar,
                                 )
                             }
-                        }
-                        is SectionItem.NoteItem -> {
-                            item(
-                                key = "n_${item.note.id}",
-                                contentType = "note"
-                            ) {
+                            is SectionItem.EntryItem -> {
+                                Column {
+                                    EntryRow(
+                                        entry = item.entry,
+                                        onOpenUrl = { linkOpener.openUrl(it) },
+                                        onShowSnackbar = onShowSnackbar,
+                                    )
+                                    val nextItem = state.items.getOrNull(index + 1)
+                                    if (nextItem is SectionItem.EntryItem) {
+                                        HorizontalDivider(
+                                            modifier = Modifier.padding(start = 16.dp),
+                                            thickness = 0.5.dp,
+                                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
+                                        )
+                                    }
+                                }
+                            }
+                            is SectionItem.NoteItem -> {
                                 NoteCallout(note = item.note)
                             }
-                        }
-                        is SectionItem.MoreGroup -> {
-                            item(
-                                key = "mg_${item.entries.first().id}",
-                                contentType = "more"
-                            ) {
+                            is SectionItem.MoreGroup -> {
                                 MoreGroupRow(
                                     entries = item.entries,
-                                    onOpenUrl = { linkOpener.openUrl(it) }
+                                    onOpenUrl = { linkOpener.openUrl(it) },
                                 )
                             }
                         }
@@ -234,15 +397,33 @@ fun SectionScreen(
     if (showJumpBottomSheet) {
         JumpToHeadingBottomSheet(
             headings = state.headings,
+            categories = state.structure.categories,
+            currentCategoryId = currentCategoryHeadingId,
             onDismiss = { showJumpBottomSheet = false },
             onSelectHeading = { heading ->
                 showJumpBottomSheet = false
-                val targetIdx = state.items.indexOfFirst {
-                    it is SectionItem.HeadingItem && it.heading.id == heading.id
-                }
-                if (targetIdx != -1) {
-                    scope.launch {
-                        listState.animateScrollToItem(targetIdx)
+                if (state.layout == SectionLayout.CATEGORIES) {
+                    val cat = state.structure.categories.firstOrNull { c ->
+                        c.heading.id == heading.id || c.items.any { it is SectionItem.HeadingItem && it.heading.id == heading.id }
+                    }
+                    val categoryHeadingId = cat?.heading?.id ?: if (state.structure.overview.any { it is SectionItem.HeadingItem && it.heading.id == heading.id }) "__overview" else null
+                    if (categoryHeadingId != null) {
+                        nav.push(
+                            CategoryNavKey(
+                                sectionId = state.section?.id ?: viewModel.sectionId,
+                                categoryHeadingId = categoryHeadingId,
+                                focusHeadingId = heading.id,
+                            )
+                        )
+                    }
+                } else {
+                    val targetIdx = state.items.indexOfFirst {
+                        it is SectionItem.HeadingItem && it.heading.id == heading.id
+                    }
+                    if (targetIdx != -1) {
+                        scope.launch {
+                            listState.animateScrollToItem(targetIdx)
+                        }
                     }
                 }
             }
@@ -250,221 +431,4 @@ fun SectionScreen(
     }
 
     UnsafeWarningDialog(linkOpener)
-}
-
-@Composable
-fun HeadingHeader(
-    heading: Heading,
-    isSticky: Boolean,
-    isHighlighted: Boolean = false,
-    onOpenUrl: (String) -> Unit = {},
-) {
-    val (splitTitle, url) = remember(heading.title) { CrossLinks.splitLinkTitle(heading.title) }
-    val defaultBg = if (isSticky) MaterialTheme.colorScheme.surfaceContainer else MaterialTheme.colorScheme.surface
-    val targetBg = if (isHighlighted) {
-        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
-    } else {
-        defaultBg
-    }
-    val animatedBg by animateColorAsState(targetBg, animationSpec = tween(300), label = "heading_bg")
-
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .then(
-                if (url != null) Modifier.clickable { onOpenUrl(url) } else Modifier
-            ),
-        color = animatedBg,
-        shadowElevation = if (isSticky) 2.dp else 0.dp,
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(
-                    start = 16.dp,
-                    end = 16.dp,
-                    top = if (heading.level <= 2) 16.dp else 12.dp,
-                    bottom = 8.dp,
-                )
-        ) {
-            val style = when (heading.level) {
-                1 -> MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
-                2 -> MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
-                3 -> MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold)
-                else -> MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
-            }
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Text(
-                    text = splitTitle,
-                    style = style,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = if (url != null) Modifier.weight(1f, fill = false) else Modifier,
-                )
-                if (url != null) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(16.dp),
-                    )
-                }
-            }
-            if (isSticky) {
-                HorizontalDivider(modifier = Modifier.padding(top = 8.dp), thickness = 0.5.dp)
-            }
-        }
-    }
-}
-
-@Composable
-fun NoteCallout(note: Note) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
-        shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-    ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            MarkdownText(
-                markdown = note.textMd,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-        }
-    }
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-fun MoreGroupRow(
-    entries: List<Entry>,
-    onOpenUrl: (String) -> Unit,
-) {
-    var expanded by remember { mutableStateOf(false) }
-
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp)
-            .animateContentSize(),
-        shape = MaterialTheme.shapes.small,
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { expanded = !expanded }
-            ) {
-                Text(
-                    text = "More (${entries.size})",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.weight(1f),
-                )
-                Icon(
-                    imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                    contentDescription = if (expanded) "Collapse" else "Expand",
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-
-            if (!expanded) {
-                val previewText = remember(entries) {
-                    entries.joinToString(" · ") { it.name }
-                }
-                Text(
-                    text = previewText,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier
-                        .padding(top = 4.dp)
-                        .clickable { expanded = true }
-                )
-            } else {
-                Spacer(Modifier.height(8.dp))
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    entries.forEach { entry ->
-                        InputChip(
-                            selected = false,
-                            onClick = { onOpenUrl(entry.url) },
-                            label = { Text(entry.name, style = MaterialTheme.typography.bodySmall) },
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun JumpToHeadingBottomSheet(
-    headings: List<Heading>,
-    onDismiss: () -> Unit,
-    onSelectHeading: (Heading) -> Unit,
-) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 24.dp)
-        ) {
-            Text(
-                text = "Jump to Heading",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
-            )
-
-            LazyColumn(
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                itemsIndexed(headings, key = { _, h -> h.id }) { _, heading ->
-                    val indent = ((heading.level - 1).coerceAtLeast(0) * 16).dp
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onSelectHeading(heading) }
-                            .padding(start = 24.dp + indent, end = 24.dp, top = 12.dp, bottom = 12.dp)
-                    ) {
-                        val (splitTitle, _) = remember(heading.title) { CrossLinks.splitLinkTitle(heading.title) }
-                        Text(
-                            text = splitTitle,
-                            style = when (heading.level) {
-                                1 -> MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
-                                2 -> MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold)
-                                else -> MaterialTheme.typography.bodyMedium
-                            },
-                            color = if (heading.level == 1) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                }
-            }
-        }
-    }
 }
