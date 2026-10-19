@@ -17,8 +17,11 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // Sideload builds until a real release key exists.
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
     compileOptions {
