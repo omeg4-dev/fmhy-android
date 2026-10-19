@@ -23,20 +23,50 @@ _MD.inline.ruler2.disable(["strikethrough"])
 # ---------------------------------------------------------------------------
 # Tier detection
 # ---------------------------------------------------------------------------
+_INVISIBLE_TRANSLATE = str.maketrans("", "", "\u2060\u200b\u200c\ufeff")
+
+def strip_invisible_chars(text: str) -> str:
+    return text.translate(_INVISIBLE_TRANSLATE)
+
+
+def _detect_tier_and_kind(line: str) -> tuple[int, int, str]:
+    tier = 0
+    kind = 0
+    s = line.lstrip()
+    for _ in range(2):
+        s = s.lstrip()
+        if tier == 0:
+            if s.startswith("🌟"):
+                tier = 2
+                s = s[len("🌟"):]
+                continue
+            elif s.startswith("⭐"):
+                tier = 1
+                s = s[len("⭐"):]
+                continue
+        if kind == 0:
+            if s.startswith("🌐"):
+                kind = 1
+                s = s[len("🌐"):]
+                if s.startswith("\ufe0f"):
+                    s = s[1:]
+                continue
+            elif s.startswith("↪️"):
+                kind = 2
+                s = s[len("↪️"):]
+                continue
+            elif s.startswith("↪"):
+                kind = 2
+                s = s[len("↪"):]
+                if s.startswith("\ufe0f"):
+                    s = s[1:]
+                continue
+    return tier, kind, s.lstrip()
+
 
 def _detect_tier(line: str) -> tuple[int, str]:
-    """
-    Detect tier from leading emoji on a bullet/entry line.
-    Returns (tier, line_without_tier_marker).
-    🌟 → 2, ⭐ → 1, else → 0.
-    Strips the tier emoji but keeps other leading emoji for later stripping.
-    """
-    stripped = line.lstrip()
-    if stripped.startswith("🌟"):
-        return 2, stripped[len("🌟"):].lstrip()
-    if stripped.startswith("⭐"):
-        return 1, stripped[len("⭐"):].lstrip()
-    return 0, stripped
+    tier, _, rest = _detect_tier_and_kind(line)
+    return tier, rest
 
 
 # ---------------------------------------------------------------------------
@@ -192,6 +222,7 @@ class ParsedEntry:
     name: str
     url: str
     tier: int = 0
+    kind: int = 0
     is_inline_more: int = 0
     mirrors: list[dict] = field(default_factory=list)
     extra_links: list[dict] = field(default_factory=list)
@@ -230,10 +261,11 @@ def _parse_head_links(
     head_text: str,
     tier: int,
     is_inline_more: int,
+    line_kind: int = 0,
 ) -> list[dict]:
     """
     Walk the links in HEAD text and produce a list of partial entry dicts.
-    Each dict has: name, url, tier, is_inline_more, mirrors, extra_links.
+    Each dict has: name, url, tier, kind, is_inline_more, mirrors, extra_links.
 
     Rules:
     - First link encountered (not preceded by ' / ') starts a NEW entry.
@@ -259,13 +291,14 @@ def _parse_head_links(
             entries.append(current)
         current = None
 
-    def new_entry(name, url, link_tier):
+    def new_entry(name, url, link_tier, link_kind):
         nonlocal current
         finish_entry()
         current = {
             "name": strip_leading_emoji(name).strip(),
             "url": url,
             "tier": link_tier,
+            "kind": link_kind,
             "is_inline_more": is_inline_more,
             "mirrors": [],
             "extra_links": [],
@@ -325,8 +358,17 @@ def _parse_head_links(
                     # Check if this is a separator-started new entry
                     # Separators: ', ', ' or ', text between links
                     # If sep_text has comma or 'or', it's a new entry
-                    link_tier = tier if in_bold else 0
-                    new_entry(label, href, link_tier)
+                    is_first_entry = len(entries) == 0 and current is None
+                    link_tier = tier if (in_bold or is_first_entry) else 0
+                    if "🌐" in label.lstrip()[:2] or "🌐" in sep_text:
+                        link_kind = 1
+                    elif "↪" in label.lstrip()[:2] or "↪" in sep_text:
+                        link_kind = 2
+                    elif is_first_entry:
+                        link_kind = line_kind
+                    else:
+                        link_kind = 0
+                    new_entry(label, href, link_tier, link_kind)
 
         elif tok.type == "link_close":
             pass
@@ -337,6 +379,151 @@ def _parse_head_links(
 
     finish_entry()
     return entries
+
+
+def _scan_link_at(text: str, start_idx: int) -> tuple[str, str, int, int] | None:
+    if start_idx >= len(text) or text[start_idx] != '[':
+        return None
+    if start_idx > 0 and text[start_idx - 1] == '!':
+        b = start_idx - 2
+        cnt = 0
+        while b >= 0 and text[b] == '\\':
+            cnt += 1
+            b -= 1
+        if cnt % 2 == 0:
+            return None
+    b = start_idx - 1
+    cnt = 0
+    while b >= 0 and text[b] == '\\':
+        cnt += 1
+        b -= 1
+    if cnt % 2 != 0:
+        return None
+
+    depth = 1
+    j = start_idx + 1
+    raw_label = []
+    while j < len(text) and depth > 0:
+        c = text[j]
+        if c == '\\' and j + 1 < len(text):
+            raw_label.append(c)
+            raw_label.append(text[j + 1])
+            j += 2
+            continue
+        if c == '[':
+            depth += 1
+            raw_label.append(c)
+            j += 1
+        elif c == ']':
+            depth -= 1
+            if depth == 0:
+                j += 1
+                break
+            else:
+                raw_label.append(c)
+                j += 1
+        else:
+            raw_label.append(c)
+            j += 1
+
+    if depth != 0 or j >= len(text) or text[j] != '(':
+        return None
+    j += 1  # skip '('
+    while j < len(text) and text[j].isspace():
+        j += 1
+    if j >= len(text):
+        return None
+
+    paren_depth = 1
+    url_chars = []
+    in_title = False
+    title_quote = None
+    while j < len(text):
+        c = text[j]
+        if c == '\\' and j + 1 < len(text):
+            if not in_title:
+                url_chars.append(text[j + 1])
+            j += 2
+            continue
+        if in_title:
+            if c == title_quote:
+                in_title = False
+                title_quote = None
+            j += 1
+            continue
+        if c == '(':
+            paren_depth += 1
+            url_chars.append(c)
+            j += 1
+        elif c == ')':
+            paren_depth -= 1
+            if paren_depth == 0:
+                j += 1
+                break
+            else:
+                url_chars.append(c)
+                j += 1
+        elif c.isspace():
+            if paren_depth == 1:
+                j += 1
+                while j < len(text) and text[j].isspace():
+                    j += 1
+                if j < len(text) and text[j] in ('"', "'", '('):
+                    in_title = True
+                    title_quote = ')' if text[j] == '(' else text[j]
+                    j += 1
+                elif j < len(text) and text[j] == ')':
+                    paren_depth = 0
+                    j += 1
+                    break
+            else:
+                url_chars.append(c)
+                j += 1
+        else:
+            url_chars.append(c)
+            j += 1
+
+    if paren_depth != 0:
+        return None
+
+    label = ''.join(raw_label).replace('\\', '')
+    url = ''.join(url_chars)
+    return label, url, start_idx, j
+
+
+def _scan_all_links(text: str) -> list[tuple[str, str, int, int]]:
+    links = []
+    i = 0
+    while i < len(text):
+        res = _scan_link_at(text, i)
+        if res:
+            links.append(res)
+            i = res[3]
+        else:
+            i += 1
+    return links
+
+
+SOCIAL_LABELS = {
+    "discord", "github", "gitlab", "source code", "telegram",
+    "subreddit", "x", "mastodon", "bluesky", ".onion", "status"
+}
+
+
+def clean_dangling_separators(s: str) -> str:
+    s = s.strip()
+    changed = True
+    while changed and s:
+        changed = False
+        s = s.strip()
+        if s.endswith(",") or s.endswith("/"):
+            s = s[:-1].strip()
+            changed = True
+        if s.startswith(",") or s.startswith("/"):
+            s = s[1:].strip()
+            changed = True
+    s = re.sub(r"\s+", " ", s)
+    return s
 
 
 # ---------------------------------------------------------------------------
@@ -372,9 +559,20 @@ def _parse_desc(desc_text: str, first_entry_extra: list[dict]) -> tuple[str, str
             # This part is exactly one link → extra link
             extra_links.append({"label": links[0].label, "url": links[0].url})
         else:
-            # Tag part: reduce to plain text (replace link markdown with label)
-            tag_text = _markdown_to_plain(part)
-            tag_parts.append(tag_text)
+            social_links = [l for l in links if l.label.strip().lower() in SOCIAL_LABELS]
+            if social_links:
+                for sl in social_links:
+                    extra_links.append({"label": sl.label, "url": sl.url})
+                current_text = part
+                positioned = _scan_all_links(current_text)
+                matching = [pl for pl in positioned if pl[0].strip().lower() in SOCIAL_LABELS]
+                for pl in sorted(matching, key=lambda x: x[2], reverse=True):
+                    current_text = current_text[:pl[2]] + current_text[pl[3]:]
+                cleaned = clean_dangling_separators(current_text)
+                if cleaned:
+                    tag_parts.append(_markdown_to_plain(cleaned))
+            else:
+                tag_parts.append(_markdown_to_plain(part))
 
     tags = "|".join(tag_parts)
     description = " / ".join(tag_parts)
@@ -491,7 +689,7 @@ def parse_section(
     """
     from .slug import slugify, AnchorTracker
 
-    lines = content.splitlines()
+    lines = [strip_invisible_chars(l) for l in content.splitlines()]
     headings: list[ParsedHeading] = []
     entries: list[ParsedEntry] = []
     notes: list[ParsedNote] = []
@@ -689,8 +887,9 @@ def _parse_bullet_line(
     Parse a bullet line's content (after the '* ' or '- ' marker).
     Returns (entries, notes) or None if it should be counted as unparsed.
     """
-    # Detect tier
-    tier, content = _detect_tier(content)
+    content = strip_invisible_chars(content)
+    # Detect tier and kind
+    tier, kind, content = _detect_tier_and_kind(content)
 
     # Split HEAD and DESC
     head, desc = _split_head_desc(content)
@@ -699,7 +898,8 @@ def _parse_bullet_line(
         return None
 
     # Parse head links into entry candidates
-    entry_dicts = _parse_head_links(head, tier, is_inline_more)
+    line_kind = 0 if is_inline_more else kind
+    entry_dicts = _parse_head_links(head, tier, is_inline_more, line_kind)
     if not entry_dicts:
         return None
 
@@ -715,6 +915,7 @@ def _parse_bullet_line(
             name=ed["name"],
             url=ed["url"],
             tier=ed["tier"],
+            kind=ed.get("kind", 0),
             is_inline_more=ed["is_inline_more"],
             mirrors=ed.get("mirrors", []),
             extra_links=ed.get("extra_links", []),
@@ -738,13 +939,13 @@ def _parse_inline_more_line(
     ord_start: int,
 ) -> list[ParsedEntry]:
     """Parse a non-bullet paragraph line as 'more' entries."""
-    # Same as bullet parsing but is_inline_more=1, no bullet stripping needed
-    tier, content2 = _detect_tier(content)
+    content = strip_invisible_chars(content)
+    tier, kind, content2 = _detect_tier_and_kind(content)
     head, desc = _split_head_desc(content2)
     if "[" not in head:
         return []
 
-    entry_dicts = _parse_head_links(head, tier, is_inline_more=1)
+    entry_dicts = _parse_head_links(head, tier, is_inline_more=1, line_kind=0)
     if not entry_dicts:
         return []
 
@@ -758,6 +959,7 @@ def _parse_inline_more_line(
             name=ed["name"],
             url=ed["url"],
             tier=ed["tier"],
+            kind=ed.get("kind", 0),
             is_inline_more=1,
             mirrors=ed.get("mirrors", []),
             extra_links=ed.get("extra_links", []),

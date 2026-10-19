@@ -5,6 +5,7 @@ import io.github.omeg4dev.fmhy.data.Appearance
 import io.github.omeg4dev.fmhy.data.ColorSource
 import io.github.omeg4dev.fmhy.data.DatasetStore
 import io.github.omeg4dev.fmhy.data.SectionLayout
+import io.github.omeg4dev.fmhy.data.SectionOrder
 import io.github.omeg4dev.fmhy.data.SettingsRepository
 import io.github.omeg4dev.fmhy.data.ThemeMode
 import io.github.omeg4dev.fmhy.data.model.Entry
@@ -69,7 +70,7 @@ class HomeViewModelTest {
         override val isAvailable = true
         override val changes = MutableStateFlow(versionVal)
         override suspend fun version(): Long = versionVal
-        override suspend fun sections(): List<Section> = sectionsList
+        override suspend fun sections(order: SectionOrder): List<Section> = sectionsList
         override suspend fun randomTopPick(): Entry? = topPick
         override suspend fun countAddedSince(ts: Long): Int = 5
         override suspend fun meta(): Map<String, String> = mapOf(

@@ -2,6 +2,7 @@ package io.github.omeg4dev.fmhy.data.search
 
 import io.github.omeg4dev.fmhy.data.DatasetStore
 import io.github.omeg4dev.fmhy.data.model.Entry
+import io.github.omeg4dev.fmhy.data.model.EntryKind
 import io.github.omeg4dev.fmhy.data.model.Link
 import io.github.omeg4dev.fmhy.data.model.Section
 import io.github.omeg4dev.fmhy.data.model.Tier
@@ -217,7 +218,7 @@ open class SearchEngine(private val store: DatasetStore) {
         val sql = """
             SELECT
                 e.num, e.id, e.section_id, e.heading_id, e.ord, e.name, e.url, e.original_url,
-                e.description, e.tags, e.heading_path, e.tier, e.is_inline_more, e.is_base64,
+                e.description, e.tags, e.heading_path, e.tier, e.kind, e.is_inline_more, e.is_base64,
                 e.mirrors, e.extra_links, e.first_seen, e.last_changed, e.starred_at
             FROM fts_tri
             JOIN entries e ON fts_tri.rowid = e.num
@@ -283,7 +284,7 @@ open class SearchEngine(private val store: DatasetStore) {
         val sql = """
             SELECT
                 e.num, e.id, e.section_id, e.heading_id, e.ord, e.name, e.url, e.original_url,
-                e.description, e.tags, e.heading_path, e.tier, e.is_inline_more, e.is_base64,
+                e.description, e.tags, e.heading_path, e.tier, e.kind, e.is_inline_more, e.is_base64,
                 e.mirrors, e.extra_links, e.first_seen, e.last_changed, e.starred_at
             FROM entries e
             $whereClause
@@ -316,13 +317,13 @@ open class SearchEngine(private val store: DatasetStore) {
     private fun readEntry(stmt: androidx.sqlite.SQLiteStatement): Entry {
         val tagsRaw = stmt.getText(9)
         val tagsList = if (tagsRaw.isEmpty()) emptyList() else tagsRaw.split('|')
-        val mirrorsRaw = stmt.getText(14)
+        val mirrorsRaw = stmt.getText(15)
         val mirrorsList = try {
             json.decodeFromString<List<Link>>(mirrorsRaw)
         } catch (_: Exception) {
             emptyList()
         }
-        val extraLinksRaw = stmt.getText(15)
+        val extraLinksRaw = stmt.getText(16)
         val extraLinksList = try {
             json.decodeFromString<List<Link>>(extraLinksRaw)
         } catch (_: Exception) {
@@ -342,13 +343,14 @@ open class SearchEngine(private val store: DatasetStore) {
             tags = tagsList,
             headingPath = stmt.getText(10),
             tier = Tier.fromInt(stmt.getLong(11).toInt()),
-            isInlineMore = stmt.getLong(12) != 0L,
-            isBase64 = stmt.getLong(13) != 0L,
+            kind = EntryKind.fromInt(stmt.getLong(12).toInt()),
+            isInlineMore = stmt.getLong(13) != 0L,
+            isBase64 = stmt.getLong(14) != 0L,
             mirrors = mirrorsList,
             extraLinks = extraLinksList,
-            firstSeen = stmt.getLong(16),
-            lastChanged = stmt.getLong(17),
-            starredAt = if (stmt.isNull(18)) null else stmt.getLong(18),
+            firstSeen = stmt.getLong(17),
+            lastChanged = stmt.getLong(18),
+            starredAt = if (stmt.isNull(19)) null else stmt.getLong(19),
         )
     }
 }

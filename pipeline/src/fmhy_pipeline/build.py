@@ -223,6 +223,7 @@ def build_full(
             "tags": e.tags,
             "heading_path": e.heading_path,
             "tier": e.tier,
+            "kind": e.kind,
             "is_inline_more": e.is_inline_more,
             "is_base64": is_base64,
             "mirrors": json.dumps(mirrors, ensure_ascii=False),
@@ -245,7 +246,7 @@ def build_full(
     # Insert meta
     version = "1"
     meta_rows = [
-        ("schema", "1"),
+        ("schema", "2"),
         ("version", version),
         ("created", str(int(time.time()))),
         ("source_commit", commit_sha),
@@ -273,14 +274,14 @@ def build_full(
         con.execute(
             "INSERT OR REPLACE INTO entries"
             "(num, id, section_id, heading_id, ord, name, url, original_url, "
-            "description, tags, heading_path, tier, is_inline_more, is_base64, "
+            "description, tags, heading_path, tier, kind, is_inline_more, is_base64, "
             "mirrors, extra_links, first_seen, last_changed, starred_at) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 rec["num"], rec["id"], rec["section_id"], rec["heading_id"],
                 rec["ord"], rec["name"], rec["url"], rec["original_url"],
                 rec["description"], rec["tags"], rec["heading_path"],
-                rec["tier"], rec["is_inline_more"], rec["is_base64"],
+                rec["tier"], rec["kind"], rec["is_inline_more"], rec["is_base64"],
                 rec["mirrors"], rec["extra_links"],
                 rec["first_seen"], rec["last_changed"], rec["starred_at"],
             ),

@@ -13,6 +13,7 @@ data class Entry(
     val tags: List<String>,
     val headingPath: String,
     val tier: Tier,
+    val kind: EntryKind = EntryKind.NORMAL,
     val isInlineMore: Boolean,
     val isBase64: Boolean,
     val mirrors: List<Link>,

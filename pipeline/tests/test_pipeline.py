@@ -446,7 +446,7 @@ def _make_test_db(path: str, entries: list[dict], version: int = 1) -> None:
 
     # Insert meta
     ts = int(time.time())
-    for k, v in [("schema", "1"), ("version", str(version)), ("created", str(ts)),
+    for k, v in [("schema", "2"), ("version", str(version)), ("created", str(ts)),
                  ("source_commit", "abc123"), ("history_start", str(ts - 1000))]:
         con.execute("INSERT OR REPLACE INTO meta(key,value) VALUES(?,?)", (k, v))
 
@@ -461,15 +461,15 @@ def _make_test_db(path: str, entries: list[dict], version: int = 1) -> None:
         con.execute(
             "INSERT OR REPLACE INTO entries"
             "(num, id, section_id, heading_id, ord, name, url, original_url, "
-            "description, tags, heading_path, tier, is_inline_more, is_base64, "
+            "description, tags, heading_path, tier, kind, is_inline_more, is_base64, "
             "mirrors, extra_links, first_seen, last_changed, starred_at) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 e["num"], e["id"], e.get("section_id", "test"),
                 None, e.get("ord", 0), e["name"], e["url"],
                 None, e.get("description", ""), e.get("tags", ""),
                 e.get("heading_path", "Test Section"), e.get("tier", 0),
-                0, 0, "[]", "[]",
+                e.get("kind", 0), 0, 0, "[]", "[]",
                 e.get("first_seen", ts), e.get("last_changed", ts), None,
             ),
         )

@@ -1,11 +1,11 @@
--- FMHY dataset, schema 1. Single source of truth for pipeline/ (writes it) and app/ (reads it).
+-- FMHY dataset, schema 2. Single source of truth for pipeline/ (writes it) and app/ (reads it).
 -- The pipeline creates a fresh SQLite file with exactly this DDL, fills it, then VACUUMs it.
 -- The app opens it with androidx.sqlite BundledSQLiteDriver (not Room) and applies deltas to it.
 -- Timestamps are unix seconds (UTC). Booleans are 0/1. JSON columns hold compact JSON arrays.
 
-PRAGMA user_version = 1;
+PRAGMA user_version = 2;
 
--- key/value: schema ('1'), version (monotonic int as text), created (unix), source_commit (fmhy/edit sha),
+-- key/value: schema ('2'), version (monotonic int as text), created (unix), source_commit (fmhy/edit sha),
 -- history_start (unix ts of the oldest fmhy/edit commit; entries older than that have first_seen = it)
 CREATE TABLE meta (
     key   TEXT PRIMARY KEY,
@@ -49,6 +49,7 @@ CREATE TABLE entries (
     tags           TEXT NOT NULL DEFAULT '',  -- ' / '-split description parts, joined by '|'
     heading_path   TEXT NOT NULL DEFAULT '',  -- 'Section › Heading › Subheading' for search + display
     tier           INTEGER NOT NULL DEFAULT 0, -- 0 normal, 1 ⭐ starred, 2 🌟 top pick
+    kind           INTEGER NOT NULL DEFAULT 0, -- 0 normal, 1 🌐 index, 2 ↪ section link
     is_inline_more INTEGER NOT NULL DEFAULT 0, -- 1 = from a comma-separated "more" paragraph
     is_base64      INTEGER NOT NULL DEFAULT 0,
     mirrors        TEXT NOT NULL DEFAULT '[]', -- JSON [{"label":"2","url":"…"}]

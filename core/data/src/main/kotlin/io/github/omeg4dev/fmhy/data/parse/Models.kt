@@ -41,6 +41,7 @@ data class EntryRow(
     val tags: String,
     val headingPath: String,
     val tier: Int,
+    val kind: Int = 0,
     val isInlineMore: Boolean,
     val isBase64: Boolean,
     val mirrors: List<LinkRow>,

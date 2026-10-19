@@ -1,6 +1,15 @@
 package io.github.omeg4dev.fmhy.data.parse
 
 object Sections {
+    val SIDEBAR_ORDER = listOf(
+        "privacy", "ai", "video", "audio", "gaming", "reading",
+        "downloading", "torrenting", "educational", "mobile",
+        "linux-macos", "non-english", "misc", "system-tools",
+        "file-tools", "internet-tools", "social-media-tools",
+        "text-tools", "gaming-tools", "image-tools", "video-tools",
+        "developer-tools", "storage"
+    )
+
     private val EXCLUDED = setOf(
         "index.md",
         "posts.md",

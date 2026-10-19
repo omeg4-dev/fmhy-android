@@ -6,6 +6,7 @@ import androidx.sqlite.execSQL
 import io.github.omeg4dev.fmhy.data.model.Change
 import io.github.omeg4dev.fmhy.data.model.ChangeKind
 import io.github.omeg4dev.fmhy.data.model.Entry
+import io.github.omeg4dev.fmhy.data.model.EntryKind
 import io.github.omeg4dev.fmhy.data.model.Heading
 import io.github.omeg4dev.fmhy.data.model.Link
 import io.github.omeg4dev.fmhy.data.model.Note
@@ -63,6 +64,16 @@ open class DatasetStore(
             }
         } catch (_: Exception) {
             0L
+        }
+    }
+
+    private fun readSchemaInternal(conn: SQLiteConnection): Int? {
+        return try {
+            conn.prepare("SELECT value FROM meta WHERE key = 'schema'").use { stmt ->
+                if (stmt.step()) stmt.getText(0).toIntOrNull() else null
+            }
+        } catch (_: Exception) {
+            null
         }
     }
 
@@ -135,7 +146,7 @@ open class DatasetStore(
         val result = mutableListOf<Entry>()
         val sql = """
             SELECT num, id, section_id, heading_id, ord, name, url, original_url,
-                   description, tags, heading_path, tier, is_inline_more, is_base64,
+                   description, tags, heading_path, tier, kind, is_inline_more, is_base64,
                    mirrors, extra_links, first_seen, last_changed, starred_at
             FROM entries
             WHERE section_id = ?
@@ -164,7 +175,31 @@ open class DatasetStore(
         readVersionInternal(conn)
     }
 
-    open suspend fun sections(): List<Section> = withConnection { conn ->
+    open suspend fun schemaVersion(): Int? = withContext(dispatcher) {
+        mutex.withLock {
+            if (!dbFile.exists()) return@withContext null
+            var conn = connection
+            if (conn == null) {
+                openInternal()
+                conn = connection
+            }
+            conn?.let { readSchemaInternal(it) }
+        }
+    }
+
+    open suspend fun isSchemaCurrent(): Boolean = withContext(dispatcher) {
+        mutex.withLock {
+            if (!dbFile.exists()) return@withContext false
+            var conn = connection
+            if (conn == null) {
+                openInternal()
+                conn = connection
+            }
+            conn?.let { readSchemaInternal(it) == DATASET_SCHEMA } ?: false
+        }
+    }
+
+    open suspend fun sections(order: SectionOrder = SectionOrder.WEBSITE): List<Section> = withConnection { conn ->
         val result = mutableListOf<Section>()
         val sql = """
             SELECT s.id, s.title, s.description, s.ord, count(e.id) AS entry_count
@@ -186,7 +221,19 @@ open class DatasetStore(
                 )
             }
         }
-        result
+        when (order) {
+            SectionOrder.WEBSITE -> {
+                result.sortedWith(
+                    compareBy<Section> {
+                        val idx = io.github.omeg4dev.fmhy.data.parse.Sections.SIDEBAR_ORDER.indexOf(it.id)
+                        if (idx >= 0) idx else Int.MAX_VALUE
+                    }.thenBy { it.ord }
+                )
+            }
+            SectionOrder.ALPHABETICAL -> {
+                result.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.title })
+            }
+        }
     }
 
     open suspend fun headings(sectionId: String): List<Heading> = withConnection { conn ->
@@ -225,7 +272,7 @@ open class DatasetStore(
     open suspend fun entry(id: String): Entry? = withConnection { conn ->
         val sql = """
             SELECT num, id, section_id, heading_id, ord, name, url, original_url,
-                   description, tags, heading_path, tier, is_inline_more, is_base64,
+                   description, tags, heading_path, tier, kind, is_inline_more, is_base64,
                    mirrors, extra_links, first_seen, last_changed, starred_at
             FROM entries
             WHERE id = ?
@@ -241,7 +288,7 @@ open class DatasetStore(
         val result = mutableListOf<Entry>()
         val sql = """
             SELECT num, id, section_id, heading_id, ord, name, url, original_url,
-                   description, tags, heading_path, tier, is_inline_more, is_base64,
+                   description, tags, heading_path, tier, kind, is_inline_more, is_base64,
                    mirrors, extra_links, first_seen, last_changed, starred_at
             FROM entries
             WHERE id = ?
@@ -261,10 +308,10 @@ open class DatasetStore(
     open suspend fun randomTopPick(): Entry? = withConnection { conn ->
         val sql = """
             SELECT num, id, section_id, heading_id, ord, name, url, original_url,
-                   description, tags, heading_path, tier, is_inline_more, is_base64,
+                   description, tags, heading_path, tier, kind, is_inline_more, is_base64,
                    mirrors, extra_links, first_seen, last_changed, starred_at
             FROM entries
-            WHERE tier = 2
+            WHERE tier >= 1
             ORDER BY RANDOM()
             LIMIT 1
         """.trimIndent()
@@ -425,7 +472,7 @@ open class DatasetStore(
         val entryList = mutableListOf<Entry>()
         conn.prepare("""
             SELECT num, id, section_id, heading_id, ord, name, url, original_url,
-                   description, tags, heading_path, tier, is_inline_more, is_base64,
+                   description, tags, heading_path, tier, kind, is_inline_more, is_base64,
                    mirrors, extra_links, first_seen, last_changed, starred_at
             FROM entries
             WHERE section_id = ?
@@ -515,13 +562,13 @@ open class DatasetStore(
     private fun readEntry(stmt: androidx.sqlite.SQLiteStatement): Entry {
         val tagsRaw = stmt.getText(9)
         val tagsList = if (tagsRaw.isEmpty()) emptyList() else tagsRaw.split('|')
-        val mirrorsRaw = stmt.getText(14)
+        val mirrorsRaw = stmt.getText(15)
         val mirrorsList = try {
             json.decodeFromString<List<Link>>(mirrorsRaw)
         } catch (_: Exception) {
             emptyList()
         }
-        val extraLinksRaw = stmt.getText(15)
+        val extraLinksRaw = stmt.getText(16)
         val extraLinksList = try {
             json.decodeFromString<List<Link>>(extraLinksRaw)
         } catch (_: Exception) {
@@ -541,13 +588,14 @@ open class DatasetStore(
             tags = tagsList,
             headingPath = stmt.getText(10),
             tier = Tier.fromInt(stmt.getLong(11).toInt()),
-            isInlineMore = stmt.getLong(12) != 0L,
-            isBase64 = stmt.getLong(13) != 0L,
+            kind = EntryKind.fromInt(stmt.getLong(12).toInt()),
+            isInlineMore = stmt.getLong(13) != 0L,
+            isBase64 = stmt.getLong(14) != 0L,
             mirrors = mirrorsList,
             extraLinks = extraLinksList,
-            firstSeen = stmt.getLong(16),
-            lastChanged = stmt.getLong(17),
-            starredAt = if (stmt.isNull(18)) null else stmt.getLong(18),
+            firstSeen = stmt.getLong(17),
+            lastChanged = stmt.getLong(18),
+            starredAt = if (stmt.isNull(19)) null else stmt.getLong(19),
         )
     }
 

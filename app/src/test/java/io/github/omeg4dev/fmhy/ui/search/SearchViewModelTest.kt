@@ -4,6 +4,7 @@ import io.github.omeg4dev.fmhy.data.Appearance
 import io.github.omeg4dev.fmhy.data.ColorSource
 import io.github.omeg4dev.fmhy.data.DatasetStore
 import io.github.omeg4dev.fmhy.data.SectionLayout
+import io.github.omeg4dev.fmhy.data.SectionOrder
 import io.github.omeg4dev.fmhy.data.SettingsRepository
 import io.github.omeg4dev.fmhy.data.ThemeMode
 import io.github.omeg4dev.fmhy.data.model.Entry
@@ -35,7 +36,7 @@ class SearchViewModelTest {
         override val isAvailable = true
         override val changes = MutableStateFlow(1L)
         override suspend fun version(): Long = 1L
-        override suspend fun sections(): List<Section> = sectionsList
+        override suspend fun sections(order: SectionOrder): List<Section> = sectionsList
     }
 
     private class FakeSettingsRepository : SettingsRepository {
