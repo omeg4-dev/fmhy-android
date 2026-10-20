@@ -1,6 +1,7 @@
 package io.github.omeg4dev.fmhy.browser
 
 import android.net.Uri
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,11 +12,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
-import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.DesktopWindows
 import androidx.compose.material.icons.filled.Javascript
-import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material3.Button
@@ -25,18 +24,18 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import io.github.omeg4dev.fmhy.browser.adblock.AdblockStatus
 import io.github.omeg4dev.fmhy.data.BlockingPrefs
 import io.github.omeg4dev.fmhy.data.BrowserPrefs
 import io.github.omeg4dev.fmhy.data.ProtectionPrefs
+import io.github.omeg4dev.fmhy.ui.settings.SwitchRow
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -70,7 +69,7 @@ fun ShieldSheet(
 
     // Effective values
     val adblockOn = sitePrefs?.adblock ?: blockingPrefs.adblock
-    val popupsAllowed = sitePrefs?.popups ?: !protectionPrefs.popupBlocker
+    val popupsBlockerOn = sitePrefs?.popups?.let { !it } ?: protectionPrefs.popupBlocker
     val jsOn = sitePrefs?.javascript ?: browserPrefs.javascript
     val desktopOn = sitePrefs?.desktop ?: (tab.desktopSite || browserPrefs.desktopByDefault)
     val darkOn = sitePrefs?.dark ?: (browserPrefs.forceDark && isAppDark)
@@ -97,15 +96,26 @@ fun ShieldSheet(
                         style = MaterialTheme.typography.titleLarge,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
-                    Text(
-                        text = if (adblockOn) {
-                            "${tab.blocked} requests blocked on this page"
-                        } else {
-                            "Ad blocking is off for this site"
-                        },
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = if (adblockOn) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
-                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        AnimatedContent(
+                            targetState = tab.blocked,
+                            label = "blockedCount",
+                        ) { count ->
+                            Text(
+                                text = "$count",
+                                style = MaterialTheme.typography.headlineMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = if (adblockOn) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = if (adblockOn) "blocked on this page" else "Ad blocking is off",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
 
                 if (hasOverrides) {
@@ -119,40 +129,40 @@ fun ShieldSheet(
             HorizontalDivider()
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Switches for THIS SITE
-            SitePrefSwitchRow(
+            // Switches for THIS SITE using settings SwitchRow
+            SwitchRow(
                 icon = Icons.Default.Shield,
                 title = "Ad blocking",
                 checked = adblockOn,
-                onCheckedChange = { v -> onUpdateSitePref { it.copy(adblock = v) } },
+                onChange = { v -> onUpdateSitePref { it.copy(adblock = v) } },
             )
 
-            SitePrefSwitchRow(
+            SwitchRow(
                 icon = Icons.AutoMirrored.Filled.OpenInNew,
-                title = "Pop-ups allowed",
-                checked = popupsAllowed,
-                onCheckedChange = { v -> onUpdateSitePref { it.copy(popups = v) } },
+                title = "Block pop-ups",
+                checked = popupsBlockerOn,
+                onChange = { v -> onUpdateSitePref { it.copy(popups = !v) } },
             )
 
-            SitePrefSwitchRow(
+            SwitchRow(
                 icon = Icons.Default.Javascript,
                 title = "JavaScript",
                 checked = jsOn,
-                onCheckedChange = { v -> onUpdateSitePref { it.copy(javascript = v) } },
+                onChange = { v -> onUpdateSitePref { it.copy(javascript = v) } },
             )
 
-            SitePrefSwitchRow(
+            SwitchRow(
                 icon = Icons.Default.DesktopWindows,
                 title = "Desktop site",
                 checked = desktopOn,
-                onCheckedChange = { v -> onUpdateSitePref { it.copy(desktop = v) } },
+                onChange = { v -> onUpdateSitePref { it.copy(desktop = v) } },
             )
 
-            SitePrefSwitchRow(
+            SwitchRow(
                 icon = Icons.Default.DarkMode,
                 title = "Dark page",
                 checked = darkOn,
-                onCheckedChange = { v -> onUpdateSitePref { it.copy(dark = v) } },
+                onChange = { v -> onUpdateSitePref { it.copy(dark = v) } },
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -181,41 +191,6 @@ fun ShieldSheet(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-    }
-}
-
-@Composable
-private fun SitePrefSwitchRow(
-    icon: ImageVector,
-    title: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(48.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(modifier = Modifier.width(16.dp))
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-        }
-
-        Switch(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
-        )
     }
 }
 

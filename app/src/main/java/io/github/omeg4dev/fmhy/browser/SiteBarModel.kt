@@ -25,17 +25,21 @@ object SiteBarModel {
         verdict: Verdict,
         isRedirectedFromEntry: Boolean,
         isDismissed: Boolean = false,
+        sectionTitle: String? = null,
     ): SiteBarState? {
         if (isDismissed) return null
 
         val entry = verdict.matches.firstOrNull()
-        val path = entry?.headingPath?.ifBlank { null } ?: "Section › Category"
+        val path = entry?.headingPath?.ifBlank { null }
+            ?: sectionTitle?.ifBlank { null }
+            ?: entry?.sectionId?.replace('-', ' ')?.replaceFirstChar { it.uppercase() }
+        val suffix = if (path != null) " · $path" else ""
 
         return when (verdict.status) {
             SafetyStatus.STARRED -> {
                 SiteBarState(
                     kind = SiteBarKind.STARRED,
-                    text = "Starred on FMHY · $path",
+                    text = "Starred on FMHY$suffix",
                     verdict = verdict,
                     entry = entry,
                 )
@@ -43,7 +47,7 @@ object SiteBarModel {
             SafetyStatus.LISTED -> {
                 SiteBarState(
                     kind = SiteBarKind.LISTED,
-                    text = "On FMHY · $path",
+                    text = "On FMHY$suffix",
                     verdict = verdict,
                     entry = entry,
                 )

@@ -5,24 +5,34 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -33,268 +43,507 @@ import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.DesktopWindows
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.RemoveModerator
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import io.github.omeg4dev.fmhy.data.BookmarksRepository
+import io.github.omeg4dev.fmhy.data.ToolbarPosition
+import io.github.omeg4dev.fmhy.ui.common.Motion
+import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
+import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
 
 @Composable
 fun BrowserToolbar(
     tab: TabState?,
-    tabCount: Int,
-    visible: Boolean,
-    isFindMode: Boolean,
-    findQuery: String,
-    findActiveIndex: Int,
-    findTotalMatches: Int,
-    showBlockedCount: Boolean,
-    bookmarksRepository: BookmarksRepository?,
-    isSaved: Boolean,
-    onShieldClick: () -> Unit,
-    onAddressClick: () -> Unit,
-    onTabsClick: () -> Unit,
-    onReloadClick: () -> Unit,
-    onStopClick: () -> Unit,
-    onBackClick: () -> Unit,
-    onForwardClick: () -> Unit,
-    onNewTabClick: (isPrivate: Boolean) -> Unit,
-    onFindInPageClick: () -> Unit,
-    onFindQueryChange: (String) -> Unit,
-    onFindNext: () -> Unit,
-    onFindPrevious: () -> Unit,
-    onFindClose: () -> Unit,
-    onToggleDesktop: () -> Unit,
-    onToggleBookmark: () -> Unit,
+    tabs: List<TabState> = emptyList(),
+    tabCount: Int = tabs.size,
+    toolbarPosition: ToolbarPosition = ToolbarPosition.TOP,
+    isFindMode: Boolean = false,
+    findQuery: String = "",
+    findActiveIndex: Int = 0,
+    findTotalMatches: Int = 0,
+    showBlockedCount: Boolean = true,
+    isSaved: Boolean = false,
+    onShieldClick: () -> Unit = {},
+    onAddressClick: () -> Unit = {},
+    onTabsClick: () -> Unit = {},
+    onReloadClick: () -> Unit = {},
+    onStopClick: () -> Unit = {},
+    onBackClick: () -> Unit = {},
+    onForwardClick: () -> Unit = {},
+    onNewTabClick: (isPrivate: Boolean) -> Unit = {},
+    onFindInPageClick: () -> Unit = {},
+    onFindQueryChange: (String) -> Unit = {},
+    onFindNext: () -> Unit = {},
+    onFindPrevious: () -> Unit = {},
+    onFindClose: () -> Unit = {},
+    onToggleDesktop: () -> Unit = {},
+    onToggleBookmark: () -> Unit = {},
+    onSelectTab: (Long) -> Unit = {},
+    onCopyLink: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    val context = LocalContext.current
-    var showOverflowMenu by remember { mutableStateOf(false) }
+    val haptics = rememberHaptics()
+    var showMenuSheet by remember { mutableStateOf(false) }
 
-    AnimatedVisibility(
-        visible = visible,
-        enter = slideInVertically(initialOffsetY = { -it }),
-        exit = slideOutVertically(targetOffsetY = { -it }),
-        modifier = modifier,
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceContainer),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.surfaceContainer)
-        ) {
-            if (isFindMode) {
-                FindInPageBar(
-                    query = findQuery,
-                    activeIndex = findActiveIndex,
-                    totalMatches = findTotalMatches,
-                    onQueryChange = onFindQueryChange,
-                    onNext = onFindNext,
-                    onPrevious = onFindPrevious,
-                    onClose = onFindClose,
-                )
-            } else {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp)
-                        .padding(horizontal = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+        // Inner edge hairline for BOTTOM position (at the top of the toolbar)
+        if (toolbarPosition == ToolbarPosition.BOTTOM) {
+            HorizontalDivider(thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant)
+        }
+
+        if (isFindMode) {
+            FindInPageBar(
+                query = findQuery,
+                activeIndex = findActiveIndex,
+                totalMatches = findTotalMatches,
+                onQueryChange = onFindQueryChange,
+                onNext = onFindNext,
+                onPrevious = onFindPrevious,
+                onClose = onFindClose,
+            )
+        } else {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(64.dp) // 56 dp + 4 dp vertical padding each side
+                    .padding(horizontal = 4.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // Back button (48 dp target, disabled when !canGoBack)
+                IconButton(
+                    onClick = {
+                        haptics.tick()
+                        onBackClick()
+                    },
+                    enabled = tab?.canGoBack == true,
+                    modifier = Modifier.size(48.dp),
                 ) {
-                    // Shield Button
-                    IconButton(onClick = onShieldClick) {
-                        if (showBlockedCount && tab != null && tab.blocked > 0) {
-                            BadgedBox(
-                                badge = {
-                                    Badge(
-                                        containerColor = MaterialTheme.colorScheme.primary,
-                                        contentColor = MaterialTheme.colorScheme.onPrimary,
-                                    ) {
-                                        Text(tab.blocked.toString())
-                                    }
-                                }
-                            ) {
-                                Icon(Icons.Default.Shield, contentDescription = "Shield")
-                            }
-                        } else {
-                            Icon(Icons.Default.Shield, contentDescription = "Shield")
-                        }
-                    }
-
-                    // Address Pill
-                    AddressPill(
-                        tab = tab,
-                        onClick = onAddressClick,
-                        modifier = Modifier.weight(1f),
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
                     )
+                }
 
-                    Spacer(modifier = Modifier.width(4.dp))
+                // Address pill (weight 1, swipe tabs, progress line)
+                AddressPill(
+                    tab = tab,
+                    tabs = tabs,
+                    showBlockedCount = showBlockedCount,
+                    onAddressClick = onAddressClick,
+                    onShieldClick = onShieldClick,
+                    onSelectTab = onSelectTab,
+                    modifier = Modifier.weight(1f),
+                )
 
-                    // Tabs Button (Rounded square with count)
-                    IconButton(onClick = onTabsClick) {
-                        Box(
-                            modifier = Modifier
-                                .size(24.dp)
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(MaterialTheme.colorScheme.surfaceContainerHighest),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(
-                                text = tabCount.toString(),
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface,
-                            )
-                        }
-                    }
+                Spacer(modifier = Modifier.width(4.dp))
 
-                    // Overflow ⋮
-                    Box {
-                        IconButton(onClick = { showOverflowMenu = true }) {
-                            Icon(Icons.Default.MoreVert, contentDescription = "Menu")
-                        }
-
-                        OverflowMenu(
-                            expanded = showOverflowMenu,
-                            tab = tab,
-                            isSaved = isSaved,
-                            onDismiss = { showOverflowMenu = false },
-                            onBack = { showOverflowMenu = false; onBackClick() },
-                            onForward = { showOverflowMenu = false; onForwardClick() },
-                            onReload = { showOverflowMenu = false; onReloadClick() },
-                            onStop = { showOverflowMenu = false; onStopClick() },
-                            onNewTab = { showOverflowMenu = false; onNewTabClick(false) },
-                            onNewPrivateTab = { showOverflowMenu = false; onNewTabClick(true) },
-                            onFindInPage = { showOverflowMenu = false; onFindInPageClick() },
-                            onShare = {
-                                showOverflowMenu = false
-                                tab?.url?.let { url ->
-                                    val sendIntent = Intent(Intent.ACTION_SEND).apply {
-                                        putExtra(Intent.EXTRA_TEXT, url)
-                                        type = "text/plain"
-                                    }
-                                    context.startActivity(Intent.createChooser(sendIntent, null))
-                                }
-                            },
-                            onCopyLink = {
-                                showOverflowMenu = false
-                                tab?.url?.let { url ->
-                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                    clipboard.setPrimaryClip(ClipData.newPlainText("URL", url))
-                                    Toast.makeText(context, "Link copied", Toast.LENGTH_SHORT).show()
-                                }
-                            },
-                            onOpenInBrowser = {
-                                showOverflowMenu = false
-                                tab?.url?.let { url ->
-                                    openInExternalBrowser(context, url)
-                                }
-                            },
-                            onToggleDesktop = { showOverflowMenu = false; onToggleDesktop() },
-                            onToggleBookmark = { showOverflowMenu = false; onToggleBookmark() },
+                // Tabs counter: 48 dp clickable box with 26 dp rounded square (8 dp corner) outline 2 dp onSurface
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clickable(onClick = {
+                            haptics.tick()
+                            onTabsClick()
+                        }),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(26.dp)
+                            .border(
+                                BorderStroke(2.dp, MaterialTheme.colorScheme.onSurface),
+                                RoundedCornerShape(8.dp),
+                            ),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = tabCount.toString(),
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
                         )
                     }
                 }
-            }
 
-            // Progress indicator (2 dp height under toolbar)
-            if (tab?.isLoading == true) {
-                LinearProgressIndicator(
-                    progress = { tab.progress },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(2.dp),
-                )
+                // Menu button (48 dp target)
+                IconButton(
+                    onClick = {
+                        haptics.tick()
+                        showMenuSheet = true
+                    },
+                    modifier = Modifier.size(48.dp),
+                ) {
+                    Icon(Icons.Default.MoreVert, contentDescription = "Menu")
+                }
             }
         }
+
+        // Inner edge hairline for TOP position (at the bottom of the toolbar)
+        if (toolbarPosition == ToolbarPosition.TOP) {
+            HorizontalDivider(thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant)
+        }
+    }
+
+    if (showMenuSheet) {
+        BrowserMenuSheet(
+            tab = tab,
+            isSaved = isSaved,
+            onDismiss = { showMenuSheet = false },
+            onBack = {
+                showMenuSheet = false
+                onBackClick()
+            },
+            onForward = {
+                showMenuSheet = false
+                onForwardClick()
+            },
+            onReload = {
+                showMenuSheet = false
+                onReloadClick()
+            },
+            onStop = {
+                showMenuSheet = false
+                onStopClick()
+            },
+            onShare = {
+                showMenuSheet = false
+                val url = tab?.url.orEmpty()
+                if (url.isNotEmpty() && url != "about:blank") {
+                    val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                        putExtra(Intent.EXTRA_TEXT, url)
+                        type = "text/plain"
+                    }
+                    val chooser = Intent.createChooser(sendIntent, null).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    // handled by caller or startActivity
+                }
+            },
+            onSave = {
+                showMenuSheet = false
+                onToggleBookmark()
+            },
+            onNewTab = {
+                showMenuSheet = false
+                onNewTabClick(false)
+            },
+            onNewPrivateTab = {
+                showMenuSheet = false
+                onNewTabClick(true)
+            },
+            onFindInPage = {
+                showMenuSheet = false
+                onFindInPageClick()
+            },
+            onToggleDesktop = {
+                showMenuSheet = false
+                onToggleDesktop()
+            },
+            onCopyLink = {
+                showMenuSheet = false
+                onCopyLink()
+            },
+            onOpenInBrowser = {
+                showMenuSheet = false
+                // caller handles external open
+            },
+            onSiteSettings = {
+                showMenuSheet = false
+                onShieldClick()
+            },
+        )
     }
 }
 
 @Composable
 private fun AddressPill(
     tab: TabState?,
-    onClick: () -> Unit,
+    tabs: List<TabState>,
+    showBlockedCount: Boolean,
+    onAddressClick: () -> Unit,
+    onShieldClick: () -> Unit,
+    onSelectTab: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val haptics = rememberHaptics()
+    val scope = rememberCoroutineScope()
     val url = tab?.url.orEmpty()
     val isSecure = url.startsWith("https://", ignoreCase = true)
+    val isHttp = url.startsWith("http://", ignoreCase = true)
+
     val host = try {
-        if (url == "about:blank" || url.isEmpty()) "Search or type URL"
+        if (url == "about:blank" || url.isEmpty()) "Search or type link"
         else Uri.parse(url).host ?: url
     } catch (_: Exception) {
         url
     }
 
-    Row(
+    var pillWidthPx by remember { mutableFloatStateOf(0f) }
+    val dragOffset = remember { Animatable(0f) }
+
+    val currentIndex = tabs.indexOfFirst { it.id == tab?.id }
+    val prevTab = if (currentIndex > 0) tabs[currentIndex - 1] else null
+    val nextTab = if (currentIndex in 0 until tabs.size - 1) tabs[currentIndex + 1] else null
+
+    val animatedProgress by animateFloatAsState(
+        targetValue = if (tab?.isLoading == true) tab.progress.coerceIn(0.05f, 1f) else 0f,
+        animationSpec = Motion.standard(),
+        label = "pillProgress",
+    )
+
+    val pillShape = RoundedCornerShape(22.dp)
+
+    Box(
         modifier = modifier
-            .height(40.dp)
-            .clip(RoundedCornerShape(20.dp))
+            .height(44.dp)
+            .clip(pillShape)
             .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .onSizeChanged { pillWidthPx = it.width.toFloat() }
+            .pointerInput(tab?.id, tabs) {
+                detectTapGestures(onTap = { onAddressClick() })
+            }
+            .pointerInput(tab?.id, tabs) {
+                detectHorizontalDragGestures(
+                    onHorizontalDrag = { _, dragAmount ->
+                        scope.launch {
+                            dragOffset.snapTo(dragOffset.value + dragAmount)
+                        }
+                    },
+                    onDragEnd = {
+                        scope.launch {
+                            val threshold = pillWidthPx * 0.3f
+                            val current = dragOffset.value
+                            if (current > threshold && prevTab != null) {
+                                haptics.tick()
+                                onSelectTab(prevTab.id)
+                            } else if (current < -threshold && nextTab != null) {
+                                haptics.tick()
+                                onSelectTab(nextTab.id)
+                            }
+                            dragOffset.animateTo(0f, Motion.standard())
+                        }
+                    },
+                    onDragCancel = {
+                        scope.launch {
+                            dragOffset.animateTo(0f, Motion.standard())
+                        }
+                    },
+                )
+            },
     ) {
-        if (url.isNotEmpty() && url != "about:blank") {
-            if (isSecure) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(start = 12.dp, end = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // Leading 20 dp site favicon
+            if (tab?.favicon != null && !tab.isPrivate) {
+                Image(
+                    bitmap = tab.favicon.asImageBitmap(),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(20.dp)
+                        .clip(CircleShape),
+                )
+            } else if (tab?.isPrivate == true) {
                 Icon(
-                    imageVector = Icons.Default.Lock,
-                    contentDescription = "Secure",
-                    modifier = Modifier.size(16.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    imageVector = Icons.Default.Security,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = MaterialTheme.colorScheme.primary,
                 )
             } else {
                 Icon(
-                    imageVector = Icons.Default.Warning,
-                    contentDescription = "Not secure",
-                    modifier = Modifier.size(16.dp),
-                    tint = MaterialTheme.colorScheme.error,
+                    imageVector = Icons.Outlined.Public,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+
+            // Lock or warning icon
+            if (url.isNotEmpty() && url != "about:blank") {
+                Spacer(modifier = Modifier.width(6.dp))
+                if (isHttp) {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = "Not secure",
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.error,
+                    )
+                } else if (isSecure) {
+                    Icon(
+                        imageVector = Icons.Default.Lock,
+                        contentDescription = "Secure",
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
             Spacer(modifier = Modifier.width(8.dp))
+
+            // Host text with horizontal swipe translation
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clipToBounds()
+            ) {
+                Text(
+                    text = host,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .offset { IntOffset(dragOffset.value.roundToInt(), 0) },
+                )
+
+                // Neighbor tab host sliding in during drag
+                if (dragOffset.value > 0 && prevTab != null && pillWidthPx > 0) {
+                    val prevHost = try {
+                        if (prevTab.url == "about:blank" || prevTab.url.isEmpty()) "New tab"
+                        else Uri.parse(prevTab.url).host ?: prevTab.url
+                    } catch (_: Exception) {
+                        prevTab.url
+                    }
+                    Text(
+                        text = prevHost,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .offset { IntOffset((dragOffset.value - pillWidthPx).roundToInt(), 0) },
+                    )
+                } else if (dragOffset.value < 0 && nextTab != null && pillWidthPx > 0) {
+                    val nextHost = try {
+                        if (nextTab.url == "about:blank" || nextTab.url.isEmpty()) "New tab"
+                        else Uri.parse(nextTab.url).host ?: nextTab.url
+                    } catch (_: Exception) {
+                        nextTab.url
+                    }
+                    Text(
+                        text = nextHost,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .offset { IntOffset((dragOffset.value + pillWidthPx).roundToInt(), 0) },
+                    )
+                }
+            }
+
+            // Shield with blocked count badge INSIDE the pill on the right
+            val isBlockingOn = tab?.sitePrefs?.adblock ?: true
+            val shieldIcon = if (isBlockingOn) Icons.Default.Shield else Icons.Default.RemoveModerator
+
+            Box(
+                modifier = Modifier
+                    .minimumInteractiveComponentSize()
+                    .clickable(onClick = {
+                        haptics.tick()
+                        onShieldClick()
+                    }),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (showBlockedCount && tab != null && tab.blocked > 0) {
+                    BadgedBox(
+                        badge = {
+                            Badge(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary,
+                            ) {
+                                Text(tab.blocked.toString())
+                            }
+                        }
+                    ) {
+                        Icon(
+                            imageVector = shieldIcon,
+                            contentDescription = "Shield",
+                            modifier = Modifier.size(20.dp),
+                            tint = if (isBlockingOn) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                } else {
+                    Icon(
+                        imageVector = shieldIcon,
+                        contentDescription = "Shield",
+                        modifier = Modifier.size(20.dp),
+                        tint = if (isBlockingOn) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
         }
 
-        Text(
-            text = host,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
+        // Progress line (2 dp line along the pill's bottom inner edge)
+        if (tab?.isLoading == true) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .fillMaxWidth(animatedProgress)
+                    .height(2.dp)
+                    .background(MaterialTheme.colorScheme.primary),
+            )
+        }
     }
 }
 
@@ -308,49 +557,95 @@ private fun FindInPageBar(
     onPrevious: () -> Unit,
     onClose: () -> Unit,
 ) {
+    val focusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(56.dp)
-            .padding(horizontal = 8.dp),
+            .height(64.dp)
+            .padding(horizontal = 8.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        OutlinedTextField(
-            value = query,
-            onValueChange = onQueryChange,
-            placeholder = { Text("Find in page") },
-            singleLine = true,
+        // Pill shaped search input
+        Row(
             modifier = Modifier
                 .weight(1f)
-                .height(48.dp),
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-            keyboardActions = KeyboardActions(onSearch = { onNext() }),
-        )
+                .height(44.dp)
+                .clip(RoundedCornerShape(22.dp))
+                .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Default.Search,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
 
-        Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(8.dp))
 
-        val matchText = if (totalMatches > 0) "${activeIndex + 1}/$totalMatches" else "0/0"
-        Text(
-            text = matchText,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+            BasicTextField(
+                value = query,
+                onValueChange = onQueryChange,
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { onNext() }),
+                modifier = Modifier
+                    .weight(1f)
+                    .focusRequester(focusRequester),
+                decorationBox = { innerTextField ->
+                    if (query.isEmpty()) {
+                        Text(
+                            text = "Find in page",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    innerTextField()
+                },
+            )
 
-        IconButton(onClick = onPrevious) {
+            if (query.isNotEmpty()) {
+                val matchText = if (totalMatches > 0) {
+                    "${activeIndex + 1}/$totalMatches"
+                } else {
+                    "No matches"
+                }
+                val matchColor = if (totalMatches > 0) {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                } else {
+                    MaterialTheme.colorScheme.error
+                }
+                Text(
+                    text = matchText,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = matchColor,
+                )
+            }
+        }
+
+        IconButton(onClick = onPrevious, modifier = Modifier.size(48.dp)) {
             Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Previous")
         }
-        IconButton(onClick = onNext) {
+        IconButton(onClick = onNext, modifier = Modifier.size(48.dp)) {
             Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Next")
         }
-        IconButton(onClick = onClose) {
+        IconButton(onClick = onClose, modifier = Modifier.size(48.dp)) {
             Icon(Icons.Default.Close, contentDescription = "Close")
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun OverflowMenu(
-    expanded: Boolean,
+fun BrowserMenuSheet(
     tab: TabState?,
     isSaved: Boolean,
     onDismiss: () -> Unit,
@@ -358,101 +653,258 @@ private fun OverflowMenu(
     onForward: () -> Unit,
     onReload: () -> Unit,
     onStop: () -> Unit,
+    onShare: () -> Unit,
+    onSave: () -> Unit,
     onNewTab: () -> Unit,
     onNewPrivateTab: () -> Unit,
     onFindInPage: () -> Unit,
-    onShare: () -> Unit,
+    onToggleDesktop: () -> Unit,
     onCopyLink: () -> Unit,
     onOpenInBrowser: () -> Unit,
-    onToggleDesktop: () -> Unit,
-    onToggleBookmark: () -> Unit,
+    onSiteSettings: () -> Unit,
 ) {
-    DropdownMenu(
-        expanded = expanded,
+    val haptics = rememberHaptics()
+
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
     ) {
-        // Icon row: Back / Forward / Reload or Stop
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically,
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 32.dp),
         ) {
-            IconButton(onClick = onBack, enabled = tab?.canGoBack == true) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-            }
-            IconButton(onClick = onForward, enabled = tab?.canGoForward == true) {
-                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Forward")
-            }
-            if (tab?.isLoading == true) {
-                IconButton(onClick = onStop) {
-                    Icon(Icons.Default.Close, contentDescription = "Stop")
-                }
-            } else {
-                IconButton(onClick = onReload) {
-                    Icon(Icons.Default.Refresh, contentDescription = "Reload")
-                }
-            }
-        }
-
-        HorizontalDivider()
-
-        DropdownMenuItem(
-            text = { Text("New tab") },
-            onClick = onNewTab,
-            leadingIcon = { Icon(Icons.Default.Add, contentDescription = null) },
-        )
-        DropdownMenuItem(
-            text = { Text("New private tab") },
-            onClick = onNewPrivateTab,
-            leadingIcon = { Icon(Icons.Default.Security, contentDescription = null) },
-        )
-        DropdownMenuItem(
-            text = { Text("Find in page") },
-            onClick = onFindInPage,
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-        )
-        DropdownMenuItem(
-            text = { Text("Share") },
-            onClick = onShare,
-            leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
-        )
-        DropdownMenuItem(
-            text = { Text("Copy link") },
-            onClick = onCopyLink,
-            leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null) },
-        )
-        DropdownMenuItem(
-            text = { Text("Open in browser") },
-            onClick = onOpenInBrowser,
-            leadingIcon = { Icon(Icons.Default.OpenInBrowser, contentDescription = null) },
-        )
-
-        DropdownMenuItem(
-            text = { Text("Desktop site") },
-            onClick = onToggleDesktop,
-            trailingIcon = {
-                Checkbox(
-                    checked = tab?.desktopSite == true,
-                    onCheckedChange = { onToggleDesktop() },
+            // Top row: 5 icon buttons (Back, Forward, Reload/Stop, Share, Save/Saved)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceAround,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // Back
+                MenuIconButton(
+                    icon = Icons.AutoMirrored.Filled.ArrowBack,
+                    label = "Back",
+                    enabled = tab?.canGoBack == true,
+                    onClick = {
+                        haptics.tick()
+                        onBack()
+                    },
                 )
-            },
-        )
 
-        if (tab?.entryId != null) {
-            DropdownMenuItem(
-                text = { Text(if (isSaved) "Saved" else "Save to Saved") },
-                onClick = onToggleBookmark,
-                leadingIcon = {
-                    Icon(
-                        if (isSaved) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                        contentDescription = null,
-                        tint = if (isSaved) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                // Forward
+                MenuIconButton(
+                    icon = Icons.AutoMirrored.Filled.ArrowForward,
+                    label = "Forward",
+                    enabled = tab?.canGoForward == true,
+                    onClick = {
+                        haptics.tick()
+                        onForward()
+                    },
+                )
+
+                // Reload or Stop
+                if (tab?.isLoading == true) {
+                    MenuIconButton(
+                        icon = Icons.Default.Close,
+                        label = "Stop",
+                        onClick = {
+                            haptics.tick()
+                            onStop()
+                        },
                     )
+                } else {
+                    MenuIconButton(
+                        icon = Icons.Default.Refresh,
+                        label = "Reload",
+                        onClick = {
+                            haptics.tick()
+                            onReload()
+                        },
+                    )
+                }
+
+                // Share
+                MenuIconButton(
+                    icon = Icons.Default.Share,
+                    label = "Share",
+                    onClick = {
+                        haptics.tick()
+                        onShare()
+                    },
+                )
+
+                // Save / Saved
+                MenuIconButton(
+                    icon = if (isSaved) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                    label = if (isSaved) "Saved" else "Save",
+                    tint = if (isSaved) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                    onClick = {
+                        haptics.tick()
+                        onSave()
+                    },
+                )
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+            // Action rows (icon + text)
+            MenuActionRow(
+                icon = Icons.Default.Add,
+                title = "New tab",
+                onClick = {
+                    haptics.tick()
+                    onNewTab()
+                },
+            )
+
+            MenuActionRow(
+                icon = Icons.Default.Security,
+                title = "New private tab",
+                onClick = {
+                    haptics.tick()
+                    onNewPrivateTab()
+                },
+            )
+
+            MenuActionRow(
+                icon = Icons.Default.Search,
+                title = "Find in page",
+                onClick = {
+                    haptics.tick()
+                    onFindInPage()
+                },
+            )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .clickable {
+                        haptics.tick()
+                        onToggleDesktop()
+                    }
+                    .padding(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.DesktopWindows,
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Text(
+                        text = "Desktop site",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+
+                Switch(
+                    checked = tab?.desktopSite == true,
+                    onCheckedChange = {
+                        haptics.tick()
+                        onToggleDesktop()
+                    },
+                )
+            }
+
+            MenuActionRow(
+                icon = Icons.Default.ContentCopy,
+                title = "Copy link",
+                onClick = {
+                    haptics.tick()
+                    onCopyLink()
+                },
+            )
+
+            MenuActionRow(
+                icon = Icons.Default.OpenInBrowser,
+                title = "Open in another browser",
+                onClick = {
+                    haptics.tick()
+                    onOpenInBrowser()
+                },
+            )
+
+            MenuActionRow(
+                icon = Icons.Default.Shield,
+                title = "Site settings",
+                onClick = {
+                    haptics.tick()
+                    onSiteSettings()
                 },
             )
         }
+    }
+}
+
+@Composable
+private fun MenuIconButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    enabled: Boolean = true,
+    tint: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.onSurface,
+    onClick: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .width(56.dp)
+            .clickable(enabled = enabled, onClick = onClick),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        IconButton(
+            onClick = onClick,
+            enabled = enabled,
+            modifier = Modifier.size(48.dp),
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = if (enabled) tint else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+            )
+        }
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
+private fun MenuActionRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(48.dp)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            modifier = Modifier.size(24.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(modifier = Modifier.width(16.dp))
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
     }
 }
 

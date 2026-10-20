@@ -14,6 +14,11 @@ import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -526,10 +531,14 @@ class DefaultBrowserHooks(
                 if (browserPrefs.siteBar) {
                     val isRedirected = record.entryHost != null && !record.entryHost.equals(host, ignoreCase = true)
                     val isDismissed = record.dismissedSiteBarHosts.contains(host)
+                    val sectionTitle = verdict.matches.firstOrNull()?.sectionId?.let { secId ->
+                        datasetStore?.sections()?.firstOrNull { it.id == secId }?.title
+                    }
                     val siteBarState = SiteBarModel.from(
                         verdict = verdict,
                         isRedirectedFromEntry = isRedirected,
                         isDismissed = isDismissed,
+                        sectionTitle = sectionTitle,
                     )
                     tabManager?.setSiteBarState(record.id, siteBarState)
                 } else {
@@ -541,96 +550,100 @@ class DefaultBrowserHooks(
 
     override val siteBar: @Composable (TabState) -> Unit = { tab ->
         val state = tab.siteBarState
-        if (state != null) {
-            val context = LocalContext.current
-            var showDetailSheet by remember { mutableStateOf(false) }
-            var showVerdictDialog by remember { mutableStateOf(false) }
+        AnimatedVisibility(
+            visible = state != null,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut(),
+        ) {
+            if (state != null) {
+                val context = LocalContext.current
+                var showDetailSheet by remember { mutableStateOf(false) }
+                var showVerdictDialog by remember { mutableStateOf(false) }
 
-            val (containerColor, contentColor, icon) = when (state.kind) {
-                SiteBarKind.STARRED -> Triple(
-                    MaterialTheme.colorScheme.primaryContainer,
-                    MaterialTheme.colorScheme.onPrimaryContainer,
-                    Icons.Filled.Star
-                )
-                SiteBarKind.LISTED -> Triple(
-                    MaterialTheme.colorScheme.secondaryContainer,
-                    MaterialTheme.colorScheme.onSecondaryContainer,
-                    Icons.Filled.Check
-                )
-                SiteBarKind.FMHY_SITE -> Triple(
-                    MaterialTheme.colorScheme.primaryContainer,
-                    MaterialTheme.colorScheme.onPrimaryContainer,
-                    Icons.Filled.Verified
-                )
-                SiteBarKind.POTENTIALLY_UNSAFE -> Triple(
-                    MaterialTheme.colorScheme.tertiaryContainer,
-                    MaterialTheme.colorScheme.onTertiaryContainer,
-                    Icons.Filled.Warning
-                )
-                SiteBarKind.UNSAFE -> Triple(
-                    MaterialTheme.colorScheme.errorContainer,
-                    MaterialTheme.colorScheme.onErrorContainer,
-                    Icons.Filled.Error
-                )
-                SiteBarKind.NOT_ON_FMHY -> Triple(
-                    MaterialTheme.colorScheme.surfaceContainerHighest,
-                    MaterialTheme.colorScheme.onSurfaceVariant,
-                    Icons.Outlined.Info
-                )
-            }
+                val (containerColor, contentColor, icon) = when (state.kind) {
+                    SiteBarKind.STARRED -> Triple(
+                        MaterialTheme.colorScheme.primaryContainer,
+                        MaterialTheme.colorScheme.onPrimaryContainer,
+                        Icons.Filled.Star
+                    )
+                    SiteBarKind.LISTED -> Triple(
+                        MaterialTheme.colorScheme.secondaryContainer,
+                        MaterialTheme.colorScheme.onSecondaryContainer,
+                        Icons.Filled.Check
+                    )
+                    SiteBarKind.FMHY_SITE -> Triple(
+                        MaterialTheme.colorScheme.primaryContainer,
+                        MaterialTheme.colorScheme.onPrimaryContainer,
+                        Icons.Filled.Verified
+                    )
+                    SiteBarKind.POTENTIALLY_UNSAFE -> Triple(
+                        MaterialTheme.colorScheme.tertiaryContainer,
+                        MaterialTheme.colorScheme.onTertiaryContainer,
+                        Icons.Filled.Warning
+                    )
+                    SiteBarKind.UNSAFE -> Triple(
+                        MaterialTheme.colorScheme.errorContainer,
+                        MaterialTheme.colorScheme.onErrorContainer,
+                        Icons.Filled.Error
+                    )
+                    SiteBarKind.NOT_ON_FMHY -> Triple(
+                        MaterialTheme.colorScheme.surfaceContainerHighest,
+                        MaterialTheme.colorScheme.onSurfaceVariant,
+                        Icons.Outlined.Info
+                    )
+                }
 
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(32.dp)
-                    .clickable {
-                        if (state.entry != null) {
-                            showDetailSheet = true
-                        } else if (state.kind == SiteBarKind.UNSAFE || state.kind == SiteBarKind.POTENTIALLY_UNSAFE) {
-                            showVerdictDialog = true
-                        }
-                    },
-                color = containerColor,
-                contentColor = contentColor,
-            ) {
-                Row(
+                Surface(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = state.text,
-                        style = MaterialTheme.typography.labelMedium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f),
-                    )
-                    IconButton(
-                        onClick = {
-                            val host = try { Uri.parse(tab.url).host } catch (_: Exception) { null }
-                            if (host != null) {
-                                tabManager?.dismissSiteBar(tab.id, host)
+                        .fillMaxWidth()
+                        .clickable {
+                            if (state.entry != null) {
+                                showDetailSheet = true
+                            } else if (state.kind == SiteBarKind.UNSAFE || state.kind == SiteBarKind.POTENTIALLY_UNSAFE) {
+                                showVerdictDialog = true
                             }
                         },
-                        modifier = Modifier.size(24.dp),
+                    color = containerColor,
+                    contentColor = contentColor,
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(
-                            imageVector = Icons.Filled.Close,
-                            contentDescription = "Dismiss",
-                            modifier = Modifier.size(14.dp),
+                            imageVector = icon,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
                         )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = state.text,
+                            style = MaterialTheme.typography.labelMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f),
+                        )
+                        IconButton(
+                            onClick = {
+                                val host = try { Uri.parse(tab.url).host } catch (_: Exception) { null }
+                                if (host != null) {
+                                    tabManager?.dismissSiteBar(tab.id, host)
+                                }
+                            },
+                            modifier = Modifier.size(48.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Close,
+                                contentDescription = "Dismiss",
+                                modifier = Modifier.size(16.dp),
+                            )
+                        }
                     }
                 }
-            }
 
-            if (showDetailSheet && state.entry != null) {
+                if (showDetailSheet && state.entry != null) {
                 EntryDetailBottomSheet(
                     entry = state.entry,
                     onDismiss = { showDetailSheet = false },
@@ -665,5 +678,6 @@ class DefaultBrowserHooks(
                 )
             }
         }
+    }
     }
 }
