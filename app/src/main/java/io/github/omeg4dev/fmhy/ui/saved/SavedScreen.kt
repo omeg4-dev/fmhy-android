@@ -68,6 +68,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
+import io.github.omeg4dev.fmhy.ui.common.SwipeAction
+import io.github.omeg4dev.fmhy.ui.common.SwipeActionRow
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -1048,7 +1051,6 @@ private fun RemovedSiteRow(
     )
 }
 
-@Suppress("DEPRECATION")
 @Composable
 private fun LazyItemScope.SwipeToDismissSavedRow(
     entry: io.github.omeg4dev.fmhy.data.model.Entry,
@@ -1057,69 +1059,17 @@ private fun LazyItemScope.SwipeToDismissSavedRow(
     content: @Composable () -> Unit,
 ) {
     val saveActions = rememberSaveActions(onShowSnackbar = onShowSnackbar)
-    var dismissed by remember(entry.id) { mutableStateOf(false) }
-    val dismissState = rememberSwipeToDismissBoxState(
-        confirmValueChange = { value ->
-            if (value != SwipeToDismissBoxValue.Settled && !dismissed) {
-                dismissed = true
-                saveActions.unsave(entry)
-                true
-            } else {
-                false
-            }
-        }
-    )
-
-    SwipeToDismissBox(
-        state = dismissState,
-        backgroundContent = {
-            val direction = dismissState.dismissDirection
-            if (direction != SwipeToDismissBoxValue.Settled) {
-                val isStart = direction == SwipeToDismissBoxValue.StartToEnd
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.errorContainer)
-                        .padding(horizontal = 24.dp),
-                    contentAlignment = if (isStart) Alignment.CenterStart else Alignment.CenterEnd,
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        if (isStart) {
-                            Icon(
-                                imageVector = Icons.Outlined.Delete,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onErrorContainer,
-                                modifier = Modifier.size(24.dp),
-                            )
-                            Text(
-                                text = "Remove",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.onErrorContainer,
-                            )
-                        } else {
-                            Text(
-                                text = "Remove",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.onErrorContainer,
-                            )
-                            Icon(
-                                imageVector = Icons.Outlined.Delete,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onErrorContainer,
-                                modifier = Modifier.size(24.dp),
-                            )
-                        }
-                    }
-                }
-            }
+    val currentActions by rememberUpdatedState(saveActions)
+    val currentEntry by rememberUpdatedState(entry)
+    SwipeActionRow(
+        enabled = true,
+        gestureKey = entry.id,
+        actionAtDragStart = { SwipeAction.REMOVE },
+        removeIcon = Icons.Outlined.Delete,
+        onCommit = { action ->
+            if (action == SwipeAction.REMOVE) currentActions.unsave(currentEntry)
         },
         modifier = modifier.animateItem(),
-    ) {
-        Surface(color = MaterialTheme.colorScheme.surface) {
-            content()
-        }
-    }
+        content = content,
+    )
 }
