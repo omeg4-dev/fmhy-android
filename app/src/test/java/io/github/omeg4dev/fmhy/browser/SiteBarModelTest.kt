@@ -75,6 +75,24 @@ class SiteBarModelTest {
     }
 
     @Test
+    fun testDomainListedVerdict() {
+        val entry = createEntry("e-domain", "DomainSite", "Section › Category", Tier.NORMAL)
+        val verdict = Verdict(
+            status = SafetyStatus.DOMAIN_LISTED,
+            input = "https://domainsite.com",
+            normalizedUrl = "https://domainsite.com",
+            host = "domainsite.com",
+            reason = null,
+            matches = listOf(entry),
+        )
+
+        val model = SiteBarModel.from(verdict, isRedirectedFromEntry = false)
+        assertNotNull(model)
+        assertEquals(SiteBarKind.DOMAIN_LISTED, model!!.kind)
+        assertEquals("Domain on FMHY · not this page", model.text)
+    }
+
+    @Test
     fun testFmhySiteVerdict() {
         val verdict = Verdict(
             status = SafetyStatus.FMHY_SITE,

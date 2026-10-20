@@ -7,6 +7,7 @@ import io.github.omeg4dev.fmhy.data.safety.Verdict
 enum class SiteBarKind {
     STARRED,
     LISTED,
+    DOMAIN_LISTED,
     FMHY_SITE,
     NOT_ON_FMHY,
     POTENTIALLY_UNSAFE,
@@ -48,6 +49,14 @@ object SiteBarModel {
                 SiteBarState(
                     kind = SiteBarKind.LISTED,
                     text = "On FMHY$suffix",
+                    verdict = verdict,
+                    entry = entry,
+                )
+            }
+            SafetyStatus.DOMAIN_LISTED -> {
+                SiteBarState(
+                    kind = SiteBarKind.DOMAIN_LISTED,
+                    text = "Domain on FMHY · not this page",
                     verdict = verdict,
                     entry = entry,
                 )

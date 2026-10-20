@@ -19,6 +19,7 @@ import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Dangerous
+import androidx.compose.material.icons.filled.Domain
 import androidx.compose.material.icons.filled.LinkOff
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
@@ -31,6 +32,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -45,9 +47,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import io.github.omeg4dev.fmhy.data.safety.SafeGuard
 import io.github.omeg4dev.fmhy.data.safety.SafetyStatus
 import io.github.omeg4dev.fmhy.data.safety.Verdict
 import io.github.omeg4dev.fmhy.ui.common.EntryRow
+import java.net.URI
 
 @Composable
 fun VerdictCard(
@@ -57,6 +61,7 @@ fun VerdictCard(
     onCopy: (() -> Unit)? = null,
     onOpenInFmhy: (() -> Unit)? = null,
     onShowSnackbar: (String) -> Unit = {},
+    onCheckHost: ((String) -> Unit)? = null,
 ) {
     val context = LocalContext.current
 
@@ -67,7 +72,6 @@ fun VerdictCard(
     val errorColor = MaterialTheme.colorScheme.error
     val outlineColor = MaterialTheme.colorScheme.outline
     val amberStarredColor = Color(0xFFFFC14D)
-    // Warning orange derived from scheme (not hard error red)
     val warningOrange = remember(errorColor, tertiaryColor) {
         Color(0xFFF57C00)
     }
@@ -76,6 +80,7 @@ fun VerdictCard(
         SafetyStatus.FMHY_SITE -> Icons.Default.Verified to primaryColor
         SafetyStatus.STARRED -> Icons.Default.Star to amberStarredColor
         SafetyStatus.LISTED -> Icons.Default.CheckCircle to secondaryColor
+        SafetyStatus.DOMAIN_LISTED -> Icons.Default.Domain to secondaryColor
         SafetyStatus.POTENTIALLY_UNSAFE -> Icons.Default.Warning to warningOrange
         SafetyStatus.UNSAFE -> Icons.Default.Dangerous to errorColor
         SafetyStatus.SEARCH_ENGINE -> Icons.Default.Search to outlineColor
@@ -84,10 +89,18 @@ fun VerdictCard(
     }
 
     val title = verdictTitle(verdict.status)
-    val body = verdictBody(verdict.status, verdict.reason)
+    val body = verdictBody(verdict)
     val checkedHost = verdict.host ?: verdict.input
-    // Prefer what the user typed/shared: the normalised form drops port and query string.
     val urlToOpen = if (verdict.input.contains("://")) verdict.input else verdict.normalizedUrl ?: "https://${verdict.input}"
+
+    val inputHasPath = remember(urlToOpen) {
+        try {
+            val p = URI(urlToOpen).path
+            !p.isNullOrEmpty() && p != "/"
+        } catch (_: Exception) {
+            false
+        }
+    }
 
     ElevatedCard(
         shape = RoundedCornerShape(16.dp),
@@ -136,11 +149,58 @@ fun VerdictCard(
                 )
             }
 
-            // Matched entries: "Where it's listed" with up to 5 EntryRows, "Show all N" if more
+            // Lookalikes warning block (for NO_DATA and DOMAIN_LISTED)
+            if (verdict.lookalikes.isNotEmpty()) {
+                Spacer(Modifier.height(16.dp))
+                val firstLookalike = verdict.lookalikes.first()
+                val firstHost = SafeGuard.extractHostFromUrl(firstLookalike.url) ?: firstLookalike.url
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.tertiaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(verticalAlignment = Alignment.Top) {
+                            Icon(
+                                imageVector = Icons.Default.Warning,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                                modifier = Modifier.size(20.dp),
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = "Similar names on FMHY \u2014 ${firstLookalike.name} ($firstHost). Fake copies of popular sites are common; use the listed address.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer,
+                            )
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        verdict.lookalikes.forEach { lookalikeEntry ->
+                            EntryRow(
+                                entry = lookalikeEntry,
+                                onOpenUrl = onOpenUrl,
+                                onShowSnackbar = onShowSnackbar,
+                            )
+                            HorizontalDivider(
+                                thickness = 0.5.dp,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.2f),
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Matched entries
             if (verdict.matches.isNotEmpty()) {
                 Spacer(Modifier.height(16.dp))
+                val headerText = if (verdict.status == SafetyStatus.DOMAIN_LISTED) {
+                    "Listed pages on this domain"
+                } else {
+                    "Where it's listed"
+                }
                 Text(
-                    text = "Where it's listed",
+                    text = headerText,
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.primary,
                 )
@@ -171,6 +231,17 @@ fun VerdictCard(
                     TextButton(onClick = { showAllMatches = true }) {
                         Text("Show all ${verdict.matches.size}")
                     }
+                }
+            }
+
+            // "Check just <host>" button if a path was given on NO_DATA or DOMAIN_LISTED
+            val targetHost = verdict.host
+            if (onCheckHost != null && !targetHost.isNullOrBlank() && inputHasPath &&
+                (verdict.status == SafetyStatus.NO_DATA || verdict.status == SafetyStatus.DOMAIN_LISTED)
+            ) {
+                Spacer(Modifier.height(8.dp))
+                TextButton(onClick = { onCheckHost(targetHost) }) {
+                    Text("Check just $targetHost")
                 }
             }
 
@@ -226,7 +297,7 @@ fun VerdictCard(
             // Footer text
             Spacer(Modifier.height(12.dp))
             Text(
-                text = "Based on FMHY SafeGuard's lists",
+                text = "Based on FMHY's lists and FMHY SafeGuard",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.outline,
             )
