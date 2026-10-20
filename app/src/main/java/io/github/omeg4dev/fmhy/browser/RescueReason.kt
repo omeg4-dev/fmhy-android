@@ -40,7 +40,8 @@ object RescueReason {
         return statusCode in 500..599
     }
 
-    fun fromErrorCode(errorCode: Int): String {
+    fun fromErrorCode(errorCode: Int, description: String = ""): String {
+        if (description.contains("CLEARTEXT", ignoreCase = true)) return "Insecure connection blocked"
         return when (errorCode) {
             ERROR_HOST_LOOKUP -> "Server not found"
             ERROR_CONNECT -> "Connection failed"
@@ -49,7 +50,7 @@ object RescueReason {
             ERROR_REDIRECT_LOOP -> "Too many redirects"
             ERROR_TOO_MANY_REQUESTS -> "Too many requests"
             ERROR_IO -> "Network error"
-            else -> "This site isn't loading"
+            else -> "Could not load the page"
         }
     }
 

@@ -11,6 +11,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.union
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarDuration
@@ -182,7 +187,11 @@ fun BrowserScreen(
     Box(modifier = Modifier.fillMaxSize()) {
     Scaffold(
         topBar = {
-            if (!isInPip && customView == null) Column {
+            if (!isInPip && customView == null) Column(
+                modifier = Modifier
+                    .background(MaterialTheme.colorScheme.surfaceContainer)
+                    .statusBarsPadding(),
+            ) {
                 BrowserToolbar(
                     tab = currentTab,
                     tabCount = tabs.size,
@@ -266,6 +275,7 @@ fun BrowserScreen(
             }
         },
         snackbarHost = { if (!isInPip) SnackbarHost(snackbarHostState) },
+        contentWindowInsets = WindowInsets.navigationBars.union(WindowInsets.ime),
         modifier = modifier.fillMaxSize(),
     ) { innerPadding ->
         Box(
@@ -320,15 +330,17 @@ fun BrowserScreen(
                         }
                     }
 
-                    AndroidView(
-                        factory = {
-                            val parent = webView.parent as? ViewGroup
-                            parent?.removeView(webView)
-                            webView
-                        },
-                        update = {},
-                        modifier = Modifier.fillMaxSize(),
-                    )
+                    androidx.compose.runtime.key(webView) {
+                        AndroidView(
+                            factory = {
+                                val parent = webView.parent as? ViewGroup
+                                parent?.removeView(webView)
+                                webView
+                            },
+                            update = {},
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
                 }
             }
 

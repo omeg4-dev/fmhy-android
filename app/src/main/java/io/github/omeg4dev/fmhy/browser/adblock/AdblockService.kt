@@ -248,13 +248,14 @@ class AdblockService(
                     )
                 } else {
                     onBlocked()
-                    emptyResponse(type)
+                    // 404 (not an empty 200) so <script>/<img> fire onerror like a cancelled request.
+                    emptyResponse(type, failed = true)
                 }
             }
         }
     }
 
-    private fun emptyResponse(type: ResourceType): WebResourceResponse {
+    private fun emptyResponse(type: ResourceType, failed: Boolean = false): WebResourceResponse {
         val mime = when (type) {
             ResourceType.SCRIPT -> "application/javascript"
             ResourceType.STYLESHEET -> "text/css"
@@ -264,7 +265,11 @@ class AdblockService(
             ResourceType.XHR -> "application/json"
             else -> "text/plain"
         }
-        return WebResourceResponse(mime, "UTF-8", 200, "OK", emptyMap(), ByteArrayInputStream(ByteArray(0)))
+        return if (failed) {
+            WebResourceResponse(mime, "UTF-8", 404, "Blocked", emptyMap(), ByteArrayInputStream(ByteArray(0)))
+        } else {
+            WebResourceResponse(mime, "UTF-8", 200, "OK", emptyMap(), ByteArrayInputStream(ByteArray(0)))
+        }
     }
 
     private fun buildBlockPageHtml(host: String, rule: String, url: String, bridgeName: String): String {

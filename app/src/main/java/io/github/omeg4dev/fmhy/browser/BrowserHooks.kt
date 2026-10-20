@@ -432,7 +432,7 @@ class DefaultBrowserHooks(
         if (!browserPrefs.deadSiteRescue) return
         if (!RescueReason.shouldTrigger(errorCode, description)) return
 
-        val reason = RescueReason.fromErrorCode(errorCode)
+        val reason = RescueReason.fromErrorCode(errorCode, description)
         buildRescueState(tab, failingUrl, reason)
     }
 

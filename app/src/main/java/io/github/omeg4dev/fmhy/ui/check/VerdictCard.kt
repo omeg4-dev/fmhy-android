@@ -86,7 +86,8 @@ fun VerdictCard(
     val title = verdictTitle(verdict.status)
     val body = verdictBody(verdict.status, verdict.reason)
     val checkedHost = verdict.host ?: verdict.input
-    val urlToOpen = verdict.normalizedUrl ?: if (verdict.input.contains("://")) verdict.input else "https://${verdict.input}"
+    // Prefer what the user typed/shared: the normalised form drops port and query string.
+    val urlToOpen = if (verdict.input.contains("://")) verdict.input else verdict.normalizedUrl ?: "https://${verdict.input}"
 
     ElevatedCard(
         shape = RoundedCornerShape(16.dp),

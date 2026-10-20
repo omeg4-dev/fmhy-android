@@ -288,9 +288,8 @@ private fun OnboardingBottomBar(
 
             // Next / Set up / Start button
             if (isWelcome) {
-                Button(onClick = onNext) {
-                    Text("Set up")
-                }
+                // The centred "Set up" button on the welcome page is the only action here.
+                androidx.compose.foundation.layout.Spacer(Modifier.size(48.dp))
             } else if (isDone) {
                 Button(onClick = onNext) {
                     Text("Start")
@@ -767,7 +766,7 @@ private fun ProtectionPageContent(
 
         ListItem(
             headlineContent = { Text("Hide cookie banners") },
-            supportingContent = { Text("Dismiss cookie consent dialogues (rec. off)") },
+            supportingContent = { Text("Dismiss cookie consent dialogues") },
             trailingContent = {
                 Switch(
                     checked = state.hideCookieBanners,
@@ -823,7 +822,7 @@ private fun ListsPageContent(
         // Starred only switch
         ListItem(
             headlineContent = { Text("Starred only") },
-            supportingContent = { Text("Show only sites FMHY recommends (⭐ / 🌟, rec. off)") },
+            supportingContent = { Text("Show only sites FMHY recommends (⭐ / 🌟)") },
             trailingContent = {
                 Switch(
                     checked = state.starredOnly,
@@ -1088,7 +1087,7 @@ private fun StayUpdatedPageContent(
         // Personal Home switch
         ListItem(
             headlineContent = { Text("Personal Home") },
-            supportingContent = { Text("Pin your favourite categories to the top of Home (rec. off)") },
+            supportingContent = { Text("Pin your favourite categories to the top of Home") },
             trailingContent = {
                 Switch(
                     checked = state.personalHome,
