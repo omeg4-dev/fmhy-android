@@ -135,14 +135,25 @@ fun SectionScreen(
     }
 
     // In CATEGORIES mode: handle anchor or focusEntryId navigation by opening CategoryNavKey
-    var hasPushedAnchorByCategory by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(state.items, state.headings, state.layout, viewModel.anchor, key?.focusEntryId) {
-        val anchor = viewModel.anchor
+    // The anchor comes from the nav key: the ViewModel is shared per section and keeps the anchor it was
+    // first created with, so reading it there sent pins and search hits to a stale place.
+    val navAnchor = if (key != null) key.anchor else viewModel.anchor
+    var hasPushedAnchorByCategory by rememberSaveable(key) { mutableStateOf(false) }
+    LaunchedEffect(state.items, state.headings, state.layout, navAnchor, key?.focusEntryId) {
+        val anchor = navAnchor
         val focusEntryId = key?.focusEntryId
+        if (state.layout == SectionLayout.CATEGORIES && !hasPushedAnchorByCategory && anchor == OVERVIEW_CATEGORY_ID && state.items.isNotEmpty()) {
+            hasPushedAnchorByCategory = true
+            nav.push(
+                CategoryNavKey(
+                    sectionId = state.section?.id ?: viewModel.sectionId,
+                    categoryHeadingId = OVERVIEW_CATEGORY_ID,
+                )
+            )
+            return@LaunchedEffect
+        }
         if (state.layout == SectionLayout.CATEGORIES && !hasPushedAnchorByCategory && (!anchor.isNullOrEmpty() || !focusEntryId.isNullOrEmpty()) && state.items.isNotEmpty()) {
-            val anchorHeading = state.headings.firstOrNull {
-                it.anchor.equals(anchor, ignoreCase = true) || it.id.endsWith(anchor.orEmpty()) || it.id == anchor
-            }
+            val anchorHeading = findAnchorHeading(state.headings, anchor)
             val targetHeadingId = anchorHeading?.id ?: if (!focusEntryId.isNullOrEmpty()) {
                 val entry = state.items.filterIsInstance<SectionItem.EntryItem>().firstOrNull { it.entry.id == focusEntryId || it.alternatives.any { a -> a.id == focusEntryId } }?.entry
                 entry?.headingId
@@ -166,11 +177,12 @@ fun SectionScreen(
     }
 
     // In CONTINUOUS mode: handle initial scroll to focusEntryId or anchor
-    var hasScrolledToFocus by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(state.items, state.layout, viewModel.anchor, key?.focusEntryId) {
+    var hasScrolledToFocus by rememberSaveable(key) { mutableStateOf(false) }
+    LaunchedEffect(state.items, state.headings, state.layout, navAnchor, key?.focusEntryId) {
         if (state.layout == SectionLayout.CONTINUOUS && !hasScrolledToFocus && state.items.isNotEmpty()) {
             val focusEntryId = key?.focusEntryId
-            val anchor = viewModel.anchor
+            val anchor = navAnchor
+            val anchorHeadingId = findAnchorHeading(state.headings, anchor)?.id
 
             if (!focusEntryId.isNullOrEmpty()) {
                 val entryIdx = state.items.indexOfFirst {
@@ -189,8 +201,7 @@ fun SectionScreen(
                 } else if (!anchor.isNullOrEmpty()) {
                     // Fallback to heading when entry is filtered out
                     val headingIdx = state.items.indexOfFirst {
-                        it is SectionItem.HeadingItem &&
-                            (it.heading.anchor.equals(anchor, ignoreCase = true) || it.heading.id.endsWith(anchor) || it.heading.id == anchor)
+                        it is SectionItem.HeadingItem && it.heading.id == anchorHeadingId
                     }
                     if (headingIdx != -1) {
                         hasScrolledToFocus = true
@@ -203,8 +214,7 @@ fun SectionScreen(
                 }
             } else if (!anchor.isNullOrEmpty()) {
                 val targetIdx = state.items.indexOfFirst {
-                    it is SectionItem.HeadingItem &&
-                        (it.heading.anchor.equals(anchor, ignoreCase = true) || it.heading.id.endsWith(anchor) || it.heading.id == anchor)
+                    it is SectionItem.HeadingItem && it.heading.id == anchorHeadingId
                 }
                 if (targetIdx != -1) {
                     hasScrolledToFocus = true

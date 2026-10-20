@@ -328,5 +328,19 @@ class SectionStructureTest {
         assertEquals("e2", promoted.entry.id)
         assertTrue(promoted.alternatives.isEmpty())
     }
-}
 
+    @Test
+    fun findAnchorHeadingPrefersExactIdOverSuffix() {
+        val headings = listOf(
+            createHeading("video/free-streaming", 2, anchor = "free-streaming"),
+            createHeading("video/streaming", 2, anchor = "streaming"),
+        )
+        // A pin stores the full heading id; the suffix rule must not let "free-streaming" win.
+        assertEquals("video/streaming", findAnchorHeading(headings, "video/streaming")?.id)
+        assertEquals("video/streaming", findAnchorHeading(headings, "streaming")?.id)
+        assertEquals("video/streaming", findAnchorHeading(headings, "Streaming")?.id)
+        assertNull(findAnchorHeading(headings, null))
+        assertNull(findAnchorHeading(headings, ""))
+        assertNull(findAnchorHeading(headings, OVERVIEW_CATEGORY_ID))
+    }
+}

@@ -232,6 +232,20 @@ fun filterSectionItems(
     return result
 }
 
+/** Category id of a section's overview page (the items above its first category heading). */
+const val OVERVIEW_CATEGORY_ID = "__overview"
+
+/**
+ * Finds the heading a navigation anchor points at. Exact heading id wins over anchor slug, which wins over an
+ * id suffix match, so a short anchor can never pick a different heading that merely ends with the same text.
+ */
+fun findAnchorHeading(headings: List<Heading>, anchor: String?): Heading? {
+    if (anchor.isNullOrEmpty()) return null
+    return headings.firstOrNull { it.id == anchor }
+        ?: headings.firstOrNull { it.anchor.equals(anchor, ignoreCase = true) }
+        ?: headings.firstOrNull { it.id.endsWith("/$anchor") }
+}
+
 /**
  * Finds the category heading id that owns the given heading id (or "__overview" if in overview).
  */
