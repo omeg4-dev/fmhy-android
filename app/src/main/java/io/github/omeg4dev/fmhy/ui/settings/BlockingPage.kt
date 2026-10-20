@@ -114,7 +114,7 @@ fun BlockingPage(
                                 OptionCardItem(
                                     value = "balanced",
                                     title = "Balanced",
-                                    subtitle = "Ads, trackers and malware lists — recommended",
+                                    subtitle = "Ads, trackers and malware lists",
                                     isRecommended = true,
                                 ),
                                 OptionCardItem(
