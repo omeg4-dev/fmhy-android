@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.os.Build
 import android.os.Message
+import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
@@ -25,6 +26,7 @@ class BrowserWebViewFactory(
     private val browserHooks: BrowserHooks,
     private val bridgeName: String,
 ) {
+    @Suppress("DEPRECATION")
     fun createWebView(
         context: Context,
         record: TabRecord,
@@ -175,6 +177,10 @@ class BrowserWebViewFactory(
                 if (request.isForMainFrame) {
                     browserHooks.onMainFrameHttpError(record.toState(), errorResponse.statusCode, request.url.toString())
                 }
+            }
+
+            override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
+                return tabManager.handleRenderProcessGone(view)
             }
         }
 

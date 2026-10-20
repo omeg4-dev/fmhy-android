@@ -1,6 +1,7 @@
 package io.github.omeg4dev.fmhy.browser
 
 import android.app.PictureInPictureParams
+import android.content.ComponentCallbacks2
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
@@ -39,8 +40,27 @@ class BrowserActivity : ComponentActivity() {
     private var isInPipMode by mutableStateOf(false)
     private var originalOrientation: Int = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
 
+    @Suppress("DEPRECATION")
+    private val trimMemoryCallbacks = object : ComponentCallbacks2 {
+        override fun onTrimMemory(level: Int) {
+            if (level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) {
+                val container = (application as FmhyApp).container
+                container.tabManager.onTrimMemory()
+            }
+        }
+
+        override fun onConfigurationChanged(newConfig: Configuration) {}
+
+        @Deprecated("Deprecated in Java")
+        override fun onLowMemory() {
+            val container = (application as FmhyApp).container
+            container.tabManager.onTrimMemory()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        registerComponentCallbacks(trimMemoryCallbacks)
 
         val container = (application as FmhyApp).container
         val dataUri = intent?.dataString
@@ -152,10 +172,26 @@ class BrowserActivity : ComponentActivity() {
         isInPipMode = isInPictureInPictureMode
     }
 
+    override fun onPause() {
+        super.onPause()
+        val container = (application as FmhyApp).container
+        container.tabManager.onActivityPause()
+    }
+
     override fun onResume() {
         super.onResume()
         val container = (application as FmhyApp).container
         container.tabManager.attachActivity(this, container.tabManager.isAppDark)
+        container.tabManager.onActivityResume()
+    }
+
+    @Suppress("DEPRECATION")
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        if (level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) {
+            val container = (application as FmhyApp).container
+            container.tabManager.onTrimMemory()
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -178,6 +214,7 @@ class BrowserActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        unregisterComponentCallbacks(trimMemoryCallbacks)
         val container = (application as FmhyApp).container
         if (isFinishing && container.tabManager.tabs.value.isEmpty() && container.tabManager.currentPrivacyPrefs.clearDataOnExit) {
             container.tabManager.clearAllBrowsingData()
