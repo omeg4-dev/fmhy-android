@@ -49,8 +49,22 @@ import io.github.omeg4dev.fmhy.data.doc.DocResult
 import io.github.omeg4dev.fmhy.di.AppContainer
 import io.github.omeg4dev.fmhy.nav.LocalBottomBarPadding
 import io.github.omeg4dev.fmhy.ui.common.MarkdownBlocks
+import io.github.omeg4dev.fmhy.ui.common.ReaderStyle
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
 import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.outlined.School
+import androidx.compose.ui.text.style.TextAlign
+
+fun readerStyleForPath(path: String): ReaderStyle {
+    val clean = path.trim().removePrefix("/").removePrefix("docs/").trimStart('/')
+    return when {
+        clean == "beginners-guide.md" || clean.endsWith("/beginners-guide.md") -> ReaderStyle.GUIDE
+        clean.startsWith("posts/") -> ReaderStyle.POST
+        else -> ReaderStyle.DOC
+    }
+}
 
 fun fmhyWebUrlForPath(path: String): String {
     val clean = path.trim()
@@ -73,6 +87,7 @@ fun ReaderScreen(
     val context = LocalContext.current
     val linkOpener = rememberLinkOpener(container, onShowSnackbar)
     val webUrl = remember(path) { fmhyWebUrlForPath(path) }
+    val style = remember(path) { readerStyleForPath(path) }
 
     var result by remember(path) { mutableStateOf<DocResult?>(null) }
     var isLoading by remember(path) { mutableStateOf(true) }
@@ -214,43 +229,102 @@ fun ReaderScreen(
                         modifier = Modifier
                             .fillMaxSize()
                             .verticalScroll(scrollState)
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
                             .padding(bottom = bottomPadding + 16.dp),
                     ) {
-                        if (success.stale) {
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
+                        Box(
+                            modifier = Modifier.fillMaxWidth(),
+                            contentAlignment = Alignment.TopCenter,
+                        ) {
+                            Column(
                                 modifier = Modifier
+                                    .widthIn(max = 640.dp)
                                     .fillMaxWidth()
-                                    .padding(bottom = 12.dp),
+                                    .padding(horizontal = 20.dp, vertical = 8.dp),
                             ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.CloudOff,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                                        modifier = Modifier.size(18.dp),
-                                    )
-                                    Spacer(Modifier.width(8.dp))
-                                    Text(
-                                        text = "Offline · showing cached copy",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                    )
+                                if (success.stale) {
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(bottom = 12.dp),
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Outlined.CloudOff,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                                modifier = Modifier.size(18.dp),
+                                            )
+                                            Spacer(Modifier.width(8.dp))
+                                            Text(
+                                                text = "Offline · showing cached copy",
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                            )
+                                        }
+                                    }
                                 }
+
+                                if (style == ReaderStyle.GUIDE) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(top = 12.dp, bottom = 24.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                    ) {
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = MaterialTheme.colorScheme.primaryContainer,
+                                            modifier = Modifier.size(56.dp),
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(
+                                                    imageVector = Icons.Outlined.School,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                    modifier = Modifier.size(32.dp),
+                                                )
+                                            }
+                                        }
+                                        Spacer(Modifier.height(16.dp))
+                                        Text(
+                                            text = "Beginner's guide",
+                                            style = MaterialTheme.typography.headlineMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                        )
+                                        Spacer(Modifier.height(8.dp))
+                                        Text(
+                                            text = "Start here: the basics of staying safe and finding things on FMHY.",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            textAlign = TextAlign.Center,
+                                        )
+                                        val date = success.frontMatter["date"]
+                                        if (!date.isNullOrBlank()) {
+                                            Spacer(Modifier.height(6.dp))
+                                            Text(
+                                                text = date,
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = MaterialTheme.colorScheme.outline,
+                                            )
+                                        }
+                                    }
+                                }
+
+                                MarkdownBlocks(
+                                    markdown = success.text,
+                                    onOpenUrl = { url ->
+                                        linkOpener.openUrl(url)
+                                    },
+                                    readerStyle = style,
+                                )
                             }
                         }
-
-                        MarkdownBlocks(
-                            markdown = success.text,
-                            onOpenUrl = { url ->
-                                linkOpener.openUrl(url)
-                            },
-                        )
                     }
                 }
             }

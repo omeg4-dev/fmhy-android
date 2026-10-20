@@ -28,6 +28,12 @@ import androidx.compose.ui.unit.dp
 
 typealias MdBlock = MarkdownBlock
 
+enum class ReaderStyle {
+    GUIDE,
+    POST,
+    DOC,
+}
+
 sealed interface MarkdownBlock {
     data class Heading(val level: Int, val text: String) : MarkdownBlock
     data class Paragraph(val text: String) : MarkdownBlock
@@ -327,9 +333,15 @@ fun MarkdownBlocks(
     markdown: String,
     modifier: Modifier = Modifier,
     onOpenUrl: (String) -> Unit = {},
+    readerStyle: ReaderStyle? = null,
 ) {
     val blocks = remember(markdown) { parseMarkdownBlocks(markdown) }
-    MarkdownBlocks(blocks = blocks, modifier = modifier, onOpenUrl = onOpenUrl)
+    MarkdownBlocks(
+        blocks = blocks,
+        modifier = modifier,
+        onOpenUrl = onOpenUrl,
+        readerStyle = readerStyle,
+    )
 }
 
 @Composable
@@ -337,43 +349,88 @@ fun MarkdownBlocks(
     blocks: List<MarkdownBlock>,
     modifier: Modifier = Modifier,
     onOpenUrl: (String) -> Unit = {},
+    readerStyle: ReaderStyle? = null,
 ) {
+    val isGuideOrDoc = readerStyle == ReaderStyle.GUIDE || readerStyle == ReaderStyle.DOC
+
     Column(modifier = modifier.fillMaxWidth()) {
         for (block in blocks) {
             when (block) {
                 is MarkdownBlock.Heading -> {
-                    val (style, topPad, botPad) = when (block.level) {
-                        1 -> Triple(MaterialTheme.typography.headlineMedium, 20.dp, 8.dp)
-                        2 -> Triple(MaterialTheme.typography.titleLarge, 16.dp, 6.dp)
-                        3 -> Triple(MaterialTheme.typography.titleMedium, 12.dp, 4.dp)
-                        else -> Triple(MaterialTheme.typography.titleSmall, 10.dp, 4.dp)
+                    if (isGuideOrDoc) {
+                        if (block.level == 2) {
+                            HorizontalDivider(
+                                modifier = Modifier.padding(top = 28.dp, bottom = 8.dp),
+                                color = MaterialTheme.colorScheme.outlineVariant,
+                                thickness = 1.dp,
+                            )
+                        }
+                        val (style, topPad, botPad) = when (block.level) {
+                            1 -> Triple(MaterialTheme.typography.titleLarge, 28.dp, 8.dp)
+                            2 -> Triple(MaterialTheme.typography.titleMedium, 0.dp, 6.dp)
+                            3 -> Triple(MaterialTheme.typography.titleSmall, 14.dp, 4.dp)
+                            else -> Triple(MaterialTheme.typography.titleSmall, 10.dp, 4.dp)
+                        }
+                        val headingColor = if (block.level <= 2) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                        MarkdownText(
+                            markdown = block.text,
+                            style = style.copy(fontWeight = FontWeight.Bold),
+                            color = headingColor,
+                            onOpenUrl = onOpenUrl,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = topPad, bottom = botPad),
+                        )
+                    } else {
+                        val (style, topPad, botPad) = when (block.level) {
+                            1 -> Triple(MaterialTheme.typography.headlineMedium, 20.dp, 8.dp)
+                            2 -> Triple(MaterialTheme.typography.titleLarge, 16.dp, 6.dp)
+                            3 -> Triple(MaterialTheme.typography.titleMedium, 12.dp, 4.dp)
+                            else -> Triple(MaterialTheme.typography.titleSmall, 10.dp, 4.dp)
+                        }
+                        MarkdownText(
+                            markdown = block.text,
+                            style = style.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            onOpenUrl = onOpenUrl,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = topPad, bottom = botPad),
+                        )
                     }
-                    MarkdownText(
-                        markdown = block.text,
-                        style = style.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurface,
-                        onOpenUrl = onOpenUrl,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = topPad, bottom = botPad),
-                    )
                 }
                 is MarkdownBlock.Paragraph -> {
+                    val bodyStyle = if (isGuideOrDoc) {
+                        MaterialTheme.typography.bodyLarge.copy(
+                            lineHeight = MaterialTheme.typography.bodyLarge.fontSize * 1.5f
+                        )
+                    } else {
+                        MaterialTheme.typography.bodyMedium
+                    }
+                    val paraPad = if (isGuideOrDoc) 6.dp else 4.dp
                     MarkdownText(
                         markdown = block.text,
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = bodyStyle,
                         color = MaterialTheme.colorScheme.onSurface,
                         onOpenUrl = onOpenUrl,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 4.dp),
+                            .padding(vertical = paraPad),
                     )
                 }
                 is MarkdownBlock.ListItem -> {
+                    val itemPad = if (isGuideOrDoc) 3.dp else 2.dp
+                    val itemStyle = if (isGuideOrDoc) {
+                        MaterialTheme.typography.bodyLarge.copy(
+                            lineHeight = MaterialTheme.typography.bodyLarge.fontSize * 1.5f
+                        )
+                    } else {
+                        MaterialTheme.typography.bodyMedium
+                    }
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(start = (block.level * 16).dp, top = 2.dp, bottom = 2.dp),
+                            .padding(start = (block.level * 16).dp, top = itemPad, bottom = itemPad),
                         verticalAlignment = Alignment.Top,
                     ) {
                         val bullet = if (block.isOrdered) "${block.number}." else when (block.level % 3) {
@@ -383,13 +440,13 @@ fun MarkdownBlocks(
                         }
                         Text(
                             text = bullet,
-                            style = MaterialTheme.typography.bodyMedium,
+                            style = itemStyle,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.width(if (block.isOrdered) 24.dp else 16.dp),
                         )
                         MarkdownText(
                             markdown = block.text,
-                            style = MaterialTheme.typography.bodyMedium,
+                            style = itemStyle,
                             color = MaterialTheme.colorScheme.onSurface,
                             onOpenUrl = onOpenUrl,
                             modifier = Modifier.weight(1f, fill = false),
