@@ -536,6 +536,9 @@ fun BrowserScreen(
                                 onToggleDesktop = {
                                     currentTab?.let { tabManager.toggleDesktopSite(it.id) }
                                 },
+                                onSetPlaybackSpeed = { speed ->
+                                    currentTab?.let { tabManager.setPlaybackSpeed(it.id, speed) }
+                                },
                                 onToggleBookmark = {
                                     val tab = currentTab
                                     val entryId = tab?.entryId

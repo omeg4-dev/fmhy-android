@@ -139,8 +139,7 @@ class BrowserWebViewFactory(
                 record.url = url
                 record.hasStartedFirstLoad = true
                 record.rescueState = null
-                record.videoWidth = 0
-                record.videoHeight = 0
+                tabManager.onPlaybackPageStarted(record.id, url)
                 tabManager.notifyTabChanged(record.id)
                 tabManager.updateTabUrlAndTitle(record.id, url, record.title)
                 (browserHooks as? DefaultBrowserHooks)?.onPageStarted(record, url)

@@ -58,6 +58,9 @@ class TabRecord(
     var isVideoPlaying: Boolean = false,
     @Volatile var videoWidth: Int = 0,
     @Volatile var videoHeight: Int = 0,
+    @Volatile var hasMedia: Boolean = false,
+    /** Playback speed to apply to this page's media; 0 = leave the page alone. */
+    @Volatile var desiredRate: Float = 0f,
     var hasStartedFirstLoad: Boolean = false,
     var entryHost: String? = null,
     var lastLoadedHost: String? = null,
@@ -94,6 +97,8 @@ class TabRecord(
         siteBarState = siteBarState,
         interstitialState = interstitialState,
         isVideoPlaying = isVideoPlaying,
+        hasMedia = hasMedia,
+        playbackSpeed = if (desiredRate > 0f) desiredRate else 1f,
         videoAspect = if (videoWidth > 0 && videoHeight > 0) videoWidth.toFloat() / videoHeight else null,
         crashed = crashed,
         lastActiveTime = lastActiveTime,
@@ -905,6 +910,53 @@ class TabManager(
         if (_currentTabId.value == tabId) {
             onVideoPlayingChanged?.invoke(isPlaying)
             onPipStateChanged?.invoke()
+        }
+    }
+
+    fun setHasMedia(tabId: Long) {
+        val record = getTabRecord(tabId) ?: return
+        if (record.hasMedia) return
+        record.hasMedia = true
+        updateTabsFlow()
+    }
+
+    /** Called when a page starts loading: forgets the last page's media and looks up its remembered speed. */
+    fun onPlaybackPageStarted(tabId: Long, url: String) {
+        val record = getTabRecord(tabId) ?: return
+        record.hasMedia = false
+        record.desiredRate = 0f
+        record.videoWidth = 0
+        record.videoHeight = 0
+        val host = try { Uri.parse(url).host } catch (_: Exception) { null }
+        appScope.launch {
+            val stored = if (host.isNullOrEmpty()) null else try {
+                parseStoredSpeed(userStore.get(videoSpeedKey(host)))
+            } catch (_: Exception) { null }
+            val rate = stored ?: currentBrowserPrefs.defaultSpeed.takeIf { it != 1f } ?: 0f
+            record.desiredRate = rate
+            if (rate > 0f) pushPlaybackRate(record)
+            updateTabsFlow()
+        }
+    }
+
+    /** Sets the playback speed for the tab's media and remembers it for the site (not in private tabs). */
+    fun setPlaybackSpeed(tabId: Long, speed: Float) {
+        val record = getTabRecord(tabId) ?: return
+        record.desiredRate = speed
+        pushPlaybackRate(record)
+        updateTabsFlow(immediate = true)
+        val host = try { Uri.parse(record.url).host } catch (_: Exception) { null }
+        if (!record.isPrivate && !host.isNullOrEmpty()) {
+            appScope.launch {
+                try { userStore.put(videoSpeedKey(host), formatStoredSpeed(speed)) } catch (_: Exception) {}
+            }
+        }
+    }
+
+    private fun pushPlaybackRate(record: TabRecord) {
+        val js = VideoJs.setRateCall(record.desiredRate)
+        postToMain {
+            try { record.webView?.evaluateJavascript(js, null) } catch (_: Throwable) {}
         }
     }
 

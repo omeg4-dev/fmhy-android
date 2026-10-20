@@ -2,6 +2,10 @@ package io.github.omeg4dev.fmhy.browser
 
 /** Page script that watches <video>/<audio> elements and reports what the app needs to know. */
 object VideoJs {
+    /** JS that sets the playback speed on the page's media; a rate of 0 or less hands control back to the page. */
+    fun setRateCall(rate: Float): String =
+        "window.__fmhyVideo&&window.__fmhyVideo.setRate(${if (rate > 0f) rate.toString() else "null"});"
+
     fun script(bridgeName: String): String = """
 (function() {
     try {
@@ -17,9 +21,50 @@ object VideoJs {
                 }
             } catch (_) {}
         }
+        // Playback speed. rate === null means the app has no opinion and the page is left alone.
+        var rate = null, reported = false;
+        function applyRate(m) {
+            try { if (rate !== null && Math.abs(m.playbackRate - rate) > 0.001) m.playbackRate = rate; } catch (_) {}
+        }
+        function pullRate() {
+            try {
+                if (B.desiredRate) { var r = B.desiredRate(); if (r > 0) rate = r; }
+            } catch (_) {}
+        }
+        function hook(m) {
+            if (m.__fmhyHooked) return;
+            m.__fmhyHooked = true;
+            m.__fmhyFixes = 0;
+            m.addEventListener('ratechange', function() {
+                // A site may reset the speed; fight back at most 3 times per element.
+                if (rate !== null && Math.abs(m.playbackRate - rate) > 0.001 && m.__fmhyFixes < 3) {
+                    m.__fmhyFixes++;
+                    setTimeout(function() { applyRate(m); }, 0);
+                }
+            });
+            if (!reported) { reported = true; try { if (B.hasMedia) B.hasMedia(true); } catch (_) {} }
+            pullRate();
+            applyRate(m);
+        }
+        function scan() {
+            var list = document.querySelectorAll('video,audio');
+            for (var i = 0; i < list.length; i++) hook(list[i]);
+        }
+        V.setRate = function(r) {
+            rate = (r && r > 0) ? r : null;
+            var list = document.querySelectorAll('video,audio');
+            for (var i = 0; i < list.length; i++) { list[i].__fmhyFixes = 0; applyRate(list[i]); }
+        };
+        var scanTimer = null;
+        function scheduleScan() {
+            if (scanTimer) return;
+            scanTimer = setTimeout(function() { scanTimer = null; scan(); }, 150);
+        }
+        try { new MutationObserver(scheduleScan).observe(document, { childList: true, subtree: true }); } catch (_) {}
+        document.addEventListener('DOMContentLoaded', scan);
         ['loadedmetadata', 'play', 'resize'].forEach(function(evt) {
             document.addEventListener(evt, function(e) {
-                if (isMedia(e.target)) reportSize(e.target);
+                if (isMedia(e.target)) { hook(e.target); reportSize(e.target); }
             }, true);
         });
     } catch (_) {}

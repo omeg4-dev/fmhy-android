@@ -41,3 +41,23 @@ fun fullscreenRequestedOrientation(mode: FullscreenOrientation, videoAspect: Flo
         if (videoAspect == null || videoAspect >= 1f) ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         else ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
 }
+
+/** Playback speeds offered in the browser menu and the Video settings page. */
+val PLAYBACK_SPEEDS = listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f)
+
+/** "1×", "1.25×" — the label for a playback speed. */
+fun speedLabel(speed: Float): String {
+    val text = if (speed == speed.toInt().toFloat()) speed.toInt().toString() else speed.toString()
+    return text + "\u00D7"
+}
+
+const val VIDEO_SPEED_KEY_PREFIX = "video_speed:"
+
+/** UserStore key holding the remembered speed for [host], e.g. "video_speed:example.com". */
+fun videoSpeedKey(host: String): String = VIDEO_SPEED_KEY_PREFIX + host.trim().lowercase()
+
+fun formatStoredSpeed(speed: Float): String = speed.toString()
+
+/** Parses a stored speed; null for missing, malformed or out-of-range values. */
+fun parseStoredSpeed(value: String?): Float? =
+    value?.toFloatOrNull()?.takeIf { it in 0.0625f..16f }
