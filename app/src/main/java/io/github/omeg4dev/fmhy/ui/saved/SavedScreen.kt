@@ -1,6 +1,7 @@
 package io.github.omeg4dev.fmhy.ui.saved
 
 import android.content.Intent
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyItemScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -30,6 +32,7 @@ import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.BookmarkBorder
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material3.AlertDialog
@@ -54,10 +57,13 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -90,6 +96,7 @@ import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
 import io.github.omeg4dev.fmhy.ui.common.enterStagger
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
+import io.github.omeg4dev.fmhy.ui.common.rememberSaveActions
 import io.github.omeg4dev.fmhy.ui.common.showUndo
 import androidx.compose.material3.minimumInteractiveComponentSize
 import kotlinx.coroutines.flow.filter
@@ -409,35 +416,38 @@ fun SavedScreen(
                                             itemsIndexed(group.items, key = { _, it -> it.bookmark.entryId }) { itemIndex, item ->
                                                 val noteFirstLine = item.bookmark.note.lines().firstOrNull { it.isNotBlank() }
                                                 if (item.liveEntry != null) {
-                                                    EntryRow(
+                                                    SwipeToDismissSavedRow(
                                                         entry = item.liveEntry,
-                                                        modifier = Modifier
-                                                            .animateItem()
-                                                            .enterStagger(index = itemIndex, key = currentTab),
-                                                        onShowInSection = { showInSection(item.liveEntry) },
-                                                        notePreview = noteFirstLine,
-                                                        onOpenUrl = { linkOpener.openUrl(it) },
                                                         onShowSnackbar = onShowSnackbar,
-                                                        trailingContent = {
-                                                            RowOverflowMenu(
-                                                                bookmark = item.bookmark,
-                                                                onMoveTo = { bookmarkForMove = item.bookmark },
-                                                                onEditNote = {
-                                                                    bookmarkForNote = item.bookmark
-                                                                    noteInputText = item.bookmark.note
-                                                                },
-                                                                onRemove = {
-                                                                    haptics.click()
-                                                                    scope.launch {
-                                                                        val snapshot = viewModel.removeBookmarkWithSnapshot(item.bookmark.entryId)
-                                                                        if (snackbarHostState.showUndo("Removed from Saved")) {
-                                                                            if (snapshot != null) viewModel.restoreBookmark(snapshot)
+                                                    ) {
+                                                        EntryRow(
+                                                            entry = item.liveEntry,
+                                                            modifier = Modifier.enterStagger(index = itemIndex, key = currentTab),
+                                                            onShowInSection = { showInSection(item.liveEntry) },
+                                                            notePreview = noteFirstLine,
+                                                            onOpenUrl = { linkOpener.openUrl(it) },
+                                                            onShowSnackbar = onShowSnackbar,
+                                                            trailingContent = {
+                                                                RowOverflowMenu(
+                                                                    bookmark = item.bookmark,
+                                                                    onMoveTo = { bookmarkForMove = item.bookmark },
+                                                                    onEditNote = {
+                                                                        bookmarkForNote = item.bookmark
+                                                                        noteInputText = item.bookmark.note
+                                                                    },
+                                                                    onRemove = {
+                                                                        haptics.click()
+                                                                        scope.launch {
+                                                                            val snapshot = viewModel.removeBookmarkWithSnapshot(item.bookmark.entryId)
+                                                                            if (snackbarHostState.showUndo("Removed from Saved")) {
+                                                                                if (snapshot != null) viewModel.restoreBookmark(snapshot)
+                                                                            }
                                                                         }
-                                                                    }
-                                                                },
-                                                            )
-                                                        }
-                                                    )
+                                                                    },
+                                                                )
+                                                            }
+                                                        )
+                                                    }
                                                 } else {
                                                     RemovedSiteRow(
                                                         item = item,
@@ -512,36 +522,39 @@ fun SavedScreen(
                                         itemsIndexed(group.items, key = { _, it -> it.bookmark.entryId }) { itemIndex, item ->
                                             val noteFirstLine = item.bookmark.note.lines().firstOrNull { it.isNotBlank() }
                                             if (item.liveEntry != null) {
-                                                EntryRow(
+                                                SwipeToDismissSavedRow(
                                                     entry = item.liveEntry,
-                                                    modifier = Modifier
-                                                        .animateItem()
-                                                        .enterStagger(index = itemIndex, key = currentTab),
-                                                    onShowInSection = { showInSection(item.liveEntry) },
-                                                    folderLabel = item.folderName,
-                                                    notePreview = noteFirstLine,
-                                                    onOpenUrl = { linkOpener.openUrl(it) },
                                                     onShowSnackbar = onShowSnackbar,
-                                                    trailingContent = {
-                                                        RowOverflowMenu(
-                                                            bookmark = item.bookmark,
-                                                            onMoveTo = { bookmarkForMove = item.bookmark },
-                                                            onEditNote = {
-                                                                bookmarkForNote = item.bookmark
-                                                                noteInputText = item.bookmark.note
-                                                            },
-                                                            onRemove = {
-                                                                haptics.click()
-                                                                scope.launch {
-                                                                    val snapshot = viewModel.removeBookmarkWithSnapshot(item.bookmark.entryId)
-                                                                    if (snackbarHostState.showUndo("Removed from Saved")) {
-                                                                        if (snapshot != null) viewModel.restoreBookmark(snapshot)
+                                                ) {
+                                                    EntryRow(
+                                                        entry = item.liveEntry,
+                                                        modifier = Modifier.enterStagger(index = itemIndex, key = currentTab),
+                                                        onShowInSection = { showInSection(item.liveEntry) },
+                                                        folderLabel = item.folderName,
+                                                        notePreview = noteFirstLine,
+                                                        onOpenUrl = { linkOpener.openUrl(it) },
+                                                        onShowSnackbar = onShowSnackbar,
+                                                        trailingContent = {
+                                                            RowOverflowMenu(
+                                                                bookmark = item.bookmark,
+                                                                onMoveTo = { bookmarkForMove = item.bookmark },
+                                                                onEditNote = {
+                                                                    bookmarkForNote = item.bookmark
+                                                                    noteInputText = item.bookmark.note
+                                                                },
+                                                                onRemove = {
+                                                                    haptics.click()
+                                                                    scope.launch {
+                                                                        val snapshot = viewModel.removeBookmarkWithSnapshot(item.bookmark.entryId)
+                                                                        if (snackbarHostState.showUndo("Removed from Saved")) {
+                                                                            if (snapshot != null) viewModel.restoreBookmark(snapshot)
+                                                                        }
                                                                     }
-                                                                }
-                                                            },
-                                                        )
-                                                    }
-                                                )
+                                                                },
+                                                            )
+                                                        }
+                                                    )
+                                                }
                                             } else {
                                                 RemovedSiteRow(
                                                     item = item,
@@ -1033,4 +1046,80 @@ private fun RemovedSiteRow(
             .fillMaxWidth()
             .clickable(onClick = onOpenUrl),
     )
+}
+
+@Suppress("DEPRECATION")
+@Composable
+private fun LazyItemScope.SwipeToDismissSavedRow(
+    entry: io.github.omeg4dev.fmhy.data.model.Entry,
+    modifier: Modifier = Modifier,
+    onShowSnackbar: (String) -> Unit = {},
+    content: @Composable () -> Unit,
+) {
+    val saveActions = rememberSaveActions(onShowSnackbar = onShowSnackbar)
+    var dismissed by remember(entry.id) { mutableStateOf(false) }
+    val dismissState = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            if (value != SwipeToDismissBoxValue.Settled && !dismissed) {
+                dismissed = true
+                saveActions.unsave(entry)
+                true
+            } else {
+                false
+            }
+        }
+    )
+
+    SwipeToDismissBox(
+        state = dismissState,
+        backgroundContent = {
+            val direction = dismissState.dismissDirection
+            if (direction != SwipeToDismissBoxValue.Settled) {
+                val isStart = direction == SwipeToDismissBoxValue.StartToEnd
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.errorContainer)
+                        .padding(horizontal = 24.dp),
+                    contentAlignment = if (isStart) Alignment.CenterStart else Alignment.CenterEnd,
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        if (isStart) {
+                            Icon(
+                                imageVector = Icons.Outlined.Delete,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onErrorContainer,
+                                modifier = Modifier.size(24.dp),
+                            )
+                            Text(
+                                text = "Remove",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                            )
+                        } else {
+                            Text(
+                                text = "Remove",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                            )
+                            Icon(
+                                imageVector = Icons.Outlined.Delete,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onErrorContainer,
+                                modifier = Modifier.size(24.dp),
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        modifier = modifier.animateItem(),
+    ) {
+        Surface(color = MaterialTheme.colorScheme.surface) {
+            content()
+        }
+    }
 }

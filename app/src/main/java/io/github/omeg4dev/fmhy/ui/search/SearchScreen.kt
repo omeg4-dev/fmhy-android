@@ -31,6 +31,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.History
@@ -76,12 +77,16 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.omeg4dev.fmhy.data.BrowserPrefs
 import io.github.omeg4dev.fmhy.data.link.CrossLinks
 import io.github.omeg4dev.fmhy.SectionNavKey
+import io.github.omeg4dev.fmhy.data.search.CategoryHit
 import io.github.omeg4dev.fmhy.di.AppContainer
 import io.github.omeg4dev.fmhy.nav.LocalAppNav
 import io.github.omeg4dev.fmhy.nav.LocalBottomBarPadding
@@ -91,8 +96,11 @@ import io.github.omeg4dev.fmhy.ui.common.EmptyState
 import io.github.omeg4dev.fmhy.ui.common.EntryRow
 import io.github.omeg4dev.fmhy.ui.common.LocalSnackbarHost
 import io.github.omeg4dev.fmhy.ui.common.SkeletonRows
+import io.github.omeg4dev.fmhy.ui.common.SwipeToSave
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
 import io.github.omeg4dev.fmhy.ui.common.enterStagger
+import io.github.omeg4dev.fmhy.ui.common.parseHighlight
+import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
 import io.github.omeg4dev.fmhy.ui.common.sectionIcon
 import io.github.omeg4dev.fmhy.ui.check.VerdictCard
@@ -125,13 +133,15 @@ fun SearchScreen(
     var showFiltersSheet by remember { mutableStateOf(false) }
 
     val linkOpener = rememberLinkOpener(container, onShowSnackbar)
+    val haptics = rememberHaptics()
 
     val browserPrefs by container.settingsRepository.browserPrefs.collectAsStateWithLifecycle(initialValue = BrowserPrefs())
-    val encodedQuery = remember(state.query) {
+    val liveQuery = viewModel.queryText
+    val encodedQuery = remember(liveQuery) {
         try {
-            java.net.URLEncoder.encode(state.query, "UTF-8")
+            java.net.URLEncoder.encode(liveQuery, "UTF-8")
         } catch (_: Exception) {
-            state.query
+            liveQuery
         }
     }
     val searchUrl = "${browserPrefs.searchEngine.queryUrl}$encodedQuery"
@@ -142,7 +152,7 @@ fun SearchScreen(
     val contentMode = when {
         !state.hasSearched -> SearchContentMode.RECENT
         state.isSearching -> SearchContentMode.SEARCHING
-        state.total == 0 && state.verdict == null -> SearchContentMode.EMPTY
+        state.total == 0 && state.verdict == null && state.categories.isEmpty() -> SearchContentMode.EMPTY
         else -> SearchContentMode.RESULTS
     }
 
@@ -400,13 +410,29 @@ fun SearchScreen(
                             modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.Center,
                         ) {
-                            EmptyState(
-                                icon = Icons.Outlined.SearchOff,
-                                title = "No sites match “${state.query}”",
-                                body = "Try fewer words or another spelling.",
-                                actionLabel = "Search the web",
-                                onAction = { linkOpener.openUrl(searchUrl) },
-                            )
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                EmptyState(
+                                    icon = Icons.Outlined.SearchOff,
+                                    title = "No sites match “${state.query}”",
+                                    body = "Try fewer words or another spelling.",
+                                    actionLabel = "Search the web",
+                                    onAction = { linkOpener.openUrl(searchUrl) },
+                                )
+                                state.suggestion?.let { suggestion ->
+                                    TextButton(onClick = {
+                                        haptics.tick()
+                                        viewModel.onQueryChange(suggestion)
+                                    }) {
+                                        Text(
+                                            text = buildAnnotatedString {
+                                                append("Did you mean ")
+                                                withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(suggestion) }
+                                                append("?")
+                                            },
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                     SearchContentMode.RESULTS -> {
@@ -444,6 +470,37 @@ fun SearchScreen(
                                             body = "Try fewer words or another spelling.",
                                             actionLabel = "Search the web",
                                             onAction = { linkOpener.openUrl(searchUrl) },
+                                        )
+                                    }
+                                }
+
+                                if (state.categories.isNotEmpty()) {
+                                    stickyHeader(key = "hdr_categories") {
+                                        Surface(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            color = MaterialTheme.colorScheme.surface,
+                                        ) {
+                                            Text(
+                                                text = "Categories",
+                                                style = MaterialTheme.typography.labelLarge,
+                                                color = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 6.dp),
+                                            )
+                                        }
+                                    }
+                                    itemsIndexed(
+                                        state.categories,
+                                        key = { _, c -> "cat_${c.heading?.id ?: c.section.id}" },
+                                    ) { _, cat ->
+                                        CategoryRow(
+                                            hit = cat,
+                                            query = state.query,
+                                            onClick = {
+                                                haptics.click()
+                                                nav.select(Tab.BROWSE)
+                                                nav.push(SectionNavKey(cat.section.id, anchor = cat.heading?.anchor))
+                                            },
+                                            modifier = Modifier.animateItem(),
                                         )
                                     }
                                 }
@@ -490,25 +547,27 @@ fun SearchScreen(
                                                 )
                                             }
 
-                                            EntryRow(
-                                                entry = hit.entry,
-                                                nameHl = hit.nameHl,
-                                                descHl = hit.descriptionHl,
-                                                isNew = hit.entry.id in state.newEntryIds,
-                                                onShowInSection = {
-                                                    scope.launch {
-                                                        val anchor = try {
-                                                            hit.entry.headingId?.let { hid ->
-                                                                container.datasetStore.headings(hit.entry.sectionId).firstOrNull { it.id == hid }?.anchor
-                                                            }
-                                                        } catch (_: Exception) { null }
-                                                        nav.select(Tab.BROWSE)
-                                                        nav.push(SectionNavKey(hit.entry.sectionId, anchor = anchor, focusEntryId = hit.entry.id))
-                                                    }
-                                                },
-                                                onOpenUrl = { linkOpener.openUrl(it) },
-                                                onShowSnackbar = onShowSnackbar,
-                                            )
+                                            SwipeToSave(entry = hit.entry) {
+                                                EntryRow(
+                                                    entry = hit.entry,
+                                                    nameHl = hit.nameHl,
+                                                    descHl = hit.descriptionHl,
+                                                    isNew = hit.entry.id in state.newEntryIds,
+                                                    onShowInSection = {
+                                                        scope.launch {
+                                                            val anchor = try {
+                                                                hit.entry.headingId?.let { hid ->
+                                                                    container.datasetStore.headings(hit.entry.sectionId).firstOrNull { it.id == hid }?.anchor
+                                                                }
+                                                            } catch (_: Exception) { null }
+                                                            nav.select(Tab.BROWSE)
+                                                            nav.push(SectionNavKey(hit.entry.sectionId, anchor = anchor, focusEntryId = hit.entry.id))
+                                                        }
+                                                    },
+                                                    onOpenUrl = { linkOpener.openUrl(it) },
+                                                    onShowSnackbar = onShowSnackbar,
+                                                )
+                                            }
 
                                             HorizontalDivider(
                                                 modifier = Modifier.padding(start = 16.dp),
@@ -621,4 +680,71 @@ fun SearchScreen(
     }
 
     UnsafeWarningDialog(linkOpener)
+}
+
+/** Plain search words of [query]: operators (`in:`, `is:`, `site:`), excludes and quotes dropped. */
+private fun plainQueryWords(query: String): List<String> =
+    query.split(Regex("\\s+")).filter { it.isNotBlank() && !it.contains(':') && !it.startsWith("-") && !it.contains('"') }
+
+/** [title] with the first occurrence of each query word wrapped in the highlight markers parseHighlight reads. */
+private fun categoryHighlight(title: String, words: List<String>): String {
+    val marked = BooleanArray(title.length)
+    for (w in words) {
+        val i = title.indexOf(w, ignoreCase = true)
+        if (i >= 0) for (k in i until i + w.length) marked[k] = true
+    }
+    return buildString {
+        var open = false
+        for ((idx, ch) in title.withIndex()) {
+            if (marked[idx] && !open) { append('\u0002'); open = true }
+            if (!marked[idx] && open) { append('\u0003'); open = false }
+            append(ch)
+        }
+        if (open) append('\u0003')
+    }
+}
+
+@Composable
+private fun CategoryRow(
+    hit: CategoryHit,
+    query: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val title = hit.heading?.title ?: hit.section.title
+    val primary = MaterialTheme.colorScheme.primary
+    val words = remember(query) { plainQueryWords(query) }
+    val styled = remember(title, words, primary) { parseHighlight(categoryHighlight(title, words), primary) }
+    ListItem(
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        leadingContent = {
+            Icon(
+                imageVector = sectionIcon(hit.section.id),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        },
+        headlineContent = {
+            Text(text = styled, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        },
+        supportingContent = if (hit.path.isNotEmpty()) {
+            {
+                Text(
+                    text = hit.path.joinToString(" › "),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        } else null,
+        trailingContent = {
+            Icon(
+                imageVector = Icons.Filled.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        },
+        modifier = modifier.clickable(onClick = onClick),
+    )
 }

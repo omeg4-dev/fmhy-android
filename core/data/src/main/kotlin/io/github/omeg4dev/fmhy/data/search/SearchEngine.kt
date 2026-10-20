@@ -3,9 +3,11 @@ package io.github.omeg4dev.fmhy.data.search
 import io.github.omeg4dev.fmhy.data.DatasetStore
 import io.github.omeg4dev.fmhy.data.model.Entry
 import io.github.omeg4dev.fmhy.data.model.EntryKind
+import io.github.omeg4dev.fmhy.data.model.Heading
 import io.github.omeg4dev.fmhy.data.model.Link
 import io.github.omeg4dev.fmhy.data.model.Section
 import io.github.omeg4dev.fmhy.data.model.Tier
+import java.text.Normalizer
 import kotlinx.serialization.json.Json
 
 open class SearchEngine(private val store: DatasetStore) {
@@ -80,9 +82,169 @@ open class SearchEngine(private val store: DatasetStore) {
             SearchGroup(sec, hits)
         }
 
+        val categories = if (query.words.isNotEmpty()) searchCategories(query) else emptyList()
+
         val tookMs = System.currentTimeMillis() - startTime
-        return SearchResults(groups, allHits.size, tookMs)
+        return SearchResults(groups, allHits.size, tookMs, categories)
     }
+
+    private class CategoryIndexEntry(
+        val hit: CategoryHit,
+        val normTitle: String,
+        val titleWords: List<String>,
+        val level: Int,
+        val sectionOrd: Int,
+        val headingOrd: Int,
+    )
+
+    private var categoryIndexVersion: Long? = null
+    private var categoryIndex: List<CategoryIndexEntry> = emptyList()
+
+    private suspend fun categoryIndexFor(): List<CategoryIndexEntry> {
+        val version = store.version()
+        synchronized(this) {
+            if (categoryIndexVersion == version) return categoryIndex
+        }
+        val sections = store.sections()
+        val headings = store.allHeadings()
+        val sectionsById = sections.associateBy { it.id }
+        val headingsById = headings.associateBy { it.id }
+        val built = ArrayList<CategoryIndexEntry>(sections.size + headings.size)
+        for (sec in sections) {
+            if (sec.title.isBlank()) continue
+            val n = normalizeForSearch(sec.title)
+            built.add(CategoryIndexEntry(CategoryHit(sec, null, emptyList()), n, n.splitWords(), 0, sec.ord, 0))
+        }
+        for (h in headings) {
+            if (h.title.isBlank()) continue
+            val sec = sectionsById[h.sectionId] ?: continue
+            val ancestors = ArrayList<String>()
+            var parent = h.parentId?.let { headingsById[it] }
+            var guard = 0
+            while (parent != null && guard++ < 8) {
+                ancestors.add(0, parent.title)
+                parent = parent.parentId?.let { headingsById[it] }
+            }
+            val n = normalizeForSearch(h.title)
+            built.add(
+                CategoryIndexEntry(
+                    CategoryHit(sec, h, listOf(sec.title) + ancestors),
+                    n, n.splitWords(), h.level, sec.ord, h.ord,
+                )
+            )
+        }
+        synchronized(this) {
+            categoryIndex = built
+            categoryIndexVersion = version
+        }
+        return built
+    }
+
+    /** Sections and headings whose title matches the plain words of [query] (operators are ignored). */
+    open suspend fun searchCategories(query: Query, limit: Int = 6): List<CategoryHit> {
+        val words = query.words.map { normalizeForSearch(it) }.filter { it.isNotEmpty() }
+        if (words.isEmpty()) return emptyList()
+        val q = words.joinToString(" ")
+        val ranked = ArrayList<Pair<Int, CategoryIndexEntry>>()
+        for (e in categoryIndexFor()) {
+            val rank = when {
+                e.normTitle == q -> 0
+                e.normTitle.startsWith(q) -> 1
+                words.all { w -> e.titleWords.any { it.startsWith(w) } } -> 2
+                e.normTitle.contains(q) -> 3
+                else -> continue
+            }
+            ranked.add(rank to e)
+        }
+        return ranked
+            .sortedWith(
+                compareBy<Pair<Int, CategoryIndexEntry>>({ it.first }, { it.second.level }, { it.second.sectionOrd }, { it.second.headingOrd })
+            )
+            .take(limit)
+            .map { it.second.hit }
+    }
+
+    private var vocabularyVersion: Long? = null
+    private var vocabulary: Map<String, Int> = emptyMap()
+
+    private suspend fun vocabularyFor(): Map<String, Int> {
+        val version = store.version()
+        synchronized(this) {
+            if (vocabularyVersion == version) return vocabulary
+        }
+        val counts = HashMap<String, Int>()
+        fun addTokens(text: String) {
+            for (t in text.lowercase().split(Regex("[^\\p{L}\\p{N}]+"))) {
+                if (t.length >= 3) counts[t] = (counts[t] ?: 0) + 1
+            }
+        }
+        store.withConnection { conn ->
+            conn.prepare("SELECT name FROM entries").use { stmt ->
+                while (stmt.step()) addTokens(stmt.getText(0))
+            }
+        }
+        for (h in store.allHeadings()) addTokens(h.title)
+        synchronized(this) {
+            vocabulary = counts
+            vocabularyVersion = version
+        }
+        return counts
+    }
+
+    /** "Did you mean" for a query with no hits: each plain word of 4+ characters is replaced by the closest
+     *  known term (Damerau-Levenshtein, at most 1 edit for 4-5 letters, 2 for longer; more frequent term wins
+     *  ties). Returns the whole query with the corrections applied, or null when nothing changed. */
+    open suspend fun suggest(query: Query): String? {
+        val candidates = query.words.map { it.lowercase() }.filter { it.length >= 4 }.distinct()
+        if (candidates.isEmpty()) return null
+        val vocab = vocabularyFor()
+        val fixes = HashMap<String, String>()
+        for (word in candidates) {
+            if (vocab.containsKey(word)) continue
+            val maxDist = if (word.length <= 5) 1 else 2
+            var best: String? = null
+            var bestDist = Int.MAX_VALUE
+            var bestFreq = -1
+            for ((term, freq) in vocab) {
+                if (kotlin.math.abs(term.length - word.length) > maxDist) continue
+                val d = editDistance(word, term, maxDist)
+                if (d > maxDist) continue
+                if (d < bestDist || (d == bestDist && freq > bestFreq)) {
+                    best = term; bestDist = d; bestFreq = freq
+                }
+            }
+            if (best != null) fixes[word] = best
+        }
+        if (fixes.isEmpty()) return null
+        val result = query.raw.trim().split(Regex("\\s+")).joinToString(" ") { tok -> fixes[tok.lowercase()] ?: tok }
+        return result.takeIf { !it.equals(query.raw.trim(), ignoreCase = false) }
+    }
+
+    /** Optimal string alignment distance (Damerau-Levenshtein with adjacent transpositions). */
+    private fun editDistance(a: String, b: String, limit: Int): Int {
+        if (kotlin.math.abs(a.length - b.length) > limit) return limit + 1
+        val n = a.length
+        val m = b.length
+        var prev2 = IntArray(m + 1)
+        var prev = IntArray(m + 1) { it }
+        var cur = IntArray(m + 1)
+        for (i in 1..n) {
+            cur[0] = i
+            for (j in 1..m) {
+                val cost = if (a[i - 1] == b[j - 1]) 0 else 1
+                var v = minOf(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost)
+                if (i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1]) v = minOf(v, prev2[j - 2] + 1)
+                cur[j] = v
+            }
+            val t = prev2; prev2 = prev; prev = cur; cur = t
+        }
+        return prev[m]
+    }
+
+    private fun String.splitWords(): List<String> = split(Regex("[^\\p{L}\\p{N}]+")).filter { it.isNotEmpty() }
+
+    private fun normalizeForSearch(s: String): String =
+        Normalizer.normalize(s, Normalizer.Form.NFD).replace(Regex("\\p{Mn}+"), "").lowercase().trim()
 
     private suspend fun searchFts(
         query: Query,
@@ -212,6 +374,13 @@ open class SearchEngine(private val store: DatasetStore) {
             val placeholders = effectiveSections.joinToString(",") { "?" }
             conditions.add("e.section_id IN ($placeholders)")
             effectiveSections.forEach { params.add(it) }
+        }
+        // Same excludes the FTS path applies with NOT, matched as case-insensitive substrings.
+        for (ex in query.excludes) {
+            conditions.add("(e.name NOT LIKE '%' || ? || '%' AND e.description NOT LIKE '%' || ? || '%' AND e.url NOT LIKE '%' || ? || '%')")
+            params.add(ex)
+            params.add(ex)
+            params.add(ex)
         }
 
         val whereClause = "WHERE " + conditions.joinToString(" AND ")

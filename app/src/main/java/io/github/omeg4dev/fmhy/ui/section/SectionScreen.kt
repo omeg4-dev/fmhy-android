@@ -72,6 +72,7 @@ import io.github.omeg4dev.fmhy.ui.common.CrossfadeContent
 import io.github.omeg4dev.fmhy.ui.common.EntryRow
 import io.github.omeg4dev.fmhy.ui.common.LocalSnackbarHost
 import io.github.omeg4dev.fmhy.ui.common.SkeletonRows
+import io.github.omeg4dev.fmhy.ui.common.SwipeToSave
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
 import io.github.omeg4dev.fmhy.ui.common.enterStagger
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
@@ -623,13 +624,15 @@ fun SectionScreen(
                                             label = "entry_highlight",
                                         )
                                         Column(modifier = Modifier.background(entryBg)) {
-                                            EntryRow(
-                                                entry = item.entry,
-                                                alternatives = item.alternatives,
-                                                isNew = item.entry.id in state.newEntryIds,
-                                                onOpenUrl = { linkOpener.openUrl(it) },
-                                                onShowSnackbar = onShowSnackbar,
-                                            )
+                                            SwipeToSave(entry = item.entry) {
+                                                EntryRow(
+                                                    entry = item.entry,
+                                                    alternatives = item.alternatives,
+                                                    isNew = item.entry.id in state.newEntryIds,
+                                                    onOpenUrl = { linkOpener.openUrl(it) },
+                                                    onShowSnackbar = onShowSnackbar,
+                                                )
+                                            }
                                             val nextItem = state.items.getOrNull(index + 1)
                                             if (nextItem is SectionItem.EntryItem) {
                                                 HorizontalDivider(
