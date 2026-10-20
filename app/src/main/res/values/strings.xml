@@ -1,3 +1,10 @@
 <resources>
     <string name="app_name">FMHY</string>
+    <string name="widget_description">Search and a random starred site</string>
+    <string name="widget_search_hint">Search FMHY</string>
+    <string name="widget_refresh">Refresh random pick</string>
+    <string name="shortcut_search">Search</string>
+    <string name="shortcut_saved">Saved</string>
+    <string name="shortcut_whats_new">What\'s new</string>
+    <string name="shortcut_check">Check a link</string>
 </resources>

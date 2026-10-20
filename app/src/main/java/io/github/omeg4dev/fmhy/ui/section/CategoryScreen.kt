@@ -14,10 +14,13 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.List
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -27,6 +30,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import io.github.omeg4dev.fmhy.data.HomePrefs
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -79,6 +83,11 @@ fun CategoryScreen(
     val isFilterActive = state.starredOnly || !state.showIndexes
 
     val isOverview = key.categoryHeadingId == "__overview"
+    val homePrefs by container.settingsRepository.homePrefs.collectAsStateWithLifecycle(initialValue = HomePrefs())
+    val userChanges by container.userStore.changes.collectAsStateWithLifecycle()
+    var showCategoryMenu by remember { mutableStateOf(false) }
+    var isCategoryPinned by remember { mutableStateOf(false) }
+
     val category = remember(state.structure.categories, key.categoryHeadingId) {
         if (isOverview) null else state.structure.categories.firstOrNull { it.heading.id == key.categoryHeadingId }
     }
@@ -218,6 +227,46 @@ fun CategoryScreen(
                         }
                         IconButton(onClick = { showJumpBottomSheet = true }) {
                             Icon(Icons.AutoMirrored.Outlined.List, contentDescription = "Outline")
+                        }
+                        if (homePrefs.personalHome) {
+                            val catHeadingId = if (isOverview) "__overview" else (category?.heading?.id ?: key.categoryHeadingId)
+                            LaunchedEffect(userChanges, key.sectionId, catHeadingId) {
+                                val pins = container.userStore.pins()
+                                isCategoryPinned = pins.any { it.sectionId == key.sectionId && it.headingId == catHeadingId }
+                            }
+                            Box {
+                                IconButton(onClick = { showCategoryMenu = true }) {
+                                    Icon(Icons.Default.MoreVert, contentDescription = "More options")
+                                }
+                                DropdownMenu(
+                                    expanded = showCategoryMenu,
+                                    onDismissRequest = { showCategoryMenu = false },
+                                ) {
+                                    if (isCategoryPinned) {
+                                        DropdownMenuItem(
+                                            text = { Text("Unpin") },
+                                            onClick = {
+                                                showCategoryMenu = false
+                                                scope.launch {
+                                                    container.userStore.unpin(key.sectionId, catHeadingId)
+                                                    onShowSnackbar("Unpinned from Home")
+                                                }
+                                            },
+                                        )
+                                    } else {
+                                        DropdownMenuItem(
+                                            text = { Text("Pin to Home") },
+                                            onClick = {
+                                                showCategoryMenu = false
+                                                scope.launch {
+                                                    container.userStore.pin(key.sectionId, catHeadingId, categoryTitle)
+                                                    onShowSnackbar("Pinned to Home")
+                                                }
+                                            },
+                                        )
+                                    }
+                                }
+                            }
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(

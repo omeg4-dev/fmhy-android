@@ -301,7 +301,7 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                     nav.select(Tab.SEARCH)
                     nav.requestSearchFocus()
                 },
-                onNavigateToSection = { sectionId -> nav.push(SectionNavKey(sectionId)) },
+                onNavigateToSection = { sectionId, anchor -> nav.push(SectionNavKey(sectionId, anchor)) },
                 onNavigateToSettings = { nav.push(SettingsNavKey) },
                 onNavigateToCheckLink = { nav.push(CheckLinkNavKey()) },
                 onShowSnackbar = { msg ->

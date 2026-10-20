@@ -7,7 +7,12 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextAlign
 import io.github.omeg4dev.fmhy.data.link.CrossLinks
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -76,7 +81,7 @@ fun HomeScreen(
     viewModel: HomeViewModel,
     container: AppContainer,
     onNavigateToSearch: () -> Unit,
-    onNavigateToSection: (String) -> Unit,
+    onNavigateToSection: (sectionId: String, anchor: String?) -> Unit,
     onNavigateToSettings: () -> Unit,
     onNavigateToCheckLink: () -> Unit = {},
     onShowSnackbar: (String) -> Unit = {},
@@ -354,7 +359,7 @@ fun HomeScreen(
                                                 .clip(MaterialTheme.shapes.small)
                                                 .clickable {
                                                     haptics.click()
-                                                    onNavigateToSection(pick.sectionId)
+                                                    onNavigateToSection(pick.sectionId, null)
                                                 }
                                                 .padding(vertical = 2.dp),
                                         ) {
@@ -379,6 +384,78 @@ fun HomeScreen(
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis,
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Pinned block (only when personalHome is on)
+                    if (state.personalHome) {
+                        if (state.pins.isEmpty()) {
+                            item(key = "pins-empty-card") {
+                                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                                    Text(
+                                        text = "Pinned",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(bottom = 8.dp),
+                                    )
+                                    Surface(
+                                        shape = MaterialTheme.shapes.large,
+                                        color = MaterialTheme.colorScheme.surfaceContainerLow,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    ) {
+                                        Text(
+                                            text = "Pin sections or categories from their menu to see them here.",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.padding(16.dp),
+                                        )
+                                    }
+                                }
+                            }
+                        } else {
+                            item(key = "pins-block") {
+                                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                                    Text(
+                                        text = "Pinned",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(bottom = 8.dp),
+                                    )
+                                    FlowRow(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                                        modifier = Modifier.fillMaxWidth(),
+                                    ) {
+                                        state.pins.forEach { pin ->
+                                            AssistChip(
+                                                onClick = {
+                                                    haptics.click()
+                                                    onNavigateToSection(pin.sectionId, pin.anchor)
+                                                },
+                                                leadingIcon = {
+                                                    Icon(
+                                                        imageVector = sectionIcon(pin.sectionId),
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(18.dp),
+                                                    )
+                                                },
+                                                label = {
+                                                    Text(
+                                                        text = pin.label,
+                                                        style = MaterialTheme.typography.labelLarge,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis,
+                                                    )
+                                                },
+                                                colors = AssistChipDefaults.assistChipColors(
+                                                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                                ),
+                                                border = null,
                                             )
                                         }
                                     }
@@ -426,7 +503,7 @@ fun HomeScreen(
                                                 when (section.id) {
                                                     "audio-tools" -> linkOpener.openUrl("https://fmhy.net/audio#audio-tools")
                                                     "educational-tools" -> linkOpener.openUrl("https://fmhy.net/educational#educational-tools")
-                                                    else -> onNavigateToSection(section.id)
+                                                    else -> onNavigateToSection(section.id, null)
                                                 }
                                             }
                                             .padding(horizontal = 16.dp, vertical = 8.dp),
@@ -481,6 +558,35 @@ fun HomeScreen(
                         }
                     }
                     }
+
+                    // Hidden sections toggle (only when personalHome is on)
+                    if (state.personalHome && state.hiddenSectionsCount > 0) {
+                        item(key = "hidden-sections-toggle") {
+                            val text = if (state.showingHiddenSections) {
+                                "${state.hiddenSectionsCount} hidden sections · Hide"
+                            } else {
+                                "${state.hiddenSectionsCount} hidden sections · Show"
+                            }
+                            Surface(
+                                onClick = {
+                                    haptics.click()
+                                    viewModel.toggleShowHiddenSections()
+                                },
+                                color = Color.Transparent,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                            ) {
+                                Text(
+                                    text = text,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -488,3 +594,22 @@ fun HomeScreen(
 
     UnsafeWarningDialog(linkOpener)
 }
+
+@Composable
+fun HomeScreen(
+    viewModel: HomeViewModel,
+    container: AppContainer,
+    onNavigateToSearch: () -> Unit,
+    onNavigateToSection: (String) -> Unit,
+    onNavigateToSettings: () -> Unit,
+    onNavigateToCheckLink: () -> Unit = {},
+    onShowSnackbar: (String) -> Unit = {},
+) = HomeScreen(
+    viewModel = viewModel,
+    container = container,
+    onNavigateToSearch = onNavigateToSearch,
+    onNavigateToSection = { sectionId, _ -> onNavigateToSection(sectionId) },
+    onNavigateToSettings = onNavigateToSettings,
+    onNavigateToCheckLink = onNavigateToCheckLink,
+    onShowSnackbar = onShowSnackbar,
+)

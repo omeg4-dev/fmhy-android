@@ -2,4 +2,12 @@
 <resources>
     <color name="splash_background">#FDF8FF</color>
     <color name="ic_launcher_background">#FF000000</color>
+    <color name="ic_launcher_mono_background">#FF7C5CFF</color>
+
+    <!-- Widget colors -->
+    <color name="widget_bg">#FFFDF8FF</color>
+    <color name="widget_surface_pill">#FFF0E8F6</color>
+    <color name="widget_accent">#FF7C5CFF</color>
+    <color name="widget_text">#FF1D1B20</color>
+    <color name="widget_text_secondary">#FF49454F</color>
 </resources>

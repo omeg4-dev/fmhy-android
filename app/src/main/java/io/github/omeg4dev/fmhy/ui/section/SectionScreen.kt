@@ -16,10 +16,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.outlined.List
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.FilterList
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -28,8 +32,10 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import io.github.omeg4dev.fmhy.data.HomePrefs
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -81,6 +87,23 @@ fun SectionScreen(
     var pendingSelection by remember { mutableStateOf<Int?>(null) }
 
     val isFilterActive = state.starredOnly || !state.showIndexes
+
+    val homePrefs by container.settingsRepository.homePrefs.collectAsStateWithLifecycle(initialValue = HomePrefs())
+    val userChanges by container.userStore.changes.collectAsStateWithLifecycle()
+    var isSectionPinned by remember { mutableStateOf(false) }
+    var isSectionHidden by remember { mutableStateOf(false) }
+    var showSectionMenu by remember { mutableStateOf(false) }
+    var categoryToPinIndex by remember { mutableStateOf<Int?>(null) }
+
+    val secId = state.section?.id ?: viewModel.sectionId
+    val secTitle = state.section?.title ?: secId
+
+    LaunchedEffect(userChanges, secId) {
+        val pins = container.userStore.pins()
+        isSectionPinned = pins.any { it.sectionId == secId && it.headingId.isEmpty() }
+        val hidden = container.userStore.hiddenSections()
+        isSectionHidden = secId in hidden
+    }
 
     // In CATEGORIES mode: handle anchor navigation by opening CategoryNavKey
     var hasPushedAnchorByCategory by rememberSaveable { mutableStateOf(false) }
@@ -183,6 +206,51 @@ fun SectionScreen(
                                 Icon(Icons.AutoMirrored.Outlined.List, contentDescription = "Outline")
                             }
                         }
+                        if (homePrefs.personalHome) {
+                            Box {
+                                IconButton(onClick = { showSectionMenu = true }) {
+                                    Icon(Icons.Default.MoreVert, contentDescription = "More options")
+                                }
+                                DropdownMenu(
+                                    expanded = showSectionMenu,
+                                    onDismissRequest = { showSectionMenu = false },
+                                ) {
+                                    if (isSectionPinned) {
+                                        DropdownMenuItem(
+                                            text = { Text("Unpin") },
+                                            onClick = {
+                                                showSectionMenu = false
+                                                scope.launch {
+                                                    container.userStore.unpin(secId, "")
+                                                    onShowSnackbar("Unpinned from Home")
+                                                }
+                                            },
+                                        )
+                                    } else {
+                                        DropdownMenuItem(
+                                            text = { Text("Pin to Home") },
+                                            onClick = {
+                                                showSectionMenu = false
+                                                scope.launch {
+                                                    container.userStore.pin(secId, "", secTitle)
+                                                    onShowSnackbar("Pinned to Home")
+                                                }
+                                            },
+                                        )
+                                    }
+                                    DropdownMenuItem(
+                                        text = { Text("Hide on Home") },
+                                        onClick = {
+                                            showSectionMenu = false
+                                            scope.launch {
+                                                container.userStore.setSectionHidden(secId, true)
+                                                onShowSnackbar("Section hidden on Home")
+                                            }
+                                        },
+                                    )
+                                }
+                            }
+                        }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.colorScheme.surface,
@@ -225,6 +293,9 @@ fun SectionScreen(
                                 }
                             }
                         },
+                        onLongClickChip = if (homePrefs.personalHome) {
+                            { index -> categoryToPinIndex = index }
+                        } else null,
                     )
 
                     HorizontalDivider(
@@ -488,6 +559,47 @@ fun SectionScreen(
             },
             onDismiss = { showLegendBottomSheet = false },
         )
+    }
+
+    categoryToPinIndex?.let { index ->
+        val category = state.structure.categories.getOrNull(index)
+        if (category != null) {
+            val catTitle = CrossLinks.splitLinkTitle(category.heading.title).first
+            var isCatPinned by remember(category.heading.id, userChanges) { mutableStateOf(false) }
+            LaunchedEffect(category.heading.id, userChanges) {
+                val pins = container.userStore.pins()
+                isCatPinned = pins.any { it.sectionId == secId && it.headingId == category.heading.id }
+            }
+            AlertDialog(
+                onDismissRequest = { categoryToPinIndex = null },
+                title = { Text(catTitle) },
+                text = { Text(if (isCatPinned) "Remove this category from Home pins?" else "Pin this category to Home?") },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            val toPin = !isCatPinned
+                            categoryToPinIndex = null
+                            scope.launch {
+                                if (toPin) {
+                                    container.userStore.pin(secId, category.heading.id, catTitle)
+                                    onShowSnackbar("Pinned to Home")
+                                } else {
+                                    container.userStore.unpin(secId, category.heading.id)
+                                    onShowSnackbar("Unpinned from Home")
+                                }
+                            }
+                        }
+                    ) {
+                        Text(if (isCatPinned) "Unpin" else "Pin to Home")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { categoryToPinIndex = null }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
     }
 
     UnsafeWarningDialog(linkOpener)

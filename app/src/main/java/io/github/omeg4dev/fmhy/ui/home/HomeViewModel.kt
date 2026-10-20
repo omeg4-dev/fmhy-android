@@ -26,12 +26,23 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import io.github.omeg4dev.fmhy.data.HomePrefs
+import io.github.omeg4dev.fmhy.data.user.Pin
+import io.github.omeg4dev.fmhy.data.user.UserStore
 
 @Immutable
 data class SyncBannerUiState(
     val text: String,
     val isLoading: Boolean = false,
     val isError: Boolean = false,
+)
+
+@Immutable
+data class ResolvedPin(
+    val sectionId: String,
+    val headingId: String = "",
+    val label: String,
+    val anchor: String? = null,
 )
 
 @Immutable
@@ -45,6 +56,10 @@ data class HomeUiState(
     val randomPick: Entry? = null,
     val isEmptyState: Boolean = false,
     val syncBanner: SyncBannerUiState? = null,
+    val personalHome: Boolean = false,
+    val pins: ImmutableList<ResolvedPin> = persistentListOf(),
+    val hiddenSectionsCount: Int = 0,
+    val showingHiddenSections: Boolean = false,
 )
 
 /** A titled block of sections on Home; [title] is null when the list is not grouped (A–Z). */
@@ -112,15 +127,59 @@ internal fun groupSections(
     }
 }
 
+internal fun resolvePins(
+    pins: List<Pin>,
+    sections: List<Section>,
+): List<ResolvedPin> {
+    val sectionMap = sections.associateBy { it.id }
+    return pins.sortedBy { it.ord }.map { pin ->
+        val sectionTitle = sectionMap[pin.sectionId]?.title ?: pin.sectionId
+        if (pin.headingId.isEmpty()) {
+            ResolvedPin(
+                sectionId = pin.sectionId,
+                headingId = "",
+                label = sectionTitle,
+                anchor = null,
+            )
+        } else {
+            val label = "$sectionTitle › ${pin.title}"
+            ResolvedPin(
+                sectionId = pin.sectionId,
+                headingId = pin.headingId,
+                label = label,
+                anchor = pin.headingId,
+            )
+        }
+    }
+}
+
+internal fun filterSections(
+    sections: List<Section>,
+    personalHome: Boolean,
+    hiddenSections: Set<String>,
+    showHiddenSession: Boolean,
+): List<Section> {
+    if (!personalHome || showHiddenSession || hiddenSections.isEmpty()) {
+        return sections
+    }
+    return sections.filter { it.id !in hiddenSections }
+}
+
 class HomeViewModel(
     private val store: DatasetStore,
     private val settingsRepository: SettingsRepository,
     private val container: AppContainer,
+    private val userStore: UserStore = container.userStore,
 ) : ViewModel() {
 
     private val _randomPick = MutableStateFlow<Entry?>(null)
     private val _isRefreshing = MutableStateFlow(false)
     private val _syncBanner = MutableStateFlow<SyncBannerUiState?>(null)
+    private val _showHiddenSections = MutableStateFlow(false)
+
+    fun toggleShowHiddenSections() {
+        _showHiddenSections.value = !_showHiddenSections.value
+    }
 
     private var syncingJob: Job? = null
     private var autoHideJob: Job? = null
@@ -225,11 +284,17 @@ class HomeViewModel(
         container.markSyncBannerConsumed()
     }
 
-    private data class HomeInitData(
+    private data class HomeCoreData(
         val initialized: Boolean,
         val version: Long,
         val lastVisitTs: Long,
         val appearance: Appearance,
+    )
+
+    private data class HomeUserData(
+        val homePrefs: HomePrefs,
+        val userChanges: Long,
+        val showHidden: Boolean,
     )
 
     val uiState: StateFlow<HomeUiState> = combine(
@@ -239,32 +304,55 @@ class HomeViewModel(
             settingsRepository.lastVisitTs,
             settingsRepository.appearance,
         ) { initialized, version, lastVisitTs, appearance ->
-            HomeInitData(initialized, version, lastVisitTs, appearance)
+            HomeCoreData(initialized, version, lastVisitTs, appearance)
+        },
+        combine(
+            settingsRepository.homePrefs,
+            userStore.changes,
+            _showHiddenSections,
+        ) { homePrefs, userChanges, showHidden ->
+            HomeUserData(homePrefs, userChanges, showHidden)
         },
         _randomPick,
         _isRefreshing,
         _syncBanner,
-    ) { (initialized, version, lastVisitTs, appearance), randomPick, refreshing, banner ->
+    ) { (initialized, version, lastVisitTs, appearance), (homePrefs, _, showHidden), randomPick, refreshing, banner ->
         if (!initialized) {
             HomeUiState(isLoading = true, isReady = false, syncBanner = banner)
         } else if (!store.isAvailable) {
             HomeUiState(isLoading = refreshing, isReady = true, isEmptyState = true, syncBanner = banner)
         } else {
-            val sections = store.sections(appearance.sectionOrder).toImmutableList()
+            val personalHome = homePrefs.personalHome
+            val allSections = store.sections(appearance.sectionOrder)
+            val hiddenSections = if (personalHome) {
+                try { userStore.hiddenSections() } catch (_: Exception) { emptySet() }
+            } else emptySet()
+
+            val rawPins = if (personalHome) {
+                try { userStore.pins() } catch (_: Exception) { emptyList() }
+            } else emptyList()
+
+            val resolvedPins = resolvePins(rawPins, allSections).toImmutableList()
+            val visibleSections = filterSections(allSections, personalHome, hiddenSections, showHidden).toImmutableList()
+
             val newCount = if (lastVisitTs > 0L) store.countAddedSince(lastVisitTs) else 0
             val pick = if (appearance.showRandomPick) (randomPick ?: store.randomTopPick()) else null
-            val isEmpty = sections.isEmpty() && version == 0L
+            val isEmpty = visibleSections.isEmpty() && version == 0L
 
             HomeUiState(
                 isLoading = refreshing,
                 isReady = true,
                 datasetVersion = version,
-                sections = sections,
-                sectionGroups = groupSections(sections, appearance.sectionOrder, anchorCounts()).toImmutableList(),
+                sections = visibleSections,
+                sectionGroups = groupSections(visibleSections, appearance.sectionOrder, anchorCounts()).toImmutableList(),
                 newSinceLastVisitCount = newCount,
                 randomPick = pick,
                 isEmptyState = isEmpty,
                 syncBanner = banner,
+                personalHome = personalHome,
+                pins = resolvedPins,
+                hiddenSectionsCount = hiddenSections.size,
+                showingHiddenSections = showHidden,
             )
         }
     }.stateIn(
