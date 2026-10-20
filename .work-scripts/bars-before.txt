@@ -1,0 +1,207 @@
+== before-bottom
+--- a) tap
+  [writes:  | targets:  | writes-while-down: ]
+--- b1) slow drag, finger still down
+  target 0.0 -> 297.0 pointerDown=true
+  [writes:  | targets: 1 | writes-while-down: ]
+--- b2) after UP
+  [writes:  | targets:  | writes-while-down: ]
+--- c1) fast swipe up
+  [writes:  | targets:  | writes-while-down: ]
+--- c2) fast swipe down
+  target 297.0 -> 0.0 pointerDown=true
+  [writes:  | targets: 1 | writes-while-down: ]
+== before-top
+--- a) tap
+  [writes:  | targets:  | writes-while-down: ]
+--- b1) slow drag, finger still down
+  [writes:  | targets:  | writes-while-down: ]
+--- b2) after UP
+  [writes:  | targets:  | writes-while-down: ]
+--- c1) fast swipe up
+  target 0.0 -> -297.0 pointerDown=true
+  webView.translationY=280.0658 pointerDown=true
+  webView.translationY=107.94461 pointerDown=true
+  webView.translationY=58.72177 pointerDown=true
+  webView.translationY=42.811813 pointerDown=false
+  webView.translationY=8.389618 pointerDown=false
+  webView.translationY=4.4959106 pointerDown=false
+  webView.translationY=0.45776367 pointerDown=false
+  webView.translationY=0.0 pointerDown=false
+  [writes: 8 | targets: 1 | writes-while-down: 3]
+--- c2) fast swipe down
+  target -297.0 -> 0.0 pointerDown=true
+  webView.translationY=16.934204 pointerDown=true
+  webView.translationY=85.691574 pointerDown=true
+  webView.translationY=148.5 pointerDown=true
+  webView.translationY=189.05539 pointerDown=true
+  webView.translationY=217.36874 pointerDown=true
+  webView.translationY=254.18819 pointerDown=false
+  webView.translationY=275.93442 pointerDown=false
+  webView.translationY=283.18524 pointerDown=false
+  webView.translationY=288.61038 pointerDown=false
+  webView.translationY=295.08994 pointerDown=false
+  webView.translationY=296.54224 pointerDown=false
+  webView.translationY=297.0 pointerDown=false
+  [writes: 12 | targets: 1 | writes-while-down: 5]
+== before-top (slow drag rerun, old code)
+== before-top-rerun
+--- a) tap
+  [writes:  | targets:  | writes-while-down: ]
+--- b1) slow drag, finger still down
+  target 0.0 -> -297.0 pointerDown=true
+  webView.translationY=280.0658 pointerDown=true
+  webView.translationY=211.30844 pointerDown=true
+  webView.translationY=148.5 pointerDown=true
+  webView.translationY=107.94461 pointerDown=true
+  webView.translationY=118.724075 pointerDown=true
+  webView.translationY=202.4723 pointerDown=true
+  webView.translationY=246.3107 pointerDown=true
+  webView.translationY=269.74814 pointerDown=true
+  target 0.0 -> -297.0 pointerDown=true
+  webView.translationY=191.91937 pointerDown=true
+  webView.translationY=134.87407 pointerDown=true
+  webView.translationY=72.32454 pointerDown=true
+  webView.translationY=38.883514 pointerDown=true
+  webView.translationY=113.35626 pointerDown=true
+  webView.translationY=167.94176 pointerDown=true
+  webView.translationY=227.79413 pointerDown=true
+  webView.translationY=259.79315 pointerDown=true
+  target 0.0 -> -297.0 pointerDown=true
+  webView.translationY=184.83664 pointerDown=true
+  webView.translationY=94.42178 pointerDown=true
+  webView.translationY=51.36537 pointerDown=true
+  webView.translationY=37.448547 pointerDown=true
+  target -297.0 -> 0.0 pointerDown=true
+  webView.translationY=112.33531 pointerDown=true
+  webView.translationY=202.66606 pointerDown=true
+  webView.translationY=227.4094 pointerDown=true
+  target 0.0 -> -297.0 pointerDown=true
+  webView.translationY=161.79637 pointerDown=true
+  webView.translationY=82.65192 pointerDown=true
+  webView.translationY=60.972717 pointerDown=true
+  target -297.0 -> 0.0 pointerDown=true
+  webView.translationY=129.0722 pointerDown=true
+  webView.translationY=211.21591 pointerDown=true
+  webView.translationY=233.71666 pointerDown=true
+  target 0.0 -> -297.0 pointerDown=true
+  webView.translationY=166.28384 pointerDown=true
+  webView.translationY=84.94429 pointerDown=true
+  webView.translationY=62.66382 pointerDown=true
+  target -297.0 -> 0.0 pointerDown=true
+  webView.translationY=130.27538 pointerDown=true
+  webView.translationY=211.83054 pointerDown=true
+  webView.translationY=250.6679 pointerDown=true
+  target 0.0 -> -297.0 pointerDown=true
+  webView.translationY=178.34424 pointerDown=true
+  webView.translationY=91.10521 pointerDown=true
+  target -297.0 -> 0.0 pointerDown=true
+  webView.translationY=102.84482 pointerDown=true
+  webView.translationY=194.05261 pointerDown=true
+  webView.translationY=241.79575 pointerDown=true
+  target 0.0 -> -297.0 pointerDown=true
+  webView.translationY=172.03192 pointerDown=true
+  webView.translationY=120.89787 pointerDown=true
+  webView.translationY=64.82997 pointerDown=true
+  target -297.0 -> 0.0 pointerDown=true
+  webView.translationY=78.06773 pointerDown=true
+  webView.translationY=180.91498 pointerDown=true
+  webView.translationY=234.75087 pointerDown=true
+  target 0.0 -> -297.0 pointerDown=true
+  webView.translationY=167.01965 pointerDown=true
+  webView.translationY=85.320175 pointerDown=true
+  webView.translationY=46.414093 pointerDown=true
+  target -297.0 -> 0.0 pointerDown=true
+  webView.translationY=118.714096 pointerDown=true
+  webView.translationY=171.70705 pointerDown=true
+  webView.translationY=229.81323 pointerDown=true
+  target 0.0 -> -297.0 pointerDown=true
+  webView.translationY=216.70985 pointerDown=true
+  webView.translationY=114.90662 pointerDown=true
+  webView.translationY=61.617233 pointerDown=true
+  webView.translationY=45.437836 pointerDown=true
+  target -297.0 -> 0.0 pointerDown=true
+  webView.translationY=118.0195 pointerDown=true
+  webView.translationY=171.21892 pointerDown=true
+  webView.translationY=229.55147 pointerDown=true
+  target 0.0 -> -297.0 pointerDown=true
+  webView.translationY=216.46303 pointerDown=true
+  webView.translationY=114.77573 pointerDown=true
+  webView.translationY=61.54706 pointerDown=true
+  webView.translationY=33.089264 pointerDown=true
+  target -297.0 -> 0.0 pointerDown=true
+  webView.translationY=48.136795 pointerDown=true
+  webView.translationY=165.04463 pointerDown=true
+  webView.translationY=226.24059 pointerDown=true
+  webView.translationY=244.82051 pointerDown=true
+  target 0.0 -> -297.0 pointerDown=true
+  webView.translationY=174.18398 pointerDown=true
+  webView.translationY=122.41026 pointerDown=true
+  webView.translationY=65.640976 pointerDown=true
+  target -297.0 -> 0.0 pointerDown=true
+  webView.translationY=78.83249 pointerDown=true
+  webView.translationY=181.3205 pointerDown=true
+  webView.translationY=234.9683 pointerDown=true
+  target 0.0 -> -297.0 pointerDown=true
+  webView.translationY=221.57101 pointerDown=true
+  webView.translationY=117.48416 pointerDown=true
+  webView.translationY=46.457092 pointerDown=true
+  webView.translationY=24.163116 pointerDown=true
+  target -297.0 -> 0.0 pointerDown=true
+  webView.translationY=102.88306 pointerDown=true
+  webView.translationY=160.58156 pointerDown=true
+  webView.translationY=223.84732 pointerDown=true
+  webView.translationY=257.67123 pointerDown=true
+  target 0.0 -> -297.0 pointerDown=true
+  webView.translationY=183.32697 pointerDown=true
+  webView.translationY=93.65057 pointerDown=true
+  webView.translationY=37.14267 pointerDown=true
+  target -297.0 -> 0.0 pointerDown=true
+  webView.translationY=112.11769 pointerDown=true
+  webView.translationY=202.55489 pointerDown=true
+  webView.translationY=245.62195 pointerDown=true
+  target 0.0 -> -297.0 pointerDown=true
+  webView.translationY=174.75417 pointerDown=true
+  webView.translationY=89.271255 pointerDown=true
+  webView.translationY=48.56349 pointerDown=true
+  target -297.0 -> 0.0 pointerDown=true
+  webView.translationY=120.24333 pointerDown=true
+  webView.translationY=172.78174 pointerDown=true
+  [writes: 92 | targets: 26 | writes-while-down: 92]
+--- b2) after UP
+  webView.translationY=279.37894 pointerDown=true
+  webView.translationY=289.98218 pointerDown=true
+  webView.translationY=293.23923 pointerDown=true
+  webView.translationY=296.6171 pointerDown=true
+  webView.translationY=297.0 pointerDown=false
+  [writes: 5 | targets:  | writes-while-down: 4]
+--- c1) fast swipe up
+  target 0.0 -> -297.0 pointerDown=true
+  webView.translationY=280.0658 pointerDown=true
+  webView.translationY=211.30844 pointerDown=true
+  webView.translationY=148.5 pointerDown=true
+  webView.translationY=107.94461 pointerDown=true
+  webView.translationY=79.63127 pointerDown=true
+  webView.translationY=42.811813 pointerDown=false
+  webView.translationY=30.542175 pointerDown=false
+  webView.translationY=21.065582 pointerDown=false
+  webView.translationY=8.389618 pointerDown=false
+  webView.translationY=4.4959106 pointerDown=false
+  webView.translationY=0.45776367 pointerDown=false
+  webView.translationY=0.0 pointerDown=false
+  [writes: 12 | targets: 1 | writes-while-down: 5]
+--- c2) fast swipe down
+  target -297.0 -> 0.0 pointerDown=true
+  webView.translationY=16.934204 pointerDown=true
+  webView.translationY=85.691574 pointerDown=true
+  webView.translationY=148.5 pointerDown=true
+  webView.translationY=189.05539 pointerDown=true
+  webView.translationY=217.36874 pointerDown=true
+  webView.translationY=238.27823 pointerDown=true
+  webView.translationY=254.18819 pointerDown=false
+  webView.translationY=275.93442 pointerDown=false
+  webView.translationY=288.61038 pointerDown=false
+  webView.translationY=295.08994 pointerDown=false
+  webView.translationY=296.54224 pointerDown=false
+  webView.translationY=297.0 pointerDown=false
+  [writes: 12 | targets: 1 | writes-while-down: 6]

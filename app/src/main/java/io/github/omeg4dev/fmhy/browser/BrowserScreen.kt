@@ -44,6 +44,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -162,11 +163,46 @@ fun BrowserScreen(
     var totalBarHeightPx by remember { mutableFloatStateOf(0f) }
     val toolbarTranslation = remember { Animatable(0f) }
     var snapJob by remember { mutableStateOf<Job?>(null) }
+    val bars = remember { BarVisibilityState() }
+    val barTracker = remember(density) {
+        BarScrollTracker(hideThresholdPx = with(density) { 48.dp.toPx() }, showThresholdPx = with(density) { 32.dp.toPx() })
+    }
+    val isTopBar = browserPrefs.toolbarPosition == ToolbarPosition.TOP
+    val applyBars: () -> Unit = {
+        val hiddenValue = if (browserPrefs.toolbarPosition == ToolbarPosition.TOP) -totalBarHeightPx else totalBarHeightPx
+        val target = if (bars.hidden) hiddenValue else 0f
+        if (toolbarTranslation.targetValue != target) {
+            barsLog("target ${toolbarTranslation.targetValue} -> $target pointerDown=${bars.pointerDown}")
+            snapJob?.cancel()
+            snapJob = scope.launch { toolbarTranslation.animateTo(target, Motion.standard()) }
+        }
+    }
+    val applyBarsState by rememberUpdatedState(applyBars)
+    val loadingState by rememberUpdatedState(currentTab?.isLoading == true)
 
     // Ensure toolbar is fully shown at top, during loading, find, edit, or navigation
     val shouldForceToolbarShown = currentTab?.isLoading == true || isFindMode || isEditMode
     LaunchedEffect(shouldForceToolbarShown, currentTab?.url) {
-        toolbarTranslation.animateTo(0f, Motion.standard())
+        bars.hidden = false
+        barTracker.reset()
+        if (!bars.pointerDown) applyBarsState()
+    }
+    // Toolbar position changed: reset to shown.
+    LaunchedEffect(isTopBar) {
+        bars.hidden = false
+        snapJob?.cancel()
+        toolbarTranslation.snapTo(0f)
+    }
+    // Bar block grew/shrank (site bar appeared, find bar...) while hidden: re-snap so it all stays hidden.
+    LaunchedEffect(totalBarHeightPx) {
+        if (bars.hidden && !bars.pointerDown && totalBarHeightPx > 0f) {
+            val hiddenValue = if (isTopBar) -totalBarHeightPx else totalBarHeightPx
+            if (toolbarTranslation.targetValue != hiddenValue) {
+                barsLog("resnap hidden -> $hiddenValue")
+                snapJob?.cancel()
+                toolbarTranslation.snapTo(hiddenValue)
+            }
+        }
     }
 
     // Snackbars emitted by shield hooks
@@ -343,8 +379,11 @@ fun BrowserScreen(
                             LaunchedEffect(webView, browserPrefs.toolbarPosition) {
                                 webView.setPadding(0, 0, 0, 0)
                                 snapshotFlow { totalBarHeightPx + toolbarTranslation.value }.collect { visible ->
-                                    webView.translationY =
-                                        if (browserPrefs.toolbarPosition == ToolbarPosition.TOP) visible.coerceAtLeast(0f) else 0f
+                                    val ty = if (browserPrefs.toolbarPosition == ToolbarPosition.TOP) visible.coerceAtLeast(0f) else 0f
+                                    if (webView.translationY != ty) {
+                                        barsLog("webView.translationY=$ty pointerDown=${bars.pointerDown}")
+                                        webView.translationY = ty
+                                    }
                                 }
                             }
 
@@ -360,19 +399,16 @@ fun BrowserScreen(
                                     val isAtTop = !webView.canScrollVertically(-1) || scrollY <= 0
 
                                     if (isAtTop) {
-                                        scope.launch { toolbarTranslation.animateTo(0f, Motion.standard()) }
-                                    } else if (!isFindMode && !isEditMode && currentTab.isLoading != true && totalBarHeightPx > 0f) {
-                                        // Snap by scroll direction instead of following the finger: the page
-                                        // moves with the bar, and following the finger would fight the touch.
-                                        val hidden = if (browserPrefs.toolbarPosition == ToolbarPosition.TOP) -totalBarHeightPx else totalBarHeightPx
-                                        val target = when {
-                                            dy > SCROLL_HIDE_THRESHOLD_PX -> hidden
-                                            dy < -SCROLL_HIDE_THRESHOLD_PX -> 0f
-                                            else -> null
-                                        }
-                                        if (target != null && toolbarTranslation.targetValue != target) {
-                                            snapJob?.cancel()
-                                            snapJob = scope.launch { toolbarTranslation.animateTo(target, Motion.standard()) }
+                                        barTracker.reset()
+                                        bars.hidden = false
+                                        if (!bars.pointerDown) applyBarsState()
+                                    } else if (!isFindMode && !isEditMode && !loadingState && totalBarHeightPx > 0f) {
+                                        // Accumulated one-direction scroll decides; while a finger is down only the
+                                        // pending state changes (moving the view under the finger feeds back into scroll).
+                                        val hide = barTracker.onScroll(dy)
+                                        if (hide != null && hide != bars.hidden) {
+                                            bars.hidden = hide
+                                            if (!bars.pointerDown) applyBarsState()
                                         }
                                     }
                                 }
@@ -386,6 +422,7 @@ fun BrowserScreen(
                                 webView.setOnTouchListener { _, event ->
                                     when (event.actionMasked) {
                                         MotionEvent.ACTION_DOWN -> {
+                                            bars.pointerDown = true
                                             startY = event.rawY
                                             isPulling = false
                                             hasCrossedThreshold = false
@@ -417,6 +454,8 @@ fun BrowserScreen(
                                             }
                                         }
                                         MotionEvent.ACTION_UP -> {
+                                            bars.pointerDown = false
+                                            applyBarsState()
                                             if (isPulling) {
                                                 isPulling = false
                                                 if (pullRefreshState.distanceFraction >= 1f) {
@@ -435,6 +474,8 @@ fun BrowserScreen(
                                             }
                                         }
                                         MotionEvent.ACTION_CANCEL -> {
+                                            bars.pointerDown = false
+                                            applyBarsState()
                                             if (isPulling) {
                                                 isPulling = false
                                                 scope.launch { pullRefreshState.animateToHidden() }
@@ -816,4 +857,6 @@ fun BrowserScreen(
     }
 }
 
-private const val SCROLL_HIDE_THRESHOLD_PX = 6
+private fun barsLog(msg: String) {
+    if (io.github.omeg4dev.fmhy.BuildConfig.DEBUG) android.util.Log.d("FmhyBars", msg)
+}
