@@ -296,6 +296,16 @@ class DefaultAppContainer(override val context: Context) : AppContainer {
         }
     }
 
+    /** 0.5.0's onboarding saved section follows without a title; fill them in from the dataset. */
+    private suspend fun repairFollowTitles() {
+        val blank = userStore.follows().filter { it.title.isBlank() && it.headingId.isEmpty() }
+        if (blank.isEmpty()) return
+        val titles = datasetStore.sections().associate { it.id to it.title }
+        for (f in blank) {
+            titles[f.sectionId]?.let { userStore.follow(f.sectionId, "", it) }
+        }
+    }
+
     override fun initialize() {
         appScope.launch(Dispatchers.IO) {
             try {
@@ -305,6 +315,7 @@ class DefaultAppContainer(override val context: Context) : AppContainer {
                     installSnapshotIfAvailable()
                 }
                 adblockService.initialize()
+                repairFollowTitles()
             } catch (e: Exception) {
                 Log.e("FmhySync", "Initialization error: ${e.message}", e)
             } finally {

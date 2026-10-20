@@ -209,6 +209,10 @@ fun BrowserScreen(
             currentTab != null && tabManager.goBack(currentTab.id) -> {
                 // Navigated back in WebView
             }
+            // Back on an empty new tab returns to the tab you came from instead of leaving the browser.
+            currentTab != null && tabs.size > 1 && (currentTab.url == "about:blank" || currentTab.url.isEmpty()) -> {
+                tabManager.closeTab(currentTab.id)
+            }
             else -> {
                 onFinishActivity()
             }

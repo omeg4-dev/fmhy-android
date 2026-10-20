@@ -250,9 +250,15 @@ class OnboardingModel(
                 try {
                     val existingFollows = userStore.follows()
                     val existingSectionIds = existingFollows.map { it.sectionId }.toSet()
+                    val titles = if (s.followedSections.any { it !in existingSectionIds }) {
+                        runCatching { appContainer?.datasetStore?.sections() }.getOrNull()
+                            ?.associate { it.id to it.title }.orEmpty()
+                    } else {
+                        emptyMap()
+                    }
                     for (secId in s.followedSections) {
                         if (secId !in existingSectionIds) {
-                            userStore.follow(secId, "", "")
+                            userStore.follow(secId, "", titles[secId].orEmpty())
                         }
                     }
                     for (f in existingFollows) {
