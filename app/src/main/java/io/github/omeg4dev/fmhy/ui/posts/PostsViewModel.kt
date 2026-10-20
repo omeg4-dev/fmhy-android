@@ -33,7 +33,7 @@ class PostsViewModel(
     private val _uiState = MutableStateFlow(PostsUiState())
     val uiState: StateFlow<PostsUiState> = _uiState.asStateFlow()
 
-    private val cacheFile = File(cacheDir, "posts-listing.json")
+    private val cacheFile = File(cacheDir, PostsListing.CACHE_FILE_NAME)
 
     init {
         loadPosts()

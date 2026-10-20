@@ -59,7 +59,7 @@ object PostsReadState {
 
     /** Unread count for the cached posts listing (0 when nothing is cached yet). */
     suspend fun unreadCountFromCache(userStore: UserStore, filesDir: java.io.File): Int {
-        val cached = PostsListing.readCache(java.io.File(filesDir, "posts-listing.json")) ?: return 0
+        val cached = PostsListing.readCache(java.io.File(filesDir, PostsListing.CACHE_FILE_NAME)) ?: return 0
         return getUnreadCount(userStore, cached.posts.map { it.path })
     }
 }

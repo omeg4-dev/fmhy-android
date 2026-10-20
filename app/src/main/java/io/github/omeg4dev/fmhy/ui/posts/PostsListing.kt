@@ -69,7 +69,41 @@ object PostsListing {
         }
     }
 
-    suspend fun fetchListingFromNetwork(client: OkHttpClient): List<String> {
+    /** Cache file for the post file names; bumped when the listing source changed (old caches held a stale list). */
+    const val CACHE_FILE_NAME = "posts-listing-v2.json"
+
+    /**
+     * Post file names under `docs/posts/`. GitHub's contents API first: jsDelivr's flat listing of `@main` is
+     * served from a long-lived cache and stopped at May 2025. jsDelivr stays as the fallback (rate limits).
+     */
+    suspend fun fetchListingFromNetwork(client: OkHttpClient): List<String> =
+        try {
+            fetchFromGitHub(client)
+        } catch (e: Exception) {
+            fetchFromJsDelivr(client)
+        }
+
+    private fun fetchFromGitHub(client: OkHttpClient): List<String> {
+        val request = Request.Builder()
+            .url("https://api.github.com/repos/fmhy/edit/contents/docs/posts?ref=main")
+            .header("Accept", "application/vnd.github+json")
+            .build()
+        val body = client.newCall(request).execute().use { resp ->
+            if (!resp.isSuccessful) throw Exception("HTTP ${resp.code}: ${resp.message}")
+            resp.body.string()
+        }
+        return parseGitHubListing(body).ifEmpty { throw Exception("Empty listing from GitHub") }
+    }
+
+    internal fun parseGitHubListing(body: String): List<String> =
+        json.parseToJsonElement(body).jsonArray.mapNotNull { item ->
+            val obj = item.jsonObject
+            val name = obj["name"]?.jsonPrimitive?.content ?: return@mapNotNull null
+            val type = obj["type"]?.jsonPrimitive?.content
+            name.takeIf { type == "file" && it.endsWith(".md", ignoreCase = true) }
+        }
+
+    private fun fetchFromJsDelivr(client: OkHttpClient): List<String> {
         val url = "https://data.jsdelivr.com/v1/packages/gh/fmhy/edit@main?structure=flat"
         val request = Request.Builder().url(url).build()
 

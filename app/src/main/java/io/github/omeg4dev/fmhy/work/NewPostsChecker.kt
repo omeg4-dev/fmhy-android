@@ -41,7 +41,7 @@ object NewPostsChecker {
         if (!shouldCheckPosts(last, nowSec)) return emptyList()
 
         val filesDir = context.filesDir
-        val cacheFile = File(filesDir, "posts-listing.json")
+        val cacheFile = File(filesDir, PostsListing.CACHE_FILE_NAME)
         val previous = withContext(Dispatchers.IO) { PostsListing.readCache(cacheFile) }
         val known = previous?.posts?.map { it.path }?.toSet()
 
