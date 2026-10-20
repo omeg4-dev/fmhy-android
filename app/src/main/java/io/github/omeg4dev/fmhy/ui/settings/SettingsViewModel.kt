@@ -308,6 +308,14 @@ class SettingsViewModel(
         }
     }
 
+    /** Forgets every per-site playback speed. Calls [done] with the number removed. */
+    fun clearSiteSpeeds(done: (Int) -> Unit = {}) {
+        viewModelScope.launch {
+            val n = try { container.userStore.deleteKvPrefix("video_speed:") } catch (_: Exception) { 0 }
+            done(n)
+        }
+    }
+
     fun updateBrowser(f: (BrowserPrefs) -> BrowserPrefs) {
         viewModelScope.launch {
             settingsRepository.updateBrowser(f)
