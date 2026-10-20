@@ -66,6 +66,9 @@ class BrowserActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         registerComponentCallbacks(trimMemoryCallbacks)
+        if (savedInstanceState != null) {
+            originalOrientation = savedInstanceState.getInt(STATE_ORIGINAL_ORIENTATION, originalOrientation)
+        }
 
         val container = (application as FmhyApp).container
         val dataUri = intent?.dataString
@@ -74,9 +77,11 @@ class BrowserActivity : ComponentActivity() {
         val hooks = container.browserHooks as? DefaultBrowserHooks
         val showListener: (android.view.View) -> Unit = {
             originalOrientation = requestedOrientation
-            if (container.tabManager.currentBrowserPrefs.videoAutoRotate) {
-                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-            }
+            val aspect = container.tabManager.getActiveTabRecord()?.toState()?.videoAspect
+            requestedOrientation = fullscreenRequestedOrientation(
+                container.tabManager.currentBrowserPrefs.fullscreenOrientation,
+                aspect,
+            ).let { target -> if (target == ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED) originalOrientation else target }
             if (container.tabManager.currentBrowserPrefs.keepScreenOn) {
                 window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             }
@@ -219,6 +224,11 @@ class BrowserActivity : ComponentActivity() {
         }
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putInt(STATE_ORIGINAL_ORIENTATION, originalOrientation)
+    }
+
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
         isInPipMode = isInPictureInPictureMode
@@ -304,6 +314,7 @@ class BrowserActivity : ComponentActivity() {
     }
 
     companion object {
+        private const val STATE_ORIGINAL_ORIENTATION = "original_orientation"
         const val EXTRA_ENTRY_ID = "entry_id"
         const val EXTRA_NEW_TAB = "new_tab"
 

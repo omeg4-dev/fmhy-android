@@ -20,6 +20,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.omeg4dev.fmhy.data.FullscreenOrientation
 
 /** Settings → Browsing → Video: fullscreen, picture-in-picture and playback options. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -57,10 +58,11 @@ fun VideoPage(
         ) {
             item {
                 SettingsSection(title = "Fullscreen") {
-                    SwitchRow(
-                        title = "Rotate for fullscreen video",
-                        checked = prefs.videoAutoRotate,
-                        onChange = { checked -> viewModel.updateBrowser { it.copy(videoAutoRotate = checked) } },
+                    ChoiceRow(
+                        title = "Fullscreen orientation",
+                        options = FullscreenOrientation.entries.map { it to it.label },
+                        selected = prefs.fullscreenOrientation,
+                        onSelect = { choice -> viewModel.updateBrowser { it.copy(fullscreenOrientation = choice) } },
                     )
                     SettingsDivider()
                     SwitchRow(

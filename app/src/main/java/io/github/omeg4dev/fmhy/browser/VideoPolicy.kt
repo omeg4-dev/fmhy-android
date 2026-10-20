@@ -1,5 +1,8 @@
 package io.github.omeg4dev.fmhy.browser
 
+import android.content.pm.ActivityInfo
+import io.github.omeg4dev.fmhy.data.FullscreenOrientation
+
 /** A width:height ratio kept as plain ints so it is testable without android.util.Rational. */
 data class Ratio(val num: Int, val den: Int) {
     val value: Float get() = num.toFloat() / den.toFloat()
@@ -25,4 +28,16 @@ fun pipRatio(width: Int, height: Int): Ratio {
             Ratio(width / g, height / g)
         }
     }
+}
+
+/**
+ * The requestedOrientation to use while a video is fullscreen. AUTO uses landscape for videos at
+ * least as wide as tall (or of unknown shape) and portrait for taller ones.
+ */
+fun fullscreenRequestedOrientation(mode: FullscreenOrientation, videoAspect: Float?): Int = when (mode) {
+    FullscreenOrientation.LANDSCAPE -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+    FullscreenOrientation.FOLLOW_PHONE -> ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+    FullscreenOrientation.AUTO ->
+        if (videoAspect == null || videoAspect >= 1f) ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        else ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
 }

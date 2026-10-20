@@ -7,6 +7,27 @@ import io.github.omeg4dev.fmhy.data.adblock.FilterListCatalog
 
 enum class OpenLinksWith { IN_APP, CUSTOM_TAB, EXTERNAL }
 enum class ToolbarPosition { TOP, BOTTOM }
+
+enum class FullscreenOrientation(val label: String) {
+    /** Landscape for wide videos, portrait for tall ones. */
+    AUTO("Auto (match the video)"),
+    LANDSCAPE("Always landscape"),
+    FOLLOW_PHONE("Follow phone rotation"),
+}
+
+/**
+ * Picks the fullscreen orientation: the new setting when stored, otherwise the pre-0.5.2 boolean
+ * "rotate for fullscreen video" (true = AUTO, false = FOLLOW_PHONE), otherwise the default.
+ */
+fun resolveFullscreenOrientation(stored: String?, legacyRotate: Boolean?): FullscreenOrientation {
+    val parsed = stored?.let { name -> FullscreenOrientation.entries.firstOrNull { it.name == name } }
+    if (parsed != null) return parsed
+    return when (legacyRotate) {
+        true -> FullscreenOrientation.AUTO
+        false -> FullscreenOrientation.FOLLOW_PHONE
+        null -> BrowserPrefs().fullscreenOrientation
+    }
+}
 enum class AppIcon(val label: String) {
     DEFAULT("Default"),
     UWU("UwU"),
@@ -48,7 +69,7 @@ data class BrowserPrefs(
     val desktopByDefault: Boolean = false,
     val textZoomFollowsApp: Boolean = true,
     // Video
-    val videoAutoRotate: Boolean = true,
+    val fullscreenOrientation: FullscreenOrientation = FullscreenOrientation.AUTO,
     val pictureInPicture: Boolean = true,
     /** Enter picture-in-picture on its own when leaving the app while a video plays. */
     val autoPip: Boolean = true,
