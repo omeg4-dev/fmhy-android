@@ -57,13 +57,10 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
-import androidx.compose.material3.SwipeToDismissBox
-import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -439,7 +436,7 @@ fun SavedScreen(
                                                                         noteInputText = item.bookmark.note
                                                                     },
                                                                     onRemove = {
-                                                                        haptics.click()
+                                                                        haptics.remove()
                                                                         scope.launch {
                                                                             val snapshot = viewModel.removeBookmarkWithSnapshot(item.bookmark.entryId)
                                                                             if (snackbarHostState.showUndo("Removed from Saved")) {
@@ -476,7 +473,7 @@ fun SavedScreen(
                                                                     noteInputText = item.bookmark.note
                                                                 },
                                                                 onRemove = {
-                                                                    haptics.click()
+                                                                    haptics.remove()
                                                                     scope.launch {
                                                                         val snapshot = viewModel.removeBookmarkWithSnapshot(item.bookmark.entryId)
                                                                         if (snackbarHostState.showUndo("Removed from Saved")) {
@@ -546,7 +543,7 @@ fun SavedScreen(
                                                                     noteInputText = item.bookmark.note
                                                                 },
                                                                 onRemove = {
-                                                                    haptics.click()
+                                                                    haptics.remove()
                                                                     scope.launch {
                                                                         val snapshot = viewModel.removeBookmarkWithSnapshot(item.bookmark.entryId)
                                                                         if (snackbarHostState.showUndo("Removed from Saved")) {
@@ -578,7 +575,7 @@ fun SavedScreen(
                                                     trailingContent = {
                                                         IconButton(
                                                             onClick = {
-                                                                haptics.click()
+                                                                haptics.remove()
                                                                 scope.launch {
                                                                     val snapshot = viewModel.removeBookmarkWithSnapshot(item.bookmark.entryId)
                                                                     if (snackbarHostState.showUndo("Removed from Saved")) {
@@ -693,7 +690,7 @@ fun SavedScreen(
                         if (selectedTab == "folder_${toDelete.id}") {
                             selectedTab = "all"
                         }
-                        haptics.click()
+                        haptics.remove()
                         scope.launch {
                             val snapshot = viewModel.deleteFolderWithSnapshot(toDelete.id)
                             if (snackbarHostState.showUndo("Deleted folder ${toDelete.name}")) {
@@ -722,7 +719,7 @@ fun SavedScreen(
                 TextButton(
                     onClick = {
                         showClearHistoryDialog = false
-                        haptics.click()
+                        haptics.remove()
                         scope.launch {
                             val snapshot = viewModel.clearHistoryWithSnapshot()
                             if (snackbarHostState.showUndo("History cleared")) {

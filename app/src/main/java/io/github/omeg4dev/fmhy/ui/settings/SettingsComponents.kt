@@ -196,7 +196,7 @@ fun SwitchRow(
                 enabled = enabled,
                 role = Role.Switch,
                 onValueChange = {
-                    haptics.tick()
+                    haptics.toggle(it)
                     onChange(it)
                 },
             ),
@@ -212,7 +212,6 @@ fun NavRow(
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
-    val haptics = rememberHaptics()
     ListItem(
         headlineContent = {
             Text(
@@ -250,7 +249,6 @@ fun NavRow(
                 enabled = enabled,
                 role = Role.Button,
                 onClick = {
-                    haptics.click()
                     onClick()
                 },
             ),
@@ -290,7 +288,6 @@ fun ButtonRow(
     enabled: Boolean = true,
     loading: Boolean = false,
 ) {
-    val haptics = rememberHaptics()
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -298,7 +295,6 @@ fun ButtonRow(
     ) {
         FilledTonalButton(
             onClick = {
-                haptics.click()
                 onClick()
             },
             enabled = enabled && !loading,
@@ -338,7 +334,6 @@ fun ExpandableSection(
 ) {
     var internalExpanded by remember { mutableStateOf(initiallyExpanded) }
     val isExpanded = expanded ?: internalExpanded
-    val haptics = rememberHaptics()
     val rotation by animateFloatAsState(
         targetValue = if (isExpanded) 180f else 0f,
         animationSpec = Motion.standard(),
@@ -370,7 +365,6 @@ fun ExpandableSection(
                 .fillMaxWidth()
                 .defaultMinSize(minHeight = 48.dp)
                 .clickable {
-                    haptics.tick()
                     if (onExpandedChange != null) {
                         onExpandedChange(!isExpanded)
                     } else {
@@ -588,7 +582,6 @@ fun <T> ChoiceRow(
                 .defaultMinSize(minHeight = 48.dp)
                 .then(if (!enabled) Modifier.alpha(0.38f) else Modifier)
                 .clickable(enabled = enabled) {
-                    haptics.click()
                     showDialog = true
                 },
         )

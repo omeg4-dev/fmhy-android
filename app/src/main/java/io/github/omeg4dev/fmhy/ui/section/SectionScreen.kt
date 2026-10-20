@@ -310,7 +310,7 @@ fun SectionScreen(
                                             if (isSectionFollowed) {
                                                 val snapshot = follows.firstOrNull { it.sectionId == currentSectionId && it.headingId == "" } ?: io.github.omeg4dev.fmhy.data.user.Follow(currentSectionId, "", currentSectionTitle, System.currentTimeMillis())
                                                 container.userStore.unfollow(currentSectionId, "")
-                                                haptics.click()
+                                                haptics.remove()
                                                 val undone = snackbarHostState.showUndo("Unfollowed $currentSectionTitle")
                                                 if (undone) {
                                                     container.userStore.restoreFollow(snapshot)
@@ -331,7 +331,7 @@ fun SectionScreen(
                                                 scope.launch {
                                                     val snapshot = container.userStore.pins().firstOrNull { it.sectionId == secId && it.headingId.isEmpty() } ?: io.github.omeg4dev.fmhy.data.user.Pin(secId, "", secTitle, 0)
                                                     container.userStore.unpin(secId, "")
-                                                    haptics.click()
+                                                    haptics.remove()
                                                     val undone = snackbarHostState.showUndo("Unpinned $secTitle")
                                                     if (undone) {
                                                         container.userStore.restorePin(snapshot)
@@ -417,7 +417,7 @@ fun SectionScreen(
                                 scope.launch {
                                     if (catFollow != null) {
                                         container.userStore.unfollow(currentSectionId, category.heading.id)
-                                        haptics.click()
+                                        haptics.remove()
                                         val undone = snackbarHostState.showUndo("Unfollowed $fullTitle")
                                         if (undone) {
                                             container.userStore.restoreFollow(catFollow)
@@ -742,7 +742,7 @@ fun SectionScreen(
                                 } else {
                                     val snapshot = container.userStore.pins().firstOrNull { it.sectionId == secId && it.headingId == category.heading.id } ?: io.github.omeg4dev.fmhy.data.user.Pin(secId, category.heading.id, catTitle, 0)
                                     container.userStore.unpin(secId, category.heading.id)
-                                    haptics.click()
+                                    haptics.remove()
                                     val undone = snackbarHostState.showUndo("Unpinned $catTitle")
                                     if (undone) {
                                         container.userStore.restorePin(snapshot)
@@ -764,7 +764,7 @@ fun SectionScreen(
                                 scope.launch {
                                     if (catFollow != null) {
                                         container.userStore.unfollow(currentSectionId, category.heading.id)
-                                        haptics.click()
+                                        haptics.remove()
                                         val undone = snackbarHostState.showUndo("Unfollowed $fullTitle")
                                         if (undone) {
                                             container.userStore.restoreFollow(catFollow)

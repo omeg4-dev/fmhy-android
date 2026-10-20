@@ -259,7 +259,7 @@ fun DoneCelebration(
                 targetValue = 1f,
                 animationSpec = tween(durationMillis = 500, easing = Motion.EmphasizedDecelerate),
             )
-            haptics.confirm()
+            haptics.success()
             onCheckFinished()
         }
         launch {

@@ -100,7 +100,6 @@ import io.github.omeg4dev.fmhy.ui.common.SwipeToSave
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
 import io.github.omeg4dev.fmhy.ui.common.enterStagger
 import io.github.omeg4dev.fmhy.ui.common.parseHighlight
-import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
 import io.github.omeg4dev.fmhy.ui.common.sectionIcon
 import io.github.omeg4dev.fmhy.ui.check.VerdictCard
@@ -133,7 +132,6 @@ fun SearchScreen(
     var showFiltersSheet by remember { mutableStateOf(false) }
 
     val linkOpener = rememberLinkOpener(container, onShowSnackbar)
-    val haptics = rememberHaptics()
 
     val browserPrefs by container.settingsRepository.browserPrefs.collectAsStateWithLifecycle(initialValue = BrowserPrefs())
     val liveQuery = viewModel.queryText
@@ -420,7 +418,6 @@ fun SearchScreen(
                                 )
                                 state.suggestion?.let { suggestion ->
                                     TextButton(onClick = {
-                                        haptics.tick()
                                         viewModel.onQueryChange(suggestion)
                                     }) {
                                         Text(
@@ -496,7 +493,6 @@ fun SearchScreen(
                                             hit = cat,
                                             query = state.query,
                                             onClick = {
-                                                haptics.click()
                                                 nav.select(Tab.BROWSE)
                                                 nav.push(SectionNavKey(cat.section.id, anchor = cat.heading?.anchor))
                                             },

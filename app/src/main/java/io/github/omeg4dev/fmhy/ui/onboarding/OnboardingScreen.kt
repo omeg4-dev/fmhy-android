@@ -125,7 +125,6 @@ fun OnboardingScreen(
     val visiblePages = viewModel.visiblePages
     val pagerState = rememberPagerState(pageCount = { visiblePages.size })
     val scope = rememberCoroutineScope()
-    val haptics = rememberHaptics()
 
     // Persist previous page choices and track visited pages
     var lastActiveIndex by remember { mutableIntStateOf(0) }
@@ -155,7 +154,6 @@ fun OnboardingScreen(
                 currentPage = currentPageIndex,
                 pageCount = visiblePages.size,
                 onSkip = {
-                    haptics.click()
                     viewModel.skip(onComplete = onFinished)
                 },
             )
@@ -165,13 +163,11 @@ fun OnboardingScreen(
                 currentPage = currentPageIndex,
                 pageCount = visiblePages.size,
                 onBack = {
-                    haptics.click()
                     scope.launch {
                         pagerState.animateScrollToPage(pagerState.currentPage - 1)
                     }
                 },
                 onNext = {
-                    haptics.click()
                     if (isDonePage) {
                         viewModel.finish(onFinished)
                     } else {
@@ -804,7 +800,7 @@ private fun BrowsingPageContent(
                         Switch(
                             checked = state.blockPopupsAndRedirects,
                             onCheckedChange = {
-                                haptics.tick()
+                                haptics.toggle(it)
                                 model.setBlockPopupsAndRedirects(it)
                             },
                         )
@@ -931,7 +927,7 @@ private fun FollowPageContent(
                         modifier = Modifier.enterStaggerChip(index = chipIndex, key = OnboardingPage.FOLLOW),
                         selected = isSelected,
                         onClick = {
-                            haptics.tick()
+                            haptics.toggle(!isSelected)
                             model.toggleSectionFollowed(section.id)
                         },
                         label = { Text(section.title) },
@@ -984,7 +980,7 @@ private fun FollowPageContent(
                     Switch(
                         checked = state.notifyChanges,
                         onCheckedChange = { turningOn ->
-                            haptics.tick()
+                            haptics.toggle(turningOn)
                             if (turningOn) {
                                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                                     val hasPermission = ContextCompat.checkSelfPermission(
@@ -1023,7 +1019,7 @@ private fun FollowPageContent(
                     Switch(
                         checked = state.personalHome,
                         onCheckedChange = {
-                            haptics.tick()
+                            haptics.toggle(it)
                             model.setPersonalHome(it)
                         },
                     )
