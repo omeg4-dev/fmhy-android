@@ -74,7 +74,7 @@ fun BrowserSwitchChip(tabCount: Int, modifier: Modifier = Modifier) {
             contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
             modifier = Modifier
                 .height(32.dp)
-                .semantics { contentDescription = "Open browser, $tabCount tabs" },
+                .semantics { contentDescription = "Open browser, $tabCount " + if (tabCount == 1) "tab" else "tabs" },
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,

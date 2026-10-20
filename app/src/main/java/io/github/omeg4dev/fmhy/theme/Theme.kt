@@ -11,12 +11,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.Density
 import io.github.omeg4dev.fmhy.data.Appearance
 import io.github.omeg4dev.fmhy.data.ColorSource
 import io.github.omeg4dev.fmhy.data.ThemeMode
 
 import io.github.omeg4dev.fmhy.ui.common.LocalHapticsEnabled
+import io.github.omeg4dev.fmhy.ui.common.SilentHapticFeedback
 
 val LocalIsDarkTheme = staticCompositionLocalOf { false }
 
@@ -50,6 +52,7 @@ fun FMHYTheme(
     CompositionLocalProvider(
         LocalIsDarkTheme provides dark,
         LocalHapticsEnabled provides appearance.hapticFeedback,
+        LocalHapticFeedback provides SilentHapticFeedback,
     ) {
         MaterialTheme(
             colorScheme = colorScheme,

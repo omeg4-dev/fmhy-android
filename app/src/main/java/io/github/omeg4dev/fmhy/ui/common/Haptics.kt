@@ -10,6 +10,8 @@ import android.os.VibratorManager
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.hapticfeedback.HapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 
 val LocalHapticsEnabled = staticCompositionLocalOf { true }
@@ -89,6 +91,14 @@ fun pulsePattern(kind: HapticKind): PulsePattern = when (kind) {
     HapticKind.REMOVE -> PulsePattern(longArrayOf(0, 55), intArrayOf(0, 255))
     HapticKind.LONG_PRESS -> PulsePattern(longArrayOf(0, 35), intArrayOf(0, 200))
     HapticKind.ERROR -> PulsePattern(longArrayOf(0, 25, 55, 25, 55, 25), intArrayOf(0, 200, 0, 200, 0, 200))
+}
+
+/**
+ * Replaces Compose's built-in haptics (combinedClickable long press, text handles). They use the TOUCH usage,
+ * ignore the in-app switch and doubled every explicit [AppHaptics.longPress]; all app haptics go through AppHaptics.
+ */
+object SilentHapticFeedback : HapticFeedback {
+    override fun performHapticFeedback(hapticFeedbackType: HapticFeedbackType) {}
 }
 
 private object NoOpHaptics : AppHaptics {

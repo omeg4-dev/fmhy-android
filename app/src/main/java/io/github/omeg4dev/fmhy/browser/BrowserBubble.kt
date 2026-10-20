@@ -147,7 +147,7 @@ fun BrowserBubble(
             Box(
                 modifier = Modifier
                     .size(BubbleSize)
-                    .semantics { contentDescription = "Open browser, $count tabs" }
+                    .semantics { contentDescription = "Open browser, $count " + if (count == 1) "tab" else "tabs" }
                     .pointerInput(Unit) {
                         detectTapGestures(
                             onTap = { bringBrowserToFront(context) },
