@@ -37,6 +37,7 @@ import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -89,6 +90,7 @@ import io.github.omeg4dev.fmhy.ui.settings.BlockingPage
 import io.github.omeg4dev.fmhy.ui.settings.BrowserPage
 import io.github.omeg4dev.fmhy.ui.settings.DataPage
 import io.github.omeg4dev.fmhy.ui.settings.HomeListsPage
+import io.github.omeg4dev.fmhy.ui.settings.NavRow
 import io.github.omeg4dev.fmhy.ui.settings.NotificationsPage
 import io.github.omeg4dev.fmhy.ui.settings.PagesPage
 import io.github.omeg4dev.fmhy.ui.settings.PrivacyPage
@@ -97,6 +99,8 @@ import io.github.omeg4dev.fmhy.ui.settings.SavedPage
 import io.github.omeg4dev.fmhy.ui.settings.SettingsHub
 import io.github.omeg4dev.fmhy.ui.settings.SettingsViewModel
 import io.github.omeg4dev.fmhy.ui.settings.VideoPage
+import io.github.omeg4dev.fmhy.ui.onboarding.ONBOARDING_VERSION
+import io.github.omeg4dev.fmhy.ui.onboarding.OnboardingScreen
 import android.content.Intent
 import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
@@ -283,7 +287,10 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
         }
     }
 
-    val shouldShowBar = isBarVisible && currentTopKey !is SettingsNavKey && currentTopKey !is SettingsPageNavKey && currentTopKey !is LegendNavKey
+    val onboardingVersion by container.settingsRepository.onboardingVersion.collectAsStateWithLifecycle(initialValue = -1)
+    val showOnboarding = onboardingVersion in 0 until ONBOARDING_VERSION
+
+    val shouldShowBar = isBarVisible && !showOnboarding && currentTopKey !is SettingsNavKey && currentTopKey !is SettingsPageNavKey && currentTopKey !is LegendNavKey
 
     BackHandler(enabled = nav.current != Tab.BROWSE && nav.currentStack.size == 1) {
         nav.back()
@@ -442,6 +449,16 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                 SettingsPage.ABOUT -> AboutPage(
                     viewModel = settingsViewModel,
                     onBack = { if (!nav.back()) activity?.finish() },
+                    extraRows = {
+                        item {
+                            NavRow(
+                                title = "Run setup again",
+                                onClick = {
+                                    settingsViewModel.setOnboardingVersion(0)
+                                },
+                            )
+                        }
+                    },
                 )
             }
         }
@@ -597,6 +614,19 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                             },
                             label = { Text("Saved") },
                             alwaysShowLabel = true,
+                        )
+                    }
+                }
+
+                // Onboarding full screen overlay
+                if (showOnboarding) {
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = MaterialTheme.colorScheme.background,
+                    ) {
+                        OnboardingScreen(
+                            container = container,
+                            onFinished = {},
                         )
                     }
                 }

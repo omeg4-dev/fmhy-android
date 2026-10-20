@@ -40,7 +40,11 @@ sealed interface SyncStatus {
     data class Finished(val result: SyncResult) : SyncStatus
 }
 
-interface AppContainer {
+interface OnboardingActions {
+    fun startFilterDownload() {}
+}
+
+interface AppContainer : OnboardingActions {
     val context: Context
     val appScope: CoroutineScope
     val okHttpClient: OkHttpClient
@@ -168,6 +172,10 @@ class DefaultAppContainer(override val context: Context) : AppContainer {
 
     override fun showSnackbar(message: String) {
         _snackbarEvents.tryEmit(message)
+    }
+
+    override fun startFilterDownload() {
+        // wired after merge
     }
 
     override fun initialize() {
