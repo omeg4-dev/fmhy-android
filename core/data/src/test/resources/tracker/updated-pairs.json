@@ -1,0 +1,86 @@
+[
+  {
+    "description": "pure rename (case change)",
+    "oldLine": "* [Catma](https://catma.de/) - Research Markup & Analysis Tool",
+    "newLine": "* [CATMA](https://catma.de/) - Research Markup & Analysis Tool",
+    "expectedKinds": ["renamed"]
+  },
+  {
+    "description": "case-only change on starred entry",
+    "oldLine": "* ⭐ **[Openstax](https://openstax.org/)**",
+    "newLine": "* ⭐ **[OpenStax](https://openstax.org/)**",
+    "expectedKinds": ["renamed"]
+  },
+  {
+    "description": "pure star",
+    "oldLine": "* [CineLite](https://cinelite.xyz/) - Movies / TV / Anime / Auto-Next / 4K",
+    "newLine": "* ⭐ **[CineLite](https://cinelite.xyz/)** - Movies / TV / Anime / Auto-Next / 4K",
+    "expectedKinds": ["starred"]
+  },
+  {
+    "description": "pure unstar",
+    "oldLine": "* ⭐ **[BMI Chart](https://upload.wikimedia.org/wikipedia/commons/c/cc/BMI_chart.png)** - BMI Range Graph",
+    "newLine": "* [BMI Chart](https://upload.wikimedia.org/wikipedia/commons/c/cc/BMI_chart.png) - BMI Range Graph",
+    "expectedKinds": ["unstarred"]
+  },
+  {
+    "description": "pure url change",
+    "oldLine": "* [GreyBox](https://greywatchbox.pages.dev/) - Movies / TV / Anime / [Discord](https://discord.gg/8Cujv2VNp)",
+    "newLine": "* [GreyBox](https://greyboxtv.vercel.app/ ) - Movies / TV / Anime / [Discord](https://discord.gg/8Cujv2VNp)",
+    "expectedKinds": ["url_changed"]
+  },
+  {
+    "description": "description edit",
+    "oldLine": "* [DigilogTV](https://github.com/aldrinzigmundv/digilogtv) - News TV Channels",
+    "newLine": "* [DigilogTV](https://github.com/aldrinzigmundv/digilogtv) - News Streaming App",
+    "expectedKinds": ["edited"]
+  },
+  {
+    "description": "extra-link added",
+    "oldLine": "* [TikTok Tools](https://omar-thing.site/) - TikTok User Finder / Search / Story Viewer / Downloader / Link Tracker & more",
+    "newLine": "* [TikTok Tools](https://omar-thing.site/) - TikTok User Finder / Search / Story Viewer / Downloader / Link Tracker & more / [Telegram](https://t.me/tiktokinfosite)",
+    "expectedKinds": ["edited"]
+  },
+  {
+    "description": "rename + star",
+    "oldLine": "* [animeav1](https://animeav1.com/) - Anime",
+    "newLine": "* ⭐ **[AnimeAV1](https://animeav1.com/)** - Anime",
+    "expectedKinds": ["renamed", "starred"]
+  },
+  {
+    "description": "url + name + description edit",
+    "oldLine": "* [Librivox](https://librivox.org/)",
+    "newLine": "* [LibriVox](https://librivox.org/search?primary_key=5&search_category=language&search_page=1&search_form=get_results&search_order=alpha) - Audiobooks",
+    "expectedKinds": ["edited", "renamed", "url_changed"]
+  },
+  {
+    "description": "identical lines",
+    "oldLine": "* ⭐ **[MixesDB](https://www.mixesdb.com/)** - DJ Mixes / Livesets / [Essentials List](https://rentry.co/dancemixbible/)",
+    "newLine": "* ⭐ **[MixesDB](https://www.mixesdb.com/)** - DJ Mixes / Livesets / [Essentials List](https://rentry.co/dancemixbible/)",
+    "expectedKinds": []
+  },
+  {
+    "description": "star + description edit",
+    "oldLine": "* [Streamo](https://streamo.pro/) - Movies / TV / Anime",
+    "newLine": "* ⭐ **[Streamo](https://streamo.pro/)** - Movies / TV / Anime / Auto-Next / [Discord](https://discord.gg/5pujSb9mh)",
+    "expectedKinds": ["edited", "starred"]
+  },
+  {
+    "description": "unstar + description edit",
+    "oldLine": "* ⭐ **[Fragrantica](https://www.fragrantica.com/)**, [Basenotes](https://basenotes.com/) or [Parfumo](https://www.parfumo.com/) - Perfume / Fragrance Databases",
+    "newLine": "* [Fragrantica](https://www.fragrantica.com/) or [Basenotes](https://basenotes.com/) - Fragrance Databases / Reviews / Communities",
+    "expectedKinds": ["edited", "unstarred"]
+  },
+  {
+    "description": "url changed + description edit",
+    "oldLine": "* [LeviLauncher](https://levilauncher.levimc.org/) / [GitHub](https://github.com/LiteLDev/LeviLauncher) or [Bedrock Launcher](https://bedrocklauncher.github.io/) / [GitHub](https://github.com/BedrockLauncher/BedrockLauncher) - Bedrock Launchers / [Guides](https://mcdoc.site/) / Windows",
+    "newLine": "* [LeviLauncher](https://github.com/LiteLDev/LeviLauncher) or [Bedrock Launcher](https://bedrocklauncher.github.io/) / [GitHub](https://github.com/BedrockLauncher/BedrockLauncher) - Bedrock Launchers / [Guides](https://mcdoc.site/) / Windows",
+    "expectedKinds": ["edited", "url_changed"]
+  },
+  {
+    "description": "rename + description edit",
+    "oldLine": "* [r/povertyfinance wiki](https://www.reddit.com/r/povertyfinance/wiki/index/) - Financial Tips / Resources",
+    "newLine": "* [r/povertyfinance Wiki](https://www.reddit.com/r/povertyfinance/wiki/index/) - Financial Advice / Resources",
+    "expectedKinds": ["edited", "renamed"]
+  }
+]

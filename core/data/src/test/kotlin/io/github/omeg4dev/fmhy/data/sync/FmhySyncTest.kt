@@ -630,4 +630,174 @@ class FmhySyncTest {
 
         store.close()
     }
+
+    /**
+     * 9. Change classification: rename, url change, unstar, move, description edit
+     * each produce the right row with the §3 detail and commit_sha starting with "sync:".
+     */
+    @Test
+    fun testChangeClassificationRenameUrlChangeUnstarMoveEdit() = runTest {
+        val syncDir = tempFolder.newFolder("sync9")
+        val dbFile = File(syncDir, "current.db")
+        val store = DatasetStoreTest.createSampleDb(dbFile, version = 1L)
+
+        val initialAudio = """
+            # Audio Streaming
+            * [Rename Site](https://rename.com) - Audio streaming
+            * [UrlChange Site](https://old-url.com) - Url change test
+            * ⭐ **[Unstar Site](https://unstar.com)** - Starred site
+            * [Move Site](https://move.com) - Move site
+            * [Edit Site](https://edit.com) - Old description
+        """.trimIndent()
+
+        val initialVideo = """
+            # Video Streaming
+            * [Video Site](https://video-stream.com) - Top video streaming
+        """.trimIndent()
+
+        val files = mutableMapOf(
+            "/docs/.vitepress/transformer/constants.ts" to sampleConstants,
+            "/rentry" to sampleRentry,
+            "/unsafe-domains.txt" to sampleUnsafeDomains,
+            "/unsafe-reasons.json" to sampleUnsafeReasons,
+            "/docs/audio.md" to initialAudio,
+            "/docs/video.md" to initialVideo,
+        )
+
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                val path = request.url.encodedPath
+                val content = files[path] ?: return MockResponse.Builder().code(404).build()
+                val etag = "\"${sha256(content)}\""
+                if (request.headers["If-None-Match"] == etag) {
+                    return MockResponse.Builder().code(304).build()
+                }
+                return MockResponse.Builder()
+                    .code(200)
+                    .setHeader("ETag", etag)
+                    .body(content)
+                    .build()
+            }
+        }
+
+        var clockTime = 1000L
+        val sync = FmhySync(
+            store = store,
+            dir = syncDir,
+            client = client,
+            sources = createSources(),
+            clock = { clockTime },
+            log = {},
+        )
+
+        // 1. Initial sync
+        val r1 = sync.sync(force = true)
+        assertTrue(r1 is SyncResult.Updated)
+
+        // 2. Prepare updates for next sync
+        val updatedAudio = """
+            # Audio Streaming
+            * [Renamed Audio](https://rename.com) - Audio streaming
+            * [UrlChange Site](https://new-url.com) - Url change test
+            * [Unstar Site](https://unstar.com) - Starred site
+            * [Edit Site](https://edit.com) - New description
+        """.trimIndent()
+
+        val updatedVideo = """
+            # Video Streaming
+            * [Video Site](https://video-stream.com) - Top video streaming
+            * [Move Site](https://move.com) - Move site
+        """.trimIndent()
+
+        files["/docs/audio.md"] = updatedAudio
+        files["/docs/video.md"] = updatedVideo
+
+        clockTime = 2000L
+        val r2 = sync.sync(force = false)
+        assertTrue("Second sync should be Updated, was $r2", r2 is SyncResult.Updated)
+
+        // 3. Verify changes table for ts = 2000L
+        data class ChangeRow(
+            val kind: String,
+            val name: String,
+            val url: String,
+            val sectionId: String,
+            val detail: String,
+            val commitSha: String,
+        )
+
+        val changes = mutableListOf<ChangeRow>()
+        store.withConnection { conn ->
+            conn.prepare("SELECT kind, name, url, section_id, detail, commit_sha FROM changes WHERE ts = 2000").use { stmt ->
+                while (stmt.step()) {
+                    changes.add(
+                        ChangeRow(
+                            kind = stmt.getText(0),
+                            name = stmt.getText(1),
+                            url = stmt.getText(2),
+                            sectionId = stmt.getText(3),
+                            detail = stmt.getText(4),
+                            commitSha = stmt.getText(5),
+                        )
+                    )
+                }
+            }
+        }
+
+        // All changes must have commit_sha = "sync:2000"
+        for (c in changes) {
+            assertTrue("commit_sha must start with 'sync:', was '${c.commitSha}'", c.commitSha.startsWith("sync:"))
+            assertEquals("sync:2000", c.commitSha)
+        }
+
+        // Verify rename
+        val renameChange = changes.firstOrNull { it.kind == "renamed" }
+        assertNotNull("Expected renamed row", renameChange)
+        assertEquals("Renamed Audio", renameChange!!.name)
+        assertEquals("https://rename.com", renameChange.url)
+        assertEquals("audio", renameChange.sectionId)
+        assertEquals("Rename Site", renameChange.detail)
+
+        // Verify url_changed
+        val urlChange = changes.firstOrNull { it.kind == "url_changed" }
+        assertNotNull("Expected url_changed row", urlChange)
+        assertEquals("UrlChange Site", urlChange!!.name)
+        assertEquals("https://new-url.com", urlChange.url)
+        assertEquals("audio", urlChange.sectionId)
+        assertEquals("https://old-url.com", urlChange.detail)
+
+        // Verify unstarred
+        val unstarChange = changes.firstOrNull { it.kind == "unstarred" }
+        assertNotNull("Expected unstarred row", unstarChange)
+        assertEquals("Unstar Site", unstarChange!!.name)
+        assertEquals("https://unstar.com", unstarChange.url)
+        assertEquals("audio", unstarChange.sectionId)
+        assertEquals("", unstarChange.detail)
+
+        // Verify moved
+        val moveChange = changes.firstOrNull { it.kind == "moved" }
+        assertNotNull("Expected moved row", moveChange)
+        assertEquals("Move Site", moveChange!!.name)
+        assertEquals("https://move.com", moveChange.url)
+        assertEquals("video", moveChange.sectionId)
+        assertEquals("audio", moveChange.detail)
+
+        // Verify edited
+        val editChange = changes.firstOrNull { it.kind == "edited" }
+        assertNotNull("Expected edited row", editChange)
+        assertEquals("Edit Site", editChange!!.name)
+        assertEquals("https://edit.com", editChange.url)
+        assertEquals("audio", editChange.sectionId)
+        assertEquals("* [Edit Site](https://edit.com) - Old description", editChange.detail)
+
+        // Verify that move and url_change are not also in added or removed
+        val addedUrls = changes.filter { it.kind == "added" }.map { it.url }
+        val removedUrls = changes.filter { it.kind == "removed" }.map { it.url }
+        assertTrue("Move Site should not be in added", "https://move.com" !in addedUrls)
+        assertTrue("Move Site should not be in removed", "https://move.com" !in removedUrls)
+        assertTrue("UrlChange Site should not be in added", "https://new-url.com" !in addedUrls)
+        assertTrue("UrlChange Site should not be in removed", "https://old-url.com" !in removedUrls)
+
+        store.close()
+    }
 }

@@ -52,12 +52,6 @@ private data class TrackerState(
     val lastSuccess: Long = 0L,
 )
 
-internal data class ParsedLink(
-    val name: String,
-    val url: String,
-    val tier: Int,
-    val description: String,
-)
 
 class TrackerSync(
     private val store: DatasetStore,
@@ -185,6 +179,12 @@ class TrackerSync(
             }
         }
 
+        fun resolveEntryId(normUrl: String, sectionId: String, name: String): String {
+            return normUrlToEntryId[normUrl]
+                ?: sectionAndNameToEntryId[sectionId to name.trim().lowercase()]
+                ?: ("tracker:" + sha1(normUrl).take(16))
+        }
+
         // 3. Count before
         val countBefore = conn.prepare("SELECT count(*) FROM changes").use { stmt ->
             if (stmt.step()) stmt.getLong(0) else 0L
@@ -197,148 +197,272 @@ class TrackerSync(
         var linesWithoutLinkCount = 0
         var unknownSourceCount = 0
 
+        val sortedCommits = commits.sortedBy { it.date }
+
+        data class ParsedItem(
+            val commit: TrackerCommit,
+            val commitTs: Long,
+            val item: TrackerLink,
+            val sectionId: String,
+            val linkInfo: ParsedLink,
+            val normUrl: String,
+            val entryId: String,
+        )
+
+        val newItems = mutableListOf<ParsedItem>()
+        val removedItems = mutableListOf<ParsedItem>()
+        val updatedItems = mutableListOf<ParsedItem>()
+
+        for (commit in sortedCommits) {
+            val commitTs = try {
+                Instant.parse(commit.date).epochSecond
+            } catch (_: Exception) {
+                0L
+            }
+
+            for (item in commit.added) {
+                val sectionId = sectionMap[item.source]
+                if (sectionId == null) {
+                    unknownSourceCount++
+                    lastUnknownSources.add(item.source)
+                    continue
+                }
+                val linkInfo = parseLinkLine(item.link)
+                if (linkInfo == null) {
+                    linesWithoutLinkCount++
+                    continue
+                }
+                val normUrl = DatasetStore.normalizeEntryUrl(linkInfo.url)
+                val entryId = resolveEntryId(normUrl, sectionId, linkInfo.name)
+                val parsed = ParsedItem(commit, commitTs, item, sectionId, linkInfo, normUrl, entryId)
+                when (item.type) {
+                    "new" -> newItems.add(parsed)
+                    "updated" -> updatedItems.add(parsed)
+                }
+            }
+
+            for (item in commit.removed) {
+                val sectionId = sectionMap[item.source]
+                if (sectionId == null) {
+                    unknownSourceCount++
+                    lastUnknownSources.add(item.source)
+                    continue
+                }
+                val linkInfo = parseLinkLine(item.link)
+                if (linkInfo == null) {
+                    linesWithoutLinkCount++
+                    continue
+                }
+                val normUrl = DatasetStore.normalizeEntryUrl(linkInfo.url)
+                val entryId = resolveEntryId(normUrl, sectionId, linkInfo.name)
+                val parsed = ParsedItem(commit, commitTs, item, sectionId, linkInfo, normUrl, entryId)
+                removedItems.add(parsed)
+            }
+        }
+
+        // Pair removed items with new items across all commits of the fetched file
+        data class ItemPair(
+            val rem: ParsedItem,
+            val new: ParsedItem,
+            val isMove: Boolean,
+        )
+
+        val pairedNew = mutableSetOf<Int>()
+        val pairedRemoved = mutableSetOf<Int>()
+        val pairs = mutableListOf<ItemPair>()
+
+        for ((remIdx, rem) in removedItems.withIndex()) {
+            val newIdx = newItems.indices.firstOrNull { idx ->
+                idx !in pairedNew &&
+                newItems[idx].normUrl == rem.normUrl &&
+                newItems[idx].commit.date >= rem.commit.date
+            }
+            if (newIdx != null) {
+                pairedRemoved.add(remIdx)
+                pairedNew.add(newIdx)
+                val nw = newItems[newIdx]
+                val isMove = rem.item.source != nw.item.source
+                pairs.add(ItemPair(rem, nw, isMove))
+            }
+        }
+
+        // Earlier syncs may already have inserted the plain added/removed rows:
+        // delete those rows for both shas in the same transaction
+        if (pairs.isNotEmpty()) {
+            val sqlDelete = "DELETE FROM changes WHERE commit_sha = ? AND kind IN ('added', 'removed') AND url = ?"
+            conn.prepare(sqlDelete).use { delStmt ->
+                for (pair in pairs) {
+                    delStmt.bindText(1, pair.rem.commit.sha)
+                    delStmt.bindText(2, pair.rem.linkInfo.url)
+                    delStmt.step()
+                    delStmt.reset()
+
+                    delStmt.bindText(1, pair.new.commit.sha)
+                    delStmt.bindText(2, pair.new.linkInfo.url)
+                    delStmt.step()
+                    delStmt.reset()
+                }
+            }
+        }
+
+        data class ChangeToInsert(
+            val ts: Long,
+            val kind: ChangeKind,
+            val entryId: String,
+            val sectionId: String,
+            val name: String,
+            val url: String,
+            val detail: String,
+            val sha: String,
+        )
+
+        val changesToInsert = mutableListOf<ChangeToInsert>()
+
+        // 1. Pairs (moves and same-source re-adds)
+        for (pair in pairs) {
+            if (pair.isMove) {
+                // Emit ONE moved row (ts / commit_sha of the new commit, section_id = new section, detail = old section id)
+                changesToInsert.add(
+                    ChangeToInsert(
+                        ts = pair.new.commitTs,
+                        kind = ChangeKind.MOVED,
+                        entryId = pair.new.entryId,
+                        sectionId = pair.new.sectionId,
+                        name = pair.new.linkInfo.name,
+                        url = pair.new.linkInfo.url,
+                        detail = pair.rem.sectionId,
+                        sha = pair.new.commit.sha,
+                    )
+                )
+                // If the lines also differ, additionally emit the classifier kinds for (removed line -> new line)
+                if (pair.rem.item.link != pair.new.item.link) {
+                    val diff = ChangeClassifier.classify(pair.rem.item.link, pair.new.item.link)
+                    for (k in diff.kinds) {
+                        val detail = when (k) {
+                            ChangeKind.RENAMED -> diff.oldName ?: pair.rem.linkInfo.name
+                            ChangeKind.URL_CHANGED -> diff.oldUrl ?: pair.rem.linkInfo.url
+                            ChangeKind.EDITED -> pair.rem.item.link
+                            else -> ""
+                        }
+                        changesToInsert.add(
+                            ChangeToInsert(
+                                ts = pair.new.commitTs,
+                                kind = k,
+                                entryId = pair.new.entryId,
+                                sectionId = pair.new.sectionId,
+                                name = pair.new.linkInfo.name,
+                                url = pair.new.linkInfo.url,
+                                detail = detail,
+                                sha = pair.new.commit.sha,
+                            )
+                        )
+                    }
+                }
+            } else {
+                // Same-source re-adds: if lines identical, emit nothing (reorder);
+                // otherwise emit classifier kinds for (removed line -> new line)
+                if (pair.rem.item.link != pair.new.item.link) {
+                    val diff = ChangeClassifier.classify(pair.rem.item.link, pair.new.item.link)
+                    for (k in diff.kinds) {
+                        val detail = when (k) {
+                            ChangeKind.RENAMED -> diff.oldName ?: pair.rem.linkInfo.name
+                            ChangeKind.URL_CHANGED -> diff.oldUrl ?: pair.rem.linkInfo.url
+                            ChangeKind.EDITED -> pair.rem.item.link
+                            else -> ""
+                        }
+                        changesToInsert.add(
+                            ChangeToInsert(
+                                ts = pair.new.commitTs,
+                                kind = k,
+                                entryId = pair.new.entryId,
+                                sectionId = pair.new.sectionId,
+                                name = pair.new.linkInfo.name,
+                                url = pair.new.linkInfo.url,
+                                detail = detail,
+                                sha = pair.new.commit.sha,
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
+        // 2. Unpaired new items
+        for ((idx, nw) in newItems.withIndex()) {
+            if (idx !in pairedNew) {
+                changesToInsert.add(
+                    ChangeToInsert(
+                        ts = nw.commitTs,
+                        kind = ChangeKind.ADDED,
+                        entryId = nw.entryId,
+                        sectionId = nw.sectionId,
+                        name = nw.linkInfo.name,
+                        url = nw.linkInfo.url,
+                        detail = "",
+                        sha = nw.commit.sha,
+                    )
+                )
+            }
+        }
+
+        // 3. Updated items: one row per kind from ChangeClassifier
+        for (upd in updatedItems) {
+            val related = upd.item.relatedLink ?: ""
+            val diff = ChangeClassifier.classify(related, upd.item.link)
+            for (k in diff.kinds) {
+                val detail = when (k) {
+                    ChangeKind.RENAMED -> diff.oldName ?: ""
+                    ChangeKind.URL_CHANGED -> diff.oldUrl ?: ""
+                    ChangeKind.EDITED -> related
+                    else -> ""
+                }
+                changesToInsert.add(
+                    ChangeToInsert(
+                        ts = upd.commitTs,
+                        kind = k,
+                        entryId = upd.entryId,
+                        sectionId = upd.sectionId,
+                        name = upd.linkInfo.name,
+                        url = upd.linkInfo.url,
+                        detail = detail,
+                        sha = upd.commit.sha,
+                    )
+                )
+            }
+        }
+
+        // 4. Unpaired removed items
+        for ((idx, rem) in removedItems.withIndex()) {
+            if (idx !in pairedRemoved) {
+                changesToInsert.add(
+                    ChangeToInsert(
+                        ts = rem.commitTs,
+                        kind = ChangeKind.REMOVED,
+                        entryId = rem.entryId,
+                        sectionId = rem.sectionId,
+                        name = rem.linkInfo.name,
+                        url = rem.linkInfo.url,
+                        detail = "",
+                        sha = rem.commit.sha,
+                    )
+                )
+            }
+        }
+
         val sqlInsert = "INSERT OR IGNORE INTO changes (id, ts, kind, entry_id, section_id, name, url, detail, commit_sha) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
         conn.prepare(sqlInsert).use { stmt ->
-            // Process commits in chronological order (oldest to newest)
-            val sortedCommits = commits.sortedBy { it.date }
-
-            for (commit in sortedCommits) {
-                val commitTs = try {
-                    Instant.parse(commit.date).epochSecond
-                } catch (_: Exception) {
-                    0L
-                }
-                val sha = commit.sha
-
-                // Added items
-                for (item in commit.added) {
-                    val sectionId = sectionMap[item.source]
-                    if (sectionId == null) {
-                        unknownSourceCount++
-                        lastUnknownSources.add(item.source)
-                        continue
-                    }
-
-                    val linkInfo = parseLinkLine(item.link)
-                    if (linkInfo == null) {
-                        linesWithoutLinkCount++
-                        continue
-                    }
-
-                    val normUrl = DatasetStore.normalizeEntryUrl(linkInfo.url)
-                    val entryId = normUrlToEntryId[normUrl]
-                        ?: sectionAndNameToEntryId[sectionId to linkInfo.name.trim().lowercase()]
-                        ?: ("tracker:" + sha1(normUrl).take(16))
-
-                    when (item.type) {
-                        "new" -> {
-                            stmt.bindLong(1, ++nextId)
-                            stmt.bindLong(2, commitTs)
-                            stmt.bindText(3, ChangeKind.ADDED.value)
-                            stmt.bindText(4, entryId)
-                            stmt.bindText(5, sectionId)
-                            stmt.bindText(6, linkInfo.name)
-                            stmt.bindText(7, linkInfo.url)
-                            stmt.bindText(8, "")
-                            stmt.bindText(9, sha)
-                            stmt.step()
-                            stmt.reset()
-                        }
-                        "updated" -> {
-                            val related = item.relatedLink ?: ""
-                            stmt.bindLong(1, ++nextId)
-                            stmt.bindLong(2, commitTs)
-                            stmt.bindText(3, ChangeKind.EDITED.value)
-                            stmt.bindText(4, entryId)
-                            stmt.bindText(5, sectionId)
-                            stmt.bindText(6, linkInfo.name)
-                            stmt.bindText(7, linkInfo.url)
-                            stmt.bindText(8, related)
-                            stmt.bindText(9, sha)
-                            stmt.step()
-                            stmt.reset()
-
-                            if (related.isNotEmpty()) {
-                                val oldInfo = parseLinkLine(related)
-                                val oldStarred = (oldInfo?.tier ?: FmhyParser.detectTierAndKind(related.trimStart().removePrefix("* ").removePrefix("- ")).first) >= 1
-                                val newStarred = linkInfo.tier >= 1
-
-                                if (!oldStarred && newStarred) {
-                                    stmt.bindLong(1, ++nextId)
-                                    stmt.bindLong(2, commitTs)
-                                    stmt.bindText(3, ChangeKind.STARRED.value)
-                                    stmt.bindText(4, entryId)
-                                    stmt.bindText(5, sectionId)
-                                    stmt.bindText(6, linkInfo.name)
-                                    stmt.bindText(7, linkInfo.url)
-                                    stmt.bindText(8, "")
-                                    stmt.bindText(9, sha)
-                                    stmt.step()
-                                    stmt.reset()
-                                } else if (oldStarred && !newStarred) {
-                                    stmt.bindLong(1, ++nextId)
-                                    stmt.bindLong(2, commitTs)
-                                    stmt.bindText(3, ChangeKind.UNSTARRED.value)
-                                    stmt.bindText(4, entryId)
-                                    stmt.bindText(5, sectionId)
-                                    stmt.bindText(6, linkInfo.name)
-                                    stmt.bindText(7, linkInfo.url)
-                                    stmt.bindText(8, "")
-                                    stmt.bindText(9, sha)
-                                    stmt.step()
-                                    stmt.reset()
-                                }
-
-                                if (oldInfo != null && oldInfo.url != linkInfo.url) {
-                                    stmt.bindLong(1, ++nextId)
-                                    stmt.bindLong(2, commitTs)
-                                    stmt.bindText(3, ChangeKind.URL_CHANGED.value)
-                                    stmt.bindText(4, entryId)
-                                    stmt.bindText(5, sectionId)
-                                    stmt.bindText(6, linkInfo.name)
-                                    stmt.bindText(7, linkInfo.url)
-                                    stmt.bindText(8, oldInfo.url)
-                                    stmt.bindText(9, sha)
-                                    stmt.step()
-                                    stmt.reset()
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Removed items
-                for (item in commit.removed) {
-                    val sectionId = sectionMap[item.source]
-                    if (sectionId == null) {
-                        unknownSourceCount++
-                        lastUnknownSources.add(item.source)
-                        continue
-                    }
-
-                    val linkInfo = parseLinkLine(item.link)
-                    if (linkInfo == null) {
-                        linesWithoutLinkCount++
-                        continue
-                    }
-
-                    val normUrl = DatasetStore.normalizeEntryUrl(linkInfo.url)
-                    val entryId = normUrlToEntryId[normUrl]
-                        ?: sectionAndNameToEntryId[sectionId to linkInfo.name.trim().lowercase()]
-                        ?: ("tracker:" + sha1(normUrl).take(16))
-
-                    stmt.bindLong(1, ++nextId)
-                    stmt.bindLong(2, commitTs)
-                    stmt.bindText(3, ChangeKind.REMOVED.value)
-                    stmt.bindText(4, entryId)
-                    stmt.bindText(5, sectionId)
-                    stmt.bindText(6, linkInfo.name)
-                    stmt.bindText(7, linkInfo.url)
-                    stmt.bindText(8, "")
-                    stmt.bindText(9, sha)
-                    stmt.step()
-                    stmt.reset()
-                }
+            for (c in changesToInsert.sortedBy { it.ts }) {
+                stmt.bindLong(1, ++nextId)
+                stmt.bindLong(2, c.ts)
+                stmt.bindText(3, c.kind.value)
+                stmt.bindText(4, c.entryId)
+                stmt.bindText(5, c.sectionId)
+                stmt.bindText(6, c.name)
+                stmt.bindText(7, c.url)
+                stmt.bindText(8, c.detail)
+                stmt.bindText(9, c.sha)
+                stmt.step()
+                stmt.reset()
             }
         }
 
@@ -357,30 +481,8 @@ class TrackerSync(
     }
 
     companion object {
-        internal fun parseLinkLine(line: String): ParsedLink? {
-            val trimmed = line.trim()
-            if (trimmed.isEmpty()) return null
-            val stripped = trimmed.removePrefix("* ").removePrefix("- ").trim()
-            val (tier, kind, rest) = FmhyParser.detectTierAndKind(stripped)
-            val (head, desc) = FmhyParser.splitHeadDesc(rest)
-            val headLinks = FmhyParser.extractInlineLinks(head)
-            val descLinks = if (headLinks.isEmpty()) FmhyParser.extractInlineLinks(desc) else emptyList()
-            val firstLink = headLinks.firstOrNull() ?: descLinks.firstOrNull() ?: return null
-
-            val (_, nonLinkDesc) = FmhyParser.splitHeadDesc(desc)
-            val description = if (nonLinkDesc.isNotEmpty()) {
-                FmhyParser.markdownToPlain(nonLinkDesc).trim()
-            } else if (desc.isNotEmpty() && headLinks.isNotEmpty()) {
-                FmhyParser.markdownToPlain(desc).trim()
-            } else ""
-
-            return ParsedLink(
-                name = firstLink.label,
-                url = firstLink.url,
-                tier = tier,
-                description = description,
-            )
-        }
+        internal fun parseLinkLine(line: String): ParsedLink? =
+            ChangeClassifier.parseLinkLine(line)
 
         private fun sha1(input: String): String {
             val md = MessageDigest.getInstance("SHA-1")
