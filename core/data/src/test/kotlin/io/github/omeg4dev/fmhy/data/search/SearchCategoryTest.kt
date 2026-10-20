@@ -76,4 +76,18 @@ class SearchCategoryTest {
         assertTrue(res.categories.isNotEmpty())
         assertTrue(engine.search("is:starred").categories.isEmpty())
     }
+
+    @Test
+    fun didYouMean() = runTest {
+        val engine = SearchEngine(store("f.db"))
+        val u = engine.suggest(QueryParser.parse("ublok"))
+        val e = engine.suggest(QueryParser.parse("emulatr"))
+        println("suggest(ublok) = $u, suggest(emulatr) = $e")
+        assertEquals("ublock", u)
+        assertEquals("emulator", e)
+        assertNull(engine.suggest(QueryParser.parse("xqzv")))
+        assertEquals("ublock in:adblock", engine.suggest(QueryParser.parse("ublok in:adblock")))
+        assertNull(engine.suggest(QueryParser.parse("ublock")))
+        assertNull(engine.suggest(QueryParser.parse("is:starred")))
+    }
 }

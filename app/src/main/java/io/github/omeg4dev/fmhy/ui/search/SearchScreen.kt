@@ -77,6 +77,9 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -406,13 +409,29 @@ fun SearchScreen(
                             modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.Center,
                         ) {
-                            EmptyState(
-                                icon = Icons.Outlined.SearchOff,
-                                title = "No sites match “${state.query}”",
-                                body = "Try fewer words or another spelling.",
-                                actionLabel = "Search the web",
-                                onAction = { linkOpener.openUrl(searchUrl) },
-                            )
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                EmptyState(
+                                    icon = Icons.Outlined.SearchOff,
+                                    title = "No sites match “${state.query}”",
+                                    body = "Try fewer words or another spelling.",
+                                    actionLabel = "Search the web",
+                                    onAction = { linkOpener.openUrl(searchUrl) },
+                                )
+                                state.suggestion?.let { suggestion ->
+                                    TextButton(onClick = {
+                                        haptics.tick()
+                                        viewModel.onQueryChange(suggestion)
+                                    }) {
+                                        Text(
+                                            text = buildAnnotatedString {
+                                                append("Did you mean ")
+                                                withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(suggestion) }
+                                                append("?")
+                                            },
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                     SearchContentMode.RESULTS -> {

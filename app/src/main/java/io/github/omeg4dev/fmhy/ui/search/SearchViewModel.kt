@@ -49,6 +49,7 @@ data class SearchUiState(
     val isSearching: Boolean = false,
     val hasSearched: Boolean = false,
     val verdict: Verdict? = null,
+    val suggestion: String? = null,
     val newEntryIds: Set<String> = emptySet(),
 )
 
@@ -88,6 +89,7 @@ class SearchViewModel(
     private data class SearchEngineAndVerdict(
         val results: SearchResults?,
         val verdict: Verdict?,
+        val suggestion: String? = null,
     )
 
     private val searchResults = searchParams.mapLatest { params ->
@@ -119,7 +121,14 @@ class SearchViewModel(
                 limit = 200
             )
         }
-        SearchEngineAndVerdict(results, verdict)
+        val suggestion = if (results != null && results.total == 0 && results.categories.isEmpty() && effectiveQuery.isNotBlank()) {
+            try {
+                searchEngine.suggest(io.github.omeg4dev.fmhy.data.search.QueryParser.parse(effectiveQuery))
+            } catch (_: Exception) {
+                null
+            }
+        } else null
+        SearchEngineAndVerdict(results, verdict, suggestion)
     }.flowOn(Dispatchers.IO)
 
     private data class RecentsAndPrefs(
@@ -161,6 +170,7 @@ class SearchViewModel(
             isSearching = false,
             hasSearched = results != null || engineAndVerdict.verdict != null,
             verdict = engineAndVerdict.verdict,
+            suggestion = engineAndVerdict.suggestion,
             newEntryIds = newEntryIds,
         )
     }.flowOn(Dispatchers.IO).stateIn(
