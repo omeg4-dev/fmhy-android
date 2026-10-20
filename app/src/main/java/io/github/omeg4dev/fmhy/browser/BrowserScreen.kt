@@ -71,7 +71,7 @@ import io.github.omeg4dev.fmhy.ui.common.LocalBookmarks
 import io.github.omeg4dev.fmhy.ui.common.Motion
 import io.github.omeg4dev.fmhy.ui.common.SavedInfo
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
-import kotlin.math.roundToInt
+import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -306,18 +306,13 @@ fun BrowserScreen(
                         modifier = Modifier.fillMaxSize(),
                     ) {
                         if (webView != null) {
-                            // Apply padding ONCE when bar height is measured
-                            var paddedWebViewInstance by remember { mutableStateOf<WebView?>(null) }
-                            LaunchedEffect(webView, totalBarHeightPx, browserPrefs.toolbarPosition) {
-                                if (totalBarHeightPx > 0f && paddedWebViewInstance != webView) {
-                                    val barPx = totalBarHeightPx.roundToInt()
-                                    webView.clipToPadding = false
-                                    if (browserPrefs.toolbarPosition == ToolbarPosition.TOP) {
-                                        webView.setPadding(0, barPx, 0, 0)
-                                    } else {
-                                        webView.setPadding(0, 0, 0, barPx)
-                                    }
-                                    paddedWebViewInstance = webView
+                            // The page moves with the top bar (View.translationY, no relayout) so the
+                            // bar never covers the top of the page; a bottom bar simply overlays it.
+                            LaunchedEffect(webView, browserPrefs.toolbarPosition) {
+                                webView.setPadding(0, 0, 0, 0)
+                                snapshotFlow { totalBarHeightPx + toolbarTranslation.value }.collect { visible ->
+                                    webView.translationY =
+                                        if (browserPrefs.toolbarPosition == ToolbarPosition.TOP) visible.coerceAtLeast(0f) else 0f
                                 }
                             }
 
@@ -335,24 +330,17 @@ fun BrowserScreen(
                                     if (isAtTop) {
                                         scope.launch { toolbarTranslation.animateTo(0f, Motion.standard()) }
                                     } else if (!isFindMode && !isEditMode && currentTab.isLoading != true && totalBarHeightPx > 0f) {
-                                        val newTarget = if (browserPrefs.toolbarPosition == ToolbarPosition.TOP) {
-                                            (toolbarTranslation.value - dy).coerceIn(-totalBarHeightPx, 0f)
-                                        } else {
-                                            (toolbarTranslation.value + dy).coerceIn(0f, totalBarHeightPx)
+                                        // Snap by scroll direction instead of following the finger: the page
+                                        // moves with the bar, and following the finger would fight the touch.
+                                        val hidden = if (browserPrefs.toolbarPosition == ToolbarPosition.TOP) -totalBarHeightPx else totalBarHeightPx
+                                        val target = when {
+                                            dy > SCROLL_HIDE_THRESHOLD_PX -> hidden
+                                            dy < -SCROLL_HIDE_THRESHOLD_PX -> 0f
+                                            else -> null
                                         }
-                                        scope.launch { toolbarTranslation.snapTo(newTarget) }
-
-                                        // 150 ms scroll idle snap
-                                        snapJob?.cancel()
-                                        snapJob = scope.launch {
-                                            delay(150)
-                                            if (browserPrefs.toolbarPosition == ToolbarPosition.TOP) {
-                                                val snapTarget = if (toolbarTranslation.value < -totalBarHeightPx / 2f) -totalBarHeightPx else 0f
-                                                toolbarTranslation.animateTo(snapTarget, Motion.standard())
-                                            } else {
-                                                val snapTarget = if (toolbarTranslation.value > totalBarHeightPx / 2f) totalBarHeightPx else 0f
-                                                toolbarTranslation.animateTo(snapTarget, Motion.standard())
-                                            }
+                                        if (target != null && toolbarTranslation.targetValue != target) {
+                                            snapJob?.cancel()
+                                            snapJob = scope.launch { toolbarTranslation.animateTo(target, Motion.standard()) }
                                         }
                                     }
                                 }
@@ -787,3 +775,5 @@ fun BrowserScreen(
         )
     }
 }
+
+private const val SCROLL_HIDE_THRESHOLD_PX = 6
