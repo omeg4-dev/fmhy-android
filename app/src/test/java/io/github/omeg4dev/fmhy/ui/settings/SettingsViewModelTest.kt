@@ -64,7 +64,7 @@ class SettingsViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private class FakeDatasetStore : DatasetStore(File("fake_nonexistent.db")) {
+    private open class FakeDatasetStore : DatasetStore(File("fake_nonexistent.db")) {
         override val isAvailable = true
         override val changes = MutableStateFlow(1L)
         override suspend fun entryCount(): Int = 21665
@@ -325,5 +325,38 @@ class SettingsViewModelTest {
         val emptyFollows = viewModel.follows.first { it.isEmpty() }
 
         assertEquals(0, emptyFollows.size)
+    }
+
+    @Test
+    fun testPreviewEntryFallbackWhenStoreUnavailable() = runTest {
+        val store = FakeDatasetStore()
+        val settings = FakeSettingsRepository()
+        val container = FakeContainer(store, settings)
+
+        val viewModel = SettingsViewModel(store, settings, container)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val preview = viewModel.previewEntry.value
+        assertEquals("uBlock Origin", preview.name)
+        assertEquals("Ad blocker / element blocker", preview.description)
+        assertTrue(preview.tier != io.github.omeg4dev.fmhy.data.model.Tier.NORMAL)
+    }
+
+    @Test
+    fun testPreviewEntryLoadsFromStore() = runTest {
+        val targetEntry = DEFAULT_PREVIEW_ENTRY.copy(id = "ubo-real", description = "Real description from store")
+        val storeWithUbo = object : FakeDatasetStore() {
+            override suspend fun findLookalikeCandidates(mainLabel: String): List<io.github.omeg4dev.fmhy.data.model.Entry> {
+                return if (mainLabel == "uBlock Origin") listOf(targetEntry) else emptyList()
+            }
+        }
+        val settings = FakeSettingsRepository()
+        val container = FakeContainer(storeWithUbo, settings)
+
+        val viewModel = SettingsViewModel(storeWithUbo, settings, container)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("ubo-real", viewModel.previewEntry.value.id)
+        assertEquals("Real description from store", viewModel.previewEntry.value.description)
     }
 }

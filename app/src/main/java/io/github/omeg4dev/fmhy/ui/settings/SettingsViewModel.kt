@@ -23,7 +23,10 @@ import io.github.omeg4dev.fmhy.data.SettingsRepository
 import io.github.omeg4dev.fmhy.data.ThemeMode
 import io.github.omeg4dev.fmhy.data.sync.SyncResult
 import io.github.omeg4dev.fmhy.data.sync.SyncState
+import io.github.omeg4dev.fmhy.data.model.Entry
+import io.github.omeg4dev.fmhy.data.model.EntryKind
 import io.github.omeg4dev.fmhy.data.model.Section
+import io.github.omeg4dev.fmhy.data.model.Tier
 import io.github.omeg4dev.fmhy.data.user.Follow
 import io.github.omeg4dev.fmhy.data.user.ImportResult
 import io.github.omeg4dev.fmhy.data.user.Pin
@@ -56,6 +59,26 @@ class SettingsViewModel(
 
     private val _isUpdating = MutableStateFlow(false)
     private val _updateStatusMessage = MutableStateFlow<String?>(null)
+
+    private val _previewEntry = MutableStateFlow(DEFAULT_PREVIEW_ENTRY)
+    val previewEntry: StateFlow<Entry> = _previewEntry.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            try {
+                val candidates = store.findLookalikeCandidates("uBlock Origin")
+                val hit = candidates.firstOrNull { it.name.contains("uBlock Origin", ignoreCase = true) && it.tier != Tier.NORMAL }
+                    ?: candidates.firstOrNull { it.name.contains("uBlock Origin", ignoreCase = true) }
+                    ?: candidates.firstOrNull { it.tier != Tier.NORMAL }
+                    ?: candidates.firstOrNull()
+                if (hit != null) {
+                    _previewEntry.value = hit
+                }
+            } catch (_: Exception) {
+                // Keep default stub entry
+            }
+        }
+    }
 
     val uiState: StateFlow<SettingsUiState> = combine(
         combine(
@@ -446,3 +469,27 @@ class SettingsViewModel(
         }
     }
 }
+
+val DEFAULT_PREVIEW_ENTRY = Entry(
+    id = "ublock-origin-preview",
+    num = 1,
+    sectionId = "adblocking",
+    headingId = null,
+    ord = 1,
+    name = "uBlock Origin",
+    url = "https://ublockorigin.com",
+    originalUrl = null,
+    description = "Ad blocker / element blocker",
+    tags = emptyList(),
+    headingPath = "Adblocking",
+    tier = Tier.STAR,
+    kind = EntryKind.NORMAL,
+    line = 1,
+    isInlineMore = false,
+    isBase64 = false,
+    mirrors = emptyList(),
+    extraLinks = emptyList(),
+    firstSeen = 0L,
+    lastChanged = 0L,
+    starredAt = null,
+)

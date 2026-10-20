@@ -63,10 +63,12 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
@@ -81,6 +83,7 @@ import io.github.omeg4dev.fmhy.data.ThemeMode
 import io.github.omeg4dev.fmhy.theme.ACCENT_PRESETS
 import io.github.omeg4dev.fmhy.theme.LocalIsDarkTheme
 import io.github.omeg4dev.fmhy.theme.seedColorScheme
+import io.github.omeg4dev.fmhy.ui.common.EntryRow
 import io.github.omeg4dev.fmhy.ui.common.Motion
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import kotlin.math.roundToInt
@@ -95,6 +98,7 @@ fun AppearancePage(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val appearance = state.appearance
+    val previewEntry by viewModel.previewEntry.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val isDark = LocalIsDarkTheme.current
     val haptics = rememberHaptics()
@@ -445,12 +449,41 @@ fun AppearancePage(
                         currentDensity.fontScale * textScaleSliderValue
                     }
                     CompositionLocalProvider(LocalDensity provides Density(currentDensity.density, previewFontScale)) {
-                        Text(
-                            text = "uBlock Origin — Adblocker / Element Blocker",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
-                        )
+                        Column(modifier = Modifier.padding(bottom = 8.dp)) {
+                            Text(
+                                text = "Preview",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 4.dp),
+                            )
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp),
+                            ) {
+                                Box {
+                                    EntryRow(
+                                        entry = previewEntry,
+                                        onOpenUrl = {},
+                                        modifier = Modifier.clearAndSetSemantics {},
+                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .matchParentSize()
+                                            .pointerInput(Unit) {
+                                                awaitPointerEventScope {
+                                                    while (true) {
+                                                        awaitPointerEvent().changes.forEach { it.consume() }
+                                                    }
+                                                }
+                                            },
+                                    )
+                                }
+                            }
+                        }
                     }
                     SettingsDivider()
                     SwitchRow(
