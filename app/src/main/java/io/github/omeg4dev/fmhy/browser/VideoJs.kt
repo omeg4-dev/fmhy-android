@@ -2,6 +2,14 @@ package io.github.omeg4dev.fmhy.browser
 
 /** Page script that watches <video>/<audio> elements and reports what the app needs to know. */
 object VideoJs {
+    /** JS that jumps the fullscreen video (else the first one on the page) by [seconds]. */
+    fun seekCall(seconds: Int): String = "(function(d){try{" +
+        "var f=document.fullscreenElement,v=null;" +
+        "if(f){v=(f.tagName==='VIDEO')?f:f.querySelector('video');}" +
+        "if(!v)v=document.querySelector('video');" +
+        "if(v){var t=v.currentTime+d;if(isFinite(v.duration))t=Math.min(t,v.duration);v.currentTime=Math.max(0,t);}" +
+        "}catch(e){}})($seconds);"
+
     /** JS that sets the playback speed on the page's media; a rate of 0 or less hands control back to the page. */
     fun setRateCall(rate: Float): String =
         "window.__fmhyVideo&&window.__fmhyVideo.setRate(${if (rate > 0f) rate.toString() else "null"});"

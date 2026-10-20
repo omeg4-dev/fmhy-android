@@ -74,6 +74,8 @@ data class BrowserPrefs(
     /** Enter picture-in-picture on its own when leaving the app while a video plays. */
     val autoPip: Boolean = true,
     val keepScreenOn: Boolean = true,
+    /** Double-tap the left or right third of a fullscreen video to seek 10 s. */
+    val doubleTapSeek: Boolean = true,
     /** Playback speed applied to media on pages without a remembered per-site speed. */
     val defaultSpeed: Float = 1f,
 )

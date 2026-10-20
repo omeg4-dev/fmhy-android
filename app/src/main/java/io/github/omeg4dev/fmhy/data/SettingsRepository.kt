@@ -116,6 +116,7 @@ class DefaultSettingsRepository(
         private val KEY_BROWSER_PICTURE_IN_PICTURE = booleanPreferencesKey("browser_picture_in_picture")
         private val KEY_BROWSER_AUTO_PIP = booleanPreferencesKey("browser_auto_pip")
         private val KEY_BROWSER_DEFAULT_SPEED = floatPreferencesKey("browser_default_speed")
+        private val KEY_BROWSER_DOUBLE_TAP_SEEK = booleanPreferencesKey("browser_double_tap_seek")
         private val KEY_BROWSER_KEEP_SCREEN_ON = booleanPreferencesKey("browser_keep_screen_on")
 
         // Blocking
@@ -397,6 +398,7 @@ class DefaultSettingsRepository(
             pictureInPicture = prefs[KEY_BROWSER_PICTURE_IN_PICTURE] ?: default.pictureInPicture,
             autoPip = prefs[KEY_BROWSER_AUTO_PIP] ?: default.autoPip,
             keepScreenOn = prefs[KEY_BROWSER_KEEP_SCREEN_ON] ?: default.keepScreenOn,
+            doubleTapSeek = prefs[KEY_BROWSER_DOUBLE_TAP_SEEK] ?: default.doubleTapSeek,
             defaultSpeed = prefs[KEY_BROWSER_DEFAULT_SPEED] ?: default.defaultSpeed,
         )
     }
@@ -417,6 +419,7 @@ class DefaultSettingsRepository(
         prefs[KEY_BROWSER_PICTURE_IN_PICTURE] = p.pictureInPicture
         prefs[KEY_BROWSER_AUTO_PIP] = p.autoPip
         prefs[KEY_BROWSER_KEEP_SCREEN_ON] = p.keepScreenOn
+        prefs[KEY_BROWSER_DOUBLE_TAP_SEEK] = p.doubleTapSeek
         prefs[KEY_BROWSER_DEFAULT_SPEED] = p.defaultSpeed
     }
 

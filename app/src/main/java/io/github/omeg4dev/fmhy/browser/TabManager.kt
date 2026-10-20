@@ -913,6 +913,15 @@ class TabManager(
         }
     }
 
+    /** Skips the active tab's video by [seconds] (negative = back). */
+    fun seekActiveVideo(seconds: Int) {
+        val record = getActiveTabRecord() ?: return
+        val js = VideoJs.seekCall(seconds)
+        postToMain {
+            try { record.webView?.evaluateJavascript(js, null) } catch (_: Throwable) {}
+        }
+    }
+
     fun setHasMedia(tabId: Long) {
         val record = getTabRecord(tabId) ?: return
         if (record.hasMedia) return

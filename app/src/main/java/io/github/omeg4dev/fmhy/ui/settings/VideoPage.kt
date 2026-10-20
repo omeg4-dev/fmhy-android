@@ -71,6 +71,13 @@ fun VideoPage(
                     )
                     SettingsDivider()
                     SwitchRow(
+                        title = "Double-tap to seek",
+                        summary = "Double-tap the left or right side of a fullscreen video to skip 10 seconds",
+                        checked = prefs.doubleTapSeek,
+                        onChange = { checked -> viewModel.updateBrowser { it.copy(doubleTapSeek = checked) } },
+                    )
+                    SettingsDivider()
+                    SwitchRow(
                         title = "Keep screen on while playing",
                         checked = prefs.keepScreenOn,
                         onChange = { checked -> viewModel.updateBrowser { it.copy(keepScreenOn = checked) } },
