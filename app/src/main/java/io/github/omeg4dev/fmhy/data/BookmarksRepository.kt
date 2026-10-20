@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import io.github.omeg4dev.fmhy.data.model.Entry
 import io.github.omeg4dev.fmhy.data.user.Folder
+import io.github.omeg4dev.fmhy.data.user.ImportResult
 import io.github.omeg4dev.fmhy.data.user.UserBookmark
 import io.github.omeg4dev.fmhy.data.user.UserStore
 import kotlinx.coroutines.CompletableDeferred
@@ -159,6 +160,18 @@ class BookmarksRepository(
 
     suspend fun deleteFolder(id: Long) {
         userStore.deleteFolder(id)
+    }
+
+    suspend fun exportJson(includeHistory: Boolean = false): String {
+        return userStore.exportJson(includeHistory)
+    }
+
+    suspend fun importJson(json: String): ImportResult {
+        return userStore.importJson(json)
+    }
+
+    suspend fun clearHistory() {
+        userStore.clearHistory()
     }
 }
 

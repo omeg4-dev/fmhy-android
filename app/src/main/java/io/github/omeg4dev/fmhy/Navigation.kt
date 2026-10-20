@@ -69,6 +69,7 @@ import io.github.omeg4dev.fmhy.nav.LocalBottomBarPadding
 import io.github.omeg4dev.fmhy.nav.Tab
 import io.github.omeg4dev.fmhy.ui.common.BookmarksState
 import io.github.omeg4dev.fmhy.ui.common.LocalBookmarks
+import io.github.omeg4dev.fmhy.ui.common.SavedInfo
 import io.github.omeg4dev.fmhy.ui.common.LocalCrossLinks
 import io.github.omeg4dev.fmhy.ui.home.HomeScreen
 import io.github.omeg4dev.fmhy.ui.home.HomeViewModel
@@ -190,6 +191,8 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
 
     val crossLinks by container.crossLinks.collectAsStateWithLifecycle()
     val savedIds by container.bookmarks.savedIds.collectAsStateWithLifecycle(initialValue = emptySet())
+    val bookmarksList by container.bookmarks.bookmarks.collectAsStateWithLifecycle(initialValue = emptyList())
+    val foldersList by container.bookmarks.folders.collectAsStateWithLifecycle(initialValue = emptyList())
 
     var sectionTitles by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     LaunchedEffect(container.datasetStore.changes) {
@@ -200,13 +203,40 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
         }
     }
 
-    val bookmarksState = remember(savedIds, sectionTitles) {
+    val bookmarksState = remember(savedIds, bookmarksList, foldersList, sectionTitles) {
+        val folderMap = foldersList.associate { it.id to it.name }
+        val bookmarkMap = bookmarksList.associateBy { it.entryId }
         BookmarksState(
             savedIds = savedIds,
             toggle = { entry ->
                 scope.launch {
                     val title = sectionTitles[entry.sectionId] ?: entry.headingPath
                     container.bookmarks.toggle(entry, title)
+                }
+            },
+            folders = foldersList,
+            savedInfo = { entryId ->
+                val b = bookmarkMap[entryId] ?: return@BookmarksState null
+                SavedInfo(
+                    folderId = b.folderId,
+                    folderName = b.folderId?.let { folderMap[it] },
+                    note = b.note,
+                )
+            },
+            setNote = { entryId, note ->
+                scope.launch {
+                    container.bookmarks.setNote(entryId, note)
+                }
+            },
+            moveToFolder = { entryId, folderId ->
+                scope.launch {
+                    container.bookmarks.moveToFolder(entryId, folderId)
+                }
+            },
+            createFolder = { name, onCreated ->
+                scope.launch {
+                    val f = container.bookmarks.createFolder(name)
+                    onCreated(f)
                 }
             }
         )
@@ -405,6 +435,9 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                 SettingsPage.SAVED -> SavedPage(
                     viewModel = settingsViewModel,
                     onBack = { if (!nav.back()) activity?.finish() },
+                    onShowSnackbar = { msg ->
+                        scope.launch { snackbarHostState.showSnackbar(msg) }
+                    },
                 )
                 SettingsPage.ABOUT -> AboutPage(
                     viewModel = settingsViewModel,
@@ -424,6 +457,8 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                 SavedViewModel(
                     container.datasetStore,
                     container.bookmarks,
+                    container.userStore,
+                    container.settingsRepository,
                 )
             }
             SavedScreen(

@@ -30,6 +30,7 @@ import io.github.omeg4dev.fmhy.data.link.CrossLinks
 import io.github.omeg4dev.fmhy.data.link.LinkTarget
 import io.github.omeg4dev.fmhy.data.link.PasteLinks
 import io.github.omeg4dev.fmhy.data.link.PasteResolver
+import io.github.omeg4dev.fmhy.data.user.UserStore
 import io.github.omeg4dev.fmhy.di.AppContainer
 import io.github.omeg4dev.fmhy.nav.LocalAppNav
 import kotlinx.coroutines.CoroutineScope
@@ -47,6 +48,7 @@ class LinkOpener(
     private val crossLinks: StateFlow<CrossLinks?>? = null,
     private val onOpenInternal: (LinkTarget) -> Unit = {},
     private val pasteResolver: PasteResolver? = null,
+    private val userStore: UserStore? = null,
 ) {
     /** Links decoded from a pastebin page that hides several; the chooser dialog shows them. */
     var pendingPasteChoices by mutableStateOf<List<String>?>(null)
@@ -112,6 +114,23 @@ class LinkOpener(
 
     private fun openUrlDirectly(url: String) {
         coroutineScope.launch {
+            if (userStore != null) {
+                try {
+                    if (settingsRepository.dataPrefs.first().keepHistory) {
+                        val host = try { url.toUri().host?.removePrefix("www.").orEmpty().ifEmpty { url } } catch (_: Exception) { url }
+                        val matching = if (store.isAvailable) {
+                            try {
+                                store.entriesMatchingHost(host).firstOrNull {
+                                    it.url.trimEnd('/') == url.trimEnd('/') ||
+                                    it.originalUrl?.trimEnd('/') == url.trimEnd('/')
+                                }
+                            } catch (_: Exception) { null }
+                        } else null
+                        userStore.addHistory(url, matching?.id, matching?.name ?: host)
+                    }
+                } catch (_: Exception) {}
+            }
+
             val openWith = settingsRepository.browserPrefs.first().openLinksWith
             val uri = url.toUri()
             when (openWith) {
@@ -231,6 +250,7 @@ fun rememberLinkOpener(
                 nav.push(SectionNavKey(target.sectionId, anchor = target.headingId))
             },
             pasteResolver = pasteResolverFor(container),
+            userStore = container.userStore,
         )
     }
 }
