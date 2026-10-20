@@ -1,9 +1,9 @@
--- FMHY dataset, schema 3. Single source of truth for pipeline/ (writes it) and app/ (reads it).
+-- FMHY dataset, schema 4. Single source of truth for pipeline/ (writes it) and app/ (reads it).
 -- The pipeline creates a fresh SQLite file with exactly this DDL, fills it, then VACUUMs it.
 -- The app opens it with androidx.sqlite BundledSQLiteDriver (not Room) and applies deltas to it.
 -- Timestamps are unix seconds (UTC). Booleans are 0/1. JSON columns hold compact JSON arrays.
 
-PRAGMA user_version = 3;
+PRAGMA user_version = 4;
 
 -- key/value: schema ('3'), version (monotonic int as text), created (unix), source_commit (fmhy/edit sha),
 -- history_start (unix ts of the oldest fmhy/edit commit; entries older than that have first_seen = it)
@@ -76,7 +76,7 @@ CREATE TABLE notes (
 CREATE TABLE changes (
     id         INTEGER PRIMARY KEY,
     ts         INTEGER NOT NULL,
-    kind       TEXT NOT NULL CHECK (kind IN ('added','removed','starred','unstarred','moved','renamed','url_changed')),
+    kind       TEXT NOT NULL CHECK (kind IN ('added','removed','starred','unstarred','moved','renamed','url_changed','edited')),
     entry_id   TEXT NOT NULL,              -- may no longer exist in entries (kind = removed)
     section_id TEXT NOT NULL,
     name       TEXT NOT NULL,              -- copied so removed entries can still be shown
@@ -85,6 +85,7 @@ CREATE TABLE changes (
     commit_sha TEXT NOT NULL
 );
 CREATE INDEX changes_ts ON changes(ts DESC);
+CREATE UNIQUE INDEX changes_dedupe ON changes(commit_sha, kind, url);
 
 -- monthly update posts from docs/posts/*.md
 CREATE TABLE posts (
@@ -100,6 +101,14 @@ CREATE TABLE posts (
 CREATE TABLE unsafe_domains (
     domain TEXT PRIMARY KEY,
     reason TEXT NOT NULL DEFAULT ''
+) WITHOUT ROWID;
+
+-- FMHY-SafeGuard's lists: key = domain, or "host/path-prefix" for shared hosts (see SafeGuard config.js)
+CREATE TABLE site_lists (
+    key    TEXT NOT NULL,
+    list   TEXT NOT NULL CHECK (list IN ('unsafe','potentially_unsafe','fmhy')),
+    reason TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (key, list)
 ) WITHOUT ROWID;
 
 -- Full-text search. Both are external-content tables over entries, kept in sync by the triggers below,

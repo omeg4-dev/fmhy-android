@@ -8,7 +8,8 @@ enum class ChangeKind(val value: String) {
     UNSTARRED("unstarred"),
     MOVED("moved"),
     RENAMED("renamed"),
-    URL_CHANGED("url_changed");
+    URL_CHANGED("url_changed"),
+    EDITED("edited");
 
     companion object {
         private val map = entries.associateBy { it.value }

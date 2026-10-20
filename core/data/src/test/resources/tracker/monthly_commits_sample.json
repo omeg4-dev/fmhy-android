@@ -1,0 +1,449 @@
+{
+  "month": "2026-10",
+  "generatedAt": "2026-10-19T20:24:11.126526Z",
+  "totalCommits": 15,
+  "commits": [
+    {
+      "sha": "66e7415a2adc8c00a07eb783ea2cae2de4825897",
+      "date": "2026-10-18T18:55:23Z",
+      "message": "updated 2 pages",
+      "added": [
+        {
+          "link": "* [TikTok Tools](https://omar-thing.site/) - TikTok User Finder / Search / Story Viewer / Downloader / Link Tracker & more / [Telegram](https://t.me/tiktokinfosite)",
+          "source": "social-media-tools",
+          "type": "updated",
+          "relatedLink": "* [TikTok Tools](https://omar-thing.site/) - TikTok User Finder / Search / Story Viewer / Downloader / Link Tracker & more"
+        }
+      ],
+      "removed": [
+        {
+          "link": "* [\u2060FourOnDaFloor](https://fourondafloor.com/) - Sound Effects",
+          "source": "audio",
+          "type": "removed"
+        }
+      ],
+      "isMonthlyHistorical": true,
+      "dateGroup": "yesterday"
+    },
+    {
+      "sha": "79b46fdae0523330c46fa9c615f339690b92f985",
+      "date": "2026-10-18T18:46:12Z",
+      "message": "updated 3 pages",
+      "added": [
+        {
+          "link": "* [GreyBox](https://greyboxtv.vercel.app/) - Movies / TV / Anime / [Discord](https://discord.gg/8Cujv2VNp)",
+          "source": "video",
+          "type": "updated",
+          "relatedLink": "* [GreyBox](https://greyboxtv.vercel.app/ ) - Movies / TV / Anime / [Discord](https://discord.gg/8Cujv2VNp)"
+        },
+        {
+          "link": "* [DigilogTV](https://github.com/aldrinzigmundv/digilogtv) - News Streaming App",
+          "source": "video",
+          "type": "updated",
+          "relatedLink": "* [DigilogTV](https://github.com/aldrinzigmundv/digilogtv) - News TV Channels"
+        }
+      ],
+      "removed": [
+        {
+          "link": "* [Flixoid](https://rentry.co/FMHYB64#flixoid) - Movies / TV",
+          "source": "mobile",
+          "type": "removed"
+        },
+        {
+          "link": "* [TikTok Tools](https://omar-thing.site/) - Search, Story Viewer, Repost Viewer, and URL Tracker / [Telegram](https://t.me/tiktokinfosite)",
+          "source": "social-media-tools",
+          "type": "removed"
+        }
+      ],
+      "isMonthlyHistorical": true,
+      "dateGroup": "yesterday"
+    },
+    {
+      "sha": "4c1925e51ea5faeecdf0dcf32302ce6418d2bad8",
+      "date": "2026-10-17T07:35:20Z",
+      "message": "updated 17 pages",
+      "added": [
+        {
+          "link": "* [BG Bye](https://bgbye.io/) - Background Remover / Web / [GitHub](https://github.com/MangoLion/bgbye)",
+          "source": "image-tools",
+          "type": "updated",
+          "relatedLink": "* \u2b50 **[BG Bye](https://bgbye.io/)** - Background Remover / Web / [GitHub](https://github.com/MangoLion/bgbye)"
+        },
+        {
+          "link": "* [Method](https://editor.method.ac/), [SVG.wtf](https://svg.wtf/), [Lucide Studio](https://studio.lucide.dev/edit), [DrawSVG](https://drawsvg.org/), [Boxy SVG](https://boxy-svg.com/), [Mossaik](https://mossaik.app/) or [SVG Viewer](https://www.svgviewer.dev/) - SVG Editors / Viewers",
+          "source": "developer-tools",
+          "type": "updated",
+          "relatedLink": "* [Method](https://editor.method.ac/), [SVG.wtf](https://svg.wtf/), [Lucide Studio](\u2060https://studio.lucide.dev/), [DrawSVG](https://drawsvg.org/), [Boxy SVG](https://boxy-svg.com/), [Mossaik](https://mossaik.app/) or [SVG Viewer](https://www.svgviewer.dev/) - SVG Editors / Viewers"
+        },
+        {
+          "link": "* [YARA](https://virustotal.github.io/yara/) - Malware Identification Tool / [GitHub](https://github.com/virustotal/yara)",
+          "source": "developer-tools",
+          "type": "updated",
+          "relatedLink": "* [YARA](https://virustotal.github.io/yara/) - Malware Identification Tool / [GitHub](https://github.com/virustotal/yara)"
+        }
+      ],
+      "removed": [
+        {
+          "link": "* \u21aa\ufe0f **[Rhythm Game Engines](https://www.reddit.com/r/FREEMEDIAHECKYEAH/wiki/game-tools#wiki_.25B7_rhythm_tools)**",
+          "source": "gaming",
+          "type": "removed"
+        }
+      ],
+      "isMonthlyHistorical": true,
+      "dateGroup": "thisWeek"
+    },
+    {
+      "sha": "3105cb97b1e38ba16fe11f3f93ed59c6b8b11bbe",
+      "date": "2026-10-16T17:59:57Z",
+      "message": "small fix",
+      "added": [
+        {
+          "link": "* [Tsukuyomi](https://tsukuyomi.tv/) - Sub / Dub / [Discord](https://discord.gg/YMuM7RuWnY)",
+          "source": "video",
+          "type": "updated",
+          "relatedLink": "* [Tsukuyomi](https://tsukuyomi.tv/) - Sub / Dub"
+        }
+      ],
+      "removed": [],
+      "isMonthlyHistorical": true,
+      "dateGroup": "thisWeek"
+    },
+    {
+      "sha": "1208008be89cc87761a42c7bfe8525b3821966c2",
+      "date": "2026-10-16T17:50:33Z",
+      "message": "updated 10 pages",
+      "added": [
+        {
+          "link": "* \u2b50 **[AnimeAV1](https://animeav1.com/)** - Anime",
+          "source": "non-english",
+          "type": "updated",
+          "relatedLink": "* [animeav1](https://animeav1.com/) - Anime"
+        },
+        {
+          "link": "* [\u2060Elara Archive](https://www.elararchive.org/) - Endangered Language Video + Audio Archive",
+          "source": "educational",
+          "type": "new"
+        },
+        {
+          "link": "* [\u2060StickFrag](https://stickfrag.com/) - PvP FPS",
+          "source": "gaming",
+          "type": "new"
+        }
+      ],
+      "removed": [
+        {
+          "link": "* [Binged](https://binged.net/) / [Beta](https://binged.net/beta) - TV / Sports",
+          "source": "video",
+          "type": "removed"
+        }
+      ],
+      "isMonthlyHistorical": true,
+      "dateGroup": "thisWeek"
+    },
+    {
+      "sha": "8ad1cac4d6336644b41deb4e446e8bcee5d7c2bb",
+      "date": "2026-10-15T10:08:04Z",
+      "message": "updated 4 pages",
+      "added": [
+        {
+          "link": "* [FlowTunes](https://www.flowtunes.app/) - Customizable Ambient Sound Mixer",
+          "source": "audio",
+          "type": "new"
+        },
+        {
+          "link": "* [Rhythmax TIDAL Downloader](https://tidal.odskyler.com/) - Tidal / FLAC / [Discord](https://discord.gg/PAKgD6Jhfm)",
+          "source": "audio",
+          "type": "new"
+        },
+        {
+          "link": "* [Rhythmax JioSaavn Downloader](https://saavn.odskyler.com/) - JioSaavn / 320kb AAC / [Discord](https://discord.gg/PAKgD6Jhfm) / [GitHub](https://github.com/ODSkyler/saavn-dl)",
+          "source": "audio",
+          "type": "new"
+        },
+        {
+          "link": "* [FlowTunes](https://apps.apple.com/us/app/flowtunes-music-for-focus/id6502615308) = Customizable Ambient Sound Mixer",
+          "source": "mobile",
+          "type": "new"
+        },
+        {
+          "link": "* [Chillflix](https://chillflix.lol/), [Vuflix](https://vuflix.co/) or [Toflix](https://toflix.co/) - Movies / TV / Anime / Auto-Next / 4K / [Discord](https://discord.gg/6r5KTZgqXV)",
+          "source": "video",
+          "type": "updated",
+          "relatedLink": "* [Chillflix](https://chillflix.lol/), [Vuflix](https://vuflix.co/) or [Toflix](https://toflix.co/) - Movies / TV / Anime / Auto-Next / [Discord](https://discord.gg/6r5KTZgqXV)"
+        }
+      ],
+      "removed": [
+        {
+          "link": "* [TIDAL DL](https://tidal.odskyler.com/) - Tidal / FLAC / [Discord](https://discord.gg/PAKgD6Jhfm)",
+          "source": "audio",
+          "type": "removed"
+        },
+        {
+          "link": "* [Rhythmax](https://saavn.odskyler.com/) - TIDAL / JioSaavn / 320kb AAC / [Discord](https://discord.gg/PAKgD6Jhfm) / [GitHub](https://github.com/ODSkyler/saavn-dl)",
+          "source": "audio",
+          "type": "removed"
+        },
+        {
+          "link": "* \u2b50 **[Goblin.tools](https://goblin.tools/ToDo)** - Automatic Task Breakdown",
+          "source": "text-tools",
+          "type": "removed"
+        }
+      ],
+      "isMonthlyHistorical": true,
+      "dateGroup": "thisWeek"
+    },
+    {
+      "sha": "584b33f64204481b6c749db80213a3217743ceca",
+      "date": "2026-10-13T08:42:47Z",
+      "message": "small update",
+      "added": [
+        {
+          "link": "* [\u2060SongFinder](https://songfinder.tech/) / Web",
+          "source": "audio",
+          "type": "new"
+        }
+      ],
+      "removed": [],
+      "isMonthlyHistorical": true,
+      "dateGroup": "thisWeek"
+    },
+    {
+      "sha": "e3d18d20d82f12f4223837cf72d5e436b63c87af",
+      "date": "2026-10-11T14:32:31Z",
+      "message": "updated 20 pages",
+      "added": [
+        {
+          "link": "* **iOS: [\u20608SPINE](https://apps.apple.com/app/8spine-the-music-app/id6755934415) / [Modules](https://8spine-modules.vercel.app/) / [EeveSpotifyReincarnated](https://t.me/eeveespotify_hazel)**",
+          "source": "beginners-guide",
+          "type": "updated",
+          "relatedLink": "* **iOS: [\u20608SPINE](https://apps.apple.com/app/8spine-the-music-app/id6755934415) / [Modules](https://8spine-modules.vercel.app/) / [Chroma (Hazel)](https://t.me/eeveespotify_hazel)**"
+        },
+        {
+          "link": "* [ChatGPT](https://chatgpt.com/) - GPT-6 Luna / Unlimited / [Add Features](https://github.com/Nagi-ovo/voyager) / [Limits](https://help.openai.com/en/articles/9275245-chatgpt-free-tier-faq#how-do-rate-limits-work-on-the-free-tier) / [r/OpenAI](https://www.reddit.com/r/OpenAI/) / [r/ChatGPT](https://www.reddit.com/r/ChatGPT/) / [Discord](https://discord.com/invite/openai)",
+          "source": "ai",
+          "type": "updated",
+          "relatedLink": "* [ChatGPT](https://chatgpt.com/) - GPT-5.6 Luna / Unlimited / [Add Features](https://github.com/Nagi-ovo/voyager) / [Limits](https://help.openai.com/en/articles/9275245-chatgpt-free-tier-faq#how-do-rate-limits-work-on-the-free-tier) / [r/OpenAI](https://www.reddit.com/r/OpenAI/) / [r/ChatGPT](https://www.reddit.com/r/ChatGPT/) / [Discord](https://discord.com/invite/openai)"
+        },
+        {
+          "link": "* [Arena](https://arena.ai/text/direct), [2](https://canaryarena.ai/text/direct) - Multiple Models / Agent / Sign-Up / [Limits](https://help.arena.ai/articles/5476762589-credit-sytem) / [X](https://x.com/arena) / [Discord](https://discord.com/invite/lmarena)",
+          "source": "ai",
+          "type": "updated",
+          "relatedLink": "* [Arena](https://arena.ai/text/direct), [2](https://canaryarena.ai/text/direct) - Multiple Models / Agent / Sign-Up / [X](https://x.com/arena) / [Discord](https://discord.com/invite/lmarena)"
+        }
+      ],
+      "removed": [
+        {
+          "link": "* [\u2060Debridr](https://debridr.com/) or [\u2060Get4All](https://get4all.org/) (use ubo) - Premium Link Bypass / Use UBO + [Redirect Bypassers](https://www.reddit.com/r/FREEMEDIAHECKYEAH/wiki/internet-tools/#wiki_.25B7_redirect_bypass)",
+          "source": "downloading",
+          "type": "removed"
+        }
+      ],
+      "isMonthlyHistorical": true,
+      "dateGroup": "earlier"
+    },
+    {
+      "sha": "48b71c2ffed686ed0b2f31d61c9792230f5fa938",
+      "date": "2026-10-08T20:01:37Z",
+      "message": "small fix",
+      "added": [
+        {
+          "link": "* [M-Zone](https://m-zone.cc/), [2](https://m-zone.org/) - Movies / TV / Anime / Auto-Next / [Discord](https://discord.com/invite/PFvCNcZCQC)",
+          "source": "video",
+          "type": "updated",
+          "relatedLink": "* [M-Zone](https://m-zone.org/) - Movies / TV / Anime / Auto-Next"
+        }
+      ],
+      "removed": [],
+      "isMonthlyHistorical": true,
+      "dateGroup": "earlier"
+    },
+    {
+      "sha": "18889385ab5047243ff704ba55c64259db5ec3db",
+      "date": "2026-10-08T18:48:29Z",
+      "message": "updated 11 pages",
+      "added": [
+        {
+          "link": "* \u2b50 **[TorBox](https://torbox.app/)** - Freemium / 10GB + 10 Monthly DDL Free / Requires Sign-Up / [Hosters](https://torbox.app/hosters) / [Unofficial Mobile Client](https://github.com/93Pd9s8Jt/atba), [2](https://gitlab.com/forgiving/yatba) / [Subreddit](https://www.reddit.com/r/TorBoxApp/) / [Discord](https://discord.com/invite/torbox) / [GitHub](https://github.com/TorBox-App)",
+          "source": "downloading",
+          "type": "updated",
+          "relatedLink": "* \u2b50 **[TorBox](https://torbox.app/)** - Paid / Requires Sign-Up / [Hosters](https://torbox.app/hosters) / [Unofficial Mobile Client](https://github.com/93Pd9s8Jt/atba), [2](https://gitlab.com/forgiving/yatba) / [Subreddit](https://www.reddit.com/r/TorBoxApp/) / [Discord](https://discord.com/invite/torbox) / [GitHub](https://github.com/TorBox-App)"
+        },
+        {
+          "link": "* \ud83c\udf10 **[Awesome File Hosts](https://fhhy.vercel.app/)** / [GitHub](https://github.com/FahadBinHussain/awesome-file-hosts) or **[PolyUpload File Hosts](https://github.com/spel987/PolyUploader?tab=readme-ov-file#-hosts)** - File Host Indexes",
+          "source": "file-tools",
+          "type": "updated",
+          "relatedLink": "* \ud83c\udf10 **[Awesome File Hosts](https://fhhy.vercel.app/)** / [GitHub](https://github.com/FahadBinHussain/awesome-file-hosts), **[Awesome Free File Hosting](https://github.com/Nick088Official/awesome-free-file-hosting)** or **[PolyUpload File Hosts](https://github.com/spel987/PolyUploader?tab=readme-ov-file#-hosts)** - File Host Indexes"
+        },
+        {
+          "link": "* [LeviLauncher](https://levilauncher.levimc.org/) / [GitHub](https://github.com/LiteLDev/LeviLauncher), [Bedrock Launcher](https://bedrocklauncher.github.io/) / [GitHub](https://github.com/BedrockLauncher/BedrockLauncher), [WineGDK](https://github.com/Weather-OS/WineGDK) / [Guide](https://minecraft.wiki/w/Tutorial:Playing_Minecraft_on_Linux#WineGDK) or [BedrockOnLinux](https://github.com/Wyze3306/BedrockOnLinux) - Bedrock Launchers / Windows, macOS, Linux",
+          "source": "gaming-tools",
+          "type": "updated",
+          "relatedLink": "* [LeviLauncher](https://levilauncher.levimc.org/) / [GitHub](https://github.com/LiteLDev/LeviLauncher), [Bedrock Launcher](https://bedrocklauncher.github.io/) / [GitHub](https://github.com/BedrockLauncher/BedrockLauncher) / [Note](https://i.ibb.co/DDZdRHMf/kckgkvcd.png), [WineGDK](https://github.com/Weather-OS/WineGDK) / [Guide](https://minecraft.wiki/w/Tutorial:Playing_Minecraft_on_Linux#WineGDK) or [BedrockOnLinux](https://github.com/Wyze3306/BedrockOnLinux) - Bedrock Launchers / Windows, macOS, Linux"
+        }
+      ],
+      "removed": [
+        {
+          "link": "* [Anizm](https://anizm.net/) - Anime",
+          "source": "non-english",
+          "type": "removed"
+        }
+      ],
+      "isMonthlyHistorical": true,
+      "dateGroup": "earlier"
+    },
+    {
+      "sha": "385c7774526dd239a24f2da9a6332633cb4a0b84",
+      "date": "2026-10-07T05:49:52Z",
+      "message": "Fix wiki typos, broken link, and duplicate listing (#6580)\n\n* Fix wiki typos, broken link, and duplicate listing\n\n* Remove duplicate IHaveNoTV listing",
+      "added": [
+        {
+          "link": "* [World Monitor](https://worldmonitor.app/) / [Tech Version](https://tech.worldmonitor.app/) / [GitHub](https://github.com/koala73/worldmonitor), [OSIRIS](https://osirisai.live/), [\u2060Conflictly](https://www.conflictly.app/) or [\u2060World-Monitor](https://world-monitor.com/) - Real-Time News Aggregators / Monitors / Maps",
+          "source": "misc",
+          "type": "updated",
+          "relatedLink": "* [World Monitor](https://worldmonitor.app/) / [Tech Version](https://tech.worldmonitor.app/) / [GitHub](https://github.com/koala73/worldmonitor, [OSIRIS](https://osirisai.live/), [\u2060Conflictly](https://www.conflictly.app/) or [\u2060World-Monitor](https://world-monitor.com/) - Real-Time News Aggregators / Monitors / Maps"
+        }
+      ],
+      "removed": [
+        {
+          "link": "* [IHaveNoTV](https://ihavenotv.com/)",
+          "source": "educational",
+          "type": "removed"
+        },
+        {
+          "link": "* [Doramasflix](https://doramasflix.co/) - Movies / TV",
+          "source": "non-english",
+          "type": "removed"
+        }
+      ],
+      "isMonthlyHistorical": true,
+      "dateGroup": "earlier"
+    },
+    {
+      "sha": "2174220ce3be48cc9816d9eb8cd0969538be2bf3",
+      "date": "2026-10-05T01:10:08Z",
+      "message": "updated 3 pages",
+      "added": [
+        {
+          "link": "* [ChatGPT](https://apps.apple.com/app/id6448311069), [Gemini](https://apps.apple.com/us/app/google-gemini/id6477489729), [DeepSeek](https://apps.apple.com/us/app/deepseek-ai-assistant/id6737597349), [Mollama](https://apps.apple.com/app/mollama/id6736948278), [Locally AI](https://apps.apple.com/app/id6741426692), [Chatbox](https://chatboxai.app/) / [GitHub](https://github.com/chatboxai/chatbox) or [PocketPal AI](https://pocketpal.dev/) / [GitHub](https://github.com/a-ghorbani/pocketpal-ai) - AI Chatbots",
+          "source": "mobile",
+          "type": "updated",
+          "relatedLink": "* [ChatGPT](https://apps.apple.com/app/id6448311069), [Gemini](https://apps.apple.com/us/app/google-gemini/id6477489729), [DeepSeek](https://apps.apple.com/us/app/deepseek-ai-assistant/id6737597349), [Mollama](https://apps.apple.com/app/mollama/id6736948278), [Chatbox](https://chatboxai.app/) / [GitHub](https://github.com/chatboxai/chatbox) or [PocketPal AI](https://pocketpal.dev/) / [GitHub](https://github.com/a-ghorbani/pocketpal-ai) - AI Chatbots"
+        },
+        {
+          "link": "* [LiveContainer](https://github.com/LiveContainerMirror/LiveContainer) - iOS App Container Launcher",
+          "source": "mobile",
+          "type": "updated",
+          "relatedLink": "* [LiveContainer](https://github.com/LiveContainer/LiveContainer) - iOS App Container Launcher"
+        },
+        {
+          "link": "* [\u2060ShrubLibrary](https://shrublibrary.pages.dev/) - IPA Repo Aggregator / Search Engine / [Discord](https://discord.gg/Zt3cgdSvkd)",
+          "source": "mobile",
+          "type": "updated",
+          "relatedLink": "* [\u2060ShrubLibrary](https://shrublibrary.pages.dev/) - IPA Repo Aggregator / Search Engine"
+        }
+      ],
+      "removed": [
+        {
+          "link": "* [Bitmask](https://bitmask.net/) - Free / Unlimited / [Android](https://0xacab.org/leap/bitmask_android) / [GitLab](https://0xacab.org/leap/bitmask-vpn)",
+          "source": "privacy",
+          "type": "removed"
+        }
+      ],
+      "isMonthlyHistorical": true,
+      "dateGroup": "earlier"
+    },
+    {
+      "sha": "89bb8f698bdfce3182443898f81374c6a0e13bff",
+      "date": "2026-10-01T20:28:31Z",
+      "message": "updated 4 pages",
+      "added": [
+        {
+          "link": "* [CEmu](https://github.com/CE-Programming/CEmu) or [TI 84 Calculator](https://ti84calc.com/) - TI-84 Calculators",
+          "source": "educational",
+          "type": "updated",
+          "relatedLink": "* [CEmu](https://github.com/CE-Programming/CEmu) or [TI 84 Calculator](https://ti84calc.com/) - TI-84 Calculators"
+        },
+        {
+          "link": "* [\u2060The Hong Kong Phantasm](https://www.hkphantasm.com/) - Hong Kong Slide Photography Archive",
+          "source": "misc",
+          "type": "new"
+        },
+        {
+          "link": "* \u2b50 **[MangaDot](https://mangadot.net/)** / [Matrix](https://fuckdm.ca/)",
+          "source": "reading",
+          "type": "new"
+        },
+        {
+          "link": "* \u2b50 **[MeowTV](https://meowtv.ru/)** - Movies / TV / Anime / Auto-Next / [Discord](https://discord.gg/the-raven)",
+          "source": "video",
+          "type": "updated",
+          "relatedLink": "* \u2b50 **[MeowTV](https://meowtv.ru/)** or [FlickyStream](https://flickystream.mov/) - Movies / TV / Anime / Auto-Next / [Discord](https://discord.gg/the-raven)"
+        }
+      ],
+      "removed": [
+        {
+          "link": "* \u2b50 **[MangaDotNet](https://mangadot.net/)** / [Matrix](https://fuckdm.ca/)",
+          "source": "reading",
+          "type": "removed"
+        }
+      ],
+      "isMonthlyHistorical": true,
+      "dateGroup": "earlier"
+    },
+    {
+      "sha": "af127eb634bb6adbbf1350f1e357a6ec64c1daa2",
+      "date": "2026-10-01T16:33:08Z",
+      "message": "small update",
+      "added": [
+        {
+          "link": "* \u2b50 **[ADS-B Exchange](https://globe.adsbexchange.com/)**, [Airplanes.live](https://globe.airplanes.live/) / [Mobile](https://github.com/d4rken-org/airplanes-live-app), [\u2060Flight Viz](https://flight-viz.com/), [FlightAware](https://www.flightaware.com/), [FlightRadar24](https://www.flightradar24.com/), [PlaneFinder](https://planefinder.net/) or [Radarbox](https://www.airnavradar.com/) - Live Flight Trackers",
+          "source": "misc",
+          "type": "updated",
+          "relatedLink": "* \u2b50 **[ADS-B Exchange](https://globe.adsbexchange.com/)**, [FlightRadar24](https://www.flightradar24.com/), [PlaneFinder](https://planefinder.net/), [Airplanes.live](https://globe.airplanes.live/) / [Mobile](https://github.com/d4rken-org/airplanes-live-app), [\u2060Flight Viz](https://flight-viz.com/), [Radarbox](https://www.airnavradar.com/), [Air Loom](https://objectiveunclear.com/airloom.html) or [FlightAware](https://www.flightaware.com/) - Live Flight Trackers"
+        }
+      ],
+      "removed": [],
+      "isMonthlyHistorical": true,
+      "dateGroup": "earlier"
+    },
+    {
+      "sha": "f2591a80b9e5a2f0360812c36211bf9bf1fa3367",
+      "date": "2026-10-01T15:32:22Z",
+      "message": "updated 6 pages",
+      "added": [
+        {
+          "link": "* [\u2060Debridr](https://debridr.com/) or [\u2060Get4All](https://get4all.org/) (use ubo) - Bypass Premium Link Limits / Use UBO + [Redirect Bypassers](https://www.reddit.com/r/FREEMEDIAHECKYEAH/wiki/internet-tools/#wiki_.25B7_redirect_bypass)",
+          "source": "downloading",
+          "type": "updated",
+          "relatedLink": "* [\u2060Debridr](https://debridr.com/) or [\u2060Get4All](https://get4all.org/) - Bypass Premium Link Limits"
+        },
+        {
+          "link": "* \u2b50 **[Immich](https://immich.app/)** / Docker / [Resources](https://awesome.immich.app/) / [Storage Server](https://pixelunion.eu/) / [Bulk Uploader](https://github.com/simulot/immich-go) / [Power Tools](https://github.com/varun-raj/immich-power-tools) / [Discord](https://discord.com/invite/immich) / [GitHub](https://github.com/immich-app/immich)",
+          "source": "image-tools",
+          "type": "updated",
+          "relatedLink": "* [Immich](https://immich.app/) / Docker / [Resources](https://awesome.immich.app/) / [Storage Server](https://pixelunion.eu/) / [Bulk Uploader](https://github.com/simulot/immich-go) / [Power Tools](https://github.com/varun-raj/immich-power-tools) / [Discord](https://discord.com/invite/immich) / [GitHub](https://github.com/immich-app/immich)"
+        },
+        {
+          "link": "* [\u2060Noctalia](https://github.com/noctalia-dev/noctalia-shell) - Customizable Wayland Desktop Shell",
+          "source": "linux-macos",
+          "type": "new"
+        },
+        {
+          "link": "* \u2b50 **[ArrowTV](https://arrowtv.net/)**, [2](https://neonflix.st/) or [Cinezo](https://www.cinezo.st/), [2](https://www.flikhub.net/) - Movies / TV / Anime / Auto-Next / [Discord](https://discord.gg/yWWKfMbtm3)",
+          "source": "video",
+          "type": "updated",
+          "relatedLink": "* \u2b50 **[ArrowTV](https://arrowtv.net/)**, [2](https://neonflix.st/) or [Cinezo](https://www.cinezo.st/), [2](https://www.flikhub.net/) - Movies / TV / Anime / Auto-Next / [Discord](https://discord.gg/yWWKfMbtm3)"
+        }
+      ],
+      "removed": [
+        {
+          "link": "* \u2b50 **[GizmoPlex](https://www.gizmoplex.com/mst3k)** - MST3K Movies",
+          "source": "video",
+          "type": "removed"
+        }
+      ],
+      "isMonthlyHistorical": true,
+      "dateGroup": "earlier"
+    }
+  ]
+}

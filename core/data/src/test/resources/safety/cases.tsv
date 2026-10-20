@@ -1,0 +1,55 @@
+igg-games.com	UNSAFE	Bare domain in sitelist.txt
+https://www.igg-games.com/x	UNSAFE	Full URL with www and path in sitelist.txt
+https://igg-games.com/page/2	UNSAFE	Domain in sitelist.txt with path
+http://bluemediafiles.com	UNSAFE	HTTP URL in sitelist.txt
+oceanofgames.com	UNSAFE	Domain in sitelist.txt
+https://oceanofgames.com/download	UNSAFE	Domain in sitelist.txt with path
+crackingpatching.org	UNSAFE	Domain in sitelist.txt
+www.crackingpatching.org	UNSAFE	Domain in sitelist.txt with www
+wifi4games.com	UNSAFE	Domain in sitelist.txt
+sub.igg-games.com	UNSAFE	Subdomain of unsafe host
+https://sub.oceanofgames.com/test	UNSAFE	Subdomain of unsafe host with path
+cnet.com	POTENTIALLY_UNSAFE	Bare domain in sitelist-plus.txt
+https://www.cnet.com/tech	POTENTIALLY_UNSAFE	Domain in sitelist-plus.txt with www and path
+download.cnet.com	POTENTIALLY_UNSAFE	Subdomain in sitelist-plus.txt
+softonic.com	POTENTIALLY_UNSAFE	Domain in sitelist-plus.txt
+https://en.softonic.com/android	POTENTIALLY_UNSAFE	Subdomain in sitelist-plus.txt with path
+mcafee.com	POTENTIALLY_UNSAFE	Domain in sitelist-plus.txt
+https://www.mcafee.com/	POTENTIALLY_UNSAFE	Domain in sitelist-plus.txt with trailing slash
+avg.com	POTENTIALLY_UNSAFE	Domain in sitelist-plus.txt
+norton.com	POTENTIALLY_UNSAFE	Domain in sitelist-plus.txt
+https://github.com/fvision8/fvreleases	UNSAFE	Shared host path in unsafe reasons
+linktr.ee/flixvision	UNSAFE	Shared host path in unsafe reasons
+fmhy.net	FMHY_SITE	FMHY main domain
+https://fmhy.net/video	FMHY_SITE	FMHY main domain with path
+pastes.fmhy.net	FMHY_SITE	FMHY subdomain
+guides.fmhy.lol	FMHY_SITE	FMHY subdomain in fmhy-filterlist
+fmhy.pages.dev	FMHY_SITE	FMHY domain in fmhy-filterlist
+https://rentry.co/FMHY	FMHY_SITE	FMHY rentry page
+github.com/fmhy	FMHY_SITE	FMHY github organization
+https://github.com/fmhy/FMHY	FMHY_SITE	FMHY github repo
+https://github.com/torvalds/linux	NO_DATA	Unlisted repo on shared host
+github.com/someuser/somerepo	NO_DATA	Unlisted repo without scheme
+https://codeberg.org/someuser/somerepo	NO_DATA	Unlisted repo on codeberg
+neocities.org	STARRED	Starred hosting provider entry in FMHY database
+custom.neocities.org	NO_DATA	Subdomain of hosting provider must not inherit rating
+https://my-site.neocities.org/	NO_DATA	Neocities tenant site with path
+google.com	SEARCH_ENGINE	Search engine domain
+https://www.google.com/search?q=test	SEARCH_ENGINE	Search engine with path and query
+duckduckgo.com	SEARCH_ENGINE	Search engine domain
+bing.com	SEARCH_ENGINE	Search engine domain
+kagi.com	SEARCH_ENGINE	Search engine domain
+searx.org	SEARCH_ENGINE	Search engine domain
+https://yandex.ru	SEARCH_ENGINE	Search engine TLD
+search.brave.com	SEARCH_ENGINE	Search engine subdomain
+startpage.com	SEARCH_ENGINE	Search engine domain
+not a url %%%	INVALID	Garbage text
+:::invalid	INVALID	Invalid characters and structure
+http://	INVALID	Scheme with empty host
+just some text with spaces	INVALID	Text with spaces
+http://invalid space.com	INVALID	URL with spaces in host
+https://sponsor.ajay.app/	STARRED	Starred entry in FMHY database (tier 1)
+https://github.com/gorhill/uBlock	STARRED	Starred GitHub repository in FMHY database
+https://github.com/schomery/popup-blocker	LISTED	Listed (tier 0) GitHub repository in FMHY database
+https://codeberg.org/Loowiz/PhotoSwooper	LISTED	Listed (tier 0) Codeberg repository in FMHY database
+https://cinejoy.pk/	STARRED	Top pick entry in FMHY database (tier 2)

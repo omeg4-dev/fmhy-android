@@ -4,6 +4,7 @@ import androidx.sqlite.SQLiteConnection
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import androidx.sqlite.execSQL
 import io.github.omeg4dev.fmhy.data.model.Change
+import io.github.omeg4dev.fmhy.data.model.ChangeItem
 import io.github.omeg4dev.fmhy.data.model.ChangeKind
 import io.github.omeg4dev.fmhy.data.model.Entry
 import io.github.omeg4dev.fmhy.data.model.EntryKind
@@ -14,6 +15,7 @@ import io.github.omeg4dev.fmhy.data.model.Post
 import io.github.omeg4dev.fmhy.data.model.Section
 import io.github.omeg4dev.fmhy.data.model.SectionItem
 import io.github.omeg4dev.fmhy.data.model.Tier
+import io.github.omeg4dev.fmhy.data.safety.SiteListRow
 import java.io.File
 import java.net.URI
 import java.nio.file.Files
@@ -399,6 +401,302 @@ open class DatasetStore(
         }
     }
 
+    /**
+     * Recent changes newest first, de-duplicated across sources by (kind, normalised url)
+     * keeping the EARLIEST ts.
+     *
+     * @param sinceTs cutoff timestamp in unix epoch seconds
+     * @param kinds kinds of changes to match (if empty, matches all)
+     * @param sectionIds optional set of section IDs to restrict to
+     * @param headingIds optional set of heading IDs to restrict to (matches heading or any descendant)
+     * @param limit maximum number of items to return (default 500)
+     */
+    open suspend fun recentChanges(
+        sinceTs: Long,
+        kinds: Set<ChangeKind>,
+        sectionIds: Set<String>? = null,
+        headingIds: Set<String>? = null,
+        limit: Int = 500,
+    ): List<ChangeItem> = withConnection { conn ->
+        // 1. If headingIds filter is present, resolve all descendant headings
+        val matchingHeadingIds: Set<String>? = if (headingIds != null) {
+            val allH = mutableListOf<Heading>()
+            conn.prepare("SELECT id, section_id, parent_id, level, title, anchor, ord FROM headings").use { stmt ->
+                while (stmt.step()) allH.add(readHeading(stmt))
+            }
+            val parentToChildren = allH.groupBy { it.parentId }
+            val resolved = mutableSetOf<String>()
+            val queue = ArrayDeque(headingIds)
+            while (queue.isNotEmpty()) {
+                val current = queue.removeFirst()
+                if (resolved.add(current)) {
+                    parentToChildren[current]?.forEach { queue.add(it.id) }
+                }
+            }
+            resolved
+        } else null
+
+        // 2. Query changes matching sinceTs, kinds, and sectionIds
+        val conditions = mutableListOf<String>()
+        val params = mutableListOf<Any>()
+
+        conditions.add("ts >= ?")
+        params.add(sinceTs)
+
+        if (kinds.isNotEmpty()) {
+            val placeholders = kinds.joinToString(",") { "?" }
+            conditions.add("kind IN ($placeholders)")
+            kinds.forEach { params.add(it.value) }
+        }
+        if (sectionIds != null && sectionIds.isNotEmpty()) {
+            val placeholders = sectionIds.joinToString(",") { "?" }
+            conditions.add("section_id IN ($placeholders)")
+            sectionIds.forEach { params.add(it) }
+        }
+
+        val whereClause = "WHERE " + conditions.joinToString(" AND ")
+        val sql = """
+            SELECT id, ts, kind, entry_id, section_id, name, url, detail
+            FROM changes
+            $whereClause
+            ORDER BY ts ASC, id ASC
+        """.trimIndent()
+
+        val rawChanges = mutableListOf<Change>()
+        conn.prepare(sql).use { stmt ->
+            var idx = 1
+            for (p in params) {
+                when (p) {
+                    is String -> stmt.bindText(idx++, p)
+                    is Long -> stmt.bindLong(idx++, p)
+                    is Int -> stmt.bindLong(idx++, p.toLong())
+                }
+            }
+            while (stmt.step()) {
+                rawChanges.add(
+                    Change(
+                        id = stmt.getLong(0),
+                        ts = stmt.getLong(1),
+                        kind = ChangeKind.fromString(stmt.getText(2)),
+                        entryId = stmt.getText(3),
+                        sectionId = stmt.getText(4),
+                        name = stmt.getText(5),
+                        url = stmt.getText(6),
+                        detail = stmt.getText(7),
+                    )
+                )
+            }
+        }
+
+        // 3. Deduplicate across sources by (kind, normalised url) keeping EARLIEST ts
+        val earliestByKindAndNormUrl = LinkedHashMap<Pair<ChangeKind, String>, Change>()
+        for (c in rawChanges) {
+            val key = c.kind to normalizeEntryUrl(c.url)
+            if (!earliestByKindAndNormUrl.containsKey(key)) {
+                earliestByKindAndNormUrl[key] = c
+            }
+        }
+
+        // 4. Batch fetch entries for the deduplicated changes
+        val entryIds = earliestByKindAndNormUrl.values.map { it.entryId }.distinct()
+        val entryMap = mutableMapOf<String, Entry>()
+        if (entryIds.isNotEmpty()) {
+            val sqlEntry = """
+                SELECT num, id, section_id, heading_id, ord, name, url, original_url,
+                       description, tags, heading_path, tier, kind, line, is_inline_more, is_base64,
+                       mirrors, extra_links, first_seen, last_changed, starred_at
+                FROM entries
+                WHERE id = ?
+            """.trimIndent()
+            conn.prepare(sqlEntry).use { stmt ->
+                for (eid in entryIds) {
+                    stmt.bindText(1, eid)
+                    if (stmt.step()) {
+                        entryMap[eid] = readEntry(stmt)
+                    }
+                    stmt.reset()
+                }
+            }
+        }
+
+        // 5. Filter by headingIds if requested
+        val filtered = earliestByKindAndNormUrl.values.filter { change ->
+            if (matchingHeadingIds != null) {
+                val entry = entryMap[change.entryId]
+                entry != null && entry.headingId != null && matchingHeadingIds.contains(entry.headingId)
+            } else {
+                true
+            }
+        }
+
+        // 6. Sort newest first (ts DESC, id DESC), limit, and map to ChangeItem
+        filtered
+            .sortedWith(compareByDescending<Change> { it.ts }.thenByDescending { it.id })
+            .take(limit)
+            .map { change ->
+                ChangeItem(
+                    id = change.id,
+                    ts = change.ts,
+                    kind = change.kind,
+                    entryId = change.entryId,
+                    sectionId = change.sectionId,
+                    name = change.name,
+                    url = change.url,
+                    detail = change.detail,
+                    entry = entryMap[change.entryId],
+                )
+            }
+    }
+
+    /**
+     * Change history for an entry, oldest first.
+     */
+    open suspend fun entryHistory(entryId: String): List<ChangeItem> = withConnection { conn ->
+        val sqlEntry = """
+            SELECT num, id, section_id, heading_id, ord, name, url, original_url,
+                   description, tags, heading_path, tier, kind, line, is_inline_more, is_base64,
+                   mirrors, extra_links, first_seen, last_changed, starred_at
+            FROM entries
+            WHERE id = ?
+        """.trimIndent()
+        val currentEntry = conn.prepare(sqlEntry).use { stmt ->
+            stmt.bindText(1, entryId)
+            if (stmt.step()) readEntry(stmt) else null
+        }
+
+        val sql = """
+            SELECT id, ts, kind, entry_id, section_id, name, url, detail
+            FROM changes
+            WHERE entry_id = ?
+            ORDER BY ts ASC, id ASC
+        """.trimIndent()
+        val result = mutableListOf<ChangeItem>()
+        conn.prepare(sql).use { stmt ->
+            stmt.bindText(1, entryId)
+            while (stmt.step()) {
+                result.add(
+                    ChangeItem(
+                        id = stmt.getLong(0),
+                        ts = stmt.getLong(1),
+                        kind = ChangeKind.fromString(stmt.getText(2)),
+                        entryId = stmt.getText(3),
+                        sectionId = stmt.getText(4),
+                        name = stmt.getText(5),
+                        url = stmt.getText(6),
+                        detail = stmt.getText(7),
+                        entry = currentEntry,
+                    )
+                )
+            }
+        }
+        result
+    }
+
+    /**
+     * Map of entryId to timestamp (unix epoch seconds) when it was added:
+     * earliest 'added' ts in changes table, falling back to entries.first_seen.
+     */
+    open suspend fun addedAt(entryIds: Collection<String>): Map<String, Long> = withConnection { conn ->
+        if (entryIds.isEmpty()) return@withConnection emptyMap()
+        val result = mutableMapOf<String, Long>()
+
+        for (chunk in entryIds.chunked(500)) {
+            val placeholders = chunk.joinToString(",") { "?" }
+
+            // First get first_seen from entries
+            val sqlEntries = "SELECT id, first_seen FROM entries WHERE id IN ($placeholders)"
+            conn.prepare(sqlEntries).use { stmt ->
+                chunk.forEachIndexed { i, id -> stmt.bindText(i + 1, id) }
+                while (stmt.step()) {
+                    result[stmt.getText(0)] = stmt.getLong(1)
+                }
+            }
+
+            // Then override with earliest 'added' ts from changes if available
+            val sqlChanges = "SELECT entry_id, MIN(ts) FROM changes WHERE kind = 'added' AND entry_id IN ($placeholders) GROUP BY entry_id"
+            conn.prepare(sqlChanges).use { stmt ->
+                chunk.forEachIndexed { i, id -> stmt.bindText(i + 1, id) }
+                while (stmt.step()) {
+                    result[stmt.getText(0)] = stmt.getLong(1)
+                }
+            }
+        }
+
+        result
+    }
+
+    /**
+     * Link count: entries (kind = 0) + all mirrors + all extra_links (JSON arrays).
+     */
+    open suspend fun linkCount(): Int = withConnection { conn ->
+        val sql = "SELECT COUNT(*) + COALESCE(SUM(json_array_length(mirrors)), 0) + COALESCE(SUM(json_array_length(extra_links)), 0) FROM entries WHERE kind = 0"
+        try {
+            conn.prepare(sql).use { stmt ->
+                if (stmt.step()) stmt.getLong(0).toInt() else 0
+            }
+        } catch (_: Exception) {
+            conn.prepare("SELECT mirrors, extra_links FROM entries WHERE kind = 0").use { stmt ->
+                var count = 0
+                while (stmt.step()) {
+                    count++
+                    val m = stmt.getText(0)
+                    val e = stmt.getText(1)
+                    if (m.isNotEmpty() && m != "[]") {
+                        count += try { json.decodeFromString<List<Link>>(m).size } catch (_: Exception) { 0 }
+                    }
+                    if (e.isNotEmpty() && e != "[]") {
+                        count += try { json.decodeFromString<List<Link>>(e).size } catch (_: Exception) { 0 }
+                    }
+                }
+                count
+            }
+        }
+    }
+
+    open suspend fun siteListEntries(keys: Collection<String>): List<SiteListRow> = withConnection { conn ->
+        if (keys.isEmpty()) return@withConnection emptyList()
+        val result = mutableListOf<SiteListRow>()
+        for (chunk in keys.chunked(500)) {
+            val placeholders = chunk.joinToString(",") { "?" }
+            val sql = "SELECT key, list, reason FROM site_lists WHERE key IN ($placeholders)"
+            conn.prepare(sql).use { stmt ->
+                chunk.forEachIndexed { i, k -> stmt.bindText(i + 1, k) }
+                while (stmt.step()) {
+                    result.add(
+                        SiteListRow(
+                            key = stmt.getText(0),
+                            list = stmt.getText(1),
+                            reason = stmt.getText(2),
+                        )
+                    )
+                }
+            }
+        }
+        result
+    }
+
+    open suspend fun entriesMatchingHost(host: String): List<Entry> = withConnection { conn ->
+        val cleanHost = host.lowercase().removePrefix("www.")
+        val sql = """
+            SELECT num, id, section_id, heading_id, ord, name, url, original_url,
+                   description, tags, heading_path, tier, kind, line, is_inline_more, is_base64,
+                   mirrors, extra_links, first_seen, last_changed, starred_at
+            FROM entries
+            WHERE url LIKE ? OR url LIKE ? OR url LIKE ? OR url LIKE ?
+        """.trimIndent()
+        val result = mutableListOf<Entry>()
+        conn.prepare(sql).use { stmt ->
+            stmt.bindText(1, "https://$cleanHost%")
+            stmt.bindText(2, "http://$cleanHost%")
+            stmt.bindText(3, "https://www.$cleanHost%")
+            stmt.bindText(4, "http://www.$cleanHost%")
+            while (stmt.step()) {
+                result.add(readEntry(stmt))
+            }
+        }
+        result
+    }
+
     open suspend fun unsafeReason(url: String): String? = withConnection { conn ->
         val host = extractHost(url) ?: return@withConnection null
         val candidates = generateHostCandidates(host)
@@ -647,6 +945,19 @@ open class DatasetStore(
     }
 
     companion object {
+        fun normalizeEntryUrl(url: String): String {
+            val clean = url.trim()
+            val noFragment = clean.substringBefore('#')
+            val scheme = if (noFragment.contains("://")) noFragment.substringBefore("://").lowercase() else "https"
+            val rest = if (noFragment.contains("://")) noFragment.substringAfter("://") else noFragment
+            val slashIdx = rest.indexOf('/')
+            val hostPart = if (slashIdx != -1) rest.substring(0, slashIdx) else rest
+            val pathPart = if (slashIdx != -1) rest.substring(slashIdx) else ""
+            val normHost = hostPart.lowercase().removePrefix("www.")
+            val normPath = pathPart.trimEnd('/')
+            return "$scheme://$normHost$normPath"
+        }
+
         fun loadSchemaSql(): String {
             val stream = DatasetStore::class.java.getResourceAsStream("/dataset.sql")
                 ?: error("Cannot find /dataset.sql on classpath")
