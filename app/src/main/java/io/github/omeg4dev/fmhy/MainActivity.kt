@@ -1,5 +1,6 @@
 package io.github.omeg4dev.fmhy
 
+import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -17,6 +18,7 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.omeg4dev.fmhy.data.Appearance
 import io.github.omeg4dev.fmhy.data.ThemeMode
+import io.github.omeg4dev.fmhy.di.AppContainer
 import io.github.omeg4dev.fmhy.theme.FMHYTheme
 
 class MainActivity : ComponentActivity() {
@@ -25,6 +27,7 @@ class MainActivity : ComponentActivity() {
     super.onCreate(savedInstanceState)
 
     val container = (application as FmhyApp).container
+    handleIntent(intent, container)
 
     setContent {
       val appearance by container.settingsRepository.appearance.collectAsStateWithLifecycle(initialValue = Appearance())
@@ -58,6 +61,24 @@ class MainActivity : ComponentActivity() {
           MainNavigation()
         }
       }
+    }
+  }
+
+  override fun onNewIntent(intent: Intent) {
+    super.onNewIntent(intent)
+    setIntent(intent)
+    val container = (application as FmhyApp).container
+    handleIntent(intent, container)
+  }
+
+  private fun handleIntent(intent: Intent?, container: AppContainer) {
+    if (intent == null) return
+    if (BuildConfig.DEBUG && intent.hasExtra("debug_tracker_url")) {
+      container.debugTrackerUrl = intent.getStringExtra("debug_tracker_url")
+    }
+    if (intent.getStringExtra("open") == "whats_new") {
+      val filter = intent.getStringExtra("filter") ?: "all"
+      container.pushNavigation(WhatsNewNavKey(filter))
     }
   }
 }

@@ -12,6 +12,7 @@ import io.github.omeg4dev.fmhy.data.model.Section
 import io.github.omeg4dev.fmhy.data.search.SearchEngine
 import io.github.omeg4dev.fmhy.data.search.SearchGroup
 import io.github.omeg4dev.fmhy.data.search.SearchResults
+import io.github.omeg4dev.fmhy.ui.common.NewBadgeLogic
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
@@ -42,6 +43,7 @@ data class SearchUiState(
     val recentSearches: ImmutableList<String> = persistentListOf(),
     val isSearching: Boolean = false,
     val hasSearched: Boolean = false,
+    val newEntryIds: Set<String> = emptySet(),
 )
 
 @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
@@ -100,25 +102,55 @@ class SearchViewModel(
         }
     }.flowOn(Dispatchers.IO)
 
-    val uiState: StateFlow<SearchUiState> = combine(
-        combine(query, starredOnly, b64Only) { q, starred, b64 -> Triple(q, starred, b64) },
+    private data class FilterParams(
+        val query: String,
+        val starredOnly: Boolean,
+        val b64Only: Boolean,
+        val selectedSectionFilters: Set<String>,
+        val homePrefs: io.github.omeg4dev.fmhy.data.HomePrefs,
+    )
+
+    private val filterParams = combine(
+        query,
+        starredOnly,
+        b64Only,
         selectedSectionFilters,
+        settingsRepository.homePrefs,
+    ) { q, starred, b64, filters, homePrefs ->
+        FilterParams(q, starred, b64, filters, homePrefs)
+    }
+
+    val uiState: StateFlow<SearchUiState> = combine(
+        filterParams,
         allSections,
         settingsRepository.recentSearches,
         searchResults,
-    ) { (q, starred, b64), filters, sections, recents, results ->
+    ) { params: FilterParams, sections: List<Section>, recents: List<String>, results: SearchResults? ->
+        val groups: ImmutableList<SearchGroup> = (results?.groups ?: emptyList()).toImmutableList()
+        val allVisibleIds = groups.flatMap { g -> g.hits.map { it.entry.id } }
+        val newEntryIds = if (params.homePrefs.newBadgeDays > 0 && allVisibleIds.isNotEmpty()) {
+            val addedMap = try {
+                store.addedAt(allVisibleIds)
+            } catch (_: Exception) {
+                emptyMap()
+            }
+            val nowSec = System.currentTimeMillis() / 1000
+            addedMap.filter { NewBadgeLogic.isNew(it.value, nowSec, params.homePrefs.newBadgeDays) }.keys
+        } else emptySet()
+
         SearchUiState(
-            query = q,
-            starredOnly = starred,
-            b64Only = b64,
-            selectedSectionFilters = filters,
-            availableSections = sections,
-            groups = (results?.groups ?: emptyList()).toImmutableList(),
+            query = params.query,
+            starredOnly = params.starredOnly,
+            b64Only = params.b64Only,
+            selectedSectionFilters = params.selectedSectionFilters,
+            availableSections = sections.toImmutableList(),
+            groups = groups,
             total = results?.total ?: 0,
             tookMs = results?.tookMs ?: 0L,
             recentSearches = recents.toImmutableList(),
             isSearching = false,
             hasSearched = results != null,
+            newEntryIds = newEntryIds,
         )
     }.stateIn(
         viewModelScope,

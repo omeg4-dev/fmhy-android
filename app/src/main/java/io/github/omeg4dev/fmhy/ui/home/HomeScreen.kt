@@ -5,10 +5,15 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.ui.draw.clip
+import io.github.omeg4dev.fmhy.SectionNavKey
+import io.github.omeg4dev.fmhy.WhatsNewNavKey
 import io.github.omeg4dev.fmhy.data.link.CrossLinks
+import io.github.omeg4dev.fmhy.ui.common.EntryDetailBottomSheet
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -45,12 +50,21 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -62,6 +76,7 @@ import io.github.omeg4dev.fmhy.di.AppContainer
 import io.github.omeg4dev.fmhy.nav.LocalAppNav
 import io.github.omeg4dev.fmhy.nav.LocalBottomBarPadding
 import io.github.omeg4dev.fmhy.nav.Tab
+import io.github.omeg4dev.fmhy.ui.common.LocalPasteResolver
 import io.github.omeg4dev.fmhy.ui.common.SyncBanner
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
@@ -84,6 +99,8 @@ fun HomeScreen(
     val listState = rememberLazyListState()
     val nav = LocalAppNav.current
     val haptics = rememberHaptics()
+    val scope = rememberCoroutineScope()
+    var showRandomPickDetails by remember { mutableStateOf(false) }
 
     LaunchedEffect(nav) {
         nav.reselect.filter { it == Tab.BROWSE }.collect {
@@ -230,7 +247,10 @@ fun HomeScreen(
                     if (state.newSinceLastVisitCount > 0) {
                         item(key = "new-since-last-visit") {
                             Surface(
-                                onClick = onNavigateToSearch,
+                                onClick = {
+                                    haptics.click()
+                                    nav.push(WhatsNewNavKey(filter = "all"))
+                                },
                                 shape = MaterialTheme.shapes.large,
                                 color = MaterialTheme.colorScheme.secondaryContainer,
                                 modifier = Modifier
@@ -266,15 +286,22 @@ fun HomeScreen(
                     state.randomPick?.let { pick ->
                         item(key = "random-pick") {
                             Surface(
-                                onClick = {
-                                    haptics.click()
-                                    linkOpener.openUrl(pick.url)
-                                },
                                 shape = MaterialTheme.shapes.large,
                                 color = MaterialTheme.colorScheme.surfaceContainerLow,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
+                                    .padding(start = 16.dp, end = 16.dp, bottom = 8.dp)
+                                    .clip(MaterialTheme.shapes.large)
+                                    .combinedClickable(
+                                        onClick = {
+                                            haptics.click()
+                                            linkOpener.openUrl(pick.url)
+                                        },
+                                        onLongClick = {
+                                            haptics.longPress()
+                                            showRandomPickDetails = true
+                                        },
+                                    ),
                             ) {
                                 Column(
                                     modifier = Modifier
@@ -349,7 +376,14 @@ fun HomeScreen(
                                                 .clip(MaterialTheme.shapes.small)
                                                 .clickable {
                                                     haptics.click()
-                                                    onNavigateToSection(pick.sectionId)
+                                                    scope.launch {
+                                                        val anchor = try {
+                                                            pick.headingId?.let { hid ->
+                                                                container.datasetStore.headings(pick.sectionId).firstOrNull { it.id == hid }?.anchor
+                                                            }
+                                                        } catch (_: Exception) { null }
+                                                        nav.push(SectionNavKey(pick.sectionId, anchor = anchor, focusEntryId = pick.id))
+                                                    }
                                                 }
                                                 .padding(vertical = 2.dp),
                                         ) {
@@ -479,6 +513,48 @@ fun HomeScreen(
                 }
             }
         }
+    }
+
+    if (showRandomPickDetails && state.randomPick != null) {
+        val pick = state.randomPick!!
+        val context = LocalContext.current
+        val pasteResolver = LocalPasteResolver.current
+        EntryDetailBottomSheet(
+            entry = pick,
+            onShowInSection = {
+                scope.launch {
+                    val anchor = try {
+                        pick.headingId?.let { hid ->
+                            container.datasetStore.headings(pick.sectionId).firstOrNull { it.id == hid }?.anchor
+                        }
+                    } catch (_: Exception) { null }
+                    nav.push(SectionNavKey(pick.sectionId, anchor = anchor, focusEntryId = pick.id))
+                }
+            },
+            onDismiss = { showRandomPickDetails = false },
+            onOpenUrl = { linkOpener.openUrl(it) },
+            onCopyLink = { url ->
+                showRandomPickDetails = false
+                scope.launch {
+                    val text = pasteResolver?.resolve(url)?.joinToString("\n") ?: url
+                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    clipboard.setPrimaryClip(ClipData.newPlainText("URL", text))
+                    onShowSnackbar(if ('\n' in text) "Links copied to clipboard" else "Link copied to clipboard")
+                }
+            },
+            onShareLink = { url ->
+                showRandomPickDetails = false
+                scope.launch {
+                    val text = pasteResolver?.resolve(url)?.joinToString("\n") ?: url
+                    val intent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, text)
+                    }
+                    context.startActivity(Intent.createChooser(intent, "Share ${pick.name}"))
+                }
+            },
+            onShowSnackbar = onShowSnackbar,
+        )
     }
 
     UnsafeWarningDialog(linkOpener)

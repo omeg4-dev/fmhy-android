@@ -68,6 +68,8 @@ import io.github.omeg4dev.fmhy.nav.LocalAppNav
 import io.github.omeg4dev.fmhy.nav.LocalBottomBarPadding
 import io.github.omeg4dev.fmhy.nav.Tab
 import io.github.omeg4dev.fmhy.ui.common.BookmarksState
+import io.github.omeg4dev.fmhy.ui.common.LocalDatasetStore
+import io.github.omeg4dev.fmhy.ui.common.LocalUserStore
 import io.github.omeg4dev.fmhy.ui.common.LocalBookmarks
 import io.github.omeg4dev.fmhy.ui.common.LocalCrossLinks
 import io.github.omeg4dev.fmhy.ui.home.HomeScreen
@@ -177,6 +179,13 @@ fun MainNavigation() {
         }
     }
 
+    LaunchedEffect(container.navigationEvents) {
+        container.navigationEvents.collect { key ->
+            nav.select(Tab.BROWSE)
+            nav.push(key)
+        }
+    }
+
     var isBarVisible by remember { mutableStateOf(true) }
     val bottomBarController = remember {
         BottomBarController {
@@ -233,6 +242,7 @@ fun MainNavigation() {
             }
             SectionScreen(
                 viewModel = sectionViewModel,
+                key = key,
                 container = container,
                 onBack = { if (!nav.back()) activity?.finish() },
                 onShowSnackbar = { msg ->
@@ -389,6 +399,8 @@ fun MainNavigation() {
         LocalCrossLinks provides crossLinks,
         LocalPasteResolver provides remember(container) { pasteResolverFor(container) },
         LocalBookmarks provides bookmarksState,
+        LocalDatasetStore provides container.datasetStore,
+        LocalUserStore provides container.userStore,
     ) {
         Scaffold(
             snackbarHost = {

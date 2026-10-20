@@ -58,6 +58,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -72,6 +73,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.omeg4dev.fmhy.data.link.CrossLinks
+import io.github.omeg4dev.fmhy.SectionNavKey
 import io.github.omeg4dev.fmhy.di.AppContainer
 import io.github.omeg4dev.fmhy.nav.LocalAppNav
 import io.github.omeg4dev.fmhy.nav.LocalBottomBarPadding
@@ -81,6 +83,7 @@ import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
 import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
 import io.github.omeg4dev.fmhy.ui.common.sectionIcon
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
@@ -97,6 +100,7 @@ fun SearchScreen(
     val focusRequester = remember { FocusRequester() }
     val nav = LocalAppNav.current
     val resultsListState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
     var showFiltersSheet by remember { mutableStateOf(false) }
 
     val linkOpener = rememberLinkOpener(container, onShowSnackbar)
@@ -421,6 +425,18 @@ fun SearchScreen(
                                 entry = hit.entry,
                                 nameHl = hit.nameHl,
                                 descHl = hit.descriptionHl,
+                                isNew = hit.entry.id in state.newEntryIds,
+                                onShowInSection = {
+                                    scope.launch {
+                                        val anchor = try {
+                                            hit.entry.headingId?.let { hid ->
+                                                container.datasetStore.headings(hit.entry.sectionId).firstOrNull { it.id == hid }?.anchor
+                                            }
+                                        } catch (_: Exception) { null }
+                                        nav.select(Tab.BROWSE)
+                                        nav.push(SectionNavKey(hit.entry.sectionId, anchor = anchor, focusEntryId = hit.entry.id))
+                                    }
+                                },
                                 onOpenUrl = { linkOpener.openUrl(it) },
                                 onShowSnackbar = onShowSnackbar,
                             )

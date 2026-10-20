@@ -28,10 +28,12 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.omeg4dev.fmhy.SectionNavKey
 import io.github.omeg4dev.fmhy.di.AppContainer
 import io.github.omeg4dev.fmhy.nav.LocalAppNav
 import io.github.omeg4dev.fmhy.nav.LocalBottomBarPadding
@@ -40,6 +42,7 @@ import io.github.omeg4dev.fmhy.ui.common.EntryRow
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
 import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -49,6 +52,7 @@ fun SavedScreen(
     onShowSnackbar: (String) -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
     val linkOpener = rememberLinkOpener(container, onShowSnackbar)
     val listState = rememberLazyListState()
     val nav = LocalAppNav.current
@@ -128,6 +132,17 @@ fun SavedScreen(
                             if (item.liveEntry != null) {
                                 EntryRow(
                                     entry = item.liveEntry,
+                                    onShowInSection = {
+                                        scope.launch {
+                                            val anchor = try {
+                                                item.liveEntry.headingId?.let { hid ->
+                                                    container.datasetStore.headings(item.liveEntry.sectionId).firstOrNull { it.id == hid }?.anchor
+                                                }
+                                            } catch (_: Exception) { null }
+                                            nav.select(Tab.BROWSE)
+                                            nav.push(SectionNavKey(item.liveEntry.sectionId, anchor = anchor, focusEntryId = item.liveEntry.id))
+                                        }
+                                    },
                                     onOpenUrl = { linkOpener.openUrl(it) },
                                     onShowSnackbar = onShowSnackbar,
                                 )

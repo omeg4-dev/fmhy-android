@@ -43,6 +43,16 @@ class FmhyApp : Application() {
             }
         }
 
+        ProcessLifecycleOwner.get().lifecycleScope.launch {
+            try {
+                container.settingsRepository.notificationPrefs.collect { prefs ->
+                    io.github.omeg4dev.fmhy.work.UpdateScheduler.apply(this@FmhyApp, prefs)
+                }
+            } catch (e: Exception) {
+                Log.e("FmhyApp", "Failed to schedule updates: ${e.message}", e)
+            }
+        }
+
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onStop(owner: LifecycleOwner) {
                 container.appScope.launch {

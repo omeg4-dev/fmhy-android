@@ -4,9 +4,12 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -400,6 +403,7 @@ fun MoreGroupRow(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun CategoryChipRail(
     chips: List<String>,
@@ -407,6 +411,7 @@ fun CategoryChipRail(
     onSelectChip: (Int) -> Unit,
     modifier: Modifier = Modifier,
     railState: LazyListState = rememberLazyListState(),
+    onLongClickChip: ((Int) -> Unit)? = null,
 ) {
     LaunchedEffect(selectedIndex) {
         if (selectedIndex in chips.indices) {
@@ -443,11 +448,22 @@ fun CategoryChipRail(
             val border = if (isSelected) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
 
             Surface(
-                onClick = { onSelectChip(index) },
                 shape = CircleShape,
                 color = containerColor,
                 border = border,
-                modifier = Modifier.height(32.dp),
+                modifier = Modifier
+                    .height(32.dp)
+                    .clip(CircleShape)
+                    .then(
+                        if (onLongClickChip != null) {
+                            Modifier.combinedClickable(
+                                onClick = { onSelectChip(index) },
+                                onLongClick = { onLongClickChip(index) },
+                            )
+                        } else {
+                            Modifier.clickable { onSelectChip(index) }
+                        }
+                    ),
             ) {
                 Box(
                     modifier = Modifier.padding(horizontal = 14.dp),

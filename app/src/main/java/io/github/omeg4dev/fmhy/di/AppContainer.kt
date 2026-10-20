@@ -2,15 +2,18 @@ package io.github.omeg4dev.fmhy.di
 
 import android.content.Context
 import android.util.Log
+import io.github.omeg4dev.fmhy.BuildConfig
 import io.github.omeg4dev.fmhy.data.DatasetStore
 import io.github.omeg4dev.fmhy.data.SettingsRepository
 import io.github.omeg4dev.fmhy.data.search.SearchEngine
 import io.github.omeg4dev.fmhy.data.sync.FmhySync
 import io.github.omeg4dev.fmhy.data.sync.SyncResult
+import io.github.omeg4dev.fmhy.data.tracker.TrackerSync
 import io.github.omeg4dev.fmhy.data.BookmarksRepository
 import io.github.omeg4dev.fmhy.data.bookmarksDataStore
 import io.github.omeg4dev.fmhy.data.link.CrossLinks
 import io.github.omeg4dev.fmhy.data.user.UserStore
+import androidx.navigation3.runtime.NavKey
 import java.io.File
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineScope
@@ -46,6 +49,11 @@ interface AppContainer {
     val datasetStore: DatasetStore
     val userStore: UserStore
     val fmhySync: FmhySync
+    val trackerSync: TrackerSync
+        get() = error("trackerSync not provided")
+    var debugTrackerUrl: String?
+        get() = null
+        set(_) {}
     val searchEngine: SearchEngine
     val settingsRepository: SettingsRepository
     val bookmarks: BookmarksRepository
@@ -53,10 +61,13 @@ interface AppContainer {
     val isInitialized: StateFlow<Boolean>
     val syncStatus: StateFlow<SyncStatus>
     val snackbarEvents: SharedFlow<String>
+    val navigationEvents: SharedFlow<NavKey>
+        get() = kotlinx.coroutines.flow.MutableSharedFlow()
     val isSyncBannerConsumed: Boolean
 
     fun markSyncBannerConsumed()
     fun showSnackbar(message: String)
+    fun pushNavigation(key: NavKey) {}
     fun initialize()
     suspend fun sync(force: Boolean = false): SyncResult
 }
@@ -118,6 +129,22 @@ class DefaultAppContainer(override val context: Context) : AppContainer {
         )
     }
 
+    @Volatile
+    override var debugTrackerUrl: String? = null
+
+    override val trackerSync: TrackerSync
+        get() {
+            val overrideUrl = if (BuildConfig.DEBUG) debugTrackerUrl else null
+            return TrackerSync(
+                store = datasetStore,
+                dir = datasetDir,
+                client = okHttpClient,
+                url = overrideUrl ?: "https://fmhy-tracker.pages.dev/monthly_commits.json",
+                clock = { System.currentTimeMillis() / 1000 },
+                log = { msg -> Log.d("TrackerSync", msg) },
+            )
+        }
+
     override val searchEngine: SearchEngine by lazy {
         SearchEngine(datasetStore)
     }
@@ -153,6 +180,23 @@ class DefaultAppContainer(override val context: Context) : AppContainer {
                 SyncResult.Failed(e.message ?: "Unknown error", 0L)
             }
             _syncStatus.value = SyncStatus.Finished(result)
+
+            if (result !is SyncResult.Failed) {
+                try {
+                    val prefs = settingsRepository.notificationPrefs.first()
+                    val overrideUrl = if (BuildConfig.DEBUG) debugTrackerUrl else null
+                    if (prefs.useTracker || overrideUrl != null) {
+                        val currentTracker = trackerSync
+                        currentTracker.sync(force = force || overrideUrl != null)
+                    }
+                } catch (e: Exception) {
+                    Log.w("AppContainer", "TrackerSync failed: ${e.message}", e)
+                } finally {
+                    if (BuildConfig.DEBUG) {
+                        debugTrackerUrl = null
+                    }
+                }
+            }
             result
         }
     }
@@ -162,6 +206,13 @@ class DefaultAppContainer(override val context: Context) : AppContainer {
 
     override fun showSnackbar(message: String) {
         _snackbarEvents.tryEmit(message)
+    }
+
+    private val _navigationEvents = MutableSharedFlow<NavKey>(extraBufferCapacity = 5)
+    override val navigationEvents: SharedFlow<NavKey> = _navigationEvents.asSharedFlow()
+
+    override fun pushNavigation(key: NavKey) {
+        _navigationEvents.tryEmit(key)
     }
 
     override fun initialize() {

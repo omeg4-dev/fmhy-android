@@ -7,10 +7,15 @@ import kotlinx.serialization.Serializable
 data object HomeNavKey : NavKey
 
 @Serializable
-data class SectionNavKey(val sectionId: String, val anchor: String? = null) : NavKey
+data class SectionNavKey(val sectionId: String, val anchor: String? = null, val focusEntryId: String? = null) : NavKey
 
 @Serializable
-data class CategoryNavKey(val sectionId: String, val categoryHeadingId: String, val focusHeadingId: String? = null) : NavKey
+data class CategoryNavKey(
+    val sectionId: String,
+    val categoryHeadingId: String,
+    val focusHeadingId: String? = null,
+    val focusEntryId: String? = null,
+) : NavKey
 
 @Serializable
 data class SearchNavKey(val initialQuery: String = "") : NavKey
@@ -41,6 +46,9 @@ data class SettingsPageNavKey(val page: SettingsPage) : NavKey
 data object SavedNavKey : NavKey
 
 @Serializable
+data class WhatsNewNavKey(val filter: String = "all") : NavKey
+
+@Serializable
 data object LegendNavKey : NavKey
 
 // Also aliases matching the brief names:
@@ -50,3 +58,4 @@ typealias Search = SearchNavKey
 typealias Settings = SettingsNavKey
 typealias Saved = SavedNavKey
 typealias Legend = LegendNavKey
+typealias WhatsNew = WhatsNewNavKey

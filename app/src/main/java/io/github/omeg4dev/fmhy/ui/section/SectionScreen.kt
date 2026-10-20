@@ -1,6 +1,8 @@
 package io.github.omeg4dev.fmhy.ui.section
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -16,10 +18,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.outlined.List
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -41,12 +46,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.omeg4dev.fmhy.CategoryNavKey
 import io.github.omeg4dev.fmhy.LegendNavKey
 import io.github.omeg4dev.fmhy.LocalBottomBarController
+import io.github.omeg4dev.fmhy.SectionNavKey
 import io.github.omeg4dev.fmhy.data.SectionLayout
 import io.github.omeg4dev.fmhy.data.link.CrossLinks
 import io.github.omeg4dev.fmhy.data.model.Heading
@@ -64,6 +71,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun SectionScreen(
     viewModel: SectionViewModel,
+    key: SectionNavKey? = null,
     container: AppContainer,
     onBack: () -> Unit,
     onShowSnackbar: (String) -> Unit = {},
@@ -78,27 +86,46 @@ fun SectionScreen(
     var showJumpBottomSheet by remember { mutableStateOf(false) }
     var showLegendBottomSheet by remember { mutableStateOf(false) }
     var highlightedHeadingId by remember { mutableStateOf<String?>(null) }
+    var highlightedEntryId by remember { mutableStateOf<String?>(null) }
     var pendingSelection by remember { mutableStateOf<Int?>(null) }
+    var showOverflowMenu by remember { mutableStateOf(false) }
+
+    var follows by remember { mutableStateOf<List<io.github.omeg4dev.fmhy.data.user.Follow>>(emptyList()) }
+    LaunchedEffect(container.userStore.changes) {
+        follows = container.userStore.follows()
+    }
+    val currentSectionId = state.section?.id ?: viewModel.sectionId
+    val currentSectionTitle = state.section?.title ?: "Section"
+    val isSectionFollowed = remember(follows, currentSectionId) {
+        follows.any { it.sectionId == currentSectionId && it.headingId == "" }
+    }
 
     val isFilterActive = state.starredOnly || !state.showIndexes
 
-    // In CATEGORIES mode: handle anchor navigation by opening CategoryNavKey
+    // In CATEGORIES mode: handle anchor or focusEntryId navigation by opening CategoryNavKey
     var hasPushedAnchorByCategory by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(state.items, state.headings, state.layout, viewModel.anchor) {
+    LaunchedEffect(state.items, state.headings, state.layout, viewModel.anchor, key?.focusEntryId) {
         val anchor = viewModel.anchor
-        if (state.layout == SectionLayout.CATEGORIES && !hasPushedAnchorByCategory && !anchor.isNullOrEmpty() && state.items.isNotEmpty()) {
+        val focusEntryId = key?.focusEntryId
+        if (state.layout == SectionLayout.CATEGORIES && !hasPushedAnchorByCategory && (!anchor.isNullOrEmpty() || !focusEntryId.isNullOrEmpty()) && state.items.isNotEmpty()) {
             val anchorHeading = state.headings.firstOrNull {
-                it.anchor.equals(anchor, ignoreCase = true) || it.id.endsWith(anchor) || it.id == anchor
+                it.anchor.equals(anchor, ignoreCase = true) || it.id.endsWith(anchor.orEmpty()) || it.id == anchor
             }
-            if (anchorHeading != null) {
-                val categoryHeadingId = findCategoryHeadingId(state.structure, anchorHeading.id)
+            val targetHeadingId = anchorHeading?.id ?: if (!focusEntryId.isNullOrEmpty()) {
+                val entry = state.items.filterIsInstance<SectionItem.EntryItem>().firstOrNull { it.entry.id == focusEntryId || it.alternatives.any { a -> a.id == focusEntryId } }?.entry
+                entry?.headingId
+            } else null
+
+            if (targetHeadingId != null) {
+                val categoryHeadingId = findCategoryHeadingId(state.structure, targetHeadingId)
                 if (categoryHeadingId != null) {
                     hasPushedAnchorByCategory = true
                     nav.push(
                         CategoryNavKey(
                             sectionId = state.section?.id ?: viewModel.sectionId,
                             categoryHeadingId = categoryHeadingId,
-                            focusHeadingId = anchorHeading.id,
+                            focusHeadingId = anchorHeading?.id ?: targetHeadingId,
+                            focusEntryId = focusEntryId,
                         )
                     )
                 }
@@ -106,20 +133,55 @@ fun SectionScreen(
         }
     }
 
-    // In CONTINUOUS mode: handle initial scroll to anchor
-    LaunchedEffect(state.items, state.layout, viewModel.anchor) {
-        val anchor = viewModel.anchor
-        if (state.layout == SectionLayout.CONTINUOUS && !anchor.isNullOrEmpty() && state.items.isNotEmpty()) {
-            val targetIdx = state.items.indexOfFirst {
-                it is SectionItem.HeadingItem &&
-                    (it.heading.anchor.equals(anchor, ignoreCase = true) || it.heading.id.endsWith(anchor) || it.heading.id == anchor)
-            }
-            if (targetIdx != -1) {
-                listState.scrollToItem(targetIdx)
-                val matchedHeading = (state.items[targetIdx] as SectionItem.HeadingItem).heading
-                highlightedHeadingId = matchedHeading.id
-                delay(1200)
-                highlightedHeadingId = null
+    // In CONTINUOUS mode: handle initial scroll to focusEntryId or anchor
+    var hasScrolledToFocus by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(state.items, state.layout, viewModel.anchor, key?.focusEntryId) {
+        if (state.layout == SectionLayout.CONTINUOUS && !hasScrolledToFocus && state.items.isNotEmpty()) {
+            val focusEntryId = key?.focusEntryId
+            val anchor = viewModel.anchor
+
+            if (!focusEntryId.isNullOrEmpty()) {
+                val entryIdx = state.items.indexOfFirst {
+                    when (it) {
+                        is SectionItem.EntryItem -> it.entry.id == focusEntryId || it.alternatives.any { a -> a.id == focusEntryId }
+                        is SectionItem.MoreGroup -> it.entries.any { e -> e.id == focusEntryId }
+                        else -> false
+                    }
+                }
+                if (entryIdx != -1) {
+                    hasScrolledToFocus = true
+                    listState.scrollToItem(entryIdx)
+                    highlightedEntryId = focusEntryId
+                    delay(1500)
+                    highlightedEntryId = null
+                } else if (!anchor.isNullOrEmpty()) {
+                    // Fallback to heading when entry is filtered out
+                    val headingIdx = state.items.indexOfFirst {
+                        it is SectionItem.HeadingItem &&
+                            (it.heading.anchor.equals(anchor, ignoreCase = true) || it.heading.id.endsWith(anchor) || it.heading.id == anchor)
+                    }
+                    if (headingIdx != -1) {
+                        hasScrolledToFocus = true
+                        listState.scrollToItem(headingIdx)
+                        val matchedHeading = (state.items[headingIdx] as SectionItem.HeadingItem).heading
+                        highlightedHeadingId = matchedHeading.id
+                        delay(1200)
+                        highlightedHeadingId = null
+                    }
+                }
+            } else if (!anchor.isNullOrEmpty()) {
+                val targetIdx = state.items.indexOfFirst {
+                    it is SectionItem.HeadingItem &&
+                        (it.heading.anchor.equals(anchor, ignoreCase = true) || it.heading.id.endsWith(anchor) || it.heading.id == anchor)
+                }
+                if (targetIdx != -1) {
+                    hasScrolledToFocus = true
+                    listState.scrollToItem(targetIdx)
+                    val matchedHeading = (state.items[targetIdx] as SectionItem.HeadingItem).heading
+                    highlightedHeadingId = matchedHeading.id
+                    delay(1200)
+                    highlightedHeadingId = null
+                }
             }
         }
     }
@@ -183,6 +245,31 @@ fun SectionScreen(
                                 Icon(Icons.AutoMirrored.Outlined.List, contentDescription = "Outline")
                             }
                         }
+                        Box {
+                            IconButton(onClick = { showOverflowMenu = true }) {
+                                Icon(Icons.Default.MoreVert, contentDescription = "More options")
+                            }
+                            DropdownMenu(
+                                expanded = showOverflowMenu,
+                                onDismissRequest = { showOverflowMenu = false },
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text(if (isSectionFollowed) "Unfollow this section" else "Follow this section") },
+                                    onClick = {
+                                        showOverflowMenu = false
+                                        scope.launch {
+                                            if (isSectionFollowed) {
+                                                container.userStore.unfollow(currentSectionId, "")
+                                                onShowSnackbar("Unfollowed $currentSectionTitle · Undo")
+                                            } else {
+                                                container.userStore.follow(currentSectionId, "", currentSectionTitle)
+                                                onShowSnackbar("Following $currentSectionTitle · Undo")
+                                            }
+                                        }
+                                    },
+                                )
+                            }
+                        }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.colorScheme.surface,
@@ -222,6 +309,21 @@ fun SectionScreen(
                                     pendingSelection = index
                                     listState.animateScrollToItem(targetIdx)
                                     pendingSelection = null
+                                }
+                            }
+                        },
+                        onLongClickChip = { index ->
+                            val category = state.structure.categories.getOrNull(index) ?: return@CategoryChipRail
+                            val catTitle = CrossLinks.splitLinkTitle(category.heading.title).first
+                            val fullTitle = "$currentSectionTitle › $catTitle"
+                            val isCategoryFollowed = follows.any { it.sectionId == currentSectionId && it.headingId == category.heading.id }
+                            scope.launch {
+                                if (isCategoryFollowed) {
+                                    container.userStore.unfollow(currentSectionId, category.heading.id)
+                                    onShowSnackbar("Unfollowed $fullTitle · Undo")
+                                } else {
+                                    container.userStore.follow(currentSectionId, category.heading.id, fullTitle)
+                                    onShowSnackbar("Following $fullTitle · Undo")
                                 }
                             }
                         },
@@ -401,10 +503,18 @@ fun SectionScreen(
                                 )
                             }
                             is SectionItem.EntryItem -> {
-                                Column {
+                                val isEntryHighlighted = item.entry.id == highlightedEntryId || item.alternatives.any { it.id == highlightedEntryId }
+                                val targetBg = if (isEntryHighlighted) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f) else Color.Transparent
+                                val entryBg by animateColorAsState(
+                                    targetValue = targetBg,
+                                    animationSpec = tween(1500),
+                                    label = "entry_highlight",
+                                )
+                                Column(modifier = Modifier.background(entryBg)) {
                                     EntryRow(
                                         entry = item.entry,
                                         alternatives = item.alternatives,
+                                        isNew = item.entry.id in state.newEntryIds,
                                         onOpenUrl = { linkOpener.openUrl(it) },
                                         onShowSnackbar = onShowSnackbar,
                                     )
