@@ -99,6 +99,8 @@ import io.github.omeg4dev.fmhy.ui.section.SectionScreen
 import io.github.omeg4dev.fmhy.ui.section.SectionViewModel
 import io.github.omeg4dev.fmhy.ui.legend.LegendScreen
 import io.github.omeg4dev.fmhy.ui.check.CheckLinkScreen
+import io.github.omeg4dev.fmhy.ui.reader.ReaderScreen
+import io.github.omeg4dev.fmhy.ui.posts.PostsScreen
 import io.github.omeg4dev.fmhy.ui.settings.AboutPage
 import io.github.omeg4dev.fmhy.ui.settings.AppearancePage
 import io.github.omeg4dev.fmhy.ui.settings.BlockingPage
@@ -119,6 +121,7 @@ import io.github.omeg4dev.fmhy.ui.onboarding.OnboardingScreen
 import android.content.Intent
 import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
+import io.github.omeg4dev.fmhy.ui.common.NoteSheet
 import io.github.omeg4dev.fmhy.nav.resolveFmhyUri
 import io.github.omeg4dev.fmhy.nav.FmhyLinkDestination
 import kotlinx.coroutines.flow.SharedFlow
@@ -305,7 +308,7 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
     val onboardingVersion by container.settingsRepository.onboardingVersion.collectAsStateWithLifecycle(initialValue = -1)
     val showOnboarding = onboardingVersion in 0 until ONBOARDING_VERSION
 
-    val shouldShowBar = isBarVisible && !showOnboarding && currentTopKey !is SettingsNavKey && currentTopKey !is SettingsPageNavKey && currentTopKey !is LegendNavKey && currentTopKey !is SiteSettingsNavKey
+    val shouldShowBar = isBarVisible && !showOnboarding && currentTopKey !is SettingsNavKey && currentTopKey !is SettingsPageNavKey && currentTopKey !is LegendNavKey && currentTopKey !is SiteSettingsNavKey && currentTopKey !is ReaderNavKey
 
     BackHandler(enabled = nav.current != Tab.BROWSE && nav.currentStack.size == 1) {
         nav.back()
@@ -326,6 +329,8 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                 onNavigateToSection = { sectionId -> nav.push(SectionNavKey(sectionId)) },
                 onNavigateToSettings = { nav.push(SettingsNavKey) },
                 onNavigateToCheckLink = { nav.push(CheckLinkNavKey()) },
+                onNavigateToReader = { path, title -> nav.push(ReaderNavKey(path, title)) },
+                onNavigateToPosts = { nav.push(PostsNavKey) },
                 onShowSnackbar = { msg ->
                     scope.launch { snackbarHostState.showSnackbar(msg) }
                 }
@@ -645,6 +650,31 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                 initialQuery = key.initial,
                 container = container,
                 onBack = { if (!nav.back()) activity?.finish() },
+                onShowSnackbar = { msg ->
+                    scope.launch { snackbarHostState.showSnackbar(msg) }
+                }
+            )
+        }
+
+        entry<ReaderNavKey> { key ->
+            ReaderScreen(
+                path = key.path,
+                title = key.title,
+                container = container,
+                onBack = { if (!nav.back()) activity?.finish() },
+                onShowSnackbar = { msg ->
+                    scope.launch { snackbarHostState.showSnackbar(msg) }
+                }
+            )
+        }
+
+        entry<PostsNavKey> {
+            PostsScreen(
+                container = container,
+                onBack = { if (!nav.back()) activity?.finish() },
+                onNavigateToReader = { path, title ->
+                    nav.push(ReaderNavKey(path, title))
+                },
                 onShowSnackbar = { msg ->
                     scope.launch { snackbarHostState.showSnackbar(msg) }
                 }

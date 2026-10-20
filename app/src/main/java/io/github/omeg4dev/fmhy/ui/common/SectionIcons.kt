@@ -1,8 +1,10 @@
 package io.github.omeg4dev.fmhy.ui.common
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.AutoStories
+import androidx.compose.material.icons.outlined.Backup
 import androidx.compose.material.icons.outlined.Category
 import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.Download
@@ -16,6 +18,7 @@ import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material.icons.outlined.Movie
+import androidx.compose.material.icons.outlined.Newspaper
 import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.School
 import androidx.compose.material.icons.outlined.Shield
@@ -43,7 +46,10 @@ fun sectionIcon(id: String): ImageVector = when (id) {
     "mobile" -> Icons.Outlined.PhoneAndroid
     "non-english" -> Icons.Outlined.Translate
     "privacy" -> Icons.Outlined.Shield
-    "reading" -> Icons.Outlined.AutoStories
+    "reading", "beginners-guide" -> Icons.Outlined.AutoStories
+    "faq" -> Icons.AutoMirrored.Outlined.HelpOutline
+    "backups" -> Icons.Outlined.Backup
+    "news-and-posts" -> Icons.Outlined.Newspaper
     "social-media-tools" -> Icons.Outlined.Forum
     "storage" -> Icons.Outlined.Inventory2
     "system-tools" -> Icons.Outlined.Memory

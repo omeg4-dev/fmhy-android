@@ -137,6 +137,7 @@ class OnboardingModelTest {
         override val userStore: UserStore,
     ) : AppContainer {
         override val context: Context get() = error("Not needed")
+        override val docFetcher: io.github.omeg4dev.fmhy.data.doc.DocFetcher get() = error("Not needed")
         override val appScope: CoroutineScope get() = CoroutineScope(Dispatchers.Unconfined)
         override val okHttpClient: OkHttpClient get() = error("Not needed")
         override val datasetStore get() = error("Not needed")

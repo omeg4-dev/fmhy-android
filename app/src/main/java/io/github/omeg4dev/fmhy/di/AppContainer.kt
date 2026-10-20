@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import io.github.omeg4dev.fmhy.data.DatasetStore
 import io.github.omeg4dev.fmhy.data.SettingsRepository
+import io.github.omeg4dev.fmhy.data.doc.DocFetcher
 import io.github.omeg4dev.fmhy.data.search.SearchEngine
 import io.github.omeg4dev.fmhy.data.sync.FmhySync
 import io.github.omeg4dev.fmhy.data.sync.SyncResult
@@ -62,6 +63,7 @@ interface AppContainer : OnboardingActions {
     val searchEngine: SearchEngine
     val settingsRepository: SettingsRepository
     val bookmarks: BookmarksRepository
+    val docFetcher: DocFetcher
     val crossLinks: StateFlow<CrossLinks?>
     val safeGuard: SafeGuard
     val isInitialized: StateFlow<Boolean>
@@ -139,6 +141,15 @@ class DefaultAppContainer(override val context: Context) : AppContainer {
             scriptletLibrary = scriptletLibrary,
             browserHooks = browserHooks,
             appScope = appScope,
+        )
+    }
+
+    private val docsDir by lazy { File(context.filesDir, "docs").apply { mkdirs() } }
+
+    override val docFetcher: DocFetcher by lazy {
+        DocFetcher(
+            docsDir = docsDir,
+            client = okHttpClient,
         )
     }
 
