@@ -192,10 +192,10 @@ fun EntryRow(
                     val targetHeadingId = entry.headingId ?: ""
                     if (effectiveFollowState.isFollowing) {
                         userStore.unfollow(entry.sectionId, targetHeadingId)
-                        onShowSnackbar("Unfollowed ${effectiveFollowState.categoryTitle} · Undo")
+                        onShowSnackbar("Unfollowed ${effectiveFollowState.categoryTitle}")
                     } else {
                         userStore.follow(entry.sectionId, targetHeadingId, effectiveFollowState.categoryTitle)
-                        onShowSnackbar("Following ${effectiveFollowState.categoryTitle} · Undo")
+                        onShowSnackbar("Following ${effectiveFollowState.categoryTitle}")
                     }
                 }
             }

@@ -278,10 +278,10 @@ fun CategoryScreen(
                                             scope.launch {
                                                 if (isCategoryFollowed) {
                                                     container.userStore.unfollow(currentSectionId, category.heading.id)
-                                                    onShowSnackbar("Unfollowed $fullCatTitle · Undo")
+                                                    onShowSnackbar("Unfollowed $fullCatTitle")
                                                 } else {
                                                     container.userStore.follow(currentSectionId, category.heading.id, fullCatTitle)
-                                                    onShowSnackbar("Following $fullCatTitle · Undo")
+                                                    onShowSnackbar("Following $fullCatTitle")
                                                 }
                                             }
                                         },
@@ -335,10 +335,10 @@ fun CategoryScreen(
                             scope.launch {
                                 if (isSubFollowed) {
                                     container.userStore.unfollow(currentSectionId, sub.id)
-                                    onShowSnackbar("Unfollowed $fullTitle · Undo")
+                                    onShowSnackbar("Unfollowed $fullTitle")
                                 } else {
                                     container.userStore.follow(currentSectionId, sub.id, fullTitle)
-                                    onShowSnackbar("Following $fullTitle · Undo")
+                                    onShowSnackbar("Following $fullTitle")
                                 }
                             }
                         },

@@ -13,6 +13,7 @@ import androidx.core.content.ContextCompat
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import io.github.omeg4dev.fmhy.FmhyApp
+import io.github.omeg4dev.fmhy.di.AppContainer
 import io.github.omeg4dev.fmhy.MainActivity
 import io.github.omeg4dev.fmhy.R
 import io.github.omeg4dev.fmhy.data.model.ChangeKind
@@ -25,24 +26,39 @@ class UpdateWorker(
 
     override suspend fun doWork(): Result {
         val app = applicationContext as? FmhyApp ?: return Result.failure()
-        val container = app.container
+        UpdateChecker.run(applicationContext, app.container)
+        return Result.success()
+    }
 
+    companion object {
+        const val CHANNEL_ID = UpdateChecker.CHANNEL_ID
+    }
+}
+
+/** Result of one update check: the notification that was (or would be) shown, or null for "No changes". */
+data class UpdateOutcome(val model: NotificationModel?) {
+    val summary: String
+        get() = model?.let { m ->
+            if (m.changeCount == 1) "1 change: ${m.title}" else "${m.changeCount} changes: ${m.title}"
+        } ?: "No changes"
+}
+
+object UpdateChecker {
+    const val CHANNEL_ID = "updates"
+    const val NOTIFICATION_ID = 1001
+
+    /** Sync (which also runs the tracker when enabled), look for followed/saved changes, notify, store the timestamp. */
+    suspend fun run(context: Context, container: AppContainer): UpdateOutcome {
         val prefs = try {
             container.settingsRepository.notificationPrefs.first()
         } catch (_: Exception) {
             null
         }
 
-        // Run container.sync() then tracker
+        // container.sync() runs the tracker afterwards when NotificationPrefs.useTracker is on.
         try {
             container.sync(force = false)
         } catch (_: Exception) {}
-
-        if (prefs?.useTracker == true) {
-            try {
-                container.trackerSync.sync()
-            } catch (_: Exception) {}
-        }
 
         val nowSec = System.currentTimeMillis() / 1000
         val lastTsStr = try {
@@ -141,21 +157,17 @@ class UpdateWorker(
         )
 
         if (model != null) {
-            postNotification(applicationContext, model)
+            postNotification(context, model)
         }
 
         try {
             container.userStore.put("notify_last_ts", nowSec.toString())
         } catch (_: Exception) {}
 
-        return Result.success()
+        return UpdateOutcome(model)
     }
 
-    companion object {
-        const val CHANNEL_ID = "updates"
-        const val NOTIFICATION_ID = 1001
-
-        fun postNotification(context: Context, model: NotificationModel) {
+    fun postNotification(context: Context, model: NotificationModel) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 val granted = ContextCompat.checkSelfPermission(
                     context,
@@ -204,5 +216,4 @@ class UpdateWorker(
 
             notificationManager.notify(NOTIFICATION_ID, notif)
         }
-    }
 }

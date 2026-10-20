@@ -44,6 +44,9 @@ import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.Explore
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -588,13 +591,75 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                     viewModel = settingsViewModel,
                     onBack = { if (!nav.back()) activity?.finish() },
                 )
-                SettingsPage.NOTIFICATIONS -> NotificationsPage(
-                    viewModel = settingsViewModel,
-                    onBack = { if (!nav.back()) activity?.finish() },
-                    onShowSnackbar = { msg ->
-                        scope.launch { snackbarHostState.showSnackbar(msg) }
-                    },
-                )
+                SettingsPage.NOTIFICATIONS -> {
+                    val userStoreChanges by container.userStore.changes.collectAsStateWithLifecycle()
+                    var follows by remember { mutableStateOf<List<io.github.omeg4dev.fmhy.data.user.Follow>>(emptyList()) }
+                    LaunchedEffect(userStoreChanges) {
+                        follows = try { container.userStore.follows() } catch (_: Exception) { emptyList() }
+                    }
+                    var checking by remember { mutableStateOf(false) }
+                    NotificationsPage(
+                        viewModel = settingsViewModel,
+                        onBack = { if (!nav.back()) activity?.finish() },
+                        onShowSnackbar = { msg ->
+                            scope.launch { snackbarHostState.showSnackbar(msg) }
+                        },
+                        extraRows = {
+                            item { SettingsGroupHeader(text = "Followed") }
+                            if (follows.isEmpty()) {
+                                item {
+                                    InfoRow(
+                                        title = "Nothing followed yet",
+                                        value = "Follow a section or category from its menu or a site's details",
+                                    )
+                                }
+                            } else {
+                                items(follows, key = { "${it.sectionId}/${it.headingId}" }) { f ->
+                                    ListItem(
+                                        headlineContent = { Text(f.title) },
+                                        trailingContent = {
+                                            IconButton(onClick = {
+                                                scope.launch {
+                                                    container.userStore.unfollow(f.sectionId, f.headingId)
+                                                    snackbarHostState.showSnackbar("Unfollowed ${f.title}")
+                                                }
+                                            }) {
+                                                Icon(Icons.Default.Close, contentDescription = "Unfollow ${f.title}")
+                                            }
+                                        },
+                                    )
+                                }
+                            }
+                            item { SettingsGroupHeader(text = "Updates") }
+                            item {
+                                NavRow(
+                                    title = "What's new",
+                                    summary = "Added, updated and removed sites",
+                                    onClick = { nav.push(WhatsNewNavKey()) },
+                                )
+                            }
+                            item {
+                                NavRow(
+                                    title = "Check for updates now",
+                                    summary = if (checking) "Checking..." else "Sync and look for changes in what you follow",
+                                    enabled = !checking,
+                                    onClick = {
+                                        checking = true
+                                        scope.launch {
+                                            val outcome = try {
+                                                io.github.omeg4dev.fmhy.work.UpdateChecker.run(container.context, container)
+                                            } catch (e: Exception) {
+                                                null
+                                            }
+                                            checking = false
+                                            snackbarHostState.showSnackbar(outcome?.summary ?: "Check failed")
+                                        }
+                                    },
+                                )
+                            }
+                        },
+                    )
+                }
                 SettingsPage.DATA -> DataPage(
                     viewModel = settingsViewModel,
                     onBack = { if (!nav.back()) activity?.finish() },
@@ -621,6 +686,20 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                     },
                 )
             }
+        }
+
+        entry<WhatsNewNavKey> { key ->
+            val whatsNewViewModel: io.github.omeg4dev.fmhy.ui.whatsnew.WhatsNewViewModel = viewModel(key = "whatsnew-${key.filter}") {
+                io.github.omeg4dev.fmhy.ui.whatsnew.WhatsNewViewModel(key.filter, container)
+            }
+            io.github.omeg4dev.fmhy.ui.whatsnew.WhatsNewScreen(
+                viewModel = whatsNewViewModel,
+                container = container,
+                onBack = { if (!nav.back()) activity?.finish() },
+                onShowSnackbar = { msg ->
+                    scope.launch { snackbarHostState.showSnackbar(msg) }
+                },
+            )
         }
 
         entry<LegendNavKey> {
