@@ -19,6 +19,25 @@ data class SearchNavKey(val initialQuery: String = "") : NavKey
 data object SettingsNavKey : NavKey
 
 @Serializable
+enum class SettingsPage {
+    APPEARANCE,
+    HOME_LISTS,
+    BROWSER,
+    BLOCKING,
+    PROTECTION,
+    PRIVACY,
+    PAGE,
+    VIDEO,
+    NOTIFICATIONS,
+    DATA,
+    SAVED,
+    ABOUT,
+}
+
+@Serializable
+data class SettingsPageNavKey(val page: SettingsPage) : NavKey
+
+@Serializable
 data object SavedNavKey : NavKey
 
 @Serializable

@@ -1,9 +1,18 @@
 package io.github.omeg4dev.fmhy.ui.settings
 
 import android.content.Context
+import io.github.omeg4dev.fmhy.data.AppIcon
 import io.github.omeg4dev.fmhy.data.Appearance
+import io.github.omeg4dev.fmhy.data.BlockingPrefs
+import io.github.omeg4dev.fmhy.data.BrowserPrefs
 import io.github.omeg4dev.fmhy.data.ColorSource
+import io.github.omeg4dev.fmhy.data.DataPrefs
 import io.github.omeg4dev.fmhy.data.DatasetStore
+import io.github.omeg4dev.fmhy.data.HomePrefs
+import io.github.omeg4dev.fmhy.data.NotificationPrefs
+import io.github.omeg4dev.fmhy.data.OpenLinksWith
+import io.github.omeg4dev.fmhy.data.PrivacyPrefs
+import io.github.omeg4dev.fmhy.data.ProtectionPrefs
 import io.github.omeg4dev.fmhy.data.SectionLayout
 import io.github.omeg4dev.fmhy.data.SectionOrder
 import io.github.omeg4dev.fmhy.data.SettingsRepository
@@ -102,9 +111,6 @@ class SettingsViewModelTest {
     }
 
     private class FakeSettingsRepository : SettingsRepository {
-        private val _openExternal = MutableStateFlow(false)
-        override val openInExternalBrowser: Flow<Boolean> = _openExternal.asStateFlow()
-        override suspend fun setOpenInExternalBrowser(open: Boolean) { _openExternal.value = open }
         override val lastVisitTs: Flow<Long> get() = error("Not needed")
         override suspend fun setLastVisitTs(ts: Long) {}
         override val recentSearches: Flow<List<String>> get() = error("Not needed")
@@ -125,6 +131,39 @@ class SettingsViewModelTest {
         override suspend fun setStarredOnly(starredOnly: Boolean) { _appearance.value = _appearance.value.copy(starredOnly = starredOnly) }
         override suspend fun setShowIndexes(showIndexes: Boolean) { _appearance.value = _appearance.value.copy(showIndexes = showIndexes) }
         override suspend fun setHapticFeedback(enabled: Boolean) { _appearance.value = _appearance.value.copy(hapticFeedback = enabled) }
+        override suspend fun setAppIcon(icon: AppIcon) { _appearance.value = _appearance.value.copy(appIcon = icon) }
+
+        private val _home = MutableStateFlow(HomePrefs())
+        override val homePrefs: Flow<HomePrefs> = _home.asStateFlow()
+        override suspend fun updateHome(f: (HomePrefs) -> HomePrefs) { _home.value = f(_home.value) }
+
+        private val _browser = MutableStateFlow(BrowserPrefs())
+        override val browserPrefs: Flow<BrowserPrefs> = _browser.asStateFlow()
+        override suspend fun updateBrowser(f: (BrowserPrefs) -> BrowserPrefs) { _browser.value = f(_browser.value) }
+
+        private val _blocking = MutableStateFlow(BlockingPrefs())
+        override val blockingPrefs: Flow<BlockingPrefs> = _blocking.asStateFlow()
+        override suspend fun updateBlocking(f: (BlockingPrefs) -> BlockingPrefs) { _blocking.value = f(_blocking.value) }
+
+        private val _protection = MutableStateFlow(ProtectionPrefs())
+        override val protectionPrefs: Flow<ProtectionPrefs> = _protection.asStateFlow()
+        override suspend fun updateProtection(f: (ProtectionPrefs) -> ProtectionPrefs) { _protection.value = f(_protection.value) }
+
+        private val _privacy = MutableStateFlow(PrivacyPrefs())
+        override val privacyPrefs: Flow<PrivacyPrefs> = _privacy.asStateFlow()
+        override suspend fun updatePrivacy(f: (PrivacyPrefs) -> PrivacyPrefs) { _privacy.value = f(_privacy.value) }
+
+        private val _notifications = MutableStateFlow(NotificationPrefs())
+        override val notificationPrefs: Flow<NotificationPrefs> = _notifications.asStateFlow()
+        override suspend fun updateNotifications(f: (NotificationPrefs) -> NotificationPrefs) { _notifications.value = f(_notifications.value) }
+
+        private val _data = MutableStateFlow(DataPrefs())
+        override val dataPrefs: Flow<DataPrefs> = _data.asStateFlow()
+        override suspend fun updateData(f: (DataPrefs) -> DataPrefs) { _data.value = f(_data.value) }
+
+        private val _onboarding = MutableStateFlow(0)
+        override val onboardingVersion: Flow<Int> = _onboarding.asStateFlow()
+        override suspend fun setOnboardingVersion(v: Int) { _onboarding.value = v }
     }
 
     @Test
@@ -166,20 +205,20 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun testOpenInExternalBrowserToggle() = runTest {
+    fun testBrowserPrefsUpdate() = runTest {
         val store = FakeDatasetStore()
         val settings = FakeSettingsRepository()
         val container = FakeContainer(store, settings)
 
         val viewModel = SettingsViewModel(store, settings, container)
-        backgroundScope.launch(kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect() }
+        backgroundScope.launch(kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)) { viewModel.browserPrefs.collect() }
         testDispatcher.scheduler.advanceUntilIdle()
 
-        assertFalse(viewModel.uiState.value.openInExternalBrowser)
-        viewModel.setOpenInExternalBrowser(true)
+        assertEquals(OpenLinksWith.IN_APP, viewModel.browserPrefs.value.openLinksWith)
+        viewModel.updateBrowser { it.copy(openLinksWith = OpenLinksWith.EXTERNAL) }
         testDispatcher.scheduler.advanceUntilIdle()
 
-        assertTrue(viewModel.uiState.value.openInExternalBrowser)
+        assertEquals(OpenLinksWith.EXTERNAL, viewModel.browserPrefs.value.openLinksWith)
     }
 
     @Test
