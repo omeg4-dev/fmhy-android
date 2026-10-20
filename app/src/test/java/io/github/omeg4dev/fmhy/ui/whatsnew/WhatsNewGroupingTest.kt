@@ -2,96 +2,164 @@ package io.github.omeg4dev.fmhy.ui.whatsnew
 
 import io.github.omeg4dev.fmhy.data.model.ChangeItem
 import io.github.omeg4dev.fmhy.data.model.ChangeKind
+import java.time.ZoneId
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class WhatsNewGroupingTest {
 
-    @Test
-    fun testTabKindsMapping() {
-        val addedKinds = WhatsNewGrouping.tabKinds(WhatsNewTab.ADDED)
-        assertEquals(setOf(ChangeKind.ADDED), addedKinds)
+    private val utcZone = ZoneId.of("UTC")
+    private val nowSec = 1760800000L // arbitrary fixed point
 
-        val updatedKinds = WhatsNewGrouping.tabKinds(WhatsNewTab.UPDATED)
-        assertEquals(
-            setOf(
-                ChangeKind.EDITED,
-                ChangeKind.STARRED,
-                ChangeKind.UNSTARRED,
-                ChangeKind.URL_CHANGED,
-                ChangeKind.RENAMED,
-                ChangeKind.MOVED,
-            ),
-            updatedKinds
-        )
-
-        val removedKinds = WhatsNewGrouping.tabKinds(WhatsNewTab.REMOVED)
-        assertEquals(setOf(ChangeKind.REMOVED), removedKinds)
-    }
-
-    @Test
-    fun testDayGrouping() {
-        val nowSec = 1760800000L // arbitrary fixed point
-
-        val itemToday1 = makeChangeItem(1, nowSec - 3600, ChangeKind.ADDED, "Site A")
-        val itemToday2 = makeChangeItem(2, nowSec - 7200, ChangeKind.ADDED, "Site B")
-        val itemYesterday = makeChangeItem(3, nowSec - 90000, ChangeKind.ADDED, "Site C")
-        val itemOlder = makeChangeItem(4, nowSec - 300000, ChangeKind.ADDED, "Site D")
-
-        val groups = WhatsNewGrouping.groupByDay(
-            listOf(itemToday1, itemToday2, itemYesterday, itemOlder),
-            nowSec = nowSec
-        )
-
-        assertEquals(3, groups.size)
-        assertEquals("Today", groups[0].dayHeader)
-        assertEquals(listOf(itemToday1, itemToday2), groups[0].items)
-
-        assertEquals("Yesterday", groups[1].dayHeader)
-        assertEquals(listOf(itemYesterday), groups[1].items)
-
-        // Older header should not be Today or Yesterday
-        assertTrue(groups[2].dayHeader != "Today" && groups[2].dayHeader != "Yesterday")
-        assertEquals(listOf(itemOlder), groups[2].items)
-    }
-
-    @Test
-    fun testUpdateLineFormatting() {
-        val starred = makeChangeItem(1, 1000, ChangeKind.STARRED, "StarSite", "https://star.com")
-        assertEquals("★ Starred", WhatsNewGrouping.updateLine(starred))
-
-        val unstarred = makeChangeItem(2, 1000, ChangeKind.UNSTARRED, "UnstarSite", "https://unstar.com")
-        assertEquals("Unstarred", WhatsNewGrouping.updateLine(unstarred))
-
-        val urlChanged = makeChangeItem(3, 1000, ChangeKind.URL_CHANGED, "ChangeSite", "https://newhost.org/sub")
-        assertEquals("New link: newhost.org", WhatsNewGrouping.updateLine(urlChanged))
-
-        val edited = makeChangeItem(4, 1000, ChangeKind.EDITED, "EditSite", "https://edit.com")
-        assertEquals("Description changed", WhatsNewGrouping.updateLine(edited))
-
-        val added = makeChangeItem(5, 1000, ChangeKind.ADDED, "AddSite", "https://add.com")
-        assertNull(WhatsNewGrouping.updateLine(added))
-    }
-
-    private fun makeChangeItem(
+    private fun makeChange(
         id: Long,
         ts: Long,
         kind: ChangeKind,
+        entryId: String,
         name: String,
-        url: String = "https://example.com"
+        url: String = "https://example.com/app",
+        sectionId: String = "video",
+        detail: String = "",
     ): ChangeItem {
         return ChangeItem(
             id = id,
             ts = ts,
             kind = kind,
-            entryId = "entry_$id",
-            sectionId = "video",
+            entryId = entryId,
+            sectionId = sectionId,
             name = name,
             url = url,
-            detail = "",
+            detail = detail,
             entry = null,
         )
+    }
+
+    @Test
+    fun testCollapseRenamedAndStarredSameDay() {
+        val ts = nowSec - 1000
+        val renamed = makeChange(1, ts, ChangeKind.RENAMED, "e1", "New Name", detail = "Old Name")
+        val starred = makeChange(2, ts + 10, ChangeKind.STARRED, "e1", "New Name")
+
+        val cards = WhatsNewGrouping.collapseChanges(listOf(renamed, starred), zoneId = utcZone)
+
+        assertEquals(1, cards.size)
+        val card = cards.first()
+        assertEquals(ChangeKind.RENAMED, card.primaryKind)
+        assertEquals(setOf(ChangeKind.RENAMED, ChangeKind.STARRED), card.kinds)
+        assertEquals("Old Name", card.oldName)
+        assertEquals("New Name", card.name)
+        assertEquals(ts + 10, card.ts)
+    }
+
+    @Test
+    fun testCollapseAddedAndRemovedSameUrlTreatedAsEdited() {
+        val ts = nowSec - 2000
+        val url = "https://example.com/readded"
+        val added = makeChange(1, ts, ChangeKind.ADDED, "e2", "Readded Site", url = url)
+        val removed = makeChange(2, ts + 20, ChangeKind.REMOVED, "e2", "Readded Site", url = url)
+
+        val cards = WhatsNewGrouping.collapseChanges(listOf(added, removed), zoneId = utcZone)
+
+        assertEquals(1, cards.size)
+        val card = cards.first()
+        assertEquals(ChangeKind.EDITED, card.primaryKind)
+        assertTrue(ChangeKind.ADDED in card.kinds)
+        assertTrue(ChangeKind.REMOVED in card.kinds)
+        assertTrue(ChangeKind.EDITED in card.kinds)
+    }
+
+    @Test
+    fun testPrimaryKindPriorityOrder() {
+        val priority = WhatsNewGrouping.PRIMARY_KIND_PRIORITY
+        assertEquals(
+            listOf(
+                ChangeKind.REMOVED,
+                ChangeKind.ADDED,
+                ChangeKind.MOVED,
+                ChangeKind.RENAMED,
+                ChangeKind.URL_CHANGED,
+                ChangeKind.STARRED,
+                ChangeKind.UNSTARRED,
+                ChangeKind.EDITED,
+            ),
+            priority,
+        )
+
+        // Test that MOVED wins over RENAMED and STARRED
+        val ts = nowSec - 500
+        val moved = makeChange(1, ts, ChangeKind.MOVED, "e3", "Site 3", detail = "old-section")
+        val renamed = makeChange(2, ts + 1, ChangeKind.RENAMED, "e3", "Site 3", detail = "Old Name")
+        val starred = makeChange(3, ts + 2, ChangeKind.STARRED, "e3", "Site 3")
+
+        val cards = WhatsNewGrouping.collapseChanges(listOf(moved, renamed, starred), zoneId = utcZone)
+        assertEquals(1, cards.size)
+        assertEquals(ChangeKind.MOVED, cards.first().primaryKind)
+        assertEquals(setOf(ChangeKind.MOVED, ChangeKind.RENAMED, ChangeKind.STARRED), cards.first().kinds)
+    }
+
+    @Test
+    fun testPerKindCounts() {
+        val ts = nowSec - 1000
+        // Card 1: RENAMED + STARRED
+        val c1 = makeChange(1, ts, ChangeKind.RENAMED, "e1", "Site 1", detail = "Old 1")
+        val c2 = makeChange(2, ts, ChangeKind.STARRED, "e1", "Site 1")
+        // Card 2: ADDED
+        val c3 = makeChange(3, ts, ChangeKind.ADDED, "e2", "Site 2")
+        // Card 3: REMOVED
+        val c4 = makeChange(4, ts, ChangeKind.REMOVED, "e3", "Site 3")
+
+        val cards = WhatsNewGrouping.collapseChanges(listOf(c1, c2, c3, c4), zoneId = utcZone)
+        val counts = WhatsNewGrouping.countsPerKind(cards)
+
+        assertEquals(1, counts[ChangeKind.RENAMED])
+        assertEquals(1, counts[ChangeKind.STARRED])
+        assertEquals(1, counts[ChangeKind.ADDED])
+        assertEquals(1, counts[ChangeKind.REMOVED])
+        assertEquals(0, counts[ChangeKind.EDITED])
+        assertEquals(0, counts[ChangeKind.URL_CHANGED])
+    }
+
+    @Test
+    fun testDayGrouping() {
+        val todayTs = nowSec - 3600
+        val yesterdayTs = nowSec - 90000
+        val olderTs = nowSec - 300000
+
+        val itemToday1 = makeChange(1, todayTs, ChangeKind.ADDED, "e1", "Site A")
+        val itemToday2 = makeChange(2, todayTs - 60, ChangeKind.RENAMED, "e2", "Site B")
+        val itemYesterday = makeChange(3, yesterdayTs, ChangeKind.ADDED, "e3", "Site C")
+        val itemOlder = makeChange(4, olderTs, ChangeKind.ADDED, "e4", "Site D")
+
+        val cards = WhatsNewGrouping.collapseChanges(
+            listOf(itemToday1, itemToday2, itemYesterday, itemOlder),
+            zoneId = utcZone,
+        )
+        val groups = WhatsNewGrouping.groupByDay(cards, nowSec = nowSec, zoneId = utcZone)
+
+        assertEquals(3, groups.size)
+        assertEquals("Today · 2 changes", groups[0].dayHeader)
+        assertEquals(2, groups[0].cards.size)
+
+        assertEquals("Yesterday · 1 change", groups[1].dayHeader)
+        assertEquals(1, groups[1].cards.size)
+
+        assertTrue(groups[2].dayHeader.endsWith(" · 1 change"))
+        assertEquals(1, groups[2].cards.size)
+    }
+
+    @Test
+    fun testUrlChangeFormatting() {
+        // Different hosts
+        val diffHost = WhatsNewGrouping.formatUrlChange("https://old.org/page", "https://new.org/page")
+        assertEquals("old.org → new.org", diffHost)
+
+        // Same host, different paths
+        val sameHost = WhatsNewGrouping.formatUrlChange("https://site.com/oldpath", "https://site.com/newpath")
+        assertEquals("/oldpath → /newpath", sameHost)
+
+        // Empty old url
+        val emptyOld = WhatsNewGrouping.formatUrlChange("", "https://site.com/path")
+        assertEquals("site.com", emptyOld)
     }
 }

@@ -50,10 +50,11 @@ class UpdateWorkerLogicTest {
             bookmarks = bookmarks,
             lastTs = null,
             nowSec = nowSec,
+            sectionTitles = mapOf("video" to "Movies / TV"),
         )
 
         assertNotNull(result)
-        assertEquals("1 new site in followed categories", result!!.title)
+        assertEquals("Movies / TV: 1 new", result!!.title)
         assertEquals("Recent Site", result.text)
         assertEquals(1, result.changeCount)
     }
@@ -88,13 +89,14 @@ class UpdateWorkerLogicTest {
             bookmarks = emptyList(),
             lastTs = nowSec - 1000,
             nowSec = nowSec,
+            sectionTitles = mapOf("video" to "Video"),
         )
         assertNotNull(singleResult)
-        assertEquals("1 new site in followed categories", singleResult!!.title)
+        assertEquals("Video: 1 new", singleResult!!.title)
         assertEquals("Site A", singleResult.text)
         assertEquals("following", singleResult.openFilter)
 
-        // Plural (3 sites)
+        // Plural (3 sites in single section)
         val changes = listOf(
             makeChange(1, nowSec - 100, ChangeKind.ADDED, "Site A", "video"),
             makeChange(2, nowSec - 200, ChangeKind.ADDED, "Site B", "video"),
@@ -106,13 +108,50 @@ class UpdateWorkerLogicTest {
             bookmarks = emptyList(),
             lastTs = nowSec - 1000,
             nowSec = nowSec,
+            sectionTitles = mapOf("video" to "Video"),
         )
         assertNotNull(pluralResult)
-        assertEquals("3 new sites in followed categories", pluralResult!!.title)
+        assertEquals("Video: 2 new, 1 starred", pluralResult!!.title)
         assertTrue(pluralResult.text.contains("Site A"))
         assertTrue(pluralResult.text.contains("Site B"))
         assertTrue(pluralResult.text.contains("Site C"))
         assertEquals("following", pluralResult.openFilter)
+
+        // Multiple sections
+        val multiSectionChanges = listOf(
+            makeChange(1, nowSec - 100, ChangeKind.ADDED, "Site A", "video"),
+            makeChange(2, nowSec - 200, ChangeKind.REMOVED, "Site B", "audio"),
+        )
+        val multiResult = UpdateWorkerLogic.evaluate(
+            changes = multiSectionChanges,
+            follows = listOf(makeFollow("video"), makeFollow("audio")),
+            bookmarks = emptyList(),
+            lastTs = nowSec - 1000,
+            nowSec = nowSec,
+        )
+        assertNotNull(multiResult)
+        assertEquals("1 new, 1 removed in followed sections", multiResult!!.title)
+    }
+
+    @Test
+    fun testMixedKindsFollowedChanges() {
+        val follows = listOf(makeFollow("video"))
+        val changes = listOf(
+            makeChange(1, nowSec - 100, ChangeKind.ADDED, "Site A", "video"),
+            makeChange(2, nowSec - 200, ChangeKind.ADDED, "Site B", "video"),
+            makeChange(3, nowSec - 300, ChangeKind.ADDED, "Site C", "video"),
+            makeChange(4, nowSec - 400, ChangeKind.RENAMED, "Site D", "video"),
+        )
+        val result = UpdateWorkerLogic.evaluate(
+            changes = changes,
+            follows = follows,
+            bookmarks = emptyList(),
+            lastTs = nowSec - 1000,
+            nowSec = nowSec,
+            sectionTitles = mapOf("video" to "Movies / TV"),
+        )
+        assertNotNull(result)
+        assertEquals("Movies / TV: 3 new, 1 renamed", result!!.title)
     }
 
     @Test
@@ -124,7 +163,7 @@ class UpdateWorkerLogicTest {
 
         // Single saved starred
         val savedStarred = makeChange(1, nowSec - 100, ChangeKind.STARRED, "Foo Site", "audio", url = "https://foo.com", entryId = "e1")
-        val singleResult = UpdateWorkerLogic.evaluate(
+        val singleStarredResult = UpdateWorkerLogic.evaluate(
             changes = listOf(savedStarred),
             follows = emptyList(),
             bookmarks = bookmarks,
@@ -132,9 +171,23 @@ class UpdateWorkerLogicTest {
             nowSec = nowSec,
             watchSaved = true,
         )
-        assertNotNull(singleResult)
-        assertEquals("Your saved site Foo Site was starred", singleResult!!.title)
-        assertEquals("saved", singleResult.openFilter)
+        assertNotNull(singleStarredResult)
+        assertEquals("1 saved site was starred", singleStarredResult!!.title)
+        assertEquals("saved", singleStarredResult.openFilter)
+
+        // Single saved url changed
+        val savedUrlChanged = makeChange(3, nowSec - 100, ChangeKind.URL_CHANGED, "Foo Site", "audio", url = "https://foo.com", entryId = "e1")
+        val singleUrlResult = UpdateWorkerLogic.evaluate(
+            changes = listOf(savedUrlChanged),
+            follows = emptyList(),
+            bookmarks = bookmarks,
+            lastTs = nowSec - 1000,
+            nowSec = nowSec,
+            watchSaved = true,
+        )
+        assertNotNull(singleUrlResult)
+        assertEquals("1 saved site got a new link", singleUrlResult!!.title)
+        assertEquals("saved", singleUrlResult.openFilter)
 
         // Plural saved changes
         val savedRemoved = makeChange(2, nowSec - 200, ChangeKind.REMOVED, "Bar Site", "audio", url = "https://bar.com", entryId = "e2")

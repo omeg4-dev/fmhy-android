@@ -5,13 +5,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.omeg4dev.fmhy.data.DatasetStore
 import io.github.omeg4dev.fmhy.data.model.ChangeItem
+import io.github.omeg4dev.fmhy.data.model.ChangeKind
 import io.github.omeg4dev.fmhy.data.model.Entry
 import io.github.omeg4dev.fmhy.data.model.Section
 import io.github.omeg4dev.fmhy.data.model.Tier
 import io.github.omeg4dev.fmhy.data.user.Follow
 import io.github.omeg4dev.fmhy.data.user.UserStore
 import io.github.omeg4dev.fmhy.di.AppContainer
-import io.github.omeg4dev.fmhy.ui.common.NewBadgeLogic
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
@@ -26,17 +26,17 @@ import kotlinx.coroutines.withContext
 
 @Immutable
 data class WhatsNewUiState(
-    val selectedTab: WhatsNewTab = WhatsNewTab.ADDED,
-    val followingFilter: Boolean = false,
-    val savedFilter: Boolean = false,
-    val selectedSections: Set<String> = emptySet(),
-    val availableSections: ImmutableList<Section> = persistentListOf(),
+    val period: WhatsNewPeriod = WhatsNewPeriod.WEEK,
+    val types: Set<ChangeKind> = emptySet(),
+    val scope: WhatsNewScope = WhatsNewScope.All,
+    val counts: Map<ChangeKind, Int> = emptyMap(),
+    val totalCards: Int = 0,
     val dayGroups: ImmutableList<DayGroup> = persistentListOf(),
+    val availableSections: ImmutableList<Section> = persistentListOf(),
     val hasFollows: Boolean = false,
-    val isLoading: Boolean = false,
+    val isLoading: Boolean = true,
     val isRefreshing: Boolean = false,
     val oldestChangeTs: Long? = null,
-    val newEntryIds: Set<String> = emptySet(),
 )
 
 class WhatsNewViewModel(
@@ -47,18 +47,24 @@ class WhatsNewViewModel(
     private val store: DatasetStore = container.datasetStore
     private val userStore: UserStore = container.userStore
 
-    private val selectedTab = MutableStateFlow(WhatsNewTab.ADDED)
-    private val followingFilter = MutableStateFlow(initialFilter == "following")
-    private val savedFilter = MutableStateFlow(initialFilter == "saved")
-    private val selectedSections = MutableStateFlow<Set<String>>(emptySet())
+    private val period = MutableStateFlow(WhatsNewPeriod.WEEK)
+    private val types = MutableStateFlow<Set<ChangeKind>>(emptySet())
+    private val scope = MutableStateFlow<WhatsNewScope>(
+        when (initialFilter) {
+            "following" -> WhatsNewScope.Following
+            "saved" -> WhatsNewScope.Saved
+            else -> WhatsNewScope.All
+        }
+    )
     private val isRefreshing = MutableStateFlow(false)
-    private val refreshTrigger = MutableStateFlow(0)
+    private val isLoading = MutableStateFlow(true)
+    private var hasAutoSwitched = false
 
     private val rawChanges = MutableStateFlow<List<ChangeItem>>(emptyList())
     private val allSections = MutableStateFlow<List<Section>>(emptyList())
     private val followsList = MutableStateFlow<List<Follow>>(emptyList())
     private val savedUrlsAndIds = MutableStateFlow<Pair<Set<String>, Set<String>>>(emptySet<String>() to emptySet<String>())
-    private val sectionHeadingHierarchy = MutableStateFlow<Map<String, Set<String>>>(emptyMap()) // headingId -> all descendant headingIds
+    private val sectionHeadingHierarchy = MutableStateFlow<Map<String, Set<String>>>(emptyMap())
 
     init {
         loadData()
@@ -112,34 +118,56 @@ class WhatsNewViewModel(
             try {
                 if (store.isAvailable) {
                     val nowSec = System.currentTimeMillis() / 1000
-                    val cutoffTs = nowSec - 30 * 86400L
+                    val currentPeriod = period.value
+                    val cutoffTs = nowSec - currentPeriod.days * 86400L
                     val changes = store.recentChanges(
                         sinceTs = cutoffTs,
                         kinds = emptySet(),
-                        limit = 1000,
+                        limit = 5000,
                     )
+
+                    // Auto-switch: if WEEK has 0 cards on the very first load, switch to MONTH automatically once
+                    if (currentPeriod == WhatsNewPeriod.WEEK && !hasAutoSwitched) {
+                        val cards = WhatsNewGrouping.collapseChanges(changes)
+                        if (cards.isEmpty()) {
+                            hasAutoSwitched = true
+                            period.value = WhatsNewPeriod.MONTH
+                            val monthCutoff = nowSec - WhatsNewPeriod.MONTH.days * 86400L
+                            val monthChanges = store.recentChanges(
+                                sinceTs = monthCutoff,
+                                kinds = emptySet(),
+                                limit = 5000,
+                            )
+                            rawChanges.value = monthChanges
+                            return@withContext
+                        }
+                    }
+
                     rawChanges.value = changes
                 }
-            } catch (_: Exception) {}
+            } catch (_: Exception) {
+            } finally {
+                isLoading.value = false
+            }
         }
     }
 
     private data class FilterState(
-        val tab: WhatsNewTab,
-        val following: Boolean,
-        val saved: Boolean,
-        val sections: Set<String>,
+        val period: WhatsNewPeriod,
+        val types: Set<ChangeKind>,
+        val scope: WhatsNewScope,
         val refreshing: Boolean,
+        val loading: Boolean,
     )
 
     private val filterState = combine(
-        selectedTab,
-        followingFilter,
-        savedFilter,
-        selectedSections,
+        period,
+        types,
+        scope,
         isRefreshing,
-    ) { tab, following, saved, sections, refreshing ->
-        FilterState(tab, following, saved, sections, refreshing)
+        isLoading,
+    ) { p, t, s, refreshing, loading ->
+        FilterState(p, t, s, refreshing, loading)
     }
 
     val uiState: StateFlow<WhatsNewUiState> = combine(
@@ -149,102 +177,95 @@ class WhatsNewViewModel(
         followsList,
         savedUrlsAndIds,
     ) { filter, changes, sections, follows, (savedIds, savedUrls) ->
-        val tabChanges = WhatsNewGrouping.filterChanges(changes, filter.tab)
+        val collapsedCards = WhatsNewGrouping.collapseChanges(changes)
 
-        // Sections that have changes in current dataset
+        // Sections that have changes in current dataset/period
         val sectionsWithChanges = changes.map { it.sectionId }.toSet()
         val availableSections = sections.filter { it.id in sectionsWithChanges }.toImmutableList()
 
-        // Filter by following if active
+        // 1. Filter by scope
         val hierarchy = sectionHeadingHierarchy.value
-        val afterFollowing = if (filter.following && follows.isNotEmpty()) {
-            val sectionFollows = follows.filter { it.headingId.isEmpty() }.map { it.sectionId }.toSet()
-            val categoryFollowHeadingIds = follows.filter { it.headingId.isNotEmpty() }.flatMap { f ->
-                hierarchy[f.headingId] ?: setOf(f.headingId)
-            }.toSet()
+        val afterScopeCards = WhatsNewGrouping.filterByScope(
+            cards = collapsedCards,
+            scope = filter.scope,
+            follows = follows,
+            savedIds = savedIds,
+            savedUrls = savedUrls,
+            hierarchy = hierarchy,
+        )
 
-            tabChanges.filter { item ->
-                if (item.sectionId in sectionFollows) return@filter true
-                val hId = item.entry?.headingId
-                if (hId != null && hId in categoryFollowHeadingIds) return@filter true
-                false
-            }
-        } else {
-            tabChanges
-        }
+        // 2. Counts per kind computed AFTER scope filter, BEFORE type filter
+        val counts = WhatsNewGrouping.countsPerKind(afterScopeCards)
+        val totalCards = afterScopeCards.size
 
-        // Filter by saved if active
-        val afterSaved = if (filter.saved) {
-            afterFollowing.filter { item ->
-                item.entryId in savedIds || DatasetStore.normalizeEntryUrl(item.url) in savedUrls
-            }
-        } else {
-            afterFollowing
-        }
+        // 3. Filter by types
+        val afterTypeCards = WhatsNewGrouping.filterByTypes(afterScopeCards, filter.types)
 
-        // Filter by selected sections if any
-        val afterSections = if (filter.sections.isNotEmpty()) {
-            afterSaved.filter { it.sectionId in filter.sections }
-        } else {
-            afterSaved
-        }
-
-        val dayGroups = WhatsNewGrouping.groupByDay(afterSections).toImmutableList()
+        // 4. Group by day
+        val dayGroups = WhatsNewGrouping.groupByDay(afterTypeCards).toImmutableList()
         val oldestTs = changes.minOfOrNull { it.ts }
 
-        val visibleEntryIds = afterSections.mapNotNull { it.entry?.id }
-        val newEntryIds = try {
-            if (visibleEntryIds.isNotEmpty()) {
-                val addedMap = store.addedAt(visibleEntryIds)
-                val nowSec = System.currentTimeMillis() / 1000
-                addedMap.filter { NewBadgeLogic.isNew(it.value, nowSec, 3) }.keys
-            } else emptySet()
-        } catch (_: Exception) {
-            emptySet()
-        }
-
         WhatsNewUiState(
-            selectedTab = filter.tab,
-            followingFilter = filter.following,
-            savedFilter = filter.saved,
-            selectedSections = filter.sections,
-            availableSections = availableSections,
+            period = filter.period,
+            types = filter.types,
+            scope = filter.scope,
+            counts = counts,
+            totalCards = totalCards,
             dayGroups = dayGroups,
+            availableSections = availableSections,
             hasFollows = follows.isNotEmpty(),
-            isLoading = false,
+            isLoading = filter.loading,
             isRefreshing = filter.refreshing,
             oldestChangeTs = oldestTs,
-            newEntryIds = newEntryIds,
         )
     }.stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5000),
         WhatsNewUiState(
-            selectedTab = selectedTab.value,
-            followingFilter = followingFilter.value,
-            savedFilter = savedFilter.value,
+            period = period.value,
+            types = types.value,
+            scope = scope.value,
+            isLoading = true,
         )
     )
 
-    fun selectTab(tab: WhatsNewTab) {
-        selectedTab.value = tab
+    fun setPeriod(newPeriod: WhatsNewPeriod) {
+        if (period.value == newPeriod) return
+        period.value = newPeriod
+        viewModelScope.launch {
+            isLoading.value = true
+            loadChanges()
+        }
     }
 
-    fun toggleFollowingFilter() {
-        followingFilter.value = !followingFilter.value
+    fun toggleType(kind: ChangeKind) {
+        val current = types.value
+        types.value = if (kind in current) current - kind else current + kind
     }
 
-    fun clearSavedFilter() {
-        savedFilter.value = false
+    fun setTypes(newTypes: Set<ChangeKind>) {
+        types.value = newTypes
     }
 
-    fun toggleSectionFilter(sectionId: String) {
-        val current = selectedSections.value
-        selectedSections.value = if (sectionId in current) current - sectionId else current + sectionId
+    fun clearTypes() {
+        types.value = emptySet()
     }
 
-    fun clearSectionFilters() {
-        selectedSections.value = emptySet()
+    fun setScope(newScope: WhatsNewScope) {
+        scope.value = newScope
+    }
+
+    fun toggleSectionScope(sectionId: String) {
+        val current = scope.value
+        val currentSet = if (current is WhatsNewScope.Sections) current.sections else emptySet()
+        val newSet = if (sectionId in currentSet) currentSet - sectionId else currentSet + sectionId
+        scope.value = if (newSet.isEmpty()) WhatsNewScope.All else WhatsNewScope.Sections(newSet)
+    }
+
+    fun resetFilters() {
+        types.value = emptySet()
+        scope.value = WhatsNewScope.All
+        setPeriod(WhatsNewPeriod.MONTH)
     }
 
     fun refresh() {
@@ -260,17 +281,17 @@ class WhatsNewViewModel(
         }
     }
 
-    suspend fun getReplacements(change: ChangeItem): List<Entry> = withContext(Dispatchers.IO) {
+    suspend fun getReplacements(card: ChangeCard): List<Entry> = withContext(Dispatchers.IO) {
         try {
             if (!store.isAvailable) return@withContext emptyList()
-            val sectionEntries = store.entriesForSection(change.sectionId)
-            val headingId = change.entry?.headingId
+            val sectionEntries = store.entriesForSection(card.sectionId)
+            val headingId = card.entry?.headingId
+            val cardEntryId = card.entry?.id ?: card.key.substringBefore(':')
 
             val candidates = if (headingId != null) {
-                sectionEntries.filter { it.headingId == headingId && it.id != change.entryId }
+                sectionEntries.filter { it.headingId == headingId && it.id != cardEntryId }
             } else {
-                // If entry has no headingId or was deleted, match section entries
-                sectionEntries.filter { it.id != change.entryId }
+                sectionEntries.filter { it.id != cardEntryId }
             }
 
             candidates

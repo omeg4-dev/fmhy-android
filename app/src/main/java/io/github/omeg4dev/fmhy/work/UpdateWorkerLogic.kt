@@ -33,7 +33,13 @@ object UpdateWorkerLogic {
             hierarchy[f.headingId] ?: setOf(f.headingId)
         }.toSet()
 
-        val allowedKinds = setOf(ChangeKind.ADDED, ChangeKind.STARRED)
+        val allowedKinds = setOf(
+            ChangeKind.ADDED,
+            ChangeKind.STARRED,
+            ChangeKind.RENAMED,
+            ChangeKind.MOVED,
+            ChangeKind.REMOVED,
+        )
         return changes.filter { item ->
             if (item.kind !in allowedKinds) return@filter false
             if (item.sectionId in sectionFollows) return@filter true
@@ -75,6 +81,63 @@ object UpdateWorkerLogic {
         val hasFollowed = followedChanges.isNotEmpty()
         val hasSaved = savedChanges.isNotEmpty()
 
+        val formatFollowedSummary = { changes: List<ChangeItem> ->
+            val counts = LinkedHashMap<ChangeKind, Int>()
+            for (item in changes) {
+                counts[item.kind] = (counts[item.kind] ?: 0) + 1
+            }
+            val order = listOf(
+                ChangeKind.ADDED,
+                ChangeKind.RENAMED,
+                ChangeKind.MOVED,
+                ChangeKind.STARRED,
+                ChangeKind.REMOVED,
+            )
+            val parts = mutableListOf<String>()
+            for (kind in order) {
+                val count = counts[kind] ?: 0
+                if (count > 0) {
+                    val label = when (kind) {
+                        ChangeKind.ADDED -> "new"
+                        ChangeKind.RENAMED -> "renamed"
+                        ChangeKind.MOVED -> "moved"
+                        ChangeKind.STARRED -> "starred"
+                        ChangeKind.REMOVED -> "removed"
+                        else -> kind.value
+                    }
+                    parts.add("$count $label")
+                }
+            }
+            parts.joinToString(", ")
+        }
+
+        fun followedTitle(): String {
+            val distinctSections = followedChanges.map { it.sectionId }.distinct()
+            val summary = formatFollowedSummary(followedChanges)
+            return if (distinctSections.size == 1) {
+                val secId = distinctSections.first()
+                val secTitle = sectionTitles[secId] ?: secId
+                "$secTitle: $summary"
+            } else {
+                "$summary in followed sections"
+            }
+        }
+
+        fun savedTitle(): String {
+            return if (savedChanges.size == 1) {
+                val sc = savedChanges.first()
+                when (sc.kind) {
+                    ChangeKind.URL_CHANGED -> "1 saved site got a new link"
+                    ChangeKind.STARRED -> "1 saved site was starred"
+                    ChangeKind.UNSTARRED -> "1 saved site was unstarred"
+                    ChangeKind.REMOVED -> "1 saved site was removed"
+                    else -> "1 saved site changed"
+                }
+            } else {
+                "FMHY: ${savedChanges.size} saved sites changed"
+            }
+        }
+
         val title: String
         val openFilter: String
         val primaryChanges: List<ChangeItem>
@@ -82,36 +145,16 @@ object UpdateWorkerLogic {
         if (hasFollowed && !hasSaved) {
             openFilter = "following"
             primaryChanges = followedChanges
-            title = if (followedChanges.size == 1) {
-                "1 new site in followed categories"
-            } else {
-                "${followedChanges.size} new sites in followed categories"
-            }
+            title = followedTitle()
         } else if (!hasFollowed && hasSaved) {
             openFilter = "saved"
             primaryChanges = savedChanges
-            title = if (savedChanges.size == 1) {
-                val sc = savedChanges.first()
-                val action = when (sc.kind) {
-                    ChangeKind.STARRED -> "starred"
-                    ChangeKind.UNSTARRED -> "unstarred"
-                    ChangeKind.REMOVED -> "removed"
-                    ChangeKind.URL_CHANGED -> "updated"
-                    else -> "changed"
-                }
-                "Your saved site ${sc.name} was $action"
-            } else {
-                "FMHY: ${savedChanges.size} saved sites changed"
-            }
+            title = savedTitle()
         } else {
             // Both followed and saved
             openFilter = "following"
             primaryChanges = followedChanges + savedChanges
-            title = if (followedChanges.size == 1) {
-                "1 new site in followed categories"
-            } else {
-                "${followedChanges.size} new sites in followed categories"
-            }
+            title = followedTitle()
         }
 
         // text = up to 3 names
