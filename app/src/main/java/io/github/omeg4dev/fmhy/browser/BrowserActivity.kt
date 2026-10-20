@@ -43,6 +43,7 @@ class BrowserActivity : ComponentActivity() {
     private var showCustomViewListener: ((android.view.View) -> Unit)? = null
     private var hideCustomViewListener: (() -> Unit)? = null
     private var videoPlayingListener: ((Boolean) -> Unit)? = null
+    private var pipStateListener: (() -> Unit)? = null
 
     @Suppress("DEPRECATION")
     private val trimMemoryCallbacks = object : ComponentCallbacks2 {
@@ -83,6 +84,7 @@ class BrowserActivity : ComponentActivity() {
                 controller.hide(WindowInsetsCompat.Type.systemBars())
                 controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             }
+            window.decorView.post { updatePipParams() }
         }
         showCustomViewListener = showListener
         hooks?.onShowCustomViewListener = showListener
@@ -93,9 +95,13 @@ class BrowserActivity : ComponentActivity() {
                 window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             }
             WindowInsetsControllerCompat(window, window.decorView).show(WindowInsetsCompat.Type.systemBars())
+            window.decorView.post { updatePipParams() }
         }
         hideCustomViewListener = hideListener
         hooks?.onHideCustomViewListener = hideListener
+
+        val pipListener: () -> Unit = { updatePipParams() }
+        pipStateListener = pipListener
 
         val videoListener: (Boolean) -> Unit = { isPlaying ->
             val keepOn = container.tabManager.currentBrowserPrefs.keepScreenOn
@@ -107,6 +113,10 @@ class BrowserActivity : ComponentActivity() {
         }
         videoPlayingListener = videoListener
         container.tabManager.onVideoPlayingChanged = videoListener
+        container.tabManager.onPipStateChanged = pipListener
+        lifecycleScope.launch {
+            container.settingsRepository.browserPrefs.collect { updatePipParams() }
+        }
 
         lifecycleScope.launch {
             container.tabManager.restoreTabsIfNeeded(dataUri, entryId)
@@ -162,19 +172,49 @@ class BrowserActivity : ComponentActivity() {
         }
     }
 
+    /** True while something is playing that picture-in-picture could show. */
+    private fun isPipCandidatePlaying(): Boolean {
+        val container = (application as FmhyApp).container
+        val hooks = container.browserHooks as? DefaultBrowserHooks
+        return container.tabManager.getActiveTabRecord()?.isVideoPlaying == true || hooks?.customView != null
+    }
+
+    private fun buildPipParams(): PictureInPictureParams.Builder {
+        val container = (application as FmhyApp).container
+        val record = container.tabManager.getActiveTabRecord()
+        val ratio = pipRatio(record?.videoWidth ?: 0, record?.videoHeight ?: 0)
+        val builder = PictureInPictureParams.Builder().setAspectRatio(Rational(ratio.num, ratio.den))
+        try {
+            val rect = android.graphics.Rect()
+            val wv = record?.webView
+            if (wv != null && wv.getGlobalVisibleRect(rect) && !rect.isEmpty) {
+                builder.setSourceRectHint(rect)
+            }
+        } catch (_: Exception) {}
+        return builder
+    }
+
+    /** Keeps the system's picture-in-picture params (shape, auto-enter) in sync with playback and prefs. */
+    private fun updatePipParams() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        try {
+            val prefs = (application as FmhyApp).container.tabManager.currentBrowserPrefs
+            val builder = buildPipParams()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                builder.setAutoEnterEnabled(prefs.pictureInPicture && prefs.autoPip && isPipCandidatePlaying())
+            }
+            setPictureInPictureParams(builder.build())
+        } catch (_: Exception) {}
+    }
+
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        val container = (application as FmhyApp).container
-        val prefs = container.tabManager.currentBrowserPrefs
-        val hooks = container.browserHooks as? DefaultBrowserHooks
-        val activeTab = container.tabManager.getActiveTabRecord()
-        val isPlaying = activeTab?.isVideoPlaying == true || hooks?.customView != null
-        if (prefs.pictureInPicture && isPlaying && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        // API 31+ enters on its own via setAutoEnterEnabled; this is the path for API 26-30.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) return
+        val prefs = (application as FmhyApp).container.tabManager.currentBrowserPrefs
+        if (prefs.pictureInPicture && prefs.autoPip && isPipCandidatePlaying() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             try {
-                val params = PictureInPictureParams.Builder()
-                    .setAspectRatio(Rational(16, 9))
-                    .build()
-                enterPictureInPictureMode(params)
+                enterPictureInPictureMode(buildPipParams().build())
             } catch (_: Exception) {}
         }
     }
@@ -195,6 +235,7 @@ class BrowserActivity : ComponentActivity() {
         val container = (application as FmhyApp).container
         container.tabManager.attachActivity(this, container.tabManager.isAppDark)
         container.tabManager.onActivityResume()
+        updatePipParams()
     }
 
     @Suppress("DEPRECATION")
@@ -252,6 +293,9 @@ class BrowserActivity : ComponentActivity() {
         }
         if (container.tabManager.onVideoPlayingChanged === videoPlayingListener) {
             container.tabManager.onVideoPlayingChanged = null
+        }
+        if (container.tabManager.onPipStateChanged === pipStateListener) {
+            container.tabManager.onPipStateChanged = null
         }
         if (isFinishing && container.tabManager.tabs.value.isEmpty() && container.tabManager.currentPrivacyPrefs.clearDataOnExit) {
             container.tabManager.clearAllBrowsingData()

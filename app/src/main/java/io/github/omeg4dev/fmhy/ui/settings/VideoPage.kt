@@ -77,6 +77,14 @@ fun VideoPage(
                         checked = prefs.pictureInPicture,
                         onChange = { checked -> viewModel.updateBrowser { it.copy(pictureInPicture = checked) } },
                     )
+                    SettingsDivider()
+                    SwitchRow(
+                        title = "Start automatically",
+                        summary = "Shrink the video into a window when you leave the app",
+                        checked = prefs.autoPip,
+                        enabled = prefs.pictureInPicture,
+                        onChange = { checked -> viewModel.updateBrowser { it.copy(autoPip = checked) } },
+                    )
                 }
             }
             extraRows()

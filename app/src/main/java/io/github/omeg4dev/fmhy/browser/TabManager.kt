@@ -56,6 +56,8 @@ class TabRecord(
     var siteBarState: SiteBarState? = null,
     var interstitialState: InterstitialState? = null,
     var isVideoPlaying: Boolean = false,
+    @Volatile var videoWidth: Int = 0,
+    @Volatile var videoHeight: Int = 0,
     var hasStartedFirstLoad: Boolean = false,
     var entryHost: String? = null,
     var lastLoadedHost: String? = null,
@@ -92,6 +94,7 @@ class TabRecord(
         siteBarState = siteBarState,
         interstitialState = interstitialState,
         isVideoPlaying = isVideoPlaying,
+        videoAspect = if (videoWidth > 0 && videoHeight > 0) videoWidth.toFloat() / videoHeight else null,
         crashed = crashed,
         lastActiveTime = lastActiveTime,
     )
@@ -221,6 +224,8 @@ class TabManager(
     var onPickerCancelCallback: ((tabId: Long) -> Unit)? = null
     var onExternalAppCallback: ((intent: android.content.Intent, appName: String) -> Unit)? = null
     var onVideoPlayingChanged: ((Boolean) -> Unit)? = null
+    /** Fired (main thread) when something picture-in-picture depends on changed for the current tab. */
+    var onPipStateChanged: (() -> Unit)? = null
 
     private val thumbnails = java.util.concurrent.ConcurrentHashMap<Long, Bitmap>()
     private val lastThumbnailCapture = java.util.concurrent.ConcurrentHashMap<Long, Long>()
@@ -899,7 +904,18 @@ class TabManager(
         updateTabsFlow()
         if (_currentTabId.value == tabId) {
             onVideoPlayingChanged?.invoke(isPlaying)
+            onPipStateChanged?.invoke()
         }
+    }
+
+    fun setVideoSize(tabId: Long, width: Int, height: Int) {
+        val record = getTabRecord(tabId) ?: return
+        if (width <= 0 || height <= 0) return
+        if (record.videoWidth == width && record.videoHeight == height) return
+        record.videoWidth = width
+        record.videoHeight = height
+        updateTabsFlow()
+        if (_currentTabId.value == tabId) onPipStateChanged?.invoke()
     }
 
     fun isVideoPlaying(): Boolean {

@@ -112,6 +112,7 @@ class DefaultSettingsRepository(
         private val KEY_BROWSER_TEXT_ZOOM_FOLLOWS_APP = booleanPreferencesKey("browser_text_zoom_follows_app")
         private val KEY_BROWSER_VIDEO_AUTO_ROTATE = booleanPreferencesKey("browser_video_auto_rotate")
         private val KEY_BROWSER_PICTURE_IN_PICTURE = booleanPreferencesKey("browser_picture_in_picture")
+        private val KEY_BROWSER_AUTO_PIP = booleanPreferencesKey("browser_auto_pip")
         private val KEY_BROWSER_KEEP_SCREEN_ON = booleanPreferencesKey("browser_keep_screen_on")
 
         // Blocking
@@ -388,6 +389,7 @@ class DefaultSettingsRepository(
             textZoomFollowsApp = prefs[KEY_BROWSER_TEXT_ZOOM_FOLLOWS_APP] ?: default.textZoomFollowsApp,
             videoAutoRotate = prefs[KEY_BROWSER_VIDEO_AUTO_ROTATE] ?: default.videoAutoRotate,
             pictureInPicture = prefs[KEY_BROWSER_PICTURE_IN_PICTURE] ?: default.pictureInPicture,
+            autoPip = prefs[KEY_BROWSER_AUTO_PIP] ?: default.autoPip,
             keepScreenOn = prefs[KEY_BROWSER_KEEP_SCREEN_ON] ?: default.keepScreenOn,
         )
     }
@@ -406,6 +408,7 @@ class DefaultSettingsRepository(
         prefs[KEY_BROWSER_TEXT_ZOOM_FOLLOWS_APP] = p.textZoomFollowsApp
         prefs[KEY_BROWSER_VIDEO_AUTO_ROTATE] = p.videoAutoRotate
         prefs[KEY_BROWSER_PICTURE_IN_PICTURE] = p.pictureInPicture
+        prefs[KEY_BROWSER_AUTO_PIP] = p.autoPip
         prefs[KEY_BROWSER_KEEP_SCREEN_ON] = p.keepScreenOn
     }
 

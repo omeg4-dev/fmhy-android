@@ -90,6 +90,13 @@ class BrowserJsBridge(
     }
 
     @JavascriptInterface
+    fun videoSize(w: Int, h: Int) {
+        tabManager.postToMain {
+            tabManager.setVideoSize(tabId, w, h)
+        }
+    }
+
+    @JavascriptInterface
     fun mediaEvent(type: String) {
         tabManager.postToMain {
             tabManager.setVideoPlaying(tabId, type == "play")

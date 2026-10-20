@@ -55,6 +55,7 @@ class SettingsRepositoryTest {
             textZoomFollowsApp = false,
             videoAutoRotate = false,
             pictureInPicture = false,
+            autoPip = false,
             keepScreenOn = false,
         )
         repo.updateBrowser { expected }

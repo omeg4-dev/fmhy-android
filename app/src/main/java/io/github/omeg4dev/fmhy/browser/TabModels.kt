@@ -39,6 +39,8 @@ data class TabState(
     val siteBarState: SiteBarState? = null,
     val interstitialState: InterstitialState? = null,
     val isVideoPlaying: Boolean = false,
+    /** width / height of the video last seen on the page, or null when unknown. */
+    val videoAspect: Float? = null,
     val crashed: Boolean = false,
     val lastActiveTime: Long = 0L,
 )

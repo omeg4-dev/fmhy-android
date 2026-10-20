@@ -117,9 +117,11 @@ class BrowserWebViewFactory(
         webView.addJavascriptInterface(bridge, bridgeName)
 
         val cosmeticsJs = BrowserJsBridge.buildCosmeticsScript(bridgeName, sendGpc = tabManager.currentPrivacyPrefs.sendGpc)
+        val videoJs = VideoJs.script(bridgeName)
         val hasDocumentStartScript = WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)
         if (hasDocumentStartScript) {
             WebViewCompat.addDocumentStartJavaScript(webView, cosmeticsJs, setOf("*"))
+            WebViewCompat.addDocumentStartJavaScript(webView, videoJs, setOf("*"))
         }
 
         // Setup Clients
@@ -137,12 +139,15 @@ class BrowserWebViewFactory(
                 record.url = url
                 record.hasStartedFirstLoad = true
                 record.rescueState = null
+                record.videoWidth = 0
+                record.videoHeight = 0
                 tabManager.notifyTabChanged(record.id)
                 tabManager.updateTabUrlAndTitle(record.id, url, record.title)
                 (browserHooks as? DefaultBrowserHooks)?.onPageStarted(record, url)
 
                 if (!hasDocumentStartScript) {
                     view.evaluateJavascript(cosmeticsJs, null)
+                    view.evaluateJavascript(videoJs, null)
                 }
             }
 

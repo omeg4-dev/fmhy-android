@@ -50,6 +50,8 @@ data class BrowserPrefs(
     // Video
     val videoAutoRotate: Boolean = true,
     val pictureInPicture: Boolean = true,
+    /** Enter picture-in-picture on its own when leaving the app while a video plays. */
+    val autoPip: Boolean = true,
     val keepScreenOn: Boolean = true,
 )
 
