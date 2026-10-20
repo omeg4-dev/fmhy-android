@@ -1,0 +1,6 @@
+- What's new rebuilt: every change says what it is (new, renamed, new link, moved, starred, edited, removed) and shows old and new
+- Link checker knows mirrors and whole domains, warns about look-alikes
+- Browser: bar no longer covers the page, can sit at the bottom, pull to refresh, swipe to switch tabs, tab previews, new-tab page
+- Shorter setup with live previews
+- Calmer, grouped settings
+- Undo for unsave and unfollow; vibration works again
