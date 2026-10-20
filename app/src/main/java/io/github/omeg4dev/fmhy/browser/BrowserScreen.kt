@@ -1,57 +1,82 @@
 package io.github.omeg4dev.fmhy.browser
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.view.MotionEvent
+import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.webkit.WebView
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsBottomHeight
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.collectAsState
-import io.github.omeg4dev.fmhy.ui.common.BookmarksState
-import io.github.omeg4dev.fmhy.ui.common.LocalBookmarks
-import io.github.omeg4dev.fmhy.ui.common.SavedInfo
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.omeg4dev.fmhy.browser.adblock.AdblockService
 import io.github.omeg4dev.fmhy.browser.adblock.SelectorPicker
 import io.github.omeg4dev.fmhy.data.BookmarksRepository
 import io.github.omeg4dev.fmhy.data.SettingsRepository
+import io.github.omeg4dev.fmhy.data.ToolbarPosition
 import io.github.omeg4dev.fmhy.data.search.SearchEngine as DatasetSearchEngine
 import io.github.omeg4dev.fmhy.data.user.UserBookmark
+import io.github.omeg4dev.fmhy.ui.common.BookmarksState
+import io.github.omeg4dev.fmhy.ui.common.LocalBookmarks
+import io.github.omeg4dev.fmhy.ui.common.Motion
+import io.github.omeg4dev.fmhy.ui.common.SavedInfo
+import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
+import kotlin.math.roundToInt
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BrowserScreen(
     tabManager: TabManager,
@@ -66,7 +91,10 @@ fun BrowserScreen(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    val density = LocalDensity.current
     val scope = rememberCoroutineScope()
+    val haptics = rememberHaptics()
+
     val tabs by tabManager.tabs.collectAsStateWithLifecycle()
     val currentTabId by tabManager.currentTabId.collectAsStateWithLifecycle()
     val adblockStatus by adblockService.status.collectAsStateWithLifecycle()
@@ -80,7 +108,6 @@ fun BrowserScreen(
     }
 
     // UI state
-    var isToolbarVisible by remember { mutableStateOf(true) }
     var isEditMode by remember { mutableStateOf(false) }
     var showShieldSheet by remember { mutableStateOf(false) }
     var showTabsSheet by remember { mutableStateOf(false) }
@@ -120,7 +147,18 @@ fun BrowserScreen(
         )
     }
 
-    // Snackbars emitted by the shield hooks (pop-up blocked, redirect blocked, downloads...)
+    // Toolbar overlay measurement and animation
+    var totalBarHeightPx by remember { mutableFloatStateOf(0f) }
+    val toolbarTranslation = remember { Animatable(0f) }
+    var snapJob by remember { mutableStateOf<Job?>(null) }
+
+    // Ensure toolbar is fully shown at top, during loading, find, edit, or navigation
+    val shouldForceToolbarShown = currentTab?.isLoading == true || isFindMode || isEditMode
+    LaunchedEffect(shouldForceToolbarShown, currentTab?.url) {
+        toolbarTranslation.animateTo(0f, Motion.standard())
+    }
+
+    // Snackbars emitted by shield hooks
     LaunchedEffect(hooks) {
         hooks?.snackbarFlow?.collect { event ->
             snackbarHostState.currentSnackbarData?.dismiss()
@@ -135,7 +173,7 @@ fun BrowserScreen(
         }
     }
 
-    // Register tab manager callbacks
+    // Tab manager callbacks
     LaunchedEffect(tabManager) {
         tabManager.onPickerResultCallback = { tabId, selector ->
             val record = tabManager.getTabRecord(tabId)
@@ -144,9 +182,7 @@ fun BrowserScreen(
                 pendingHideElementRule = SelectorPicker.computeRule(host, selector)
             }
         }
-        tabManager.onPickerCancelCallback = {
-            // Nothing to clean up
-        }
+        tabManager.onPickerCancelCallback = {}
         tabManager.onExternalAppCallback = { intent, appName ->
             pendingExternalApp = Pair(intent, appName)
         }
@@ -159,11 +195,7 @@ fun BrowserScreen(
         }
     }
 
-    // System Back Handling:
-    // 1. find bar open -> close it
-    // 2. edit mode -> leave it
-    // 3. webview canGoBack() -> goBack()
-    // 4. else -> finish() (tabs stay alive)
+    // System Back Handling
     BackHandler(enabled = true) {
         when {
             hooks?.customView != null -> hooks.onHideCustomView()
@@ -184,248 +216,450 @@ fun BrowserScreen(
     }
 
     CompositionLocalProvider(LocalBookmarks provides bookmarksState) {
-    Box(modifier = Modifier.fillMaxSize()) {
-    Scaffold(
-        topBar = {
-            if (!isInPip && customView == null) Column(
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+        ) {
+            // 1. Status bar background: solid surfaceContainer at all times (no transparent band)
+            Box(
                 modifier = Modifier
+                    .fillMaxWidth()
+                    .windowInsetsTopHeight(WindowInsets.statusBars)
                     .background(MaterialTheme.colorScheme.surfaceContainer)
-                    .statusBarsPadding(),
+                    .align(Alignment.TopCenter)
+                    .zIndex(10f),
+            )
+
+            // 2. Navigation bar background if toolbar is at bottom
+            if (browserPrefs.toolbarPosition == ToolbarPosition.BOTTOM) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .windowInsetsBottomHeight(WindowInsets.navigationBars)
+                        .background(MaterialTheme.colorScheme.surfaceContainer)
+                        .align(Alignment.BottomCenter)
+                        .zIndex(10f),
+                )
+            }
+
+            // 3. WebView container fills whole area between status bar and navigation bar and never resizes
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(
+                        top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding(),
+                        bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(),
+                    ),
             ) {
-                BrowserToolbar(
-                    tab = currentTab,
-                    tabCount = tabs.size,
-                    visible = isToolbarVisible || isFindMode,
-                    isFindMode = isFindMode,
-                    findQuery = findQuery,
-                    findActiveIndex = findActiveIndex,
-                    findTotalMatches = findTotalMatches,
-                    showBlockedCount = blockingPrefs.showBlockedCount,
-                    bookmarksRepository = bookmarksRepository,
-                    isSaved = isSaved,
-                    onShieldClick = { showShieldSheet = true },
-                    onAddressClick = { isEditMode = true },
-                    onTabsClick = { showTabsSheet = true },
-                    onReloadClick = { currentTab?.let { tabManager.reloadTab(it.id) } },
-                    onStopClick = { currentTab?.let { tabManager.stopTab(it.id) } },
-                    onBackClick = { currentTab?.let { tabManager.goBack(it.id) } },
-                    onForwardClick = { currentTab?.let { tabManager.goForward(it.id) } },
-                    onNewTabClick = { isPrivate ->
-                        tabManager.openTab(url = "about:blank", title = "New tab", isPrivate = isPrivate, select = true)
-                    },
-                    onFindInPageClick = {
-                        isFindMode = true
-                        findQuery = ""
-                    },
-                    onFindQueryChange = { query ->
-                        findQuery = query
-                        currentTab?.let { t ->
-                            val record = tabManager.getTabRecord(t.id)
-                            record?.webView?.findAllAsync(query)
+                val isBlankTab = currentTab == null || currentTab.url == "about:blank" || currentTab.url.isEmpty()
+
+                if (isBlankTab) {
+                    // New tab page: full-screen with saved tiles, history, followed sections
+                    BrowserEditMode(
+                        initialText = "",
+                        searchEngine = browserPrefs.searchEngine,
+                        datasetSearchEngine = datasetSearchEngine,
+                        userStore = tabManager.userStore,
+                        toolbarPosition = browserPrefs.toolbarPosition,
+                        autofocus = false,
+                        onNavigate = { url ->
+                            currentTab?.let { tabManager.loadUrl(it.id, url) }
+                        },
+                        onDismiss = {
+                            if (tabs.size > 1) {
+                                currentTab?.let { tabManager.closeTab(it.id) }
+                            } else {
+                                onFinishActivity()
+                            }
+                        },
+                        onCloseActivity = onFinishActivity,
+                    )
+                } else {
+                    // Active web content with Pull-to-refresh
+                    val record = tabManager.getTabRecord(currentTab.id)
+                    val webView = record?.webView
+
+                    val pullRefreshState = rememberPullToRefreshState()
+
+                    LaunchedEffect(currentTab.isLoading) {
+                        if (!currentTab.isLoading) {
+                            pullRefreshState.animateToHidden()
                         }
-                    },
-                    onFindNext = {
-                        currentTab?.let { t ->
-                            tabManager.getTabRecord(t.id)?.webView?.findNext(true)
+                    }
+
+                    PullToRefreshBox(
+                        isRefreshing = currentTab.isLoading,
+                        onRefresh = { tabManager.reloadTab(currentTab.id) },
+                        state = pullRefreshState,
+                        indicator = {
+                            PullToRefreshDefaults.Indicator(
+                                state = pullRefreshState,
+                                isRefreshing = currentTab.isLoading,
+                                modifier = Modifier
+                                    .align(Alignment.TopCenter)
+                                    .padding(top = if (browserPrefs.toolbarPosition == ToolbarPosition.TOP) 64.dp else 16.dp),
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        },
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
+                        if (webView != null) {
+                            // Apply padding ONCE when bar height is measured
+                            var paddedWebViewInstance by remember { mutableStateOf<WebView?>(null) }
+                            LaunchedEffect(webView, totalBarHeightPx, browserPrefs.toolbarPosition) {
+                                if (totalBarHeightPx > 0f && paddedWebViewInstance != webView) {
+                                    val barPx = totalBarHeightPx.roundToInt()
+                                    webView.clipToPadding = false
+                                    if (browserPrefs.toolbarPosition == ToolbarPosition.TOP) {
+                                        webView.setPadding(0, barPx, 0, 0)
+                                    } else {
+                                        webView.setPadding(0, 0, 0, barPx)
+                                    }
+                                    paddedWebViewInstance = webView
+                                }
+                            }
+
+                            DisposableEffect(webView) {
+                                webView.setFindListener { activeMatchOrdinal, numberOfMatches, _ ->
+                                    findActiveIndex = activeMatchOrdinal
+                                    findTotalMatches = numberOfMatches
+                                }
+
+                                // Scroll listener for translation offset and idle snap
+                                webView.setOnScrollChangeListener { _, _, scrollY, _, oldScrollY ->
+                                    val dy = scrollY - oldScrollY
+                                    val isAtTop = !webView.canScrollVertically(-1) || scrollY <= 0
+
+                                    if (isAtTop) {
+                                        scope.launch { toolbarTranslation.animateTo(0f, Motion.standard()) }
+                                    } else if (!isFindMode && !isEditMode && currentTab.isLoading != true && totalBarHeightPx > 0f) {
+                                        val newTarget = if (browserPrefs.toolbarPosition == ToolbarPosition.TOP) {
+                                            (toolbarTranslation.value - dy).coerceIn(-totalBarHeightPx, 0f)
+                                        } else {
+                                            (toolbarTranslation.value + dy).coerceIn(0f, totalBarHeightPx)
+                                        }
+                                        scope.launch { toolbarTranslation.snapTo(newTarget) }
+
+                                        // 150 ms scroll idle snap
+                                        snapJob?.cancel()
+                                        snapJob = scope.launch {
+                                            delay(150)
+                                            if (browserPrefs.toolbarPosition == ToolbarPosition.TOP) {
+                                                val snapTarget = if (toolbarTranslation.value < -totalBarHeightPx / 2f) -totalBarHeightPx else 0f
+                                                toolbarTranslation.animateTo(snapTarget, Motion.standard())
+                                            } else {
+                                                val snapTarget = if (toolbarTranslation.value > totalBarHeightPx / 2f) totalBarHeightPx else 0f
+                                                toolbarTranslation.animateTo(snapTarget, Motion.standard())
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Touch listener for Pull-to-refresh at top of WebView
+                                var startY = 0f
+                                var isPulling = false
+                                var hasCrossedThreshold = false
+                                val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
+
+                                webView.setOnTouchListener { _, event ->
+                                    when (event.actionMasked) {
+                                        MotionEvent.ACTION_DOWN -> {
+                                            startY = event.rawY
+                                            isPulling = false
+                                            hasCrossedThreshold = false
+                                            false
+                                        }
+                                        MotionEvent.ACTION_MOVE -> {
+                                            val dy = event.rawY - startY
+                                            val canScrollUp = webView.canScrollVertically(-1)
+                                            if (dy > touchSlop && !canScrollUp && webView.scrollY <= 0) {
+                                                isPulling = true
+                                                val thresholdPx = with(density) { 80.dp.toPx() }
+                                                val fraction = (dy - touchSlop) / thresholdPx
+                                                scope.launch {
+                                                    pullRefreshState.snapTo(fraction.coerceIn(0f, 2f))
+                                                }
+                                                if (fraction >= 1f && !hasCrossedThreshold) {
+                                                    hasCrossedThreshold = true
+                                                    haptics.tick()
+                                                } else if (fraction < 1f && hasCrossedThreshold) {
+                                                    hasCrossedThreshold = false
+                                                }
+                                                true
+                                            } else {
+                                                if (isPulling) {
+                                                    isPulling = false
+                                                    scope.launch { pullRefreshState.animateToHidden() }
+                                                }
+                                                false
+                                            }
+                                        }
+                                        MotionEvent.ACTION_UP -> {
+                                            if (isPulling) {
+                                                isPulling = false
+                                                if (pullRefreshState.distanceFraction >= 1f) {
+                                                    tabManager.reloadTab(currentTab.id)
+                                                }
+                                                scope.launch {
+                                                    if (pullRefreshState.distanceFraction >= 1f) {
+                                                        pullRefreshState.animateToThreshold()
+                                                    } else {
+                                                        pullRefreshState.animateToHidden()
+                                                    }
+                                                }
+                                                true
+                                            } else {
+                                                false
+                                            }
+                                        }
+                                        MotionEvent.ACTION_CANCEL -> {
+                                            if (isPulling) {
+                                                isPulling = false
+                                                scope.launch { pullRefreshState.animateToHidden() }
+                                            }
+                                            false
+                                        }
+                                        else -> false
+                                    }
+                                }
+
+                                onDispose {
+                                    webView.setOnScrollChangeListener(null)
+                                    webView.setOnTouchListener(null)
+                                }
+                            }
+
+                            androidx.compose.runtime.key(webView) {
+                                AndroidView(
+                                    factory = {
+                                        val parent = webView.parent as? ViewGroup
+                                        parent?.removeView(webView)
+                                        webView
+                                    },
+                                    update = {},
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                            }
                         }
-                    },
-                    onFindPrevious = {
-                        currentTab?.let { t ->
-                            tabManager.getTabRecord(t.id)?.webView?.findNext(false)
-                        }
-                    },
-                    onFindClose = {
-                        isFindMode = false
-                        currentTab?.let { t ->
-                            tabManager.getTabRecord(t.id)?.webView?.clearMatches()
-                        }
-                    },
-                    onToggleDesktop = {
-                        currentTab?.let { tabManager.toggleDesktopSite(it.id) }
-                    },
-                    onToggleBookmark = {
-                        val tab = currentTab
-                        val entryId = tab?.entryId
-                        if (entryId != null) {
-                            scope.launch {
-                                if (isSaved) {
-                                    bookmarksRepository.remove(entryId)
-                                } else {
-                                    tabManager.userStore.upsertBookmark(
-                                        UserBookmark(
-                                            entryId = entryId,
-                                            name = tab.title.ifEmpty { tab.url },
-                                            url = tab.url,
-                                            sectionId = "",
-                                            sectionTitle = "",
-                                            headingPath = "",
-                                            savedAt = System.currentTimeMillis(),
-                                        )
-                                    )
+                    }
+                }
+
+                // Toolbar overlay in Box (never resizes webview)
+                if (!isInPip && customView == null) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .align(if (browserPrefs.toolbarPosition == ToolbarPosition.TOP) Alignment.TopCenter else Alignment.BottomCenter)
+                            .graphicsLayer {
+                                translationY = toolbarTranslation.value
+                            }
+                            .onSizeChanged { totalBarHeightPx = it.height.toFloat() }
+                            .zIndex(5f),
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            if (browserPrefs.toolbarPosition == ToolbarPosition.BOTTOM) {
+                                currentTab?.let { tabState ->
+                                    browserHooks.siteBar(tabState)
+                                }
+                            }
+
+                            BrowserToolbar(
+                                tab = currentTab,
+                                tabs = tabs,
+                                tabCount = tabs.size,
+                                toolbarPosition = browserPrefs.toolbarPosition,
+                                isFindMode = isFindMode,
+                                findQuery = findQuery,
+                                findActiveIndex = findActiveIndex,
+                                findTotalMatches = findTotalMatches,
+                                showBlockedCount = blockingPrefs.showBlockedCount,
+                                isSaved = isSaved,
+                                onShieldClick = { showShieldSheet = true },
+                                onAddressClick = { isEditMode = true },
+                                onTabsClick = { showTabsSheet = true },
+                                onReloadClick = { currentTab?.let { tabManager.reloadTab(it.id) } },
+                                onStopClick = { currentTab?.let { tabManager.stopTab(it.id) } },
+                                onBackClick = { currentTab?.let { tabManager.goBack(it.id) } },
+                                onForwardClick = { currentTab?.let { tabManager.goForward(it.id) } },
+                                onNewTabClick = { isPrivate ->
+                                    tabManager.openTab(url = "about:blank", title = "New tab", isPrivate = isPrivate, select = true)
+                                },
+                                onFindInPageClick = {
+                                    isFindMode = true
+                                    findQuery = ""
+                                },
+                                onFindQueryChange = { query ->
+                                    findQuery = query
+                                    currentTab?.let { t ->
+                                        val record = tabManager.getTabRecord(t.id)
+                                        record?.webView?.findAllAsync(query)
+                                    }
+                                },
+                                onFindNext = {
+                                    currentTab?.let { t ->
+                                        tabManager.getTabRecord(t.id)?.webView?.findNext(true)
+                                    }
+                                },
+                                onFindPrevious = {
+                                    currentTab?.let { t ->
+                                        tabManager.getTabRecord(t.id)?.webView?.findNext(false)
+                                    }
+                                },
+                                onFindClose = {
+                                    isFindMode = false
+                                    currentTab?.let { t ->
+                                        tabManager.getTabRecord(t.id)?.webView?.clearMatches()
+                                    }
+                                },
+                                onToggleDesktop = {
+                                    currentTab?.let { tabManager.toggleDesktopSite(it.id) }
+                                },
+                                onToggleBookmark = {
+                                    val tab = currentTab
+                                    val entryId = tab?.entryId
+                                    if (entryId != null) {
+                                        scope.launch {
+                                            if (isSaved) {
+                                                bookmarksRepository.remove(entryId)
+                                            } else {
+                                                tabManager.userStore.upsertBookmark(
+                                                    UserBookmark(
+                                                        entryId = entryId,
+                                                        name = tab.title.ifEmpty { tab.url },
+                                                        url = tab.url,
+                                                        sectionId = "",
+                                                        sectionTitle = "",
+                                                        headingPath = "",
+                                                        savedAt = System.currentTimeMillis(),
+                                                    )
+                                                )
+                                            }
+                                        }
+                                    }
+                                },
+                                onSelectTab = { tabId ->
+                                    tabManager.selectTab(tabId)
+                                },
+                                onCopyLink = {
+                                    currentTab?.url?.let { url ->
+                                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                        clipboard.setPrimaryClip(ClipData.newPlainText("URL", url))
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar("Link copied")
+                                        }
+                                    }
+                                },
+                            )
+
+                            if (browserPrefs.toolbarPosition == ToolbarPosition.TOP) {
+                                currentTab?.let { tabState ->
+                                    browserHooks.siteBar(tabState)
                                 }
                             }
                         }
-                    },
-                )
-
-                // SiteBar slot for E2
-                currentTab?.let { tabState ->
-                    browserHooks.siteBar(tabState)
+                    }
                 }
-            }
-        },
-        snackbarHost = { if (!isInPip) SnackbarHost(snackbarHostState) },
-        contentWindowInsets = WindowInsets.navigationBars.union(WindowInsets.ime),
-        modifier = modifier.fillMaxSize(),
-    ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
-            val isBlankTab = currentTab == null || currentTab.url == "about:blank" || currentTab.url.isEmpty()
 
-            if (isBlankTab) {
-                // New tab page: edit mode suggestions directly on screen
-                BrowserEditMode(
-                    initialText = "",
-                    searchEngine = browserPrefs.searchEngine,
-                    datasetSearchEngine = datasetSearchEngine,
-                    onNavigate = { url ->
-                        currentTab?.let { tabManager.loadUrl(it.id, url) }
-                    },
-                    onDismiss = {
-                        if (tabs.size > 1) {
-                            currentTab?.let { tabManager.closeTab(it.id) }
-                        } else {
-                            onFinishActivity()
-                        }
-                    },
-                )
-            } else {
-                // Active web content
-                val record = tabManager.getTabRecord(currentTab.id)
-                val webView = record?.webView
+                // Edit Mode overlay (when typing a URL over an existing page)
+                if (isEditMode && currentTab != null && currentTab.url != "about:blank" && currentTab.url.isNotEmpty()) {
+                    BrowserEditMode(
+                        initialText = currentTab.url,
+                        searchEngine = browserPrefs.searchEngine,
+                        datasetSearchEngine = datasetSearchEngine,
+                        userStore = tabManager.userStore,
+                        toolbarPosition = browserPrefs.toolbarPosition,
+                        autofocus = true,
+                        onNavigate = { url ->
+                            isEditMode = false
+                            tabManager.loadUrl(currentTab.id, url)
+                        },
+                        onDismiss = { isEditMode = false },
+                        onCloseActivity = onFinishActivity,
+                        modifier = Modifier.zIndex(6f),
+                    )
+                }
 
-                if (webView != null) {
-                    DisposableEffect(webView) {
-                        // Setup find listener
-                        webView.setFindListener { activeMatchOrdinal, numberOfMatches, _ ->
-                            findActiveIndex = activeMatchOrdinal
-                            findTotalMatches = numberOfMatches
-                        }
+                // Dead-site rescue overlay
+                val rescue = currentTab?.rescueState
+                if (rescue != null && !isBlankTab) {
+                    RescueOverlay(
+                        state = rescue,
+                        onRetry = {
+                            tabManager.setRescueState(currentTab.id, null)
+                            tabManager.loadUrl(currentTab.id, rescue.failingUrl)
+                        },
+                        onOpenUrl = { url ->
+                            tabManager.setRescueState(currentTab.id, null)
+                            tabManager.loadUrl(currentTab.id, url)
+                        },
+                        modifier = Modifier.zIndex(7f),
+                    )
+                }
 
-                        // Setup scroll listener for toolbar hide/show
-                        webView.setOnScrollChangeListener { _, _, scrollY, _, oldScrollY ->
-                            val dy = scrollY - oldScrollY
-                            if (dy > 12 && scrollY > 60) {
-                                isToolbarVisible = false
-                            } else if (dy < -12) {
-                                isToolbarVisible = true
+                // Unsafe / potentially unsafe interstitial
+                val interstitial = currentTab?.interstitialState
+                if (interstitial != null && !isBlankTab) {
+                    InterstitialOverlay(
+                        state = interstitial,
+                        onGoBack = {
+                            tabManager.setInterstitialState(currentTab.id, null)
+                            if (!tabManager.goBack(currentTab.id)) {
+                                if (tabs.size > 1) tabManager.closeTab(currentTab.id) else tabManager.loadUrl(currentTab.id, "about:blank")
                             }
-                        }
-
-                        onDispose {
-                            webView.setOnScrollChangeListener(null)
-                        }
-                    }
-
-                    androidx.compose.runtime.key(webView) {
-                        AndroidView(
-                            factory = {
-                                val parent = webView.parent as? ViewGroup
-                                parent?.removeView(webView)
-                                webView
-                            },
-                            update = {},
-                            modifier = Modifier.fillMaxSize(),
-                        )
-                    }
+                        },
+                        onContinue = { tabManager.allowHost(currentTab.id, interstitial.host) },
+                        modifier = Modifier.zIndex(7f),
+                    )
                 }
             }
 
-            // Edit Mode overlay (when typing a URL over an existing page)
-            if (isEditMode && !isBlankTab) {
-                BrowserEditMode(
-                    initialText = currentTab.url,
-                    searchEngine = browserPrefs.searchEngine,
-                    datasetSearchEngine = datasetSearchEngine,
-                    onNavigate = { url ->
-                        isEditMode = false
-                        tabManager.loadUrl(currentTab.id, url)
+            // Full-screen video (WebChromeClient custom view)
+            if (customView != null) {
+                AndroidView(
+                    factory = {
+                        (customView.parent as? ViewGroup)?.removeView(customView)
+                        customView
                     },
-                    onDismiss = { isEditMode = false },
+                    modifier = Modifier.fillMaxSize().background(Color.Black).zIndex(20f),
                 )
             }
 
-            // Dead-site rescue overlay (Compose, not an HTML page)
-            val rescue = currentTab?.rescueState
-            if (rescue != null && !isBlankTab) {
-                RescueOverlay(
-                    state = rescue,
-                    onRetry = {
-                        tabManager.setRescueState(currentTab.id, null)
-                        tabManager.loadUrl(currentTab.id, rescue.failingUrl)
-                    },
-                    onOpenUrl = { url ->
-                        tabManager.setRescueState(currentTab.id, null)
-                        tabManager.loadUrl(currentTab.id, url)
-                    },
-                )
-            }
-
-            // Unsafe / potentially unsafe interstitial
-            val interstitial = currentTab?.interstitialState
-            if (interstitial != null && !isBlankTab) {
-                InterstitialOverlay(
-                    state = interstitial,
-                    onGoBack = {
-                        tabManager.setInterstitialState(currentTab.id, null)
-                        if (!tabManager.goBack(currentTab.id)) {
-                            if (tabs.size > 1) tabManager.closeTab(currentTab.id) else tabManager.loadUrl(currentTab.id, "about:blank")
-                        }
-                    },
-                    onContinue = { tabManager.allowHost(currentTab.id, interstitial.host) },
+            // SnackbarHost
+            if (!isInPip) {
+                SnackbarHost(
+                    hostState = snackbarHostState,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = if (browserPrefs.toolbarPosition == ToolbarPosition.BOTTOM) 68.dp else 16.dp)
+                        .windowInsetsPadding(WindowInsets.navigationBars)
+                        .zIndex(15f),
                 )
             }
         }
     }
 
-    // Full-screen video (WebChromeClient custom view)
-    if (customView != null) {
-        androidx.compose.ui.viewinterop.AndroidView(
-            factory = {
-                (customView.parent as? ViewGroup)?.removeView(customView)
-                customView
-            },
-            modifier = Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black),
-        )
-    }
-    }
-    }
-
     // Download confirmation
-    val pendingDownload = hooks?.pendingDownloadDialog
-    if (pendingDownload != null && hooks != null) {
-        DownloadDialog(
-            state = pendingDownload,
-            onConfirm = {
-                hooks.pendingDownloadDialog = null
-                hooks.executeDownload(context, pendingDownload.url, pendingDownload.filename, pendingDownload.userAgent, pendingDownload.mimeType)
-            },
-            onCancel = { hooks.pendingDownloadDialog = null },
-        )
-    }
+    if (hooks != null) {
+        val pendingDownload = hooks.pendingDownloadDialog
+        if (pendingDownload != null) {
+            DownloadDialog(
+                state = pendingDownload,
+                onConfirm = {
+                    hooks.pendingDownloadDialog = null
+                    hooks.executeDownload(context, pendingDownload.url, pendingDownload.filename, pendingDownload.userAgent, pendingDownload.mimeType)
+                },
+                onCancel = { hooks.pendingDownloadDialog = null },
+            )
+        }
 
-    // "Open in another app?" from the redirect/app-link guard
-    val appDialog = hooks?.pendingExternalAppDialog
-    if (appDialog != null && hooks != null) {
-        AlertDialog(
-            onDismissRequest = { hooks.pendingExternalAppDialog = null },
-            title = { Text("Open in another app?") },
-            text = { Text("Do you want to open this link in ${appDialog.appName}?") },
-            confirmButton = {
-                TextButton(onClick = {
+        // "Open in another app?" from the redirect/app-link guard (call site 1)
+        val appDialog = hooks.pendingExternalAppDialog
+        if (appDialog != null) {
+            OpenInAnotherAppDialog(
+                appName = appDialog.appName,
+                onConfirm = {
                     hooks.pendingExternalAppDialog = null
                     try {
                         appDialog.intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -433,10 +667,10 @@ fun BrowserScreen(
                     } catch (_: Exception) {
                         appDialog.fallbackUrl?.let { u -> currentTab?.let { tabManager.loadUrl(it.id, u) } }
                     }
-                }) { Text("Open") }
-            },
-            dismissButton = { TextButton(onClick = { hooks.pendingExternalAppDialog = null }) { Text("Cancel") } },
-        )
+                },
+                onDismiss = { hooks.pendingExternalAppDialog = null },
+            )
+        }
     }
 
     // Shield Sheet
@@ -473,6 +707,7 @@ fun BrowserScreen(
         TabsSheet(
             tabs = tabs,
             currentTabId = currentTabId,
+            tabManager = tabManager,
             onDismiss = { showTabsSheet = false },
             onSelectTab = { tabId ->
                 showTabsSheet = false
@@ -535,32 +770,20 @@ fun BrowserScreen(
         )
     }
 
-    // Open External App Dialog
+    // Open External App Dialog (call site 2)
     val externalApp = pendingExternalApp
     if (externalApp != null) {
-        AlertDialog(
-            onDismissRequest = { pendingExternalApp = null },
-            title = { Text("Open in another app?") },
-            text = { Text("Do you want to open this link in ${externalApp.second}?") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        val intent = externalApp.first
-                        pendingExternalApp = null
-                        try {
-                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            context.startActivity(intent)
-                        } catch (_: Exception) {}
-                    }
-                ) {
-                    Text("Open")
-                }
+        OpenInAnotherAppDialog(
+            appName = externalApp.second,
+            onConfirm = {
+                val intent = externalApp.first
+                pendingExternalApp = null
+                try {
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    context.startActivity(intent)
+                } catch (_: Exception) {}
             },
-            dismissButton = {
-                TextButton(onClick = { pendingExternalApp = null }) {
-                    Text("Cancel")
-                }
-            }
+            onDismiss = { pendingExternalApp = null },
         )
     }
 }

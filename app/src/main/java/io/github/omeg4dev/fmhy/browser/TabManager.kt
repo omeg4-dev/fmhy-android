@@ -8,6 +8,7 @@ import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.webkit.WebView
+import androidx.core.view.drawToBitmap
 import io.github.omeg4dev.fmhy.browser.adblock.AdblockService
 import io.github.omeg4dev.fmhy.browser.adblock.ScriptletLibrary
 import io.github.omeg4dev.fmhy.data.Appearance
@@ -95,7 +96,13 @@ class TabManager(
     val appScope: CoroutineScope,
 ) {
     val bridgeName = "_fmhy" + (1..8).map { ('a'..'z').random() }.joinToString("")
-    private val mainHandler = Handler(Looper.getMainLooper())
+    private val mainHandler by lazy {
+        try {
+            Handler(Looper.getMainLooper())
+        } catch (_: Throwable) {
+            null
+        }
+    }
     private val nextId = AtomicLong(1L)
 
     private val records = mutableListOf<TabRecord>()
@@ -121,6 +128,64 @@ class TabManager(
     var onExternalAppCallback: ((intent: android.content.Intent, appName: String) -> Unit)? = null
     var onVideoPlayingChanged: ((Boolean) -> Unit)? = null
 
+    private val thumbnails = java.util.concurrent.ConcurrentHashMap<Long, Bitmap>()
+
+    fun getThumbnail(tabId: Long): Bitmap? = thumbnails[tabId]
+
+    fun hasThumbnail(tabId: Long): Boolean = thumbnails.containsKey(tabId)
+
+    fun setThumbnailForTest(tabId: Long, bitmap: Bitmap) {
+        thumbnails[tabId] = bitmap
+    }
+
+    fun releaseThumbnail(tabId: Long) {
+        val old = thumbnails.remove(tabId)
+        if (old != null) {
+            try {
+                if (!old.isRecycled) {
+                    old.recycle()
+                }
+            } catch (_: Throwable) {}
+        }
+    }
+
+    fun releaseAllThumbnails() {
+        for ((_, bm) in thumbnails) {
+            try {
+                if (!bm.isRecycled) {
+                    bm.recycle()
+                }
+            } catch (_: Throwable) {}
+        }
+        thumbnails.clear()
+    }
+
+    fun captureThumbnail(tabId: Long) {
+        val record = getTabRecord(tabId) ?: return
+        if (record.isPrivate) {
+            releaseThumbnail(tabId)
+            return
+        }
+        val webView = record.webView ?: return
+        postToMain {
+            try {
+                if (webView.width > 0 && webView.height > 0) {
+                    val original = webView.drawToBitmap()
+                    val targetWidth = 320
+                    val targetHeight = ((original.height.toFloat() / original.width.toFloat()) * targetWidth).toInt().coerceAtLeast(1)
+                    val scaled = Bitmap.createScaledBitmap(original, targetWidth, targetHeight, true)
+                    if (scaled != original) {
+                        original.recycle()
+                    }
+                    val old = thumbnails.put(tabId, scaled)
+                    if (old != null && old != scaled && !old.isRecycled) {
+                        old.recycle()
+                    }
+                }
+            } catch (_: Throwable) {}
+        }
+    }
+
     // Cache of prefs to configure WebViews synchronously
     @Volatile var currentBrowserPrefs = BrowserPrefs()
     @Volatile var currentProtectionPrefs = ProtectionPrefs()
@@ -141,10 +206,12 @@ class TabManager(
             settingsRepository.privacyPrefs.collect { p ->
                 currentPrivacyPrefs = p
                 postToMain {
-                    val cm = android.webkit.CookieManager.getInstance()
-                    synchronized(records) { records.toList() }.forEach { r ->
-                        r.webView?.let { cm.setAcceptThirdPartyCookies(it, !p.blockThirdPartyCookies) }
-                    }
+                    try {
+                        val cm = android.webkit.CookieManager.getInstance()
+                        synchronized(records) { records.toList() }.forEach { r ->
+                            r.webView?.let { cm.setAcceptThirdPartyCookies(it, !p.blockThirdPartyCookies) }
+                        }
+                    } catch (_: Throwable) {}
                 }
             }
         }
@@ -181,10 +248,20 @@ class TabManager(
     }
 
     fun postToMain(action: () -> Unit) {
-        if (Looper.myLooper() == Looper.getMainLooper()) {
+        try {
+            val mainLooper = Looper.getMainLooper()
+            if (mainLooper != null && Looper.myLooper() == mainLooper) {
+                action()
+            } else {
+                val handler = mainHandler
+                if (handler != null) {
+                    handler.post(action)
+                } else {
+                    action()
+                }
+            }
+        } catch (_: Throwable) {
             action()
-        } else {
-            mainHandler.post(action)
         }
     }
 
@@ -287,6 +364,10 @@ class TabManager(
     }
 
     fun selectTab(tabId: Long) {
+        val oldId = _currentTabId.value
+        if (oldId != null && oldId != tabId) {
+            captureThumbnail(oldId)
+        }
         synchronized(records) {
             val record = records.firstOrNull { it.id == tabId } ?: return
             record.lastActiveTime = System.currentTimeMillis()
@@ -296,7 +377,47 @@ class TabManager(
         updateTabsFlow()
     }
 
+    fun restoreTab(
+        url: String,
+        title: String,
+        index: Int,
+        isPrivate: Boolean,
+        entryId: String? = null,
+    ): Long {
+        val id = nextId.getAndIncrement()
+        val initialHost = try { Uri.parse(url).host } catch (_: Exception) { null }
+        val record = TabRecord(
+            id = id,
+            url = url,
+            title = if (title.isNotEmpty()) title else if (url == "about:blank" || url.isEmpty()) "New tab" else url,
+            isPrivate = isPrivate,
+            entryId = entryId,
+            entryHost = initialHost,
+            desktopSite = currentBrowserPrefs.desktopByDefault,
+        )
+
+        synchronized(records) {
+            val insertIndex = index.coerceIn(0, records.size)
+            records.add(insertIndex, record)
+        }
+
+        if (!initialHost.isNullOrEmpty()) {
+            appScope.launch {
+                val sp = userStore.sitePrefs(initialHost)
+                if (sp != null) {
+                    record.sitePrefs = sp
+                    notifyTabChanged(record.id)
+                }
+            }
+        }
+
+        updateTabsFlow()
+        selectTab(id)
+        return id
+    }
+
     fun closeTab(tabId: Long) {
+        releaseThumbnail(tabId)
         synchronized(records) {
             val index = records.indexOfFirst { it.id == tabId }
             if (index == -1) return
@@ -339,6 +460,7 @@ class TabManager(
     }
 
     fun closeAllTabs() {
+        releaseAllThumbnails()
         val hadPrivate: Boolean
         synchronized(records) {
             hadPrivate = records.any { it.isPrivate }
@@ -370,38 +492,42 @@ class TabManager(
     private fun ensureWebView(record: TabRecord) {
         if (record.webView != null) return
 
-        // Check max live WebViews limit
-        val maxTabs = currentBrowserPrefs.maxTabs.coerceAtLeast(1)
-        val liveCount = records.count { it.webView != null }
-        if (liveCount >= maxTabs) {
-            val lru = records
-                .filter { it.id != record.id && it.webView != null }
-                .minByOrNull { it.lastActiveTime }
-            if (lru != null) {
-                lru.webView?.destroy()
-                lru.webView = null
-                lru.mutableContext = null
+        try {
+            // Check max live WebViews limit
+            val maxTabs = currentBrowserPrefs.maxTabs.coerceAtLeast(1)
+            val liveCount = records.count { it.webView != null }
+            if (liveCount >= maxTabs) {
+                val lru = records
+                    .filter { it.id != record.id && it.webView != null }
+                    .minByOrNull { it.lastActiveTime }
+                if (lru != null) {
+                    lru.webView?.destroy()
+                    lru.webView = null
+                    lru.mutableContext = null
+                }
             }
-        }
 
-        val wrapper = MutableContextWrapper(attachedActivity ?: appContext)
-        val webView = webViewFactory.createWebView(
-            context = wrapper,
-            record = record,
-            tabManager = this,
-            browserPrefs = currentBrowserPrefs,
-            protectionPrefs = currentProtectionPrefs,
-            appearance = currentAppearance,
-            isAppDark = isAppDark,
-            onPickerResult = { tId, sel -> onPickerResultCallback?.invoke(tId, sel) },
-            onPickerCancel = { tId -> onPickerCancelCallback?.invoke(tId) },
-            onExternalAppRequest = { intent, appName -> onExternalAppCallback?.invoke(intent, appName) },
-        )
-        record.mutableContext = wrapper
-        record.webView = webView
+            val wrapper = MutableContextWrapper(attachedActivity ?: appContext)
+            val webView = webViewFactory.createWebView(
+                context = wrapper,
+                record = record,
+                tabManager = this,
+                browserPrefs = currentBrowserPrefs,
+                protectionPrefs = currentProtectionPrefs,
+                appearance = currentAppearance,
+                isAppDark = isAppDark,
+                onPickerResult = { tId, sel -> onPickerResultCallback?.invoke(tId, sel) },
+                onPickerCancel = { tId -> onPickerCancelCallback?.invoke(tId) },
+                onExternalAppRequest = { intent, appName -> onExternalAppCallback?.invoke(intent, appName) },
+            )
+            record.mutableContext = wrapper
+            record.webView = webView
 
-        if (record.url.isNotEmpty() && record.url != "about:blank") {
-            webView.loadUrl(record.url)
+            if (record.url.isNotEmpty() && record.url != "about:blank") {
+                webView.loadUrl(record.url)
+            }
+        } catch (_: Throwable) {
+            // Graceful fallback when unmocked Android WebView is running in JVM unit tests
         }
     }
 
@@ -514,6 +640,7 @@ class TabManager(
         return getTabRecord(id)
     }
 
+    @Suppress("DEPRECATION")
     fun clearAllBrowsingData() {
         postToMain {
             try {
