@@ -171,11 +171,14 @@ Verified for 0.2.0 on the emulator (light, dark, pure black):
 
 ## Known issues and open work
 
-1. **"Recently added" screen** is still missing (data is recorded; only the "new since last visit" row uses it).
+1. ~~"Recently added" screen~~ — done in 0.5.0 (What's new, fed by fmhy-tracker + own sync).
 2. Search lists single sites, not FMHY lines (a search hit on "AdGuard" shows only AdGuard).
-3. `Note` links open the GitHub markdown; fmhy.net shows the note text as a tooltip.
+3. ~~`Note` links open the GitHub markdown~~ — 0.5.0 opens them in a sheet.
 4. 9 cross-links don't resolve (stale FMHY anchors).
 5. Old Python history/delta code in `pipeline/` is unused (kept as the reference parser).
+6. 0.5.0: compiled ad-block engine `filters/engine.bin` is ~16 MB on disk (raw rules serialised); could be slimmed.
+7. 0.5.0 not yet checked on a device: home-screen widget, app icon switch, fullscreen video / picture-in-picture,
+   downloads, private tabs (WebView multi-profile vs. fallback), backup export/import.
 
 ## History
 
@@ -186,3 +189,4 @@ Verified for 0.2.0 on the emulator (light, dark, pure black):
 | 0.4.1 | 2026-10-20 | F-Droid prep: fastlane metadata + screenshots, unsigned release without key, no dependency-info blob, README rewrite |
 | 0.4.0 | 2026-10-19 | Audio/Educational Tools on Home, haptics, working colourfulness, icon legend, Non-English flags, wordmark stays expanded |
 | 0.3.0 | 2026-10-19 | fmhy.net icons, one row per line, tap = details / hold = open, clear headings + tree outline, legend & filters, text size, accent colours, FMHY logo, website section order |
+| 0.5.0 | 2026-10-20 (night, unreleased) | In-app WebView browser with uBO-list ad blocking (own Kotlin engine), pop-up/redirect shield, site bar, dead-site rescue; What's new from fmhy-tracker; follow + notifications, watched saved sites; SafeGuard link checker + share target; Saved folders/notes/history/backup; settings hub; onboarding; Personal Home (opt-in), widget, shortcuts, icon variants; in-app notes/guides/posts; schema 4 + user DB |

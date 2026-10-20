@@ -1,0 +1,7 @@
+- In-app browser with uBlock Origin's filter lists, pop-up and redirect blocking, FMHY site bar, mirrors when a site is down
+- What's new: added, changed and removed sites
+- Follow sections and categories, get notified; saved sites are watched
+- Check any link against FMHY SafeGuard's lists, also from the share menu
+- Saved: folders, notes, history, backup
+- Settings reorganised; first-start setup
+- Notes, guides and posts readable in the app

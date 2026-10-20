@@ -13,8 +13,8 @@ android {
         applicationId = "io.github.omeg4dev.fmhy"
         minSdk = 26
         targetSdk = 36
-        versionCode = 5
-        versionName = "0.4.1"
+        versionCode = 6
+        versionName = "0.5.0"
     }
 
     // Release key lives outside the repo; without it (e.g. on F-Droid's build server) release builds are unsigned.

@@ -24,6 +24,21 @@ Grab the APK from [Releases](https://github.com/omeg4-dev/fmhy-android/releases/
 
 If you installed a build older than 0.4.0, uninstall it first: those were signed with a different key.
 
+## Why an app?
+
+The wiki works fine in a browser. The app is for the things a browser can't do because it doesn't
+know FMHY:
+
+- Follow a section or category and get one notification when sites are added or starred there.
+- Your saved sites are watched: you hear about it when one is starred, removed or moves, and removed
+  ones show replacements from the same category.
+- What's new: every addition, star and removal from the last month, by day and section.
+- A built-in browser that blocks ads with uBlock Origin's own filter lists and FMHY's unsafe-sites
+  list, stops pop-ups and forced redirects, and shows where a site is listed on FMHY.
+- When a site is down: one tap to a mirror, the Wayback Machine or an alternative from the same category.
+- Check any link against FMHY SafeGuard's lists, from any app, through the share menu.
+- My FMHY: sort saved sites into folders and share them as a list.
+
 ## What it does
 
 - Every section in the same order as fmhy.net, with the same stars and icons.
@@ -34,6 +49,8 @@ If you installed a build older than 0.4.0, uninstall it first: those were signed
 - Links that FMHY hides behind base64 are decoded for you.
 - A warning before you open a site that's on FMHY's unsafe list.
 - Light and dark theme, pure black, Material You or your own accent colour, adjustable text size.
+- Notes, the beginner's guide, FAQ and FMHY's posts readable in the app.
+- A first-start setup, a home-screen widget, launcher shortcuts and three app icons.
 
 ## How it works
 
@@ -41,6 +58,11 @@ There's no server of ours. The app downloads the wiki's markdown straight from
 [fmhy/edit](https://github.com/fmhy/edit) (jsDelivr as a fallback) and parses it on the phone.
 When you open the app it checks which files changed and only downloads those. Everything is
 stored locally, so after the first sync browsing and search work offline. No account, no ads, no tracking.
+
+Change history comes from fmhy/edit itself and, for the last month, from
+[fmhy-tracker](https://fmhy-tracker.pages.dev/). Filter lists for the browser are downloaded from
+uBlock Origin's and EasyList's own servers; link verdicts use the same lists as
+[FMHY SafeGuard](https://github.com/fmhy/FMHY-SafeGuard).
 
 The APKs on the Releases page come with a copy of the wiki built in, so they work offline from the
 first launch. Builds made straight from this repo don't, and download the wiki the first time they start.
