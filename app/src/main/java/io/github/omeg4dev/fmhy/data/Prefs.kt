@@ -10,15 +10,15 @@ enum class ToolbarPosition { TOP, BOTTOM }
 
 enum class AutoplayMode(val label: String) {
     BLOCK("Never"),
-    ALLOW_MUTED("Only muted videos"),
+    ALLOW_MUTED("Muted only"),
     ALLOW("Always"),
 }
 
 enum class FullscreenOrientation(val label: String) {
     /** Landscape for wide videos, portrait for tall ones. */
-    AUTO("Auto (match the video)"),
-    LANDSCAPE("Always landscape"),
-    FOLLOW_PHONE("Follow phone rotation"),
+    AUTO("Auto"),
+    LANDSCAPE("Landscape"),
+    FOLLOW_PHONE("Like phone"),
 }
 
 /**

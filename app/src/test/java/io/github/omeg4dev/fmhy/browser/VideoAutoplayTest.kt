@@ -30,7 +30,7 @@ class VideoAutoplayTest {
     @Test
     fun labelsMatchTheSpec() {
         assertEquals(
-            listOf("Never", "Only muted videos", "Always"),
+            listOf("Never", "Muted only", "Always"),
             AutoplayMode.entries.map { it.label },
         )
     }
