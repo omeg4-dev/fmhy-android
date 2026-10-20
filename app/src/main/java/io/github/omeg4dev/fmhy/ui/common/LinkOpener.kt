@@ -22,6 +22,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
+import io.github.omeg4dev.fmhy.browser.BrowserActivity
 import io.github.omeg4dev.fmhy.SectionNavKey
 import io.github.omeg4dev.fmhy.data.DatasetStore
 import io.github.omeg4dev.fmhy.data.OpenLinksWith
@@ -56,8 +57,9 @@ class LinkOpener(
         private set
     var pendingUnsafeReason by mutableStateOf<String?>(null)
         private set
+    private var pendingUnsafeEntryId: String? = null
 
-    fun openUrl(url: String) {
+    fun openUrl(url: String, entryId: String? = null) {
         val target = crossLinks?.value?.resolve(url)
         if (target != null) {
             onOpenInternal(target)
@@ -68,53 +70,74 @@ class LinkOpener(
                 onShowSnackbar("Decoding hidden link…")
                 val urls = pasteResolver.resolve(url)
                 when {
-                    urls == null -> openChecked(url)       // not decodable: show the paste itself
-                    urls.size == 1 -> openChecked(urls[0])
+                    urls == null -> openChecked(url, entryId)       // not decodable: show the paste itself
+                    urls.size == 1 -> openChecked(urls[0], entryId)
                     else -> pendingPasteChoices = urls
                 }
             }
             return
         }
-        openChecked(url)
+        openChecked(url, entryId)
     }
 
     fun choosePasteLink(url: String?) {
         pendingPasteChoices = null
-        if (url != null) openChecked(url)
+        if (url != null) openChecked(url, null)
     }
 
-    private fun openChecked(url: String) {
+    private fun openChecked(url: String, entryId: String? = null) {
         coroutineScope.launch {
             val unsafeWarning = settingsRepository.protectionPrefs.first().unsafeWarning
             val reason = if (unsafeWarning && store.isAvailable) store.unsafeReason(url) else null
             if (reason != null) {
                 pendingUnsafeReason = reason
                 pendingUnsafeUrl = url
+                pendingUnsafeEntryId = entryId
             } else {
-                openUrlDirectly(url)
+                openUrlDirectly(url, entryId)
             }
         }
     }
 
     fun confirmOpenUnsafe() {
         val url = pendingUnsafeUrl
+        val entryId = pendingUnsafeEntryId
         pendingUnsafeUrl = null
         pendingUnsafeReason = null
+        pendingUnsafeEntryId = null
         if (url != null) {
-            openUrlDirectly(url)
+            openUrlDirectly(url, entryId)
         }
     }
 
     fun cancelOpenUnsafe() {
         pendingUnsafeUrl = null
         pendingUnsafeReason = null
+        pendingUnsafeEntryId = null
     }
 
-    private fun openUrlDirectly(url: String) {
+    private fun openUrlDirectly(url: String, entryId: String? = null) {
         coroutineScope.launch {
             val openWith = settingsRepository.browserPrefs.first().openLinksWith
             val uri = url.toUri()
             when (openWith) {
+                OpenLinksWith.IN_APP -> {
+                    try {
+                        val intent = BrowserActivity.intent(context, url, entryId).apply {
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        context.startActivity(intent)
+                    } catch (_: Exception) {
+                        try {
+                            val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            context.startActivity(intent)
+                        } catch (_: Exception) {
+                            onShowSnackbar("No browser found to open link")
+                        }
+                    }
+                }
                 OpenLinksWith.EXTERNAL -> {
                     try {
                         val intent = Intent(Intent.ACTION_VIEW, uri).apply {
@@ -125,9 +148,7 @@ class LinkOpener(
                         onShowSnackbar("No browser found to open link")
                     }
                 }
-                OpenLinksWith.CUSTOM_TAB,
-                OpenLinksWith.IN_APP -> {
-                    // IN_APP: BrowserActivity (0.5 wave 2)
+                OpenLinksWith.CUSTOM_TAB -> {
                     try {
                         val customTabsIntent = CustomTabsIntent.Builder()
                             .setShowTitle(true)

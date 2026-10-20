@@ -20,3 +20,7 @@ Brand logos are trademarks of their owners and are used only to label links.
 
 ## FMHY logo (`ic_launcher_*`, `fmhy_logo.png`)
 From [fmhy/edit](https://github.com/fmhy/edit) `docs/public/` (`pwa_icon.png`, `fmhy.ico`).
+
+## Scriptlets (`app/src/main/assets/scriptlets/*`)
+Ported from [uBlock Origin](https://github.com/gorhill/uBlock) (`src/js/resources/*`), GPL-3.0.
+

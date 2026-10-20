@@ -16,11 +16,26 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.TextButton
+import io.github.omeg4dev.fmhy.browser.formatRelativeTime
+import io.github.omeg4dev.fmhy.data.adblock.FilterListCatalog
+import io.github.omeg4dev.fmhy.ui.settings.InfoRow
+import io.github.omeg4dev.fmhy.ui.settings.NavRow
+import io.github.omeg4dev.fmhy.ui.settings.SettingsGroupHeader
+import io.github.omeg4dev.fmhy.ui.settings.SiteSettingsScreen
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Explore
@@ -201,7 +216,7 @@ fun MainNavigation() {
         }
     }
 
-    val shouldShowBar = isBarVisible && currentTopKey !is SettingsNavKey && currentTopKey !is SettingsPageNavKey && currentTopKey !is LegendNavKey
+    val shouldShowBar = isBarVisible && currentTopKey !is SettingsNavKey && currentTopKey !is SettingsPageNavKey && currentTopKey !is LegendNavKey && currentTopKey !is SiteSettingsNavKey
 
     BackHandler(enabled = nav.current != Tab.BROWSE && nav.currentStack.size == 1) {
         nav.back()
@@ -313,22 +328,152 @@ fun MainNavigation() {
                     viewModel = settingsViewModel,
                     onBack = { if (!nav.back()) activity?.finish() },
                     onNavigateToPage = { page -> nav.push(SettingsPageNavKey(page)) },
+                    extraRows = {
+                        item {
+                            NavRow(
+                                title = "Site settings",
+                                summary = "Manage permissions and overrides per site",
+                                onClick = { nav.push(SiteSettingsNavKey) },
+                            )
+                        }
+                    },
                 )
-                SettingsPage.BLOCKING -> BlockingPage(
-                    viewModel = settingsViewModel,
-                    onBack = { if (!nav.back()) activity?.finish() },
-                )
+                SettingsPage.BLOCKING -> {
+                    val adblockStatus by container.adblockService.status.collectAsStateWithLifecycle()
+                    val listStates by container.adblockService.listStates.collectAsStateWithLifecycle()
+                    val blockingPrefs by settingsViewModel.blockingPrefs.collectAsStateWithLifecycle()
+
+                    BlockingPage(
+                        viewModel = settingsViewModel,
+                        onBack = { if (!nav.back()) activity?.finish() },
+                        extraRows = {
+                            item {
+                                SettingsGroupHeader(text = "Status")
+                            }
+                            item {
+                                InfoRow(
+                                    title = "Rules active",
+                                    value = "${adblockStatus.ruleCount}",
+                                )
+                            }
+                            item {
+                                InfoRow(
+                                    title = "Last updated",
+                                    value = formatRelativeTime(adblockStatus.lastUpdated),
+                                )
+                            }
+                            item {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                                ) {
+                                    FilledTonalButton(
+                                        onClick = {
+                                            scope.launch {
+                                                container.adblockService.updateNow()
+                                            }
+                                        },
+                                        enabled = !adblockStatus.updating,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    ) {
+                                        if (adblockStatus.updating) {
+                                            CircularProgressIndicator(
+                                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                                modifier = Modifier.size(16.dp),
+                                                strokeWidth = 2.dp,
+                                            )
+                                            Spacer(Modifier.width(8.dp))
+                                            Text("Updating lists…")
+                                        } else {
+                                            Text("Update lists now")
+                                        }
+                                    }
+                                }
+                            }
+                            if (adblockStatus.error != null) {
+                                item {
+                                    Text(
+                                        text = "Update error: ${adblockStatus.error}",
+                                        color = MaterialTheme.colorScheme.error,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                                    )
+                                }
+                            }
+                            item {
+                                SettingsGroupHeader(text = "Enabled list status")
+                            }
+                            items(blockingPrefs.enabledLists.toList()) { listId ->
+                                val catalogList = FilterListCatalog.byId(listId)
+                                val title = catalogList?.title ?: listId
+                                val state = listStates[listId]
+                                val desc = when {
+                                    state?.error != null -> "Error: ${state.error}"
+                                    state != null -> "${state.ruleLines} rules · updated ${formatRelativeTime(state.fetchedAt)}"
+                                    else -> "Not downloaded yet"
+                                }
+                                InfoRow(
+                                    title = title,
+                                    value = desc,
+                                )
+                            }
+                        },
+                    )
+                }
                 SettingsPage.PROTECTION -> ProtectionPage(
                     viewModel = settingsViewModel,
                     onBack = { if (!nav.back()) activity?.finish() },
                 )
-                SettingsPage.PRIVACY -> PrivacyPage(
-                    viewModel = settingsViewModel,
-                    onBack = { if (!nav.back()) activity?.finish() },
-                    onShowSnackbar = { msg ->
-                        scope.launch { snackbarHostState.showSnackbar(msg) }
-                    },
-                )
+                SettingsPage.PRIVACY -> {
+                    var showClearDataConfirmDialog by remember { mutableStateOf(false) }
+
+                    PrivacyPage(
+                        viewModel = settingsViewModel,
+                        onBack = { if (!nav.back()) activity?.finish() },
+                        onShowSnackbar = { msg ->
+                            scope.launch { snackbarHostState.showSnackbar(msg) }
+                        },
+                        extraRows = {
+                            item {
+                                NavRow(
+                                    title = "Clear cookies, cache and site storage",
+                                    summary = "Removes cookies, cache, web storage and passwords",
+                                    onClick = { showClearDataConfirmDialog = true },
+                                )
+                            }
+                        },
+                    )
+
+                    if (showClearDataConfirmDialog) {
+                        AlertDialog(
+                            onDismissRequest = { showClearDataConfirmDialog = false },
+                            title = { Text("Clear cookies, cache and site storage") },
+                            text = { Text("Clear all cookies, cache, web storage, and saved form data from the in-app browser?") },
+                            confirmButton = {
+                                TextButton(
+                                    onClick = {
+                                        showClearDataConfirmDialog = false
+                                        android.webkit.CookieManager.getInstance().removeAllCookies(null)
+                                        android.webkit.WebStorage.getInstance().deleteAllData()
+                                        android.webkit.WebView(context).clearCache(true)
+                                        runCatching { android.webkit.WebViewDatabase.getInstance(context).clearHttpAuthUsernamePassword() }
+                                        @Suppress("DEPRECATION")
+                                        runCatching { android.webkit.WebViewDatabase.getInstance(context).clearFormData() }
+                                        scope.launch { snackbarHostState.showSnackbar("Browsing data cleared") }
+                                    }
+                                ) {
+                                    Text("Clear")
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { showClearDataConfirmDialog = false }) {
+                                    Text("Cancel")
+                                }
+                            }
+                        )
+                    }
+                }
                 SettingsPage.PAGE -> PagesPage(
                     viewModel = settingsViewModel,
                     onBack = { if (!nav.back()) activity?.finish() },
@@ -361,6 +506,14 @@ fun MainNavigation() {
 
         entry<LegendNavKey> {
             LegendScreen(
+                onBack = { if (!nav.back()) activity?.finish() },
+            )
+        }
+
+        entry<SiteSettingsNavKey> {
+            SiteSettingsScreen(
+                userStore = container.userStore,
+                settingsRepository = container.settingsRepository,
                 onBack = { if (!nav.back()) activity?.finish() },
             )
         }

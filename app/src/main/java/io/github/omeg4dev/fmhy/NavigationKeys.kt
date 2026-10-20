@@ -43,6 +43,9 @@ data object SavedNavKey : NavKey
 @Serializable
 data object LegendNavKey : NavKey
 
+@Serializable
+data object SiteSettingsNavKey : NavKey
+
 // Also aliases matching the brief names:
 typealias Home = HomeNavKey
 typealias Section = SectionNavKey
