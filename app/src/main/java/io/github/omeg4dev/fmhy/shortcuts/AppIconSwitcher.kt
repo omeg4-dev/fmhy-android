@@ -13,14 +13,27 @@ object AppIconSwitcher {
     const val ALIAS_DEFAULT = ".LauncherDefault"
     const val ALIAS_UWU = ".LauncherUwu"
     const val ALIAS_MONO = ".LauncherMono"
+    const val ALIAS_LIGHT = ".LauncherLight"
+    const val ALIAS_BLUE = ".LauncherBlue"
+    const val ALIAS_GREEN = ".LauncherGreen"
+    const val ALIAS_RED = ".LauncherRed"
+    const val ALIAS_BLACK = ".LauncherBlack"
 
-    val ALL_ALIASES = listOf(ALIAS_DEFAULT, ALIAS_UWU, ALIAS_MONO)
+    val ALIAS_BY_ICON: Map<AppIcon, String> = mapOf(
+        AppIcon.DEFAULT to ALIAS_DEFAULT,
+        AppIcon.UWU to ALIAS_UWU,
+        AppIcon.MONOCHROME to ALIAS_MONO,
+        AppIcon.LIGHT to ALIAS_LIGHT,
+        AppIcon.BLUE to ALIAS_BLUE,
+        AppIcon.GREEN to ALIAS_GREEN,
+        AppIcon.RED to ALIAS_RED,
+        AppIcon.BLACK to ALIAS_BLACK,
+    )
 
-    fun aliasFor(icon: AppIcon): String = when (icon) {
-        AppIcon.DEFAULT -> ALIAS_DEFAULT
-        AppIcon.UWU -> ALIAS_UWU
-        AppIcon.MONOCHROME -> ALIAS_MONO
-    }
+    val ALL_ALIASES: List<String> = ALIAS_BY_ICON.values.toList()
+
+    fun aliasFor(icon: AppIcon): String =
+        ALIAS_BY_ICON[icon] ?: error("No alias for $icon")
 
     /** alias -> should be enabled; exactly one entry is true. */
     fun desiredStates(icon: AppIcon): Map<String, Boolean> =
