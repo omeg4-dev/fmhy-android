@@ -1,0 +1,6 @@
+- Swipe to save is calm: swipe right to left, it acts only after you let go
+- Browser bars no longer hop on touch or slow scrolling; thinner FMHY site bar that hides with the toolbar
+- "‹ FMHY" button in the browser toolbar
+- Floating browser bubble with your tab count; hold it to close tabs or hide it
+- Haptics: different patterns for different actions, none on plain taps
+- Onboarding ad-block demo plays once, smoothly
