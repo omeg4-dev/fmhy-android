@@ -55,6 +55,16 @@ sealed interface MarkdownBlock {
     data class Image(val alt: String, val url: String) : MarkdownBlock
 }
 
+/**
+ * Shifts top-level headings so the shallowest one becomes level 1. Docs like the beginners guide use `###` for
+ * their main sections, which otherwise rendered as small bold lines instead of section headings.
+ */
+fun normalizeHeadingLevels(blocks: List<MarkdownBlock>): List<MarkdownBlock> {
+    val minLevel = blocks.filterIsInstance<MarkdownBlock.Heading>().minOfOrNull { it.level } ?: return blocks
+    if (minLevel <= 1) return blocks
+    return blocks.map { if (it is MarkdownBlock.Heading) it.copy(level = it.level - minLevel + 1) else it }
+}
+
 fun parseMarkdownBlocks(markdown: String): List<MarkdownBlock> {
     val lines = markdown.lines()
     val blocks = mutableListOf<MarkdownBlock>()
@@ -335,7 +345,7 @@ fun MarkdownBlocks(
     onOpenUrl: (String) -> Unit = {},
     readerStyle: ReaderStyle? = null,
 ) {
-    val blocks = remember(markdown) { parseMarkdownBlocks(markdown) }
+    val blocks = remember(markdown) { normalizeHeadingLevels(parseMarkdownBlocks(markdown)) }
     MarkdownBlocks(
         blocks = blocks,
         modifier = modifier,

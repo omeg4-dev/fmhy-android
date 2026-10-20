@@ -321,4 +321,13 @@ class MarkdownBlocksTest {
         assertEquals(MarkdownBlock.ListItem(text = "Quoted item 1", level = 0, isOrdered = false, number = 1), quote.children[0])
         assertEquals(MarkdownBlock.ListItem(text = "Quoted item 2", level = 0, isOrdered = false, number = 1), quote.children[1])
     }
+
+    @Test
+    fun headingLevelsAreRelativeToTheShallowestHeading() {
+        val blocks = normalizeHeadingLevels(parseMarkdownBlocks("### Adblocking\n\ntext\n\n#### Sub\n\n### Antivirus"))
+        val levels = blocks.filterIsInstance<MarkdownBlock.Heading>().map { it.text to it.level }
+        assertEquals(listOf("Adblocking" to 1, "Sub" to 2, "Antivirus" to 1), levels)
+        val unchanged = parseMarkdownBlocks("# Title\n\n## Part")
+        assertEquals(unchanged, normalizeHeadingLevels(unchanged))
+    }
 }
