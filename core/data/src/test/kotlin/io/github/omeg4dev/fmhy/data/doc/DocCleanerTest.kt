@@ -112,7 +112,7 @@ class DocCleanerTest {
 
         val cleaned = DocCleaner.clean(input)
         assertFalse(cleaned.contains(":::"))
-        assertTrue(cleaned.contains("> **What is this?**"))
+        assertTrue(cleaned.contains("> [!TIP] What is this?"))
         assertTrue(cleaned.contains("> Anonymous comments taken from Reddit, Discord, X.com."))
     }
 
@@ -126,7 +126,27 @@ class DocCleanerTest {
 
         val cleaned = DocCleaner.clean(input)
         assertFalse(cleaned.contains(":::"))
+        assertTrue(cleaned.contains("> [!INFO]"))
         assertTrue(cleaned.contains("> These update threads only contain major updates."))
+    }
+
+    @Test
+    fun clean_fiveNoteLinesFromBeginnersGuide() {
+        val notes = listOf(
+            "!!!note Using several ad blockers, like uBO and AdGuard at the same time can [mess things up](https://x.com/gorhill/status/1033706103782170625). This only happens with regular ad blockers, so it's perfectly okay to use uBO alongside something like SponsorBlock.",
+            "!!!note Most antivirus programs are unnecessary and can cause slowdowns. If you use trusted websites, Windows Defender should be all you need to stay safe, and you can run a [Malwarebytes](https://www.malwarebytes.com/) scan from time to time for extra protection.",
+            "!!!note We recommend looking through our [Extension](https://www.reddit.com/r/FREEMEDIAHECKYEAH/wiki/internet-tools#wiki_.25B7_browser_extensions) / [Userscript](https://www.reddit.com/r/FREEMEDIAHECKYEAH/wiki/internet-tools#wiki_.25B7_userscripts) sections to find ways to enhance your browser.",
+            "!!!note Never enter your real email or password on any site you don't know you can trust. Use a unique password for each site you register on. That way, if a breach occurs, only that one site's credentials are compromised. You can also take advantage of email [aliasing](https://www.reddit.com/r/FREEMEDIAHECKYEAH/wiki/internet-tools/#wiki_.25B7_email_aliasing) for an extra layer of protection.",
+            "!!!note Keep in mind that it's **never** a good idea to upload personal or confidential files to any file host / cloud AI, even if they claim to be encrypted.",
+        )
+
+        for ((idx, noteLine) in notes.withIndex()) {
+            val cleaned = DocCleaner.clean(noteLine)
+            assertFalse("Note $idx should not have raw !!!", cleaned.contains("!!!"))
+            assertTrue("Note $idx should have [!NOTE] callout marker", cleaned.contains("> [!NOTE]"))
+            val expectedText = noteLine.removePrefix("!!!note").trim()
+            assertTrue("Note $idx should preserve body text", cleaned.contains(expectedText))
+        }
     }
 
     @Test
