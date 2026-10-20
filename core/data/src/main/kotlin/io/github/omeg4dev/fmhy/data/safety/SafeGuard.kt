@@ -4,11 +4,13 @@ package io.github.omeg4dev.fmhy.data.safety
 import io.github.omeg4dev.fmhy.data.DatasetStore
 import io.github.omeg4dev.fmhy.data.model.Entry
 import java.net.URI
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 enum class SafetyStatus {
     FMHY_SITE,
     STARRED,
     LISTED,
+    DOMAIN_LISTED,
     POTENTIALLY_UNSAFE,
     UNSAFE,
     SEARCH_ENGINE,
@@ -23,6 +25,9 @@ data class Verdict(
     val host: String?,
     val reason: String?,
     val matches: List<Entry>,
+    val via: Via? = null,
+    val lookalikes: List<Entry> = emptyList(),
+    val sharedHostListedCount: Int = 0,
 )
 
 class SafeGuard(private val store: DatasetStore) {
@@ -34,14 +39,13 @@ class SafeGuard(private val store: DatasetStore) {
         }
 
         val urlWithScheme = if (!trimmed.contains("://")) "https://$trimmed" else trimmed
-        val parsedUri = try {
+        val rawHost = try {
             val u = URI(urlWithScheme)
-            if (u.host == null) null else u
+            u.host ?: urlWithScheme.substringAfter("://").substringBefore('/').substringBefore(':').substringBefore('?')
         } catch (_: Exception) {
-            null
-        } ?: return Verdict(SafetyStatus.INVALID, input, null, null, null, emptyList())
+            urlWithScheme.substringAfter("://").substringBefore('/').substringBefore(':').substringBefore('?')
+        }.trim()
 
-        val rawHost = parsedUri.host?.trim() ?: return Verdict(SafetyStatus.INVALID, input, null, null, null, emptyList())
         if (rawHost.isEmpty() || rawHost.contains(' ') || rawHost.contains('%')) {
             return Verdict(SafetyStatus.INVALID, input, null, null, null, emptyList())
         }
@@ -60,7 +64,8 @@ class SafeGuard(private val store: DatasetStore) {
             return Verdict(SafetyStatus.SEARCH_ENGINE, input, normalizedUrl, host, null, emptyList())
         }
 
-        val path = (parsedUri.path ?: "").lowercase().trimEnd('/')
+        val path = (try { URI(urlWithScheme).path } catch (_: Exception) { null }
+            ?: ("/" + urlWithScheme.substringAfter("://").substringAfter('/', ""))).lowercase().trimEnd('/')
 
         // 2. Prepare candidate keys for site_lists
         val candidateKeys = mutableListOf<String>()
@@ -97,20 +102,21 @@ class SafeGuard(private val store: DatasetStore) {
             }
         }
 
-        val entryCandidates = mutableListOf<Entry>()
-        val seenEntryIds = mutableSetOf<String>()
+        val allHostMatches = mutableListOf<HostMatch>()
+        val seenMatchKeys = mutableSetOf<String>()
         for (h in candidateHosts.distinct()) {
-            val rows = store.entriesMatchingHost(h)
-            for (e in rows) {
-                if (seenEntryIds.add(e.id)) {
-                    entryCandidates.add(e)
+            val rows = store.entryMatchesForHost(h)
+            for (m in rows) {
+                if (seenMatchKeys.add("${m.entry.id}:${m.matchedUrl}:${m.via}")) {
+                    allHostMatches.add(m)
                 }
             }
         }
 
-        val matchingEntries = entryCandidates
-            .filter { urlMatchesListedResource(urlWithScheme, it.url) }
-            .sortedWith(compareByDescending<Entry> { it.tier.value }.thenBy { it.ord })
+        val exactMatches = allHostMatches
+            .filter { urlMatchesListedResource(urlWithScheme, it.matchedUrl) }
+            .sortedWith(compareByDescending<HostMatch> { it.entry.tier.value }.thenBy { it.entry.ord })
+        val exactMatchingEntries = exactMatches.map { it.entry }.distinctBy { it.id }
 
         // SafeGuard classification priority order
         // A. unsafe from site_lists
@@ -119,7 +125,7 @@ class SafeGuard(private val store: DatasetStore) {
             val reason = siteListRows.filter { it.list == "unsafe" && it.reason.isNotEmpty() }
                 .maxByOrNull { it.key.length }?.reason
                 ?: store.unsafeReason(normalizedUrl)
-            return Verdict(SafetyStatus.UNSAFE, input, normalizedUrl, host, reason, matchingEntries)
+            return Verdict(SafetyStatus.UNSAFE, input, normalizedUrl, host, reason, exactMatchingEntries)
         }
 
         // B. potentially_unsafe from site_lists
@@ -128,30 +134,114 @@ class SafeGuard(private val store: DatasetStore) {
             val reason = siteListRows.filter { it.list == "potentially_unsafe" && it.reason.isNotEmpty() }
                 .maxByOrNull { it.key.length }?.reason
                 ?: store.unsafeReason(normalizedUrl)
-            return Verdict(SafetyStatus.POTENTIALLY_UNSAFE, input, normalizedUrl, host, reason, matchingEntries)
+            return Verdict(SafetyStatus.POTENTIALLY_UNSAFE, input, normalizedUrl, host, reason, exactMatchingEntries)
         }
 
         // C. fmhy from site_lists
         val fmhyRow = siteListRows.firstOrNull { it.list == "fmhy" }
         if (fmhyRow != null) {
-            return Verdict(SafetyStatus.FMHY_SITE, input, normalizedUrl, host, null, matchingEntries)
+            return Verdict(SafetyStatus.FMHY_SITE, input, normalizedUrl, host, null, exactMatchingEntries)
         }
 
-        // D. Starred / Listed from entries table
-        if (matchingEntries.isNotEmpty()) {
-            val isStarred = matchingEntries.any { it.tier.value >= 1 }
+        // D. Starred / Listed exact match from entries table
+        if (exactMatches.isNotEmpty()) {
+            val isStarred = exactMatches.any { it.entry.tier.value >= 1 }
             val status = if (isStarred) SafetyStatus.STARRED else SafetyStatus.LISTED
-            return Verdict(status, input, normalizedUrl, host, null, matchingEntries)
+            val bestMatch = exactMatches.first()
+            return Verdict(
+                status = status,
+                input = input,
+                normalizedUrl = normalizedUrl,
+                host = host,
+                reason = null,
+                matches = exactMatchingEntries,
+                via = bestMatch.via,
+            )
         }
 
-        // E. Fallback unsafeReason from unsafe_domains
+        // E. DOMAIN_LISTED (host or subdomain matches an entry but path does not, or match came from a subdomain)
+        // Shared hosts (github.com, etc.) are never DOMAIN_LISTED
+        val isShared = isSharedResourceHost(host)
+        val sharedHostListedCount = if (isShared) {
+            allHostMatches.map { it.entry }.distinctBy { it.id }.size
+        } else {
+            0
+        }
+
+        if (!isShared && allHostMatches.isNotEmpty()) {
+            val domainEntries = allHostMatches
+                .map { it.entry }
+                .distinctBy { it.id }
+                .sortedWith(compareByDescending<Entry> { it.tier.value }.thenBy { it.ord })
+            val lookalikes = findLookalikes(host)
+            return Verdict(
+                status = SafetyStatus.DOMAIN_LISTED,
+                input = input,
+                normalizedUrl = normalizedUrl,
+                host = host,
+                reason = null,
+                matches = domainEntries,
+                via = null,
+                lookalikes = lookalikes,
+            )
+        }
+
+        // F. Fallback unsafeReason from unsafe_domains
         val unsafeReason = store.unsafeReason(normalizedUrl)
         if (unsafeReason != null) {
             return Verdict(SafetyStatus.UNSAFE, input, normalizedUrl, host, unsafeReason, emptyList())
         }
 
-        // F. No data
-        return Verdict(SafetyStatus.NO_DATA, input, normalizedUrl, host, null, emptyList())
+        // G. No data
+        val lookalikes = findLookalikes(host)
+        return Verdict(
+            status = SafetyStatus.NO_DATA,
+            input = input,
+            normalizedUrl = normalizedUrl,
+            host = host,
+            reason = null,
+            matches = emptyList(),
+            via = null,
+            lookalikes = lookalikes,
+            sharedHostListedCount = sharedHostListedCount,
+        )
+    }
+
+    private suspend fun findLookalikes(host: String): List<Entry> {
+        val targetLabel = extractMainLabel(host)
+        if (targetLabel.length < 4) return emptyList()
+
+        val candidates = store.findLookalikeCandidates(targetLabel)
+        val cleanHost = host.lowercase().removePrefix("www.")
+
+        data class RankedLookalike(val entry: Entry, val score: Int)
+        val ranked = mutableListOf<RankedLookalike>()
+        val seenIds = mutableSetOf<String>()
+
+        for (entry in candidates) {
+            val cHost = extractHostFromUrl(entry.url) ?: continue
+            if (cHost == cleanHost) continue // Exclude entries on the same host
+
+            val candidateLabel = extractMainLabel(cHost)
+            if (candidateLabel.length < 4) continue
+
+            val score = when {
+                candidateLabel == targetLabel -> 0
+                candidateLabel.contains(targetLabel) || targetLabel.contains(candidateLabel) -> 1
+                targetLabel.length >= 6 && candidateLabel.length >= 6 && levenshteinDistance(targetLabel, candidateLabel) <= 2 -> 2
+                else -> -1
+            }
+
+            if (score >= 0 && seenIds.add(entry.id)) {
+                ranked.add(RankedLookalike(entry, score))
+            }
+        }
+
+        return ranked.sortedWith(
+            compareBy<RankedLookalike> { it.score }
+                .thenByDescending { it.entry.tier.value }
+                .thenBy { it.entry.ord }
+        ).take(3).map { it.entry }
     }
 
     companion object {
@@ -248,9 +338,10 @@ class SafeGuard(private val store: DatasetStore) {
             return try {
                 val uri = URI(source)
                 val scheme = (uri.scheme ?: "https").lowercase()
-                val rawHost = uri.host ?: return null
+                val rawHost = uri.host ?: source.substringAfter("://").substringBefore('/').substringBefore(':').substringBefore('?')
+                if (rawHost.isEmpty()) return null
                 val host = rawHost.lowercase().removePrefix("www.")
-                val rawPath = (uri.path ?: "").trimEnd('/')
+                val rawPath = (uri.path ?: ("/" + source.substringAfter("://").substringAfter('/', ""))).trimEnd('/')
                 "$scheme://$host$rawPath"
             } catch (_: Exception) {
                 null
@@ -264,9 +355,10 @@ class SafeGuard(private val store: DatasetStore) {
             return try {
                 val uri = URI(source)
                 val scheme = (uri.scheme ?: "https").lowercase()
-                val rawHost = uri.host ?: return null
+                val rawHost = uri.host ?: source.substringAfter("://").substringBefore('/').substringBefore(':').substringBefore('?')
+                if (rawHost.isEmpty()) return null
                 val host = rawHost.lowercase().removePrefix("www.")
-                val rawPath = (uri.path ?: "").trimEnd('/')
+                val rawPath = (uri.path ?: ("/" + source.substringAfter("://").substringAfter('/', ""))).trimEnd('/')
                 val path = if (rawPath.isEmpty()) "/" else rawPath
                 val query = if (uri.rawQuery != null) "?${uri.rawQuery}" else ""
                 val fragment = if (uri.rawFragment != null) "#${uri.rawFragment}" else ""
@@ -285,11 +377,8 @@ class SafeGuard(private val store: DatasetStore) {
             val curNorm = normalizeResourceUrl(currentUrl) ?: return false
             val listNorm = normalizeResourceUrl(listedUrl) ?: return false
 
-            val curUri = try { URI(curNorm) } catch (_: Exception) { return false }
-            val listUri = try { URI(listNorm) } catch (_: Exception) { return false }
-
-            val currentHost = curUri.host?.lowercase()?.removePrefix("www.") ?: return false
-            val listedHost = listUri.host?.lowercase()?.removePrefix("www.") ?: return false
+            val currentHost = extractHostFromUrl(curNorm) ?: return false
+            val listedHost = extractHostFromUrl(listNorm) ?: return false
 
             val sharedHost = isSharedResourceHost(currentHost) || isSharedResourceHost(listedHost)
             val hostMatches = if (sharedHost || SUBDOMAIN_HOSTING_HOSTS.contains(listedHost)) {
@@ -299,8 +388,11 @@ class SafeGuard(private val store: DatasetStore) {
             }
             if (!hostMatches) return false
 
-            val currentPath = (curUri.path ?: "").lowercase().trimEnd('/')
-            val listedPath = (listUri.path ?: "").lowercase().trimEnd('/')
+            val curUri = try { URI(curNorm) } catch (_: Exception) { null }
+            val listUri = try { URI(listNorm) } catch (_: Exception) { null }
+
+            val currentPath = (curUri?.path ?: ("/" + curNorm.substringAfter("://").substringAfter('/', ""))).lowercase().trimEnd('/')
+            val listedPath = (listUri?.path ?: ("/" + listNorm.substringAfter("://").substringAfter('/', ""))).lowercase().trimEnd('/')
 
             // GreasyFork script match
             val curGfMatch = Regex("""^/(?:[^/]+/)?scripts/(\d+)""").find(currentPath)
@@ -327,8 +419,8 @@ class SafeGuard(private val store: DatasetStore) {
 
             // Query matching for youtube / archive
             if (listedHost == "youtube.com" || listedHost == "archive.org") {
-                val curQuery = parseQueryParams(curUri.rawQuery)
-                val listQuery = parseQueryParams(listUri.rawQuery)
+                val curQuery = parseQueryParams(curUri?.rawQuery)
+                val listQuery = parseQueryParams(listUri?.rawQuery)
                 for ((k, v) in listQuery) {
                     if (curQuery[k] != v) return false
                 }
@@ -336,8 +428,8 @@ class SafeGuard(private val store: DatasetStore) {
 
             // Fragment matching for rentry / matrix
             if (listedHost == "rentry.co" || listedHost == "rentry.org" || listedHost == "matrix.to") {
-                val curFrag = curUri.fragment
-                val listFrag = listUri.fragment
+                val curFrag = curUri?.fragment
+                val listFrag = listUri?.fragment
                 if (!listFrag.isNullOrEmpty()) {
                     if (curFrag == null || !curFrag.equals(listFrag, ignoreCase = true)) {
                         return false
@@ -358,6 +450,57 @@ class SafeGuard(private val store: DatasetStore) {
                 }
             }
             return result
+        }
+
+        fun extractHostFromUrl(url: String): String? {
+            val clean = url.trim()
+            val rawHost = try {
+                val u = if (!clean.contains("://")) "https://$clean" else clean
+                URI(u).host
+            } catch (_: Exception) {
+                null
+            } ?: clean.substringAfter("://").substringBefore('/').substringBefore(':').substringBefore('?')
+            return rawHost.lowercase().removePrefix("www.")
+        }
+
+        fun extractMainLabel(host: String): String {
+            val clean = host.lowercase().removePrefix("www.")
+            val regDomain = try {
+                val httpUrl = "http://$clean/".toHttpUrlOrNull()
+                httpUrl?.topPrivateDomain() ?: clean
+            } catch (_: Exception) {
+                clean
+            }
+            val domainPart = if (regDomain.contains('.')) {
+                regDomain.substringBefore('.')
+            } else {
+                regDomain
+            }
+            val tokens = domainPart.split('-', '_').filter { it.isNotEmpty() }
+            return tokens.maxByOrNull { it.length } ?: domainPart
+        }
+
+        fun levenshteinDistance(s1: String, s2: String): Int {
+            if (s1 == s2) return 0
+            if (s1.isEmpty()) return s2.length
+            if (s2.isEmpty()) return s1.length
+
+            val prev = IntArray(s2.length + 1) { it }
+            val curr = IntArray(s2.length + 1)
+
+            for (i in s1.indices) {
+                curr[0] = i + 1
+                for (j in s2.indices) {
+                    val cost = if (s1[i] == s2[j]) 0 else 1
+                    curr[j + 1] = minOf(
+                        curr[j] + 1,
+                        prev[j + 1] + 1,
+                        prev[j] + cost
+                    )
+                }
+                System.arraycopy(curr, 0, prev, 0, curr.size)
+            }
+            return prev[s2.length]
         }
     }
 }

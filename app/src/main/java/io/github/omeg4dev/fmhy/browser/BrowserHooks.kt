@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Domain
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Verified
@@ -556,6 +557,11 @@ class DefaultBrowserHooks(
                     MaterialTheme.colorScheme.secondaryContainer,
                     MaterialTheme.colorScheme.onSecondaryContainer,
                     Icons.Filled.Check
+                )
+                SiteBarKind.DOMAIN_LISTED -> Triple(
+                    MaterialTheme.colorScheme.secondaryContainer,
+                    MaterialTheme.colorScheme.onSecondaryContainer,
+                    Icons.Filled.Domain
                 )
                 SiteBarKind.FMHY_SITE -> Triple(
                     MaterialTheme.colorScheme.primaryContainer,

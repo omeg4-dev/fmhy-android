@@ -110,13 +110,14 @@ private fun CheckLinkBottomSheet(
     val linkOpener = rememberLinkOpener(container, onShowSnackbar = {})
     val isInitialized by container.isInitialized.collectAsStateWithLifecycle()
     val datasetChanges by container.datasetStore.changes.collectAsStateWithLifecycle(initialValue = 0L)
+    var activeUrl by remember(url) { mutableStateOf(url) }
     var verdict by remember { mutableStateOf<Verdict?>(null) }
     var isChecking by remember { mutableStateOf(false) }
 
-    LaunchedEffect(url, isInitialized, datasetChanges) {
-        if (container.datasetStore.isAvailable && url.isNotEmpty()) {
+    LaunchedEffect(activeUrl, isInitialized, datasetChanges) {
+        if (container.datasetStore.isAvailable && activeUrl.isNotEmpty()) {
             isChecking = true
-            verdict = container.safeGuard.check(url)
+            verdict = container.safeGuard.check(activeUrl)
             isChecking = false
         }
     }
@@ -183,6 +184,9 @@ private fun CheckLinkBottomSheet(
                         verdict = verdict!!,
                         onOpenUrl = { linkOpener.openUrl(it) },
                         onOpenInFmhy = onOpenInFmhy,
+                        onCheckHost = { host ->
+                            activeUrl = host
+                        },
                     )
                 } else if (isChecking) {
                     CircularProgressIndicator(modifier = Modifier.size(36.dp))
