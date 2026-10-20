@@ -23,6 +23,8 @@ import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -67,10 +69,19 @@ class SearchViewModel(
     val b64Only = MutableStateFlow(false)
     val selectedSectionFilters = MutableStateFlow<Set<String>>(emptySet())
     private val allSections = MutableStateFlow<ImmutableList<Section>>(persistentListOf())
+    private val searching = MutableStateFlow(false)
 
     init {
+        // Reload whenever the dataset changes (first launch without a bundled snapshot, a refresh).
         viewModelScope.launch(Dispatchers.IO) {
-            if (store.isAvailable) allSections.value = store.sections().toImmutableList()
+            store.changes.collect {
+                if (store.isAvailable) {
+                    try {
+                        allSections.value = store.sections().toImmutableList()
+                    } catch (_: Exception) {
+                    }
+                }
+            }
         }
     }
 
@@ -92,7 +103,10 @@ class SearchViewModel(
         val suggestion: String? = null,
     )
 
-    private val searchResults = searchParams.mapLatest { params ->
+    private val searchResults = searchParams.mapLatest { params -> coroutineScope {
+        // Only show the skeleton for searches that take longer than 150 ms; fast ones never flash it.
+        val timer = launch { delay(150L); searching.value = true }
+        try {
         val trimmedQuery = params.query.trim()
         val verdict = if (looksLikeUrl(trimmedQuery) && store.isAvailable) {
             safeGuard.check(trimmedQuery)
@@ -128,8 +142,19 @@ class SearchViewModel(
                 null
             }
         } else null
+        if (allSections.value.isEmpty() && store.isAvailable) {
+            // Sections could not be loaded earlier (dataset arrived late): retry on search.
+            try {
+                allSections.value = store.sections().toImmutableList()
+            } catch (_: Exception) {
+            }
+        }
         SearchEngineAndVerdict(results, verdict, suggestion)
-    }.flowOn(Dispatchers.IO)
+        } finally {
+            timer.cancel()
+            searching.value = false
+        }
+    } }.flowOn(Dispatchers.IO)
 
     private data class RecentsAndPrefs(
         val recents: List<String>,
@@ -138,11 +163,11 @@ class SearchViewModel(
 
     val uiState: StateFlow<SearchUiState> = combine(
         combine(query, starredOnly, b64Only) { q, starred, b64 -> Triple(q, starred, b64) },
-        selectedSectionFilters,
+        combine(selectedSectionFilters, searching) { f, s -> f to s },
         allSections,
         combine(settingsRepository.recentSearches, settingsRepository.homePrefs) { r, h -> RecentsAndPrefs(r, h) },
         searchResults,
-    ) { (q, starred, b64), filters, sections, recentsAndPrefs, engineAndVerdict ->
+    ) { (q, starred, b64), (filters, isSearching), sections, recentsAndPrefs, engineAndVerdict ->
         val results = engineAndVerdict.results
         val groups: ImmutableList<SearchGroup> = (results?.groups ?: emptyList()).toImmutableList()
         val badgeDays = recentsAndPrefs.homePrefs.newBadgeDays
@@ -167,7 +192,7 @@ class SearchViewModel(
             total = results?.total ?: 0,
             tookMs = results?.tookMs ?: 0L,
             recentSearches = recentsAndPrefs.recents.toImmutableList(),
-            isSearching = false,
+            isSearching = isSearching,
             hasSearched = results != null || engineAndVerdict.verdict != null,
             verdict = engineAndVerdict.verdict,
             suggestion = engineAndVerdict.suggestion,

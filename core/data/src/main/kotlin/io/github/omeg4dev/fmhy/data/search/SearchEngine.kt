@@ -375,6 +375,13 @@ open class SearchEngine(private val store: DatasetStore) {
             conditions.add("e.section_id IN ($placeholders)")
             effectiveSections.forEach { params.add(it) }
         }
+        // Same excludes the FTS path applies with NOT, matched as case-insensitive substrings.
+        for (ex in query.excludes) {
+            conditions.add("(e.name NOT LIKE '%' || ? || '%' AND e.description NOT LIKE '%' || ? || '%' AND e.url NOT LIKE '%' || ? || '%')")
+            params.add(ex)
+            params.add(ex)
+            params.add(ex)
+        }
 
         val whereClause = "WHERE " + conditions.joinToString(" AND ")
         val sql = """

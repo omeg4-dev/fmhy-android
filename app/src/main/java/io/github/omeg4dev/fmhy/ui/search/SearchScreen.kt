@@ -136,11 +136,12 @@ fun SearchScreen(
     val haptics = rememberHaptics()
 
     val browserPrefs by container.settingsRepository.browserPrefs.collectAsStateWithLifecycle(initialValue = BrowserPrefs())
-    val encodedQuery = remember(state.query) {
+    val liveQuery = viewModel.queryText
+    val encodedQuery = remember(liveQuery) {
         try {
-            java.net.URLEncoder.encode(state.query, "UTF-8")
+            java.net.URLEncoder.encode(liveQuery, "UTF-8")
         } catch (_: Exception) {
-            state.query
+            liveQuery
         }
     }
     val searchUrl = "${browserPrefs.searchEngine.queryUrl}$encodedQuery"

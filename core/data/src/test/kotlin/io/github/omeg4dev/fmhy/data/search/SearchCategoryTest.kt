@@ -90,4 +90,20 @@ class SearchCategoryTest {
         assertNull(engine.suggest(QueryParser.parse("ublock")))
         assertNull(engine.suggest(QueryParser.parse("is:starred")))
     }
+
+    @Test
+    fun trigramFallbackHonoursExcludes() = runTest {
+        val store = store("g.db")
+        store.withConnection { conn ->
+            conn.execSQL("INSERT INTO entries (num, id, section_id, heading_id, ord, name, url, original_url, description, tags, heading_path, tier, is_inline_more, is_base64, mirrors, extra_links, first_seen, last_changed, starred_at) VALUES (3, 'e3', 'gaming', NULL, 3, 'Zonetool', 'https://zonetool.example', NULL, 'plain helper', '', 'Gaming', 0, 0, 0, '[]', '[]', 1000, 1000, NULL);")
+        }
+        val engine = SearchEngine(store)
+        // "mulat" has no word-prefix hit, so only the trigram fallback can find "Emulator Zone".
+        val plain = engine.search("mulat").groups.flatMap { it.hits }.map { it.entry.id }
+        assertTrue("fallback should find e2", "e2" in plain)
+        val excluded = engine.search("mulat -spiel").groups.flatMap { it.hits }.map { it.entry.id }
+        assertTrue("excluded word in description must hide e2", "e2" !in excluded)
+        val excludedUrl = engine.search("mulat -emuzone").groups.flatMap { it.hits }.map { it.entry.id }
+        assertTrue("excluded word in url must hide e2", "e2" !in excludedUrl)
+    }
 }
