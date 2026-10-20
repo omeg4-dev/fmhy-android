@@ -93,6 +93,7 @@ class TabRecord(
         interstitialState = interstitialState,
         isVideoPlaying = isVideoPlaying,
         crashed = crashed,
+        lastActiveTime = lastActiveTime,
     )
 }
 
@@ -135,6 +136,22 @@ class TabManager(
     private val records = mutableListOf<TabRecord>()
     private val _tabs = MutableStateFlow<List<TabState>>(emptyList())
     val tabs: StateFlow<List<TabState>> = _tabs.asStateFlow()
+
+    private val _browserTabCount = MutableStateFlow(0)
+
+    /**
+     * Number of open tabs, including tabs that will be restored the next time the browser starts
+     * (read once from the same store restore uses), so FMHY screens can show the switch chip after an app restart.
+     */
+    val browserTabCount: StateFlow<Int> = _browserTabCount.asStateFlow()
+
+    private val _showTabsRequested = MutableStateFlow(false)
+
+    /** Set by an intent (Home card "All tabs"); the browser screen opens the tabs sheet and calls [consumeShowTabs]. */
+    val showTabsRequested: StateFlow<Boolean> = _showTabsRequested.asStateFlow()
+
+    fun requestShowTabs() { _showTabsRequested.value = true }
+    fun consumeShowTabs() { _showTabsRequested.value = false }
 
     private val _currentTabId = MutableStateFlow<Long?>(null)
     val currentTabId: StateFlow<Long?> = _currentTabId.asStateFlow()
@@ -276,6 +293,22 @@ class TabManager(
             settingsRepository.browserPrefs.collect { currentBrowserPrefs = it }
         }
         appScope.launch {
+            try {
+                if (settingsRepository.browserPrefs.first().restoreTabs && !linkQueue.isRestored.get() && tabs.value.isEmpty()) {
+                    val saved = userStore.get("browser_tabs")
+                    if (!saved.isNullOrBlank()) {
+                        val n = Json.decodeFromString<List<SavedTab>>(saved).size
+                        if (!linkQueue.isRestored.get() && tabs.value.isEmpty()) _browserTabCount.value = n
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+        appScope.launch {
+            tabs.collect { list ->
+                if (list.isNotEmpty() || linkQueue.isRestored.get()) _browserTabCount.value = list.size
+            }
+        }
+        appScope.launch {
             settingsRepository.protectionPrefs.collect { currentProtectionPrefs = it }
         }
         appScope.launch {
@@ -404,6 +437,7 @@ class TabManager(
         }
 
         linkQueue.isRestored.set(true)
+        _browserTabCount.value = tabs.value.size
 
         if (linkQueue.hasPendingLinks()) {
             linkQueue.drain { link, select ->

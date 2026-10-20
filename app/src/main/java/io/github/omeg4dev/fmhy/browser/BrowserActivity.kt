@@ -110,6 +110,7 @@ class BrowserActivity : ComponentActivity() {
 
         lifecycleScope.launch {
             container.tabManager.restoreTabsIfNeeded(dataUri, entryId)
+            if (savedInstanceState == null) handleSwitchExtras(intent)
         }
 
         setContent {
@@ -210,7 +211,9 @@ class BrowserActivity : ComponentActivity() {
         setIntent(intent)
         val container = (application as FmhyApp).container
         val url = intent.dataString
-        if (!url.isNullOrBlank()) {
+        if (url.isNullOrBlank()) {
+            if (container.tabManager.linkQueue.isRestored.get()) handleSwitchExtras(intent)
+        } else {
             val entryId = intent.getStringExtra(EXTRA_ENTRY_ID)
             val newTab = intent.getBooleanExtra(EXTRA_NEW_TAB, true)
             container.tabManager.linkQueue.offerOrExecute(
@@ -218,6 +221,21 @@ class BrowserActivity : ComponentActivity() {
             ) { link, select ->
                 container.tabManager.openQueuedLink(link, select)
             }
+        }
+    }
+
+    /** Home card extras: select a specific tab and/or open the tabs sheet. Consumed once. */
+    private fun handleSwitchExtras(intent: Intent?) {
+        if (intent == null) return
+        val tabManager = (application as FmhyApp).container.tabManager
+        val tabId = intent.getLongExtra(EXTRA_SELECT_TAB, -1L)
+        if (tabId >= 0) {
+            intent.removeExtra(EXTRA_SELECT_TAB)
+            tabManager.selectTab(tabId)
+        }
+        if (intent.getBooleanExtra(EXTRA_SHOW_TABS, false)) {
+            intent.removeExtra(EXTRA_SHOW_TABS)
+            tabManager.requestShowTabs()
         }
     }
 

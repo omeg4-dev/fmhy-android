@@ -115,6 +115,13 @@ fun BrowserScreen(
     var isEditMode by remember { mutableStateOf(false) }
     var showShieldSheet by remember { mutableStateOf(false) }
     var showTabsSheet by remember { mutableStateOf(false) }
+    val showTabsRequested by tabManager.showTabsRequested.collectAsStateWithLifecycle()
+    LaunchedEffect(showTabsRequested) {
+        if (showTabsRequested) {
+            showTabsSheet = true
+            tabManager.consumeShowTabs()
+        }
+    }
 
     // Find in page state
     var isFindMode by remember { mutableStateOf(false) }

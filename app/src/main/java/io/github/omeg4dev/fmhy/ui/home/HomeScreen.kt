@@ -97,6 +97,7 @@ import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
 import io.github.omeg4dev.fmhy.ui.common.enterStagger
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
+import io.github.omeg4dev.fmhy.browser.BrowserSwitchChip
 import io.github.omeg4dev.fmhy.ui.common.sectionIcon
 import io.github.omeg4dev.fmhy.ui.common.showUndo
 import kotlinx.coroutines.flow.filter
@@ -115,6 +116,7 @@ fun HomeScreen(
     onShowSnackbar: (String) -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val browserTabCount by container.tabManager.browserTabCount.collectAsStateWithLifecycle()
     val linkOpener = rememberLinkOpener(container, onShowSnackbar)
     val listState = rememberLazyListState()
     val nav = LocalAppNav.current
@@ -151,6 +153,7 @@ fun HomeScreen(
                     }
                 },
                 actions = {
+                    BrowserSwitchChip(tabCount = browserTabCount)
                     IconButton(onClick = onNavigateToCheckLink) {
                         Icon(Icons.Default.VerifiedUser, contentDescription = "Check a link")
                     }

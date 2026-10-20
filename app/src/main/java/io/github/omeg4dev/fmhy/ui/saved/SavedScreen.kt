@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import io.github.omeg4dev.fmhy.browser.BrowserSwitchChip
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -163,6 +164,7 @@ fun SavedScreen(
             TopAppBar(
                 title = { Text("Saved") },
                 actions = {
+                    BrowserSwitchChip(tabCount = container.tabManager.browserTabCount.collectAsStateWithLifecycle().value)
                     if (selectedTab == "history" && state.historyGroups.isNotEmpty()) {
                         IconButton(onClick = { showClearHistoryDialog = true }) {
                             Icon(Icons.Default.DeleteOutline, contentDescription = "Clear history")

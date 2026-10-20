@@ -39,6 +39,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Close
@@ -174,6 +175,22 @@ fun BrowserToolbar(
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Back",
+                    )
+                }
+
+                // Back to FMHY (40 dp, immediately left of the address pill)
+                val context = LocalContext.current
+                IconButton(
+                    onClick = {
+                        haptics.click()
+                        bringFmhyToFront(context)
+                    },
+                    modifier = Modifier.size(40.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Home,
+                        contentDescription = "Back to FMHY",
+                        modifier = Modifier.size(22.dp),
                     )
                 }
 
