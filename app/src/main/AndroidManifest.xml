@@ -91,6 +91,7 @@
             android:exported="true"
             android:excludeFromRecents="true"
             android:taskAffinity=""
+            android:launchMode="singleTask"
             android:label="Check with FMHY"
             android:theme="@style/Theme.FMHY.Translucent">
             <intent-filter>

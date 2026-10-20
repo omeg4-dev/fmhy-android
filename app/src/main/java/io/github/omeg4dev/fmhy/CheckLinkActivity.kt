@@ -1,6 +1,7 @@
 package io.github.omeg4dev.fmhy
 
 import android.content.Intent
+import androidx.compose.runtime.key
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -47,27 +48,20 @@ const val EXTRA_CHECK_LINK_INITIAL = "io.github.omeg4dev.fmhy.CHECK_LINK_INITIAL
 
 class CheckLinkActivity : ComponentActivity() {
 
+    // The activity can be brought back by a second share while it is still alive; keep the URL in
+    // state so onNewIntent shows the new link instead of the old one.
+    private var extractedUrl by mutableStateOf("")
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         val container = (application as FmhyApp).container
-        val rawText = when (intent?.action) {
-            Intent.ACTION_SEND -> {
-                intent.getStringExtra(Intent.EXTRA_TEXT)
-                    ?: intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()
-            }
-            Intent.ACTION_PROCESS_TEXT -> {
-                intent.getStringExtra(Intent.EXTRA_PROCESS_TEXT)
-                    ?: intent.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT)?.toString()
-            }
-            else -> intent?.dataString
-        } ?: ""
-
-        val extractedUrl = extractFirstUrl(rawText)
+        extractedUrl = urlFrom(intent)
 
         setContent {
             val appearance by container.settingsRepository.appearance.collectAsStateWithLifecycle(initialValue = Appearance())
             FMHYTheme(appearance) {
+                key(extractedUrl) {
                 CheckLinkBottomSheet(
                     url = extractedUrl,
                     container = container,
@@ -81,8 +75,26 @@ class CheckLinkActivity : ComponentActivity() {
                         finish()
                     }
                 )
+                }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        extractedUrl = urlFrom(intent)
+    }
+
+    private fun urlFrom(intent: Intent?): String {
+        val rawText = when (intent?.action) {
+            Intent.ACTION_SEND -> intent.getStringExtra(Intent.EXTRA_TEXT)
+                ?: intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()
+            Intent.ACTION_PROCESS_TEXT -> intent.getStringExtra(Intent.EXTRA_PROCESS_TEXT)
+                ?: intent.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT)?.toString()
+            else -> intent?.dataString
+        } ?: ""
+        return extractFirstUrl(rawText)
     }
 }
 
