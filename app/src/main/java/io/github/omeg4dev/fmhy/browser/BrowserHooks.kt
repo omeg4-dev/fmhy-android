@@ -166,7 +166,7 @@ class DefaultBrowserHooks(
             private fun processUrl(targetUrl: String) {
                 if (handled || targetUrl.isBlank() || targetUrl == "about:blank") return
                 handled = true
-                tempWebView.destroy()
+                android.os.Handler(android.os.Looper.getMainLooper()).post { try { tempWebView.destroy() } catch (_: Exception) {} }
 
                 val protectionPrefs = tabManager?.currentProtectionPrefs ?: ProtectionPrefs()
                 val decision = PopupPolicy.evaluate(
@@ -354,7 +354,7 @@ class DefaultBrowserHooks(
             executeDownload(context, url, filename, userAgent, mimeType)
         }
 
-        if (protectionPrefs.askBeforeDownload) {
+        if (protectionPrefs.askBeforeDownload || warnRisky) {
             val record = tabManager?.getActiveTabRecord()
             val currentTabUrl = record?.url.orEmpty()
             tabManager?.appScope?.launch(Dispatchers.IO) {
@@ -485,7 +485,12 @@ class DefaultBrowserHooks(
     fun onPageStarted(record: TabRecord, url: String) {
         val browserPrefs = tabManager?.currentBrowserPrefs ?: BrowserPrefs()
         val protectionPrefs = tabManager?.currentProtectionPrefs ?: ProtectionPrefs()
-        val host = try { Uri.parse(url).host } catch (_: Exception) { null } ?: return
+        val host = try { Uri.parse(url).host } catch (_: Exception) { null }
+        if (host == null) {
+            tabManager?.setSiteBarState(record.id, null)
+            tabManager?.setInterstitialState(record.id, null)
+            return
+        }
 
         tabManager?.appScope?.launch(Dispatchers.IO) {
             val sg = safeGuard ?: return@launch
@@ -494,6 +499,9 @@ class DefaultBrowserHooks(
             }
 
             withContext(Dispatchers.Main) {
+                // Drop stale results when the tab already moved on to another host.
+                val currentHost = try { Uri.parse(record.url).host } catch (_: Exception) { null }
+                if (currentHost != null && !currentHost.equals(host, ignoreCase = true)) return@withContext
                 // Interstitial check for UNSAFE / POTENTIALLY_UNSAFE
                 val isAllowed = record.allowedHosts.contains(host)
                 if (!isAllowed) {

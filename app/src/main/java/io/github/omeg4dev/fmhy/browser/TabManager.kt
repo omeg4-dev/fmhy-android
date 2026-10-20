@@ -89,10 +89,10 @@ class TabManager(
     private val appContext: Context,
     private val settingsRepository: SettingsRepository,
     val userStore: UserStore,
-    private val adblockService: AdblockService,
+    val adblockService: AdblockService,
     private val scriptletLibrary: ScriptletLibrary,
     private val browserHooks: BrowserHooks,
-    private val appScope: CoroutineScope,
+    val appScope: CoroutineScope,
 ) {
     val bridgeName = "_fmhy" + (1..8).map { ('a'..'z').random() }.joinToString("")
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -114,9 +114,6 @@ class TabManager(
         browserHooks = browserHooks,
         bridgeName = bridgeName,
     )
-
-    val adblockService: AdblockService get() = _adblockService
-    private val _adblockService = adblockService
 
     // Callbacks for UI events
     var onPickerResultCallback: ((tabId: Long, selector: String) -> Unit)? = null
@@ -141,7 +138,15 @@ class TabManager(
             settingsRepository.protectionPrefs.collect { currentProtectionPrefs = it }
         }
         appScope.launch {
-            settingsRepository.privacyPrefs.collect { currentPrivacyPrefs = it }
+            settingsRepository.privacyPrefs.collect { p ->
+                currentPrivacyPrefs = p
+                postToMain {
+                    val cm = android.webkit.CookieManager.getInstance()
+                    synchronized(records) { records.toList() }.forEach { r ->
+                        r.webView?.let { cm.setAcceptThirdPartyCookies(it, !p.blockThirdPartyCookies) }
+                    }
+                }
+            }
         }
         appScope.launch {
             settingsRepository.dataPrefs.collect { currentDataPrefs = it }
@@ -302,7 +307,7 @@ class TabManager(
             removed.mutableContext = null
 
             val remainingPrivate = records.any { it.isPrivate }
-            if (!remainingPrivate) {
+            if (removed.isPrivate && !remainingPrivate) {
                 if (androidx.webkit.WebViewFeature.isFeatureSupported(androidx.webkit.WebViewFeature.MULTI_PROFILE)) {
                     try {
                         androidx.webkit.ProfileStore.getInstance().deleteProfile("private")
@@ -334,7 +339,9 @@ class TabManager(
     }
 
     fun closeAllTabs() {
+        val hadPrivate: Boolean
         synchronized(records) {
+            hadPrivate = records.any { it.isPrivate }
             for (r in records) {
                 r.webView?.destroy()
                 r.webView = null
@@ -343,10 +350,16 @@ class TabManager(
             records.clear()
             _currentTabId.value = null
         }
-        if (androidx.webkit.WebViewFeature.isFeatureSupported(androidx.webkit.WebViewFeature.MULTI_PROFILE)) {
-            try {
-                androidx.webkit.ProfileStore.getInstance().deleteProfile("private")
-            } catch (_: Exception) {}
+        if (hadPrivate) {
+            if (androidx.webkit.WebViewFeature.isFeatureSupported(androidx.webkit.WebViewFeature.MULTI_PROFILE)) {
+                try {
+                    androidx.webkit.ProfileStore.getInstance().deleteProfile("private")
+                } catch (_: Exception) {}
+            } else {
+                // Same fallback limitation as in closeTab.
+                android.webkit.CookieManager.getInstance().removeAllCookies(null)
+                android.webkit.WebStorage.getInstance().deleteAllData()
+            }
         }
         if (currentPrivacyPrefs.clearDataOnExit) {
             clearAllBrowsingData()

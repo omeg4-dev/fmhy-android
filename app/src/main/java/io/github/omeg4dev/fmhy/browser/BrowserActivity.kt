@@ -52,6 +52,9 @@ class BrowserActivity : ComponentActivity() {
             if (container.tabManager.currentBrowserPrefs.videoAutoRotate) {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
             }
+            if (container.tabManager.currentBrowserPrefs.keepScreenOn) {
+                window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            }
             WindowInsetsControllerCompat(window, window.decorView).let { controller ->
                 controller.hide(WindowInsetsCompat.Type.systemBars())
                 controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
@@ -59,6 +62,9 @@ class BrowserActivity : ComponentActivity() {
         }
         hooks?.onHideCustomViewListener = {
             requestedOrientation = originalOrientation
+            if (container.tabManager.isVideoPlaying() != true || !container.tabManager.currentBrowserPrefs.keepScreenOn) {
+                window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            }
             WindowInsetsControllerCompat(window, window.decorView).show(WindowInsetsCompat.Type.systemBars())
         }
 

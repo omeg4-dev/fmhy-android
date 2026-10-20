@@ -13,6 +13,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
+import io.github.omeg4dev.fmhy.ui.common.BookmarksState
+import io.github.omeg4dev.fmhy.ui.common.LocalBookmarks
+import io.github.omeg4dev.fmhy.ui.common.SavedInfo
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -47,6 +56,7 @@ fun BrowserScreen(
     datasetSearchEngine: DatasetSearchEngine,
     browserHooks: BrowserHooks,
     isAppDark: Boolean,
+    isInPip: Boolean = false,
     onFinishActivity: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -83,6 +93,43 @@ fun BrowserScreen(
     val savedIds by bookmarksRepository.savedIds.collectAsStateWithLifecycle(initialValue = emptySet())
     val isSaved = currentTab?.entryId != null && savedIds.contains(currentTab.entryId)
 
+    val hooks = browserHooks as? DefaultBrowserHooks
+    val snackbarHostState = remember { SnackbarHostState() }
+    val customView = hooks?.customView
+
+    val bookmarkList by bookmarksRepository.bookmarks.collectAsStateWithLifecycle(initialValue = emptyList())
+    val folderList by bookmarksRepository.folders.collectAsStateWithLifecycle(initialValue = emptyList())
+    val bookmarksState = remember(savedIds, bookmarkList, folderList) {
+        val folderMap = folderList.associate { it.id to it.name }
+        val byId = bookmarkList.associateBy { it.entryId }
+        BookmarksState(
+            savedIds = savedIds,
+            toggle = { entry -> scope.launch { bookmarksRepository.toggle(entry, entry.headingPath) } },
+            folders = folderList,
+            savedInfo = { id ->
+                byId[id]?.let { SavedInfo(it.folderId, it.folderId?.let { f -> folderMap[f] }, it.note) }
+            },
+            setNote = { id, note -> scope.launch { bookmarksRepository.setNote(id, note) } },
+            moveToFolder = { id, folder -> scope.launch { bookmarksRepository.moveToFolder(id, folder) } },
+            createFolder = { name, onCreated -> scope.launch { onCreated(bookmarksRepository.createFolder(name)) } },
+        )
+    }
+
+    // Snackbars emitted by the shield hooks (pop-up blocked, redirect blocked, downloads...)
+    LaunchedEffect(hooks) {
+        hooks?.snackbarFlow?.collect { event ->
+            snackbarHostState.currentSnackbarData?.dismiss()
+            scope.launch {
+                val result = snackbarHostState.showSnackbar(
+                    message = event.message,
+                    actionLabel = event.actionLabel,
+                    duration = SnackbarDuration.Long,
+                )
+                if (result == SnackbarResult.ActionPerformed) event.onAction?.invoke()
+            }
+        }
+    }
+
     // Register tab manager callbacks
     LaunchedEffect(tabManager) {
         tabManager.onPickerResultCallback = { tabId, selector ->
@@ -114,6 +161,7 @@ fun BrowserScreen(
     // 4. else -> finish() (tabs stay alive)
     BackHandler(enabled = true) {
         when {
+            hooks?.customView != null -> hooks.onHideCustomView()
             isFindMode -> {
                 isFindMode = false
                 currentTab?.let { tabManager.getTabRecord(it.id)?.webView?.clearMatches() }
@@ -130,9 +178,11 @@ fun BrowserScreen(
         }
     }
 
+    CompositionLocalProvider(LocalBookmarks provides bookmarksState) {
+    Box(modifier = Modifier.fillMaxSize()) {
     Scaffold(
         topBar = {
-            Column {
+            if (!isInPip && customView == null) Column {
                 BrowserToolbar(
                     tab = currentTab,
                     tabCount = tabs.size,
@@ -215,6 +265,7 @@ fun BrowserScreen(
                 }
             }
         },
+        snackbarHost = { if (!isInPip) SnackbarHost(snackbarHostState) },
         modifier = modifier.fillMaxSize(),
     ) { innerPadding ->
         Box(
@@ -294,7 +345,86 @@ fun BrowserScreen(
                     onDismiss = { isEditMode = false },
                 )
             }
+
+            // Dead-site rescue overlay (Compose, not an HTML page)
+            val rescue = currentTab?.rescueState
+            if (rescue != null && !isBlankTab) {
+                RescueOverlay(
+                    state = rescue,
+                    onRetry = {
+                        tabManager.setRescueState(currentTab.id, null)
+                        tabManager.loadUrl(currentTab.id, rescue.failingUrl)
+                    },
+                    onOpenUrl = { url ->
+                        tabManager.setRescueState(currentTab.id, null)
+                        tabManager.loadUrl(currentTab.id, url)
+                    },
+                )
+            }
+
+            // Unsafe / potentially unsafe interstitial
+            val interstitial = currentTab?.interstitialState
+            if (interstitial != null && !isBlankTab) {
+                InterstitialOverlay(
+                    state = interstitial,
+                    onGoBack = {
+                        tabManager.setInterstitialState(currentTab.id, null)
+                        if (!tabManager.goBack(currentTab.id)) {
+                            if (tabs.size > 1) tabManager.closeTab(currentTab.id) else tabManager.loadUrl(currentTab.id, "about:blank")
+                        }
+                    },
+                    onContinue = { tabManager.allowHost(currentTab.id, interstitial.host) },
+                )
+            }
         }
+    }
+
+    // Full-screen video (WebChromeClient custom view)
+    if (customView != null) {
+        androidx.compose.ui.viewinterop.AndroidView(
+            factory = {
+                (customView.parent as? ViewGroup)?.removeView(customView)
+                customView
+            },
+            modifier = Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black),
+        )
+    }
+    }
+    }
+
+    // Download confirmation
+    val pendingDownload = hooks?.pendingDownloadDialog
+    if (pendingDownload != null && hooks != null) {
+        DownloadDialog(
+            state = pendingDownload,
+            onConfirm = {
+                hooks.pendingDownloadDialog = null
+                hooks.executeDownload(context, pendingDownload.url, pendingDownload.filename, pendingDownload.userAgent, pendingDownload.mimeType)
+            },
+            onCancel = { hooks.pendingDownloadDialog = null },
+        )
+    }
+
+    // "Open in another app?" from the redirect/app-link guard
+    val appDialog = hooks?.pendingExternalAppDialog
+    if (appDialog != null && hooks != null) {
+        AlertDialog(
+            onDismissRequest = { hooks.pendingExternalAppDialog = null },
+            title = { Text("Open in another app?") },
+            text = { Text("Do you want to open this link in ${appDialog.appName}?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    hooks.pendingExternalAppDialog = null
+                    try {
+                        appDialog.intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        context.startActivity(appDialog.intent)
+                    } catch (_: Exception) {
+                        appDialog.fallbackUrl?.let { u -> currentTab?.let { tabManager.loadUrl(it.id, u) } }
+                    }
+                }) { Text("Open") }
+            },
+            dismissButton = { TextButton(onClick = { hooks.pendingExternalAppDialog = null }) { Text("Cancel") } },
+        )
     }
 
     // Shield Sheet

@@ -88,18 +88,20 @@ class BrowserWebViewFactory(
             WebSettingsCompat.setSafeBrowsingEnabled(settings, safeBrowsing)
         }
 
-        // Third-party cookies
-        android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(webView, !tabManager.currentPrivacyPrefs.blockThirdPartyCookies)
-
-        // Multi-profile private tabs
-        if (record.isPrivate) {
-            if (WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) {
-                try {
-                    androidx.webkit.ProfileStore.getInstance().getOrCreateProfile("private")
-                    WebViewCompat.setProfile(webView, "private")
-                } catch (_: Exception) {}
-            }
+        // Multi-profile private tabs. Without MULTI_PROFILE support private tabs share the default
+        // profile (cookies/storage); TabManager then wipes cookies and WebStorage when the last
+        // private tab closes. This is a documented limitation.
+        var cookieManager = android.webkit.CookieManager.getInstance()
+        if (record.isPrivate && WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) {
+            try {
+                val profile = androidx.webkit.ProfileStore.getInstance().getOrCreateProfile("private")
+                WebViewCompat.setProfile(webView, "private")
+                cookieManager = profile.cookieManager
+            } catch (_: Exception) {}
         }
+
+        // Third-party cookies
+        cookieManager.setAcceptThirdPartyCookies(webView, !tabManager.currentPrivacyPrefs.blockThirdPartyCookies)
 
         // Register JS bridge
         val bridge = BrowserJsBridge(
@@ -168,12 +170,6 @@ class BrowserWebViewFactory(
                 }
             }
 
-            @Suppress("DEPRECATION")
-            override fun onReceivedError(view: WebView, errorCode: Int, description: String, failingUrl: String) {
-                super.onReceivedError(view, errorCode, description, failingUrl)
-                browserHooks.onMainFrameError(record.toState(), errorCode, description, failingUrl)
-            }
-
             override fun onReceivedHttpError(view: WebView, request: WebResourceRequest, errorResponse: WebResourceResponse) {
                 super.onReceivedHttpError(view, request, errorResponse)
                 if (request.isForMainFrame) {
@@ -234,8 +230,6 @@ class BrowserWebViewFactory(
     ) {
         val settings = webView.settings
         val defaultUa = settings.userAgentString
-
-        android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(webView, !tabManager.currentPrivacyPrefs.blockThirdPartyCookies)
 
         val jsAllowed = record.sitePrefs?.javascript ?: browserPrefs.javascript
         settings.javaScriptEnabled = jsAllowed
