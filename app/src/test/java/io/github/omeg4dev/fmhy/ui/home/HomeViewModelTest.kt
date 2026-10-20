@@ -97,6 +97,7 @@ class HomeViewModelTest {
         override val context: Context get() = error("Not needed")
         override val appScope: CoroutineScope get() = CoroutineScope(Dispatchers.Unconfined)
         override val okHttpClient: OkHttpClient get() = error("Not needed")
+        override val userStore: io.github.omeg4dev.fmhy.data.user.UserStore get() = error("Not needed")
         override val fmhySync: FmhySync get() = error("Not needed")
         override val searchEngine: SearchEngine get() = SearchEngine(datasetStore)
         override val bookmarks: io.github.omeg4dev.fmhy.data.BookmarksRepository get() = error("Not needed")
