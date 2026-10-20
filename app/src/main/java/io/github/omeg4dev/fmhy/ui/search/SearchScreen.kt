@@ -91,6 +91,7 @@ import io.github.omeg4dev.fmhy.ui.common.EmptyState
 import io.github.omeg4dev.fmhy.ui.common.EntryRow
 import io.github.omeg4dev.fmhy.ui.common.LocalSnackbarHost
 import io.github.omeg4dev.fmhy.ui.common.SkeletonRows
+import io.github.omeg4dev.fmhy.ui.common.SwipeToSave
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
 import io.github.omeg4dev.fmhy.ui.common.enterStagger
 import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
@@ -490,25 +491,27 @@ fun SearchScreen(
                                                 )
                                             }
 
-                                            EntryRow(
-                                                entry = hit.entry,
-                                                nameHl = hit.nameHl,
-                                                descHl = hit.descriptionHl,
-                                                isNew = hit.entry.id in state.newEntryIds,
-                                                onShowInSection = {
-                                                    scope.launch {
-                                                        val anchor = try {
-                                                            hit.entry.headingId?.let { hid ->
-                                                                container.datasetStore.headings(hit.entry.sectionId).firstOrNull { it.id == hid }?.anchor
-                                                            }
-                                                        } catch (_: Exception) { null }
-                                                        nav.select(Tab.BROWSE)
-                                                        nav.push(SectionNavKey(hit.entry.sectionId, anchor = anchor, focusEntryId = hit.entry.id))
-                                                    }
-                                                },
-                                                onOpenUrl = { linkOpener.openUrl(it) },
-                                                onShowSnackbar = onShowSnackbar,
-                                            )
+                                            SwipeToSave(entry = hit.entry) {
+                                                EntryRow(
+                                                    entry = hit.entry,
+                                                    nameHl = hit.nameHl,
+                                                    descHl = hit.descriptionHl,
+                                                    isNew = hit.entry.id in state.newEntryIds,
+                                                    onShowInSection = {
+                                                        scope.launch {
+                                                            val anchor = try {
+                                                                hit.entry.headingId?.let { hid ->
+                                                                    container.datasetStore.headings(hit.entry.sectionId).firstOrNull { it.id == hid }?.anchor
+                                                                }
+                                                            } catch (_: Exception) { null }
+                                                            nav.select(Tab.BROWSE)
+                                                            nav.push(SectionNavKey(hit.entry.sectionId, anchor = anchor, focusEntryId = hit.entry.id))
+                                                        }
+                                                    },
+                                                    onOpenUrl = { linkOpener.openUrl(it) },
+                                                    onShowSnackbar = onShowSnackbar,
+                                                )
+                                            }
 
                                             HorizontalDivider(
                                                 modifier = Modifier.padding(start = 16.dp),

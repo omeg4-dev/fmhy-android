@@ -91,6 +91,7 @@ import io.github.omeg4dev.fmhy.ui.common.EntryDetailBottomSheet
 import io.github.omeg4dev.fmhy.ui.common.EntryRow
 import io.github.omeg4dev.fmhy.ui.common.LocalPasteResolver
 import io.github.omeg4dev.fmhy.ui.common.SkeletonRows
+import io.github.omeg4dev.fmhy.ui.common.SwipeToSave
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
 import io.github.omeg4dev.fmhy.ui.common.enterStagger
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
@@ -1270,11 +1271,13 @@ private fun ReplacementsBottomSheet(
                 } else {
                     LazyColumn(modifier = Modifier.fillMaxWidth()) {
                         items(list, key = { it.id }) { entry ->
-                            EntryRow(
-                                entry = entry,
-                                onOpenUrl = onOpenUrl,
-                                onShowSnackbar = onShowSnackbar,
-                            )
+                            SwipeToSave(entry = entry) {
+                                EntryRow(
+                                    entry = entry,
+                                    onOpenUrl = onOpenUrl,
+                                    onShowSnackbar = onShowSnackbar,
+                                )
+                            }
                             HorizontalDivider(
                                 modifier = Modifier.padding(start = 16.dp),
                                 thickness = 0.5.dp,
