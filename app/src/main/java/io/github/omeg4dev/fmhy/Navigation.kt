@@ -84,6 +84,7 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
 import io.github.omeg4dev.fmhy.nav.AppNavState
 import io.github.omeg4dev.fmhy.nav.LocalAppNav
+import io.github.omeg4dev.fmhy.nav.LocalAppNavOrNull
 import io.github.omeg4dev.fmhy.nav.LocalBottomBarPadding
 import io.github.omeg4dev.fmhy.nav.Tab
 import io.github.omeg4dev.fmhy.ui.common.BookmarksState
@@ -173,7 +174,7 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
     val scope = rememberCoroutineScope()
     val linkOpener = rememberLinkOpener(container, onShowSnackbar = { msg ->
         scope.launch { snackbarHostState.showSnackbar(msg) }
-    })
+    }, nav = nav)
 
     if (intentFlow != null) {
         LaunchedEffect(intentFlow) {
@@ -773,6 +774,7 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
 
     CompositionLocalProvider(
         LocalAppNav provides nav,
+        LocalAppNavOrNull provides nav,
         LocalBottomBarPadding provides bottomBarPadding,
         LocalBottomBarController provides bottomBarController,
         LocalCrossLinks provides crossLinks,

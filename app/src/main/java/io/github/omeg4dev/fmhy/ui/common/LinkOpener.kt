@@ -34,7 +34,9 @@ import io.github.omeg4dev.fmhy.data.link.PasteLinks
 import io.github.omeg4dev.fmhy.data.link.PasteResolver
 import io.github.omeg4dev.fmhy.data.user.UserStore
 import io.github.omeg4dev.fmhy.di.AppContainer
-import io.github.omeg4dev.fmhy.nav.LocalAppNav
+import io.github.omeg4dev.fmhy.MainActivity
+import io.github.omeg4dev.fmhy.nav.AppNavState
+import io.github.omeg4dev.fmhy.nav.LocalAppNavOrNull
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
@@ -285,10 +287,10 @@ fun pasteResolverFor(container: AppContainer): PasteResolver =
 fun rememberLinkOpener(
     container: AppContainer,
     onShowSnackbar: (String) -> Unit,
+    nav: AppNavState? = LocalAppNavOrNull.current,
 ): LinkOpener {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val nav = LocalAppNav.current
     return remember(container, onShowSnackbar, nav) {
         LinkOpener(
             context = context,
@@ -298,7 +300,14 @@ fun rememberLinkOpener(
             onShowSnackbar = onShowSnackbar,
             crossLinks = container.crossLinks,
             onOpenInternal = { target ->
-                nav.push(SectionNavKey(target.sectionId, anchor = target.headingId))
+                if (nav != null) {
+                    nav.push(SectionNavKey(target.sectionId, anchor = target.headingId))
+                } else {
+                    // Outside the main navigation: bring up the app instead.
+                    context.startActivity(
+                        Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    )
+                }
             },
             pasteResolver = pasteResolverFor(container),
             userStore = container.userStore,
