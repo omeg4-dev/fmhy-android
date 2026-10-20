@@ -1,21 +1,24 @@
 package io.github.omeg4dev.fmhy.ui.onboarding
 
 import android.os.Build
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -27,15 +30,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Shield
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -44,11 +44,16 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -56,15 +61,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import io.github.omeg4dev.fmhy.data.ColorSource
 import io.github.omeg4dev.fmhy.data.OpenLinksWith
-import io.github.omeg4dev.fmhy.data.SectionLayout
 import io.github.omeg4dev.fmhy.data.ThemeMode
 import io.github.omeg4dev.fmhy.data.model.Entry
+import io.github.omeg4dev.fmhy.data.model.Section
 import io.github.omeg4dev.fmhy.data.model.Tier
 import io.github.omeg4dev.fmhy.theme.seedColorScheme
 import io.github.omeg4dev.fmhy.ui.common.BookmarksState
 import io.github.omeg4dev.fmhy.ui.common.EntryRow
 import io.github.omeg4dev.fmhy.ui.common.LocalBookmarks
 import io.github.omeg4dev.fmhy.ui.common.LocalHapticsEnabled
+import io.github.omeg4dev.fmhy.ui.common.Motion
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
 @Composable
 fun LookPreview(
@@ -81,13 +90,36 @@ fun LookPreview(
         ThemeMode.DARK -> true
     }
 
-    val previewColorScheme = remember(themeMode, colorSource, accentSeed, isDark) {
+    val baseColorScheme = remember(themeMode, colorSource, accentSeed, isDark) {
         if (colorSource == ColorSource.MATERIAL_YOU && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             if (isDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         } else {
             seedColorScheme(accentSeed, isDark)
         }
     }
+
+    // Animate color changes so tapping swatches smoothly transitions colors
+    val animatedPrimary by animateColorAsState(baseColorScheme.primary, Motion.standard(Motion.MEDIUM), label = "primary")
+    val animatedPrimaryContainer by animateColorAsState(baseColorScheme.primaryContainer, Motion.standard(Motion.MEDIUM), label = "primaryContainer")
+    val animatedOnPrimaryContainer by animateColorAsState(baseColorScheme.onPrimaryContainer, Motion.standard(Motion.MEDIUM), label = "onPrimaryContainer")
+    val animatedSurface by animateColorAsState(baseColorScheme.surface, Motion.standard(Motion.MEDIUM), label = "surface")
+    val animatedSurfaceContainerLow by animateColorAsState(baseColorScheme.surfaceContainerLow, Motion.standard(Motion.MEDIUM), label = "surfaceContainerLow")
+    val animatedSurfaceContainerLowest by animateColorAsState(baseColorScheme.surfaceContainerLowest, Motion.standard(Motion.MEDIUM), label = "surfaceContainerLowest")
+    val animatedOnSurface by animateColorAsState(baseColorScheme.onSurface, Motion.standard(Motion.MEDIUM), label = "onSurface")
+    val animatedOnSurfaceVariant by animateColorAsState(baseColorScheme.onSurfaceVariant, Motion.standard(Motion.MEDIUM), label = "onSurfaceVariant")
+    val animatedOutlineVariant by animateColorAsState(baseColorScheme.outlineVariant, Motion.standard(Motion.MEDIUM), label = "outlineVariant")
+
+    val animatedColorScheme = baseColorScheme.copy(
+        primary = animatedPrimary,
+        primaryContainer = animatedPrimaryContainer,
+        onPrimaryContainer = animatedOnPrimaryContainer,
+        surface = animatedSurface,
+        surfaceContainerLow = animatedSurfaceContainerLow,
+        surfaceContainerLowest = animatedSurfaceContainerLowest,
+        onSurface = animatedOnSurface,
+        onSurfaceVariant = animatedOnSurfaceVariant,
+        outlineVariant = animatedOutlineVariant,
+    )
 
     val sampleEntry = remember {
         Entry(
@@ -125,7 +157,7 @@ fun LookPreview(
         )
     }
 
-    MaterialTheme(colorScheme = previewColorScheme) {
+    MaterialTheme(colorScheme = animatedColorScheme) {
         Surface(
             modifier = modifier
                 .fillMaxWidth()
@@ -222,8 +254,9 @@ fun LookPreview(
 }
 
 @Composable
-fun LinksPreview(
+fun BrowsingPreview(
     openLinksWith: OpenLinksWith,
+    adblockLevel: AdblockLevel,
     modifier: Modifier = Modifier,
 ) {
     Surface(
@@ -241,199 +274,13 @@ fun LinksPreview(
         ) {
             when (openLinksWith) {
                 OpenLinksWith.IN_APP -> {
-                    // Browser toolbar mock
-                    Surface(
-                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 10.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            // Shield with "12" badge
-                            Box(contentAlignment = Alignment.TopEnd) {
-                                Icon(
-                                    Icons.Default.Shield,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(24.dp),
-                                )
-                                Surface(
-                                    color = MaterialTheme.colorScheme.primary,
-                                    shape = CircleShape,
-                                    modifier = Modifier.size(14.dp),
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Text(
-                                            text = "12",
-                                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                            color = MaterialTheme.colorScheme.onPrimary,
-                                        )
-                                    }
-                                }
-                            }
-                            Spacer(modifier = Modifier.width(10.dp))
-                            // Address pill
-                            Surface(
-                                color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                                shape = CircleShape,
-                                modifier = Modifier.weight(1f),
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Icon(
-                                        Icons.Default.Lock,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(13.dp),
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "streamsite.example",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                    )
-                                }
-                            }
-                            Spacer(modifier = Modifier.width(10.dp))
-                            // Tabs "2"
-                            Surface(
-                                shape = RoundedCornerShape(4.dp),
-                                border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.onSurface),
-                                modifier = Modifier.size(20.dp),
-                                color = Color.Transparent,
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Text(
-                                        text = "2",
-                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(6.dp))
-                    // FMHY site bar
-                    Surface(
-                        color = MaterialTheme.colorScheme.secondaryContainer,
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                text = "★ Starred on FMHY · Video › Streaming",
-                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(10.dp))
-                    // Mock content lines
-                    MockPageContent()
+                    InAppBrowsingMock(adblockLevel = adblockLevel)
                 }
-
                 OpenLinksWith.CUSTOM_TAB -> {
-                    // Chrome-like custom tab bar
-                    Surface(
-                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 10.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Icon(
-                                Icons.Default.Close,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                                tint = MaterialTheme.colorScheme.onSurface,
-                            )
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Surface(
-                                color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                                shape = CircleShape,
-                                modifier = Modifier.weight(1f),
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Icon(
-                                        Icons.Default.Lock,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(13.dp),
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "streamsite.example",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                    )
-                                }
-                            }
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Icon(
-                                Icons.Default.MoreVert,
-                                contentDescription = null,
-                                modifier = Modifier.size(20.dp),
-                                tint = MaterialTheme.colorScheme.onSurface,
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-                    MockPageContent()
+                    CustomTabMock()
                 }
-
                 OpenLinksWith.EXTERNAL -> {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        Surface(
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                            shape = CircleShape,
-                            modifier = Modifier.size(56.dp),
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    Icons.AutoMirrored.Filled.OpenInNew,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    modifier = Modifier.size(28.dp),
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = "Opens in your browser app",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Tapping links will open your default browser app (Firefox, Brave, Chrome).",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+                    ExternalBrowserMock()
                 }
             }
         }
@@ -441,293 +288,273 @@ fun LinksPreview(
 }
 
 @Composable
-fun ProtectionPreview(
-    adblockLevel: AdblockLevel,
-    blockPopupsAndRedirects: Boolean,
-    modifier: Modifier = Modifier,
-) {
-    val showAds = adblockLevel == AdblockLevel.OFF
-    val showPopup = !blockPopupsAndRedirects
+private fun InAppBrowsingMock(adblockLevel: AdblockLevel) {
+    var blockedCount by remember { mutableIntStateOf(0) }
+    val ad1Scale = remember { Animatable(1f) }
+    val ad1Alpha = remember { Animatable(1f) }
+    val ad2Scale = remember { Animatable(1f) }
+    val ad2Alpha = remember { Animatable(1f) }
+    val ad3Scale = remember { Animatable(1f) }
+    val ad3Alpha = remember { Animatable(1f) }
 
+    LaunchedEffect(adblockLevel) {
+        if (adblockLevel == AdblockLevel.OFF) {
+            ad1Scale.snapTo(1f)
+            ad1Alpha.snapTo(1f)
+            ad2Scale.snapTo(1f)
+            ad2Alpha.snapTo(1f)
+            ad3Scale.snapTo(1f)
+            ad3Alpha.snapTo(1f)
+            blockedCount = 0
+            return@LaunchedEffect
+        }
+        while (isActive) {
+            // Reset to visible at start of 3s cycle
+            ad1Scale.snapTo(1f)
+            ad1Alpha.snapTo(1f)
+            ad2Scale.snapTo(1f)
+            ad2Alpha.snapTo(1f)
+            ad3Scale.snapTo(1f)
+            ad3Alpha.snapTo(1f)
+            blockedCount = 0
+
+            delay(350L)
+
+            // Ad 1 pops out (scale 1->0, fade out)
+            launch {
+                ad1Scale.animateTo(0f, Motion.exit(Motion.SHORT))
+            }
+            launch {
+                ad1Alpha.animateTo(0f, Motion.exit(Motion.SHORT))
+            }
+            blockedCount = 1
+
+            delay(250L) // 250 ms apart
+
+            // Ad 2 pops out
+            launch {
+                ad2Scale.animateTo(0f, Motion.exit(Motion.SHORT))
+            }
+            launch {
+                ad2Alpha.animateTo(0f, Motion.exit(Motion.SHORT))
+            }
+            blockedCount = 2
+
+            delay(250L) // 250 ms apart
+
+            // Ad 3 pops out
+            launch {
+                ad3Scale.animateTo(0f, Motion.exit(Motion.SHORT))
+            }
+            launch {
+                ad3Alpha.animateTo(0f, Motion.exit(Motion.SHORT))
+            }
+            blockedCount = 3
+
+            // Wait remainder of 3-second cycle (3000 - 350 - 250 - 250 = 2150 ms)
+            delay(2150L)
+        }
+    }
+
+    // Browser toolbar mock
     Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .semantics { contentDescription = "Mock web page preview showing ad blocking and popup protection" },
-        color = MaterialTheme.colorScheme.surfaceContainerLowest,
-        shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        shape = RoundedCornerShape(10.dp),
+        modifier = Modifier.fillMaxWidth(),
     ) {
-        Box(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(14.dp),
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                // Banner Ad
-                AnimatedVisibility(
-                    visible = showAds,
-                    enter = expandVertically() + fadeIn(),
-                    exit = shrinkVertically() + fadeOut(),
+            // Shield badge counter with animated slide-up numbers
+            Surface(
+                color = if (adblockLevel == AdblockLevel.OFF) {
+                    MaterialTheme.colorScheme.surfaceContainerHighest
+                } else {
+                    MaterialTheme.colorScheme.primaryContainer
+                },
+                shape = CircleShape,
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.4f)),
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 8.dp),
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                        ) {
-                            Text(
-                                text = "Banner Advertisement",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onErrorContainer,
-                            )
-                            Surface(
-                                color = MaterialTheme.colorScheme.error,
-                                shape = RoundedCornerShape(4.dp),
-                            ) {
-                                Text(
-                                    text = "Ad",
-                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                    color = MaterialTheme.colorScheme.onError,
-                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // Regular article content
-                MockPageContent()
-
-                // Sidebar / inline ad
-                AnimatedVisibility(
-                    visible = showAds,
-                    enter = expandVertically() + fadeIn(),
-                    exit = shrinkVertically() + fadeOut(),
-                ) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.4f)),
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 8.dp),
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                        ) {
-                            Text(
-                                text = "Trackers & Sponsored Links",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onErrorContainer,
-                            )
-                            Surface(
-                                color = MaterialTheme.colorScheme.error,
-                                shape = RoundedCornerShape(4.dp),
-                            ) {
-                                Text(
-                                    text = "Ad",
-                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                    color = MaterialTheme.colorScheme.onError,
-                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
-                                )
-                            }
-                        }
+                    Icon(
+                        Icons.Default.Shield,
+                        contentDescription = null,
+                        tint = if (adblockLevel == AdblockLevel.OFF) {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        } else {
+                            MaterialTheme.colorScheme.primary
+                        },
+                        modifier = Modifier.size(16.dp),
+                    )
+                    AnimatedContent(
+                        targetState = if (adblockLevel == AdblockLevel.OFF) "Off" else "$blockedCount blocked",
+                        transitionSpec = {
+                            (slideInVertically(Motion.standard(Motion.SHORT)) { it } + fadeIn(Motion.standard(Motion.SHORT)))
+                                .togetherWith(slideOutVertically(Motion.standard(Motion.SHORT)) { -it } + fadeOut(Motion.standard(Motion.SHORT)))
+                        },
+                        label = "shield_badge_counter",
+                    ) { counterText ->
+                        Text(
+                            text = counterText,
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            color = if (adblockLevel == AdblockLevel.OFF) {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            } else {
+                                MaterialTheme.colorScheme.onPrimaryContainer
+                            },
+                        )
                     }
                 }
             }
 
-            // Modal popup overlay
-            AnimatedVisibility(
-                visible = showPopup,
-                enter = fadeIn() + expandVertically(),
-                exit = fadeOut() + shrinkVertically(),
-                modifier = Modifier.align(Alignment.Center),
+            Spacer(modifier = Modifier.width(8.dp))
+
+            // Address pill
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                shape = CircleShape,
+                modifier = Modifier.weight(1f),
             ) {
-                Surface(
-                    color = MaterialTheme.colorScheme.inverseSurface,
-                    shape = RoundedCornerShape(12.dp),
-                    shadowElevation = 8.dp,
-                    modifier = Modifier.padding(16.dp),
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Column(
-                        modifier = Modifier.padding(12.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        Text(
-                            text = "Pop-up: Free Download!",
-                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.inverseOnSurface,
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Click to win prize (unwanted redirect)",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.8f),
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun ListsPreview(
-    starredOnly: Boolean,
-    newBadgeDays: Int,
-    sectionLayout: SectionLayout,
-    modifier: Modifier = Modifier,
-) {
-    Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .semantics { contentDescription = "Lists preview showing NEW badges, starred filter, and layout" },
-        color = MaterialTheme.colorScheme.surfaceContainerLowest,
-        shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-    ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            // Layout header sketch
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (sectionLayout == SectionLayout.CATEGORIES) {
-                        Icon(
-                            Icons.Default.Folder,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(16.dp),
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "Category: Streaming",
-                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                    } else {
-                        Text(
-                            text = "Streaming Sites",
-                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                    }
-                }
-                Text(
-                    text = if (sectionLayout == SectionLayout.CONTINUOUS) "Continuous" else "Categories",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-
-            // Sample Row 1: Starred entry (always shown)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    Icons.Default.Star,
-                    contentDescription = null,
-                    tint = Color(0xFFFFB300),
-                    modifier = Modifier.size(18.dp),
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = "StreamMaster",
-                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        if (newBadgeDays > 0) {
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Surface(
-                                color = MaterialTheme.colorScheme.tertiaryContainer,
-                                shape = CircleShape,
-                            ) {
-                                Text(
-                                    text = "NEW",
-                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                    color = MaterialTheme.colorScheme.onTertiaryContainer,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
-                                )
-                            }
-                        }
-                    }
+                    Icon(
+                        Icons.Default.Lock,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(13.dp),
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "Ad-free 1080p movies and series",
+                        text = "streamsite.example",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = MaterialTheme.colorScheme.onSurface,
                     )
                 }
             }
 
-            // Sample Row 2: Non-starred entry (hidden if starredOnly is true)
-            AnimatedVisibility(visible = !starredOnly) {
-                Column {
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Spacer(modifier = Modifier.width(26.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "MovieVault",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface,
-                            )
-                            Text(
-                                text = "Public domain classic movies archive",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
+            Spacer(modifier = Modifier.width(8.dp))
+
+            // Tabs "2"
+            Surface(
+                shape = RoundedCornerShape(4.dp),
+                border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.onSurface),
+                modifier = Modifier.size(20.dp),
+                color = Color.Transparent,
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(
+                        text = "2",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
                 }
             }
+        }
+    }
 
-            // Sample Row 3: Non-starred entry (hidden if starredOnly is true)
-            AnimatedVisibility(visible = !starredOnly) {
-                Column {
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Spacer(modifier = Modifier.width(26.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "FastCinema",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface,
-                            )
-                            Text(
-                                text = "Community-curated film catalog",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
+    Spacer(modifier = Modifier.height(6.dp))
+
+    // FMHY site bar
+    Surface(
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        shape = RoundedCornerShape(8.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "★ Starred on FMHY · Video › Streaming",
+                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+            )
+        }
+    }
+
+    Spacer(modifier = Modifier.height(8.dp))
+
+    // Mock page with 3 animated ad blocks popping out
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        // Ad 1: Top Banner Ad
+        MockAdBlock(
+            label = "Banner Advertisement",
+            scale = ad1Scale.value,
+            alpha = ad1Alpha.value,
+        )
+
+        // Mock article content
+        MockPageContent()
+
+        // Ad 2: In-page sponsored box
+        MockAdBlock(
+            label = "Sponsored Ad",
+            scale = ad2Scale.value,
+            alpha = ad2Alpha.value,
+        )
+
+        MockPageContent()
+
+        // Ad 3: Tracker / overlay ad
+        MockAdBlock(
+            label = "Pop-up / Tracker Ad",
+            scale = ad3Scale.value,
+            alpha = ad3Alpha.value,
+        )
+    }
+}
+
+@Composable
+private fun MockAdBlock(
+    label: String,
+    scale: Float,
+    alpha: Float,
+    modifier: Modifier = Modifier,
+) {
+    if (scale > 0.01f && alpha > 0.01f) {
+        Surface(
+            color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.4f)),
+            shape = RoundedCornerShape(8.dp),
+            modifier = modifier
+                .fillMaxWidth()
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                    this.alpha = alpha
+                },
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                )
+                Surface(
+                    color = MaterialTheme.colorScheme.error,
+                    shape = RoundedCornerShape(4.dp),
+                ) {
+                    Text(
+                        text = "Ad",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onError,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                    )
                 }
             }
         }
@@ -735,7 +562,118 @@ fun ListsPreview(
 }
 
 @Composable
-fun StayUpdatedPreview(modifier: Modifier = Modifier) {
+private fun CustomTabMock() {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        shape = RoundedCornerShape(10.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                Icons.Default.Close,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.onSurface,
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                shape = CircleShape,
+                modifier = Modifier.weight(1f),
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Default.Lock,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(13.dp),
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "streamsite.example",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.width(10.dp))
+            Icon(
+                Icons.Default.MoreVert,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+                tint = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+    }
+
+    Spacer(modifier = Modifier.height(12.dp))
+    MockPageContent()
+}
+
+@Composable
+private fun ExternalBrowserMock() {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Surface(
+            color = MaterialTheme.colorScheme.primaryContainer,
+            shape = CircleShape,
+            modifier = Modifier.size(56.dp),
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    Icons.AutoMirrored.Filled.OpenInNew,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.size(28.dp),
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            text = "Opens in your browser app",
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = "Tapping links will open your default browser app (Firefox, Brave, Chrome).",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+fun StayUpdatedPreview(
+    followedSections: Set<String> = emptySet(),
+    sections: List<Section> = emptyList(),
+    modifier: Modifier = Modifier,
+) {
+    val bounce = remember { Animatable(1f) }
+
+    LaunchedEffect(followedSections) {
+        bounce.snapTo(1f)
+        bounce.animateTo(1.04f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+        bounce.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+    }
+
+    val firstFollowedTitle = remember(followedSections, sections) {
+        if (followedSections.isEmpty()) null
+        else sections.firstOrNull { it.id in followedSections }?.title ?: followedSections.first()
+    }
+
     Surface(
         modifier = modifier
             .fillMaxWidth()
@@ -749,11 +687,16 @@ fun StayUpdatedPreview(modifier: Modifier = Modifier) {
                 .fillMaxWidth()
                 .padding(14.dp),
         ) {
-            // Notification card
+            // Notification card with bounce on change
             Card(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
                 shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .graphicsLayer {
+                        scaleX = bounce.value
+                        scaleY = bounce.value
+                    },
             ) {
                 Row(
                     modifier = Modifier
@@ -795,13 +738,21 @@ fun StayUpdatedPreview(modifier: Modifier = Modifier) {
                         }
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "3 new sites in Video › Streaming",
+                            text = if (firstFollowedTitle != null) {
+                                "3 new sites in $firstFollowedTitle"
+                            } else {
+                                "Follow a section to get updates"
+                            },
                             style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
                             color = MaterialTheme.colorScheme.onSurface,
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "Fresh movie and anime streaming services added to community lists.",
+                            text = if (firstFollowedTitle != null) {
+                                "Fresh sites and resources added to community lists."
+                            } else {
+                                "Choose categories below to receive notifications when new sites are added."
+                            },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

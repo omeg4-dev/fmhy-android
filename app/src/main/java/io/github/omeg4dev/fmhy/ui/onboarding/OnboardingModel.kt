@@ -9,9 +9,7 @@ import io.github.omeg4dev.fmhy.data.ColorSource
 import io.github.omeg4dev.fmhy.data.HomePrefs
 import io.github.omeg4dev.fmhy.data.NotificationPrefs
 import io.github.omeg4dev.fmhy.data.OpenLinksWith
-import io.github.omeg4dev.fmhy.data.PrivacyPrefs
 import io.github.omeg4dev.fmhy.data.ProtectionPrefs
-import io.github.omeg4dev.fmhy.data.SectionLayout
 import io.github.omeg4dev.fmhy.data.SettingsRepository
 import io.github.omeg4dev.fmhy.data.ThemeMode
 import io.github.omeg4dev.fmhy.data.adblock.FilterListCatalog
@@ -27,12 +25,9 @@ import kotlinx.coroutines.launch
 const val ONBOARDING_VERSION = 1
 
 enum class OnboardingPage {
-    WELCOME,
-    LOOK,
-    LINKS,
-    PROTECTION,
-    LISTS,
-    STAY_UPDATED,
+    HELLO,
+    BROWSING,
+    FOLLOW,
     DONE,
 }
 
@@ -60,10 +55,6 @@ data class OnboardingState(
     val openLinksWith: OpenLinksWith = OpenLinksWith.IN_APP,
     val adblockLevel: AdblockLevel = AdblockLevel.BALANCED,
     val blockPopupsAndRedirects: Boolean = true,
-    val hideCookieBanners: Boolean = false,
-    val starredOnly: Boolean = false,
-    val newBadgeDays: Int = 7,
-    val sectionLayout: SectionLayout = SectionLayout.CONTINUOUS,
     val followedSections: Set<String> = emptySet(),
     val notifyChanges: Boolean = false,
     val personalHome: Boolean = false,
@@ -76,7 +67,6 @@ data class OnboardingState(
             browserPrefs: BrowserPrefs,
             blockingPrefs: BlockingPrefs,
             protectionPrefs: ProtectionPrefs,
-            privacyPrefs: PrivacyPrefs,
             homePrefs: HomePrefs,
             notificationPrefs: NotificationPrefs,
             follows: Set<String> = emptySet(),
@@ -88,10 +78,6 @@ data class OnboardingState(
                 openLinksWith = browserPrefs.openLinksWith,
                 adblockLevel = AdblockLevel.fromBlockingPrefs(blockingPrefs),
                 blockPopupsAndRedirects = protectionPrefs.popupBlocker && protectionPrefs.redirectGuard,
-                hideCookieBanners = privacyPrefs.hideCookieBanners,
-                starredOnly = appearance.starredOnly,
-                newBadgeDays = homePrefs.newBadgeDays,
-                sectionLayout = appearance.sectionLayout,
                 followedSections = follows,
                 notifyChanges = notificationPrefs.enabled,
                 personalHome = homePrefs.personalHome,
@@ -111,6 +97,9 @@ class OnboardingModel(
     private val _state = MutableStateFlow(initialState ?: OnboardingState())
     val state: StateFlow<OnboardingState> = _state.asStateFlow()
 
+    private val _visitedPages = mutableSetOf(OnboardingPage.HELLO)
+    val visitedPages: Set<OnboardingPage> get() = _visitedPages
+
     init {
         if (initialState == null) {
             viewModelScope.launch {
@@ -124,7 +113,6 @@ class OnboardingModel(
         val browserPrefs = settingsRepository.browserPrefs.first()
         val blockingPrefs = settingsRepository.blockingPrefs.first()
         val protectionPrefs = settingsRepository.protectionPrefs.first()
-        val privacyPrefs = settingsRepository.privacyPrefs.first()
         val homePrefs = settingsRepository.homePrefs.first()
         val notificationPrefs = settingsRepository.notificationPrefs.first()
         val follows = try {
@@ -138,7 +126,6 @@ class OnboardingModel(
             browserPrefs = browserPrefs,
             blockingPrefs = blockingPrefs,
             protectionPrefs = protectionPrefs,
-            privacyPrefs = privacyPrefs,
             homePrefs = homePrefs,
             notificationPrefs = notificationPrefs,
             follows = follows,
@@ -146,11 +133,11 @@ class OnboardingModel(
     }
 
     val visiblePages: List<OnboardingPage>
-        get() = if (_state.value.openLinksWith == OpenLinksWith.IN_APP) {
-            OnboardingPage.entries
-        } else {
-            OnboardingPage.entries.filter { it != OnboardingPage.PROTECTION }
-        }
+        get() = OnboardingPage.entries
+
+    fun markPageVisited(page: OnboardingPage) {
+        _visitedPages.add(page)
+    }
 
     fun nextPage(from: OnboardingPage): OnboardingPage? {
         val pages = visiblePages
@@ -190,22 +177,6 @@ class OnboardingModel(
         _state.update { it.copy(blockPopupsAndRedirects = block) }
     }
 
-    fun setHideCookieBanners(hide: Boolean) {
-        _state.update { it.copy(hideCookieBanners = hide) }
-    }
-
-    fun setStarredOnly(starredOnly: Boolean) {
-        _state.update { it.copy(starredOnly = starredOnly) }
-    }
-
-    fun setNewBadgeDays(days: Int) {
-        _state.update { it.copy(newBadgeDays = days) }
-    }
-
-    fun setSectionLayout(layout: SectionLayout) {
-        _state.update { it.copy(sectionLayout = layout) }
-    }
-
     fun toggleSectionFollowed(sectionId: String) {
         _state.update { curr ->
             val updated = if (sectionId in curr.followedSections) {
@@ -232,30 +203,31 @@ class OnboardingModel(
         _state.update { it.copy(personalHome = personalHome) }
     }
 
+    fun startFilterDownloadIfNeeded() {
+        val s = _state.value
+        if (!s.filterDownloadStarted && s.openLinksWith == OpenLinksWith.IN_APP && s.adblockLevel != AdblockLevel.OFF) {
+            _state.update { it.copy(filterDownloadStarted = true) }
+            appContainer?.startFilterDownload()
+        }
+    }
+
     suspend fun persistPage(page: OnboardingPage) {
         val s = _state.value
         when (page) {
-            OnboardingPage.WELCOME -> {}
-            OnboardingPage.LOOK -> {
+            OnboardingPage.HELLO -> {
                 settingsRepository.setThemeMode(s.themeMode)
                 settingsRepository.setColorSource(s.colorSource)
                 settingsRepository.setAccentSeed(s.accentSeed)
             }
-            OnboardingPage.LINKS -> {
+            OnboardingPage.BROWSING -> {
                 settingsRepository.updateBrowser { it.copy(openLinksWith = s.openLinksWith) }
-            }
-            OnboardingPage.PROTECTION -> {
                 if (s.openLinksWith == OpenLinksWith.IN_APP) {
                     settingsRepository.updateBlocking { b ->
                         when (s.adblockLevel) {
                             AdblockLevel.OFF -> b.copy(adblock = false)
                             AdblockLevel.BALANCED -> b.copy(
                                 adblock = true,
-                                enabledLists = if (s.hideCookieBanners) {
-                                    FilterListCatalog.balancedIds + FilterListCatalog.COOKIE_LIST_ID
-                                } else {
-                                    FilterListCatalog.balancedIds
-                                },
+                                enabledLists = FilterListCatalog.balancedIds,
                             )
                             AdblockLevel.STRICT -> b.copy(
                                 adblock = true,
@@ -269,17 +241,10 @@ class OnboardingModel(
                             redirectGuard = s.blockPopupsAndRedirects,
                         )
                     }
-                    settingsRepository.updatePrivacy { p ->
-                        p.copy(hideCookieBanners = s.hideCookieBanners)
-                    }
+                    startFilterDownloadIfNeeded()
                 }
             }
-            OnboardingPage.LISTS -> {
-                settingsRepository.setStarredOnly(s.starredOnly)
-                settingsRepository.updateHome { it.copy(newBadgeDays = s.newBadgeDays) }
-                settingsRepository.setSectionLayout(s.sectionLayout)
-            }
-            OnboardingPage.STAY_UPDATED -> {
+            OnboardingPage.FOLLOW -> {
                 settingsRepository.updateNotifications { it.copy(enabled = s.notifyChanges) }
                 settingsRepository.updateHome { it.copy(personalHome = s.personalHome) }
                 try {
@@ -310,18 +275,17 @@ class OnboardingModel(
     fun finish(onComplete: () -> Unit = {}) {
         viewModelScope.launch {
             persistAll()
-            if (_state.value.openLinksWith == OpenLinksWith.IN_APP && _state.value.adblockLevel != AdblockLevel.OFF) {
-                _state.update { it.copy(filterDownloadStarted = true) }
-                appContainer?.startFilterDownload()
-            }
+            startFilterDownloadIfNeeded()
             settingsRepository.setOnboardingVersion(ONBOARDING_VERSION)
             onComplete()
         }
     }
 
-    fun skip(onComplete: () -> Unit = {}) {
+    fun skip(visited: Set<OnboardingPage> = _visitedPages, onComplete: () -> Unit = {}) {
         viewModelScope.launch {
-            persistAll()
+            for (page in visited) {
+                persistPage(page)
+            }
             settingsRepository.setOnboardingVersion(ONBOARDING_VERSION)
             onComplete()
         }

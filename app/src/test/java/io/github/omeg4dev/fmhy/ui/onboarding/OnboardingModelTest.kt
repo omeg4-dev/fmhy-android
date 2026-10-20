@@ -183,10 +183,6 @@ class OnboardingModelTest {
         assertEquals(OpenLinksWith.IN_APP, state.openLinksWith)
         assertEquals(AdblockLevel.BALANCED, state.adblockLevel)
         assertTrue(state.blockPopupsAndRedirects)
-        assertFalse(state.hideCookieBanners)
-        assertFalse(state.starredOnly)
-        assertEquals(7, state.newBadgeDays)
-        assertEquals(SectionLayout.CONTINUOUS, state.sectionLayout)
         assertTrue(state.followedSections.isEmpty())
         assertFalse(state.notifyChanges)
         assertFalse(state.personalHome)
@@ -198,8 +194,6 @@ class OnboardingModelTest {
             themeMode = ThemeMode.DARK,
             colorSource = ColorSource.MATERIAL_YOU,
             accentSeed = 0xFF43A047.toInt(),
-            sectionLayout = SectionLayout.CATEGORIES,
-            starredOnly = true,
         )
         val customBrowser = BrowserPrefs(openLinksWith = OpenLinksWith.CUSTOM_TAB)
         val customBlocking = BlockingPrefs(
@@ -210,8 +204,7 @@ class OnboardingModelTest {
             popupBlocker = false,
             redirectGuard = false,
         )
-        val customPrivacy = PrivacyPrefs(hideCookieBanners = true)
-        val customHome = HomePrefs(personalHome = true, newBadgeDays = 14)
+        val customHome = HomePrefs(personalHome = true)
         val customNotification = NotificationPrefs(enabled = true)
 
         userStore.follow("video", "", "Video")
@@ -222,7 +215,6 @@ class OnboardingModelTest {
             initialBrowser = customBrowser,
             initialBlocking = customBlocking,
             initialProtection = customProtection,
-            initialPrivacy = customPrivacy,
             initialHome = customHome,
             initialNotification = customNotification,
             initialOnboardingVersion = 0,
@@ -238,10 +230,6 @@ class OnboardingModelTest {
         assertEquals(OpenLinksWith.CUSTOM_TAB, state.openLinksWith)
         assertEquals(AdblockLevel.STRICT, state.adblockLevel)
         assertFalse(state.blockPopupsAndRedirects)
-        assertTrue(state.hideCookieBanners)
-        assertTrue(state.starredOnly)
-        assertEquals(14, state.newBadgeDays)
-        assertEquals(SectionLayout.CATEGORIES, state.sectionLayout)
         assertTrue(state.personalHome)
         assertTrue(state.notifyChanges)
         assertEquals(setOf("video", "reading"), state.followedSections)
@@ -261,128 +249,199 @@ class OnboardingModelTest {
         val balancedPrefs = BlockingPrefs(adblock = true, enabledLists = FilterListCatalog.balancedIds)
         assertEquals(AdblockLevel.BALANCED, AdblockLevel.fromBlockingPrefs(balancedPrefs))
 
-        // Test persistence of AdblockLevel through model.persistPage
+        // Test persistence of AdblockLevel through model.persistPage(OnboardingPage.BROWSING)
         val repo = FakeSettingsRepository()
         val container = FakeContainer(repo, userStore)
         val model = OnboardingModel(repo, userStore, container)
         testDispatcher.scheduler.advanceUntilIdle()
 
         // 1. Balanced
+        model.setOpenLinksWith(OpenLinksWith.IN_APP)
         model.setAdblockLevel(AdblockLevel.BALANCED)
-        model.persistPage(OnboardingPage.PROTECTION)
+        model.persistPage(OnboardingPage.BROWSING)
         assertTrue(repo.blockingPrefs.first().adblock)
         assertEquals(FilterListCatalog.balancedIds, repo.blockingPrefs.first().enabledLists)
 
         // 2. Strict
         model.setAdblockLevel(AdblockLevel.STRICT)
-        model.persistPage(OnboardingPage.PROTECTION)
+        model.persistPage(OnboardingPage.BROWSING)
         assertTrue(repo.blockingPrefs.first().adblock)
         assertEquals(FilterListCatalog.strictIds, repo.blockingPrefs.first().enabledLists)
 
         // 3. Off
         model.setAdblockLevel(AdblockLevel.OFF)
-        model.persistPage(OnboardingPage.PROTECTION)
+        model.persistPage(OnboardingPage.BROWSING)
         assertFalse(repo.blockingPrefs.first().adblock)
 
         // 4. Popups and redirects
         model.setBlockPopupsAndRedirects(false)
-        model.persistPage(OnboardingPage.PROTECTION)
+        model.persistPage(OnboardingPage.BROWSING)
         assertFalse(repo.protectionPrefs.first().popupBlocker)
         assertFalse(repo.protectionPrefs.first().redirectGuard)
 
         model.setBlockPopupsAndRedirects(true)
-        model.persistPage(OnboardingPage.PROTECTION)
+        model.persistPage(OnboardingPage.BROWSING)
         assertTrue(repo.protectionPrefs.first().popupBlocker)
         assertTrue(repo.protectionPrefs.first().redirectGuard)
-
-        // 5. Hide cookie banners
-        model.setHideCookieBanners(true)
-        model.persistPage(OnboardingPage.PROTECTION)
-        assertTrue(repo.privacyPrefs.first().hideCookieBanners)
-
-        model.setHideCookieBanners(false)
-        model.persistPage(OnboardingPage.PROTECTION)
-        assertFalse(repo.privacyPrefs.first().hideCookieBanners)
     }
 
     @Test
-    fun testPage4SkippedWhenNotOpenInApp() = runTest {
+    fun testFourPageFlowAndVisiblePages() = runTest {
         val repo = FakeSettingsRepository()
         val container = FakeContainer(repo, userStore)
         val model = OnboardingModel(repo, userStore, container)
         testDispatcher.scheduler.advanceUntilIdle()
 
-        // When IN_APP: Protection page is included
-        model.setOpenLinksWith(OpenLinksWith.IN_APP)
-        assertEquals(7, model.visiblePages.size)
-        assertTrue(model.visiblePages.contains(OnboardingPage.PROTECTION))
-        assertEquals(OnboardingPage.PROTECTION, model.nextPage(OnboardingPage.LINKS))
-        assertEquals(OnboardingPage.LISTS, model.nextPage(OnboardingPage.PROTECTION))
-        assertEquals(OnboardingPage.PROTECTION, model.previousPage(OnboardingPage.LISTS))
+        // 4-page flow: HELLO, BROWSING, FOLLOW, DONE
+        val pages = model.visiblePages
+        assertEquals(4, pages.size)
+        assertEquals(
+            listOf(OnboardingPage.HELLO, OnboardingPage.BROWSING, OnboardingPage.FOLLOW, OnboardingPage.DONE),
+            pages,
+        )
 
-        // When CUSTOM_TAB: Protection page is skipped
+        assertEquals(OnboardingPage.BROWSING, model.nextPage(OnboardingPage.HELLO))
+        assertEquals(OnboardingPage.FOLLOW, model.nextPage(OnboardingPage.BROWSING))
+        assertEquals(OnboardingPage.DONE, model.nextPage(OnboardingPage.FOLLOW))
+        assertNull(model.nextPage(OnboardingPage.DONE))
+
+        assertEquals(OnboardingPage.FOLLOW, model.previousPage(OnboardingPage.DONE))
+        assertEquals(OnboardingPage.BROWSING, model.previousPage(OnboardingPage.FOLLOW))
+        assertEquals(OnboardingPage.HELLO, model.previousPage(OnboardingPage.BROWSING))
+        assertNull(model.previousPage(OnboardingPage.HELLO))
+
+        // Same 4 visible pages when openLinksWith is changed
         model.setOpenLinksWith(OpenLinksWith.CUSTOM_TAB)
-        assertEquals(6, model.visiblePages.size)
-        assertFalse(model.visiblePages.contains(OnboardingPage.PROTECTION))
-        assertEquals(OnboardingPage.LISTS, model.nextPage(OnboardingPage.LINKS))
-        assertEquals(OnboardingPage.LINKS, model.previousPage(OnboardingPage.LISTS))
+        assertEquals(4, model.visiblePages.size)
 
-        // When EXTERNAL: Protection page is skipped
         model.setOpenLinksWith(OpenLinksWith.EXTERNAL)
-        assertEquals(6, model.visiblePages.size)
-        assertFalse(model.visiblePages.contains(OnboardingPage.PROTECTION))
-        assertEquals(OnboardingPage.LISTS, model.nextPage(OnboardingPage.LINKS))
-        assertEquals(OnboardingPage.LINKS, model.previousPage(OnboardingPage.LISTS))
+        assertEquals(4, model.visiblePages.size)
     }
 
     @Test
-    fun testPersistPageSavesChoicesPerStep() = runTest {
+    fun testProtectionPrefsOnlyPersistedWhenInApp() = runTest {
         val repo = FakeSettingsRepository()
         val container = FakeContainer(repo, userStore)
         val model = OnboardingModel(repo, userStore, container)
         testDispatcher.scheduler.advanceUntilIdle()
 
-        // Look
-        model.setThemeMode(ThemeMode.DARK)
-        model.setAccentSeed(0xFF00897B.toInt())
-        model.persistPage(OnboardingPage.LOOK)
-        assertEquals(ThemeMode.DARK, repo.appearanceState.value.themeMode)
-        assertEquals(0xFF00897B.toInt(), repo.appearanceState.value.accentSeed)
+        // Initially blocking is default
+        assertTrue(repo.blockingPrefs.first().adblock)
 
-        // Links
+        // When external browser is chosen:
         model.setOpenLinksWith(OpenLinksWith.EXTERNAL)
-        model.persistPage(OnboardingPage.LINKS)
-        assertEquals(OpenLinksWith.EXTERNAL, repo.browserState.value.openLinksWith)
+        model.setAdblockLevel(AdblockLevel.OFF)
+        model.setBlockPopupsAndRedirects(false)
+        model.persistPage(OnboardingPage.BROWSING)
 
-        // Lists
-        model.setStarredOnly(true)
-        model.setNewBadgeDays(14)
-        model.setSectionLayout(SectionLayout.CATEGORIES)
-        model.persistPage(OnboardingPage.LISTS)
-        assertTrue(repo.appearanceState.value.starredOnly)
-        assertEquals(14, repo.homeState.value.newBadgeDays)
-        assertEquals(SectionLayout.CATEGORIES, repo.appearanceState.value.sectionLayout)
+        // Browser pref is persisted
+        assertEquals(OpenLinksWith.EXTERNAL, repo.browserPrefs.first().openLinksWith)
+        // Protection/blocking prefs are NOT changed because not IN_APP
+        assertTrue(repo.blockingPrefs.first().adblock)
+        assertTrue(repo.protectionPrefs.first().popupBlocker)
 
-        // Stay updated
-        model.toggleSectionFollowed("gaming")
-        model.setNotifyChanges(true)
-        model.setPersonalHome(true)
-        model.persistPage(OnboardingPage.STAY_UPDATED)
-        assertTrue(repo.notificationState.value.enabled)
-        assertTrue(repo.homeState.value.personalHome)
-        assertEquals(listOf("gaming"), userStore.follows().map { it.sectionId })
+        // When IN_APP is chosen:
+        model.setOpenLinksWith(OpenLinksWith.IN_APP)
+        model.persistPage(OnboardingPage.BROWSING)
+
+        assertEquals(OpenLinksWith.IN_APP, repo.browserPrefs.first().openLinksWith)
+        // Protection/blocking prefs ARE persisted now
+        assertFalse(repo.blockingPrefs.first().adblock)
+        assertFalse(repo.protectionPrefs.first().popupBlocker)
     }
 
     @Test
-    fun testFinishSavesAllChoicesAndTriggersDownloadAndSetsVersion() = runTest {
+    fun testFilterDownloadTriggeredWhenLeavingPageTwo() = runTest {
+        val repo = FakeSettingsRepository()
+        val container = FakeContainer(repo, userStore)
+        val model = OnboardingModel(repo, userStore, container)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        model.setOpenLinksWith(OpenLinksWith.IN_APP)
+        model.setAdblockLevel(AdblockLevel.BALANCED)
+        assertEquals(0, container.filterDownloadStartedCount)
+        assertFalse(model.state.value.filterDownloadStarted)
+
+        // Leaving page 2 persists BROWSING
+        model.persistPage(OnboardingPage.BROWSING)
+
+        assertEquals(1, container.filterDownloadStartedCount)
+        assertTrue(model.state.value.filterDownloadStarted)
+
+        // Persisting again does not trigger duplicate download
+        model.persistPage(OnboardingPage.BROWSING)
+        assertEquals(1, container.filterDownloadStartedCount)
+    }
+
+    @Test
+    fun testFilterDownloadNotTriggeredWhenAdblockOff() = runTest {
+        val repo = FakeSettingsRepository()
+        val container = FakeContainer(repo, userStore)
+        val model = OnboardingModel(repo, userStore, container)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        model.setOpenLinksWith(OpenLinksWith.IN_APP)
+        model.setAdblockLevel(AdblockLevel.OFF)
+
+        model.persistPage(OnboardingPage.BROWSING)
+
+        assertEquals(0, container.filterDownloadStartedCount)
+        assertFalse(model.state.value.filterDownloadStarted)
+    }
+
+    @Test
+    fun testSkipPersistsOnlyVisitedPages() = runTest {
+        val initialAppearance = Appearance(themeMode = ThemeMode.LIGHT)
+        val initialBrowser = BrowserPrefs(openLinksWith = OpenLinksWith.CUSTOM_TAB)
+        val initialHome = HomePrefs(personalHome = false)
+        val initialNotification = NotificationPrefs(enabled = false)
+
+        val repo = FakeSettingsRepository(
+            initialAppearance = initialAppearance,
+            initialBrowser = initialBrowser,
+            initialHome = initialHome,
+            initialNotification = initialNotification,
+        )
+        val container = FakeContainer(repo, userStore)
+        val model = OnboardingModel(repo, userStore, container)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        // Modify settings across multiple pages
+        model.setThemeMode(ThemeMode.DARK) // page 1 (HELLO)
+        model.setOpenLinksWith(OpenLinksWith.EXTERNAL) // page 2 (BROWSING)
+        model.setPersonalHome(true) // page 3 (FOLLOW)
+
+        // User only visited HELLO (default visited)
+        assertEquals(setOf(OnboardingPage.HELLO), model.visitedPages)
+
+        var skipped = false
+        model.skip { skipped = true }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(skipped)
+        assertEquals(1, repo.onboardingState.value)
+        // Visited page (HELLO) choice WAS persisted
+        assertEquals(ThemeMode.DARK, repo.appearanceState.value.themeMode)
+        // Unvisited pages (BROWSING, FOLLOW) choices were NOT persisted, retaining defaults
+        assertEquals(OpenLinksWith.CUSTOM_TAB, repo.browserState.value.openLinksWith)
+        assertFalse(repo.homeState.value.personalHome)
+        assertFalse(repo.notificationState.value.enabled)
+    }
+
+    @Test
+    fun testFinishSavesAllChoicesAndSetsVersion() = runTest {
         val repo = FakeSettingsRepository()
         val container = FakeContainer(repo, userStore)
         val model = OnboardingModel(repo, userStore, container)
         testDispatcher.scheduler.advanceUntilIdle()
 
         model.setThemeMode(ThemeMode.LIGHT)
+        model.setAccentSeed(0xFF00897B.toInt())
         model.setOpenLinksWith(OpenLinksWith.IN_APP)
         model.setAdblockLevel(AdblockLevel.BALANCED)
+        model.toggleSectionFollowed("gaming")
+        model.setNotifyChanges(true)
+        model.setPersonalHome(true)
 
         var finished = false
         model.finish { finished = true }
@@ -392,23 +451,10 @@ class OnboardingModelTest {
         assertEquals(1, repo.onboardingState.value)
         assertEquals(1, container.filterDownloadStartedCount)
         assertEquals(ThemeMode.LIGHT, repo.appearanceState.value.themeMode)
-    }
-
-    @Test
-    fun testSkipSavesChoicesAndSetsVersionWithoutTriggeringDownload() = runTest {
-        val repo = FakeSettingsRepository()
-        val container = FakeContainer(repo, userStore)
-        val model = OnboardingModel(repo, userStore, container)
-        testDispatcher.scheduler.advanceUntilIdle()
-
-        model.setThemeMode(ThemeMode.DARK)
-
-        var skipped = false
-        model.skip { skipped = true }
-        testDispatcher.scheduler.advanceUntilIdle()
-
-        assertTrue(skipped)
-        assertEquals(1, repo.onboardingState.value)
-        assertEquals(ThemeMode.DARK, repo.appearanceState.value.themeMode)
+        assertEquals(0xFF00897B.toInt(), repo.appearanceState.value.accentSeed)
+        assertEquals(OpenLinksWith.IN_APP, repo.browserState.value.openLinksWith)
+        assertTrue(repo.notificationState.value.enabled)
+        assertTrue(repo.homeState.value.personalHome)
+        assertEquals(listOf("gaming"), userStore.follows().map { it.sectionId })
     }
 }
