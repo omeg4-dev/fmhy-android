@@ -11,6 +11,7 @@ import io.github.omeg4dev.fmhy.data.SettingsRepository
 import io.github.omeg4dev.fmhy.data.model.Entry
 import io.github.omeg4dev.fmhy.data.link.CrossLinks
 import io.github.omeg4dev.fmhy.data.model.Section
+import io.github.omeg4dev.fmhy.ui.posts.PostsReadState
 import io.github.omeg4dev.fmhy.ui.section.buildSectionStructure
 import io.github.omeg4dev.fmhy.data.sync.SyncResult
 import io.github.omeg4dev.fmhy.di.AppContainer
@@ -71,6 +72,7 @@ data class HomeUiState(
     val hiddenSectionsCount: Int = 0,
     val showingHiddenSections: Boolean = false,
     val adblockSetup: AdblockSetupUiState? = null,
+    val unreadPosts: Int = 0,
 )
 
 /** A titled block of sections on Home; [title] is null when the list is not grouped (A–Z). */
@@ -450,6 +452,9 @@ class HomeViewModel(
             val newCount = if (lastVisitTs > 0L) store.countAddedSince(lastVisitTs) else 0
             val pick = if (appearance.showRandomPick) (randomPick ?: store.randomTopPick()) else null
             val isEmpty = visibleSections.isEmpty() && version == 0L
+            val unreadPosts = try {
+                PostsReadState.unreadCountFromCache(userStore, container.context.filesDir)
+            } catch (_: Throwable) { 0 }
 
             HomeUiState(
                 isLoading = refreshing,
@@ -466,6 +471,7 @@ class HomeViewModel(
                 hiddenSectionsCount = hiddenSections.size,
                 showingHiddenSections = showHidden,
                 adblockSetup = adblockSetup,
+                unreadPosts = unreadPosts,
             )
         }
     }.stateIn(

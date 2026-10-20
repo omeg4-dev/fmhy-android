@@ -7,6 +7,7 @@ object DocCleaner {
     private val VUE_SELF_CLOSING_REGEX = Regex("""<[A-Z][A-Za-z0-9_-]*(?:\s+[^>]*?)?\s*\/?>""")
     private val CONTAINER_START_REGEX = Regex("""^:::\s*([a-zA-Z0-9_-]+)(?:\s+(.*))?$""")
     private val CONTAINER_END_REGEX = Regex("""^:::\s*$""")
+    private val ADMONITION_REGEX = Regex("""^!!!\s*(note|tip|warning|danger|info)\b(?:\s+(.*))?$""", RegexOption.IGNORE_CASE)
 
     /**
      * Cleans raw FMHY markdown for in-app reading:
@@ -77,17 +78,50 @@ object DocCleaner {
         val lines = text.lines()
         val result = ArrayList<String>(lines.size)
         var containerDepth = 0
+        var i = 0
 
-        for (line in lines) {
+        while (i < lines.size) {
+            val line = lines[i]
             val trimmed = line.trim()
+
+            // 1. Python-markdown style admonitions: !!!note text
+            val admMatch = ADMONITION_REGEX.matchEntire(trimmed)
+            if (admMatch != null && containerDepth == 0) {
+                val type = admMatch.groupValues[1].uppercase()
+                val body = admMatch.groupValues[2].trim()
+                result.add("> [!$type]")
+                if (body.isNotEmpty()) {
+                    result.add("> $body")
+                }
+                i++
+                // Indented continuation lines under !!!note
+                while (i < lines.size) {
+                    val nextLine = lines[i]
+                    if (nextLine.startsWith("    ") || nextLine.startsWith("\t")) {
+                        result.add("> ${nextLine.trimStart()}")
+                        i++
+                    } else {
+                        break
+                    }
+                }
+                continue
+            }
+
+            // 2. VitePress container fences: :::tip [title] ... :::
             val startMatch = CONTAINER_START_REGEX.matchEntire(trimmed)
             if (startMatch != null && !trimmed.equals(":::", ignoreCase = true)) {
                 containerDepth++
                 val prefix = "> ".repeat(containerDepth)
+                val rawType = startMatch.groupValues[1]
+                val normType = when (rawType.lowercase()) {
+                    "details" -> "NOTE"
+                    else -> rawType.uppercase()
+                }
                 val title = startMatch.groupValues[2].trim()
                 if (title.isNotEmpty()) {
-                    result.add("${prefix}**$title**")
-                    result.add(prefix.trimEnd())
+                    result.add("${prefix}[!$normType] $title")
+                } else {
+                    result.add("${prefix}[!$normType]")
                 }
             } else if (CONTAINER_END_REGEX.matches(trimmed)) {
                 if (containerDepth > 0) {
@@ -103,6 +137,7 @@ object DocCleaner {
             } else {
                 result.add(line)
             }
+            i++
         }
         return result.joinToString("\n")
     }

@@ -213,6 +213,10 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                             nav.select(Tab.BROWSE)
                             nav.push(WhatsNewNavKey(shortcut.filter))
                         }
+                        ShortcutDestination.Posts -> {
+                            nav.select(Tab.BROWSE)
+                            nav.push(PostsNavKey)
+                        }
                         ShortcutDestination.CheckLink -> {
                             nav.select(Tab.BROWSE)
                             nav.push(CheckLinkNavKey())

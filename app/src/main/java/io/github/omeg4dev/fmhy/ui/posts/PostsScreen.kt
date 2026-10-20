@@ -1,5 +1,6 @@
 package io.github.omeg4dev.fmhy.ui.posts
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,11 +23,9 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.outlined.CloudOff
-import androidx.compose.material.icons.outlined.Newspaper
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -37,6 +36,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -47,6 +47,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.omeg4dev.fmhy.di.AppContainer
 import io.github.omeg4dev.fmhy.nav.LocalBottomBarPadding
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
+import java.time.LocalDate
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,6 +61,16 @@ fun PostsScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val haptics = rememberHaptics()
     val bottomBarPadding = LocalBottomBarPadding.current
+
+    val groupedByYear = remember(state.posts) {
+        state.posts.groupBy { post ->
+            if (post.dateEpoch > 0) {
+                LocalDate.ofEpochDay(post.dateEpoch / 86400L).year.toString()
+            } else {
+                "Other"
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -186,64 +197,91 @@ fun PostsScreen(
                             }
                         }
 
-                        items(
-                            items = state.posts,
-                            key = { it.path },
-                        ) { post ->
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = MaterialTheme.colorScheme.surfaceContainerLow,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        haptics.click()
-                                        onNavigateToReader(post.path, post.title)
-                                    },
-                            ) {
-                                Row(
+                        groupedByYear.forEach { (year, postsInYear) ->
+                            stickyHeader(key = "year_$year") {
+                                Surface(
+                                    color = MaterialTheme.colorScheme.surface,
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                ) {
+                                    Text(
+                                        text = year,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
+                                    )
+                                }
+                            }
+
+                            items(
+                                items = postsInYear,
+                                key = { it.path },
+                            ) { post ->
+                                val isUnread = post.path !in state.readPaths
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = MaterialTheme.colorScheme.surfaceContainerLow,
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(16.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
+                                        .clickable {
+                                            haptics.click()
+                                            viewModel.markRead(post.path)
+                                            onNavigateToReader(post.path, post.title)
+                                        },
                                 ) {
-                                    Surface(
-                                        shape = CircleShape,
-                                        color = MaterialTheme.colorScheme.secondaryContainer,
-                                        modifier = Modifier.size(40.dp),
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(16.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
                                     ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Icon(
-                                                imageVector = Icons.Outlined.Newspaper,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                                                modifier = Modifier.size(20.dp),
-                                            )
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                            ) {
+                                                if (isUnread) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .size(8.dp)
+                                                            .background(MaterialTheme.colorScheme.primary, CircleShape)
+                                                    )
+                                                    Spacer(Modifier.width(8.dp))
+                                                }
+                                                Text(
+                                                    text = post.title,
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = MaterialTheme.colorScheme.onSurface,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                )
+                                            }
+                                            if (post.dateText.isNotEmpty()) {
+                                                Spacer(Modifier.height(4.dp))
+                                                Text(
+                                                    text = post.dateText,
+                                                    style = MaterialTheme.typography.labelMedium,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                )
+                                            }
+                                            if (post.excerpt.isNotBlank()) {
+                                                Spacer(Modifier.height(6.dp))
+                                                Text(
+                                                    text = post.excerpt,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    maxLines = 2,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                )
+                                            }
                                         }
-                                    }
-                                    Spacer(Modifier.width(16.dp))
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = post.title,
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = MaterialTheme.colorScheme.onSurface,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
+                                        Spacer(Modifier.width(12.dp))
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                         )
-                                        if (post.dateText.isNotEmpty()) {
-                                            Spacer(Modifier.height(2.dp))
-                                            Text(
-                                                text = post.dateText,
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            )
-                                        }
                                     }
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
                                 }
                             }
                         }

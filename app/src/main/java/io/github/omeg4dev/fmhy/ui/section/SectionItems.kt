@@ -80,7 +80,34 @@ import io.github.omeg4dev.fmhy.data.model.Entry
 import io.github.omeg4dev.fmhy.data.model.Heading
 import io.github.omeg4dev.fmhy.data.model.Note
 import io.github.omeg4dev.fmhy.data.model.SectionItem
+import io.github.omeg4dev.fmhy.ui.common.CalloutBox
 import io.github.omeg4dev.fmhy.ui.common.MarkdownText
+import android.content.Intent
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.net.toUri
+import io.github.omeg4dev.fmhy.FmhyApp
+import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
+import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener as rememberAppContainerLinkOpener
+
+@Composable
+private fun rememberLinkOpener(): (String) -> Unit {
+    val context = LocalContext.current
+    val container = (context.applicationContext as? FmhyApp)?.container
+    if (container != null) {
+        val opener = rememberAppContainerLinkOpener(container, onShowSnackbar = {})
+        UnsafeWarningDialog(opener)
+        val lambda: (String) -> Unit = { url -> opener.openUrl(url) }
+        return lambda
+    } else {
+        return { url: String ->
+            try {
+                context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                })
+            } catch (_: Exception) {}
+        }
+    }
+}
 
 @Composable
 fun HeadingHeader(
@@ -250,83 +277,44 @@ fun HeadingHeader(
 fun NoteCallout(
     note: Note,
     modifier: Modifier = Modifier,
+    onOpenUrl: ((String) -> Unit)? = null,
 ) {
+    val defaultOpenUrl = rememberLinkOpener()
+    val openUrl = onOpenUrl ?: defaultOpenUrl
     var expanded by remember { mutableStateOf(false) }
     var hasOverflow by remember { mutableStateOf(false) }
 
     val isWarning = remember(note.textMd) {
         note.textMd.trim().trimStart('*').trimStart().startsWith("warning", ignoreCase = true)
     }
+    val type = if (isWarning) "WARNING" else "TIP"
 
-    val containerColor = if (isWarning) {
-        MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.55f)
-    } else {
-        MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.55f)
-    }
-    val borderColor = if (isWarning) {
-        MaterialTheme.colorScheme.error.copy(alpha = 0.35f)
-    } else {
-        MaterialTheme.colorScheme.tertiary.copy(alpha = 0.35f)
-    }
-    val accentColor = if (isWarning) {
-        MaterialTheme.colorScheme.error
-    } else {
-        MaterialTheme.colorScheme.tertiary
-    }
-    val icon = if (isWarning) Icons.Outlined.WarningAmber else Icons.Outlined.Lightbulb
-    val label = if (isWarning) "WARNING" else "TIP"
-
-    Surface(
+    CalloutBox(
+        type = type,
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
-        shape = RoundedCornerShape(12.dp),
-        color = containerColor,
-        border = BorderStroke(1.dp, borderColor),
+            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .then(if (hasOverflow) Modifier.clickable { expanded = !expanded } else Modifier),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .then(if (hasOverflow) Modifier.clickable { expanded = !expanded } else Modifier)
-                .padding(12.dp),
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = accentColor,
-                    modifier = Modifier.size(18.dp),
-                )
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = accentColor,
-                )
-            }
-            Spacer(Modifier.height(6.dp))
-            MarkdownText(
-                markdown = note.textMd,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = if (expanded) Int.MAX_VALUE else 3,
-                overflow = if (expanded) TextOverflow.Clip else TextOverflow.Ellipsis,
-                onTextLayout = { layoutResult ->
-                    if (!expanded && layoutResult.hasVisualOverflow) {
-                        hasOverflow = true
-                    }
-                },
+        MarkdownText(
+            markdown = note.textMd,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = if (expanded) Int.MAX_VALUE else 3,
+            overflow = if (expanded) TextOverflow.Clip else TextOverflow.Ellipsis,
+            onOpenUrl = { openUrl(it) },
+            onTextLayout = { layoutResult ->
+                if (!expanded && layoutResult.hasVisualOverflow) {
+                    hasOverflow = true
+                }
+            },
+        )
+        if (hasOverflow) {
+            Text(
+                text = if (expanded) "Show less" else "Show more",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(top = 6.dp),
             )
-            if (hasOverflow) {
-                Text(
-                    text = if (expanded) "Show less" else "Show more",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(top = 6.dp),
-                )
-            }
         }
     }
 }

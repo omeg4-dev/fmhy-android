@@ -208,4 +208,117 @@ class MarkdownBlocksTest {
         assertEquals(1, blocks.size)
         assertEquals(MarkdownBlock.Image("FMHY Logo", "https://fmhy.net/assets/logo.png"), blocks[0])
     }
+
+    @Test
+    fun parse_calloutGitHubStyle() {
+        val md = """
+            > [!TIP] Pro Tip
+            > Always backup your files before testing.
+        """.trimIndent()
+
+        val blocks = parseMarkdownBlocks(md)
+        assertEquals(1, blocks.size)
+        assertTrue(blocks[0] is MarkdownBlock.Callout)
+        val callout = blocks[0] as MarkdownBlock.Callout
+        assertEquals("TIP", callout.type)
+        assertEquals("Pro Tip", callout.title)
+        assertEquals(1, callout.children.size)
+        assertEquals(MarkdownBlock.Paragraph("Always backup your files before testing."), callout.children[0])
+    }
+
+    @Test
+    fun parse_fiveNoteLinesFromBeginnersGuide() {
+        val notes = listOf(
+            "!!!note Using several ad blockers, like uBO and AdGuard at the same time can [mess things up](https://x.com/gorhill/status/1033706103782170625). This only happens with regular ad blockers, so it's perfectly okay to use uBO alongside something like SponsorBlock.",
+            "!!!note Most antivirus programs are unnecessary and can cause slowdowns. If you use trusted websites, Windows Defender should be all you need to stay safe, and you can run a [Malwarebytes](https://www.malwarebytes.com/) scan from time to time for extra protection.",
+            "!!!note We recommend looking through our [Extension](https://www.reddit.com/r/FREEMEDIAHECKYEAH/wiki/internet-tools#wiki_.25B7_browser_extensions) / [Userscript](https://www.reddit.com/r/FREEMEDIAHECKYEAH/wiki/internet-tools#wiki_.25B7_userscripts) sections to find ways to enhance your browser.",
+            "!!!note Never enter your real email or password on any site you don't know you can trust. Use a unique password for each site you register on. That way, if a breach occurs, only that one site's credentials are compromised. You can also take advantage of email [aliasing](https://www.reddit.com/r/FREEMEDIAHECKYEAH/wiki/internet-tools/#wiki_.25B7_email_aliasing) for an extra layer of protection.",
+            "!!!note Keep in mind that it's **never** a good idea to upload personal or confidential files to any file host / cloud AI, even if they claim to be encrypted.",
+        )
+
+        for ((idx, note) in notes.withIndex()) {
+            val blocks = parseMarkdownBlocks(note)
+            assertEquals("Note $idx should parse to 1 block", 1, blocks.size)
+            assertTrue("Note $idx should be a Callout", blocks[0] is MarkdownBlock.Callout)
+            val callout = blocks[0] as MarkdownBlock.Callout
+            assertEquals("NOTE", callout.type)
+            assertEquals(1, callout.children.size)
+            assertTrue(callout.children[0] is MarkdownBlock.Paragraph)
+        }
+    }
+
+    @Test
+    fun parse_infoBlockWithListInside() {
+        val md = """
+            :::info Important points
+            * Point A
+            * Point B
+            :::
+        """.trimIndent()
+
+        val blocks = parseMarkdownBlocks(md)
+        assertEquals(1, blocks.size)
+        assertTrue(blocks[0] is MarkdownBlock.Callout)
+        val callout = blocks[0] as MarkdownBlock.Callout
+        assertEquals("INFO", callout.type)
+        assertEquals("Important points", callout.title)
+        assertEquals(2, callout.children.size)
+        assertEquals(MarkdownBlock.ListItem(text = "Point A", level = 0, isOrdered = false, number = 1), callout.children[0])
+        assertEquals(MarkdownBlock.ListItem(text = "Point B", level = 0, isOrdered = false, number = 1), callout.children[1])
+    }
+
+    @Test
+    fun parse_listContinuation() {
+        val md = """
+            * First item
+              with continuation line
+              and a second continuation line
+            * Second item
+        """.trimIndent()
+
+        val blocks = parseMarkdownBlocks(md)
+        assertEquals(2, blocks.size)
+        val item1 = blocks[0] as MarkdownBlock.ListItem
+        assertEquals("First item with continuation line and a second continuation line", item1.text)
+        assertEquals(0, item1.level)
+
+        val item2 = blocks[1] as MarkdownBlock.ListItem
+        assertEquals("Second item", item2.text)
+        assertEquals(0, item2.level)
+    }
+
+    @Test
+    fun parse_nestedList_fourSpaces() {
+        val md = """
+            * Level 0 item
+                * Level 1 item (4 spaces)
+                    * Level 2 item (8 spaces)
+                * Level 1 item again
+            * Back to Level 0
+        """.trimIndent()
+
+        val blocks = parseMarkdownBlocks(md)
+        assertEquals(5, blocks.size)
+        assertEquals(0, (blocks[0] as MarkdownBlock.ListItem).level)
+        assertEquals(1, (blocks[1] as MarkdownBlock.ListItem).level)
+        assertEquals(2, (blocks[2] as MarkdownBlock.ListItem).level)
+        assertEquals(1, (blocks[3] as MarkdownBlock.ListItem).level)
+        assertEquals(0, (blocks[4] as MarkdownBlock.ListItem).level)
+    }
+
+    @Test
+    fun parse_quoteContainingList() {
+        val md = """
+            > * Quoted item 1
+            > * Quoted item 2
+        """.trimIndent()
+
+        val blocks = parseMarkdownBlocks(md)
+        assertEquals(1, blocks.size)
+        assertTrue(blocks[0] is MarkdownBlock.Blockquote)
+        val quote = blocks[0] as MarkdownBlock.Blockquote
+        assertEquals(2, quote.children.size)
+        assertEquals(MarkdownBlock.ListItem(text = "Quoted item 1", level = 0, isOrdered = false, number = 1), quote.children[0])
+        assertEquals(MarkdownBlock.ListItem(text = "Quoted item 2", level = 0, isOrdered = false, number = 1), quote.children[1])
+    }
 }

@@ -130,6 +130,16 @@ fun NotificationsPage(
                         },
                     )
                     SettingsDivider()
+                    SwitchRow(
+                        title = "New monthly posts",
+                        summary = "Get a notification when FMHY publishes a new monthly post",
+                        checked = notificationPrefs.notifyNewPosts,
+                        enabled = master,
+                        onChange = { checked ->
+                            viewModel.updateNotifications { it.copy(notifyNewPosts = checked) }
+                        },
+                    )
+                    SettingsDivider()
                     ChoiceRow(
                         title = "Check every",
                         options = listOf(

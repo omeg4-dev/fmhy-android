@@ -164,6 +164,10 @@ object UpdateChecker {
             container.userStore.put("notify_last_ts", nowSec.toString())
         } catch (_: Exception) {}
 
+        try {
+            NewPostsChecker.run(context, container)
+        } catch (_: Exception) {}
+
         return UpdateOutcome(model)
     }
 
