@@ -190,7 +190,7 @@ class TabManager(
     private var isActivityResumed = false
 
     private var attachedActivity: Activity? = null
-    private var isRestored = false
+    val linkQueue = BrowserLinkQueue()
 
     private val webViewFactory = BrowserWebViewFactory(
         adblockService = adblockService,
@@ -349,16 +349,42 @@ class TabManager(
         }
     }
 
-    fun detachActivity() {
+    fun detachActivity(activity: Activity? = null) {
+        if (activity != null && attachedActivity !== activity) {
+            return
+        }
         attachedActivity = null
         for (r in records) {
             r.mutableContext?.baseContext = appContext
         }
     }
 
+    fun openQueuedLink(link: QueuedLink, select: Boolean) {
+        if (!link.newTab) {
+            val existing = findTabByUrl(link.url)
+            if (existing != null) {
+                if (select) {
+                    selectTab(existing.id)
+                }
+                return
+            }
+        }
+        openTab(url = link.url, entryId = link.entryId, isPrivate = false, select = select)
+    }
+
     suspend fun restoreTabsIfNeeded(initialUrl: String?, entryId: String? = null) {
-        if (isRestored) return
-        isRestored = true
+        if (linkQueue.isRestored.get()) {
+            if (initialUrl != null && initialUrl.isNotBlank()) {
+                linkQueue.offerOrExecute(QueuedLink(initialUrl, entryId)) { link, select ->
+                    openQueuedLink(link, select)
+                }
+            }
+            return
+        }
+
+        if (initialUrl != null && initialUrl.isNotBlank()) {
+            linkQueue.enqueue(QueuedLink(initialUrl, entryId))
+        }
 
         val prefs = settingsRepository.browserPrefs.first()
         var restoredAny = false
@@ -377,8 +403,12 @@ class TabManager(
             }
         }
 
-        if (initialUrl != null && initialUrl.isNotBlank()) {
-            openTab(url = initialUrl, entryId = entryId, isPrivate = false, select = true)
+        linkQueue.isRestored.set(true)
+
+        if (linkQueue.hasPendingLinks()) {
+            linkQueue.drain { link, select ->
+                openQueuedLink(link, select)
+            }
         } else if (!restoredAny) {
             openTab(url = "about:blank", title = "New tab", isPrivate = false, select = true)
         } else if (records.isNotEmpty() && _currentTabId.value == null) {

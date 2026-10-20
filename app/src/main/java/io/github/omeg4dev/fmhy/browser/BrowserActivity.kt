@@ -40,6 +40,10 @@ class BrowserActivity : ComponentActivity() {
     private var isInPipMode by mutableStateOf(false)
     private var originalOrientation: Int = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
 
+    private var showCustomViewListener: ((android.view.View) -> Unit)? = null
+    private var hideCustomViewListener: (() -> Unit)? = null
+    private var videoPlayingListener: ((Boolean) -> Unit)? = null
+
     @Suppress("DEPRECATION")
     private val trimMemoryCallbacks = object : ComponentCallbacks2 {
         override fun onTrimMemory(level: Int) {
@@ -67,7 +71,7 @@ class BrowserActivity : ComponentActivity() {
         val entryId = intent?.getStringExtra(EXTRA_ENTRY_ID)
 
         val hooks = container.browserHooks as? DefaultBrowserHooks
-        hooks?.onShowCustomViewListener = {
+        val showListener: (android.view.View) -> Unit = {
             originalOrientation = requestedOrientation
             if (container.tabManager.currentBrowserPrefs.videoAutoRotate) {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
@@ -80,15 +84,20 @@ class BrowserActivity : ComponentActivity() {
                 controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             }
         }
-        hooks?.onHideCustomViewListener = {
+        showCustomViewListener = showListener
+        hooks?.onShowCustomViewListener = showListener
+
+        val hideListener: () -> Unit = {
             requestedOrientation = originalOrientation
             if (container.tabManager.isVideoPlaying() != true || !container.tabManager.currentBrowserPrefs.keepScreenOn) {
                 window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             }
             WindowInsetsControllerCompat(window, window.decorView).show(WindowInsetsCompat.Type.systemBars())
         }
+        hideCustomViewListener = hideListener
+        hooks?.onHideCustomViewListener = hideListener
 
-        container.tabManager.onVideoPlayingChanged = { isPlaying ->
+        val videoListener: (Boolean) -> Unit = { isPlaying ->
             val keepOn = container.tabManager.currentBrowserPrefs.keepScreenOn
             if (isPlaying && keepOn) {
                 window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -96,6 +105,8 @@ class BrowserActivity : ComponentActivity() {
                 window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             }
         }
+        videoPlayingListener = videoListener
+        container.tabManager.onVideoPlayingChanged = videoListener
 
         lifecycleScope.launch {
             container.tabManager.restoreTabsIfNeeded(dataUri, entryId)
@@ -198,28 +209,36 @@ class BrowserActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         val container = (application as FmhyApp).container
-        val url = intent.dataString ?: return
-        val entryId = intent.getStringExtra(EXTRA_ENTRY_ID)
-        val newTab = intent.getBooleanExtra(EXTRA_NEW_TAB, true)
-
-        if (!newTab) {
-            val existing = container.tabManager.findTabByUrl(url)
-            if (existing != null) {
-                container.tabManager.selectTab(existing.id)
-                return
+        val url = intent.dataString
+        if (!url.isNullOrBlank()) {
+            val entryId = intent.getStringExtra(EXTRA_ENTRY_ID)
+            val newTab = intent.getBooleanExtra(EXTRA_NEW_TAB, true)
+            container.tabManager.linkQueue.offerOrExecute(
+                QueuedLink(url = url, entryId = entryId, newTab = newTab)
+            ) { link, select ->
+                container.tabManager.openQueuedLink(link, select)
             }
         }
-        container.tabManager.openTab(url = url, entryId = entryId, isPrivate = false, select = true)
     }
 
     override fun onDestroy() {
         super.onDestroy()
         unregisterComponentCallbacks(trimMemoryCallbacks)
         val container = (application as FmhyApp).container
+        val hooks = container.browserHooks as? DefaultBrowserHooks
+        if (hooks?.onShowCustomViewListener === showCustomViewListener) {
+            hooks?.onShowCustomViewListener = null
+        }
+        if (hooks?.onHideCustomViewListener === hideCustomViewListener) {
+            hooks?.onHideCustomViewListener = null
+        }
+        if (container.tabManager.onVideoPlayingChanged === videoPlayingListener) {
+            container.tabManager.onVideoPlayingChanged = null
+        }
         if (isFinishing && container.tabManager.tabs.value.isEmpty() && container.tabManager.currentPrivacyPrefs.clearDataOnExit) {
             container.tabManager.clearAllBrowsingData()
         }
-        container.tabManager.detachActivity()
+        container.tabManager.detachActivity(this)
     }
 
     companion object {
