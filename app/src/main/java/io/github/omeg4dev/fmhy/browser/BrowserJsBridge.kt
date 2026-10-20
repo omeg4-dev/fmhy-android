@@ -89,14 +89,52 @@ class BrowserJsBridge(
         }
     }
 
+    @JavascriptInterface
+    fun mediaEvent(type: String) {
+        tabManager.postToMain {
+            tabManager.setVideoPlaying(tabId, type == "play")
+        }
+    }
+
     companion object {
-        fun buildCosmeticsScript(bridgeName: String): String {
+        fun buildCosmeticsScript(bridgeName: String, sendGpc: Boolean = true): String {
             return """
                 (function() {
                     try {
                         const bridge = window["$bridgeName"];
-                        if (!bridge || !bridge.cosmetics) return;
+                        if (!bridge) return;
 
+                        if ($sendGpc) {
+                            try {
+                                Object.defineProperty(navigator, 'globalPrivacyControl', {
+                                    get: () => true,
+                                    configurable: true
+                                });
+                            } catch(_) {}
+                        }
+
+                        try {
+                            const reportMedia = function(evt) {
+                                try { bridge.mediaEvent(evt); } catch(_) {}
+                            };
+                            document.addEventListener('play', function(e) {
+                                if (e.target && (e.target.tagName === 'VIDEO' || e.target.tagName === 'AUDIO')) {
+                                    reportMedia('play');
+                                }
+                            }, true);
+                            document.addEventListener('pause', function(e) {
+                                if (e.target && (e.target.tagName === 'VIDEO' || e.target.tagName === 'AUDIO')) {
+                                    reportMedia('pause');
+                                }
+                            }, true);
+                            document.addEventListener('ended', function(e) {
+                                if (e.target && (e.target.tagName === 'VIDEO' || e.target.tagName === 'AUDIO')) {
+                                    reportMedia('ended');
+                                }
+                            }, true);
+                        } catch(_) {}
+
+                        if (!bridge.cosmetics) return;
                         const resStr = bridge.cosmetics(window.location.href);
                         if (!resStr) return;
                         const data = JSON.parse(resStr);

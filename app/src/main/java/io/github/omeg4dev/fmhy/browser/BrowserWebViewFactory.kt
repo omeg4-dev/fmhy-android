@@ -88,6 +88,21 @@ class BrowserWebViewFactory(
             WebSettingsCompat.setSafeBrowsingEnabled(settings, safeBrowsing)
         }
 
+        // Multi-profile private tabs. Without MULTI_PROFILE support private tabs share the default
+        // profile (cookies/storage); TabManager then wipes cookies and WebStorage when the last
+        // private tab closes. This is a documented limitation.
+        var cookieManager = android.webkit.CookieManager.getInstance()
+        if (record.isPrivate && WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) {
+            try {
+                val profile = androidx.webkit.ProfileStore.getInstance().getOrCreateProfile("private")
+                WebViewCompat.setProfile(webView, "private")
+                cookieManager = profile.cookieManager
+            } catch (_: Exception) {}
+        }
+
+        // Third-party cookies
+        cookieManager.setAcceptThirdPartyCookies(webView, !tabManager.currentPrivacyPrefs.blockThirdPartyCookies)
+
         // Register JS bridge
         val bridge = BrowserJsBridge(
             tabId = record.id,
@@ -99,7 +114,7 @@ class BrowserWebViewFactory(
         )
         webView.addJavascriptInterface(bridge, bridgeName)
 
-        val cosmeticsJs = BrowserJsBridge.buildCosmeticsScript(bridgeName)
+        val cosmeticsJs = BrowserJsBridge.buildCosmeticsScript(bridgeName, sendGpc = tabManager.currentPrivacyPrefs.sendGpc)
         val hasDocumentStartScript = WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)
         if (hasDocumentStartScript) {
             WebViewCompat.addDocumentStartJavaScript(webView, cosmeticsJs, setOf("*"))
@@ -118,7 +133,11 @@ class BrowserWebViewFactory(
                 super.onPageStarted(view, url, favicon)
                 record.sourceUrl = url
                 record.url = url
+                record.hasStartedFirstLoad = true
+                record.rescueState = null
+                tabManager.notifyTabChanged(record.id)
                 tabManager.updateTabUrlAndTitle(record.id, url, record.title)
+                (browserHooks as? DefaultBrowserHooks)?.onPageStarted(record, url)
 
                 if (!hasDocumentStartScript) {
                     view.evaluateJavascript(cosmeticsJs, null)
@@ -144,9 +163,18 @@ class BrowserWebViewFactory(
                 )
             }
 
-            override fun onReceivedError(view: WebView, errorCode: Int, description: String, failingUrl: String) {
-                super.onReceivedError(view, errorCode, description, failingUrl)
-                browserHooks.onMainFrameError(record.toState(), errorCode, description, failingUrl)
+            override fun onReceivedError(view: WebView, request: WebResourceRequest, error: android.webkit.WebResourceError) {
+                super.onReceivedError(view, request, error)
+                if (request.isForMainFrame) {
+                    browserHooks.onMainFrameError(record.toState(), error.errorCode, error.description?.toString().orEmpty(), request.url.toString())
+                }
+            }
+
+            override fun onReceivedHttpError(view: WebView, request: WebResourceRequest, errorResponse: WebResourceResponse) {
+                super.onReceivedHttpError(view, request, errorResponse)
+                if (request.isForMainFrame) {
+                    browserHooks.onMainFrameHttpError(record.toState(), errorResponse.statusCode, request.url.toString())
+                }
             }
         }
 

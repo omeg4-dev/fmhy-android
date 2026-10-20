@@ -1,8 +1,24 @@
 package io.github.omeg4dev.fmhy.browser
 
 import android.graphics.Bitmap
+import io.github.omeg4dev.fmhy.data.model.Entry
+import io.github.omeg4dev.fmhy.data.model.Link
 import io.github.omeg4dev.fmhy.data.user.SitePrefs
 import kotlinx.serialization.Serializable
+
+data class RescueState(
+    val failingUrl: String,
+    val host: String,
+    val reason: String,
+    val mirrors: List<Link> = emptyList(),
+    val alternatives: List<Entry> = emptyList(),
+)
+
+data class InterstitialState(
+    val host: String,
+    val isUnsafe: Boolean, // true = UNSAFE, false = POTENTIALLY_UNSAFE
+    val reason: String?,
+)
 
 data class TabState(
     val id: Long,
@@ -19,6 +35,10 @@ data class TabState(
     val desktopSite: Boolean = false,
     val darkPage: Boolean = false,
     val sitePrefs: SitePrefs? = null,
+    val rescueState: RescueState? = null,
+    val siteBarState: SiteBarState? = null,
+    val interstitialState: InterstitialState? = null,
+    val isVideoPlaying: Boolean = false,
 )
 
 @Serializable
