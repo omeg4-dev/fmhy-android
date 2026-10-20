@@ -2,6 +2,11 @@ package io.github.omeg4dev.fmhy.ui.onboarding
 
 import android.os.Build
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
@@ -72,8 +77,6 @@ import io.github.omeg4dev.fmhy.ui.common.LocalBookmarks
 import io.github.omeg4dev.fmhy.ui.common.LocalHapticsEnabled
 import io.github.omeg4dev.fmhy.ui.common.Motion
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
 
 @Composable
 fun LookPreview(
@@ -289,70 +292,20 @@ fun BrowsingPreview(
 
 @Composable
 private fun InAppBrowsingMock(adblockLevel: AdblockLevel) {
-    var blockedCount by remember { mutableIntStateOf(0) }
-    val ad1Scale = remember { Animatable(1f) }
-    val ad1Alpha = remember { Animatable(1f) }
-    val ad2Scale = remember { Animatable(1f) }
-    val ad2Alpha = remember { Animatable(1f) }
-    val ad3Scale = remember { Animatable(1f) }
-    val ad3Alpha = remember { Animatable(1f) }
+    // How many of the three ads are gone. Saveable so the demo plays once and doesn't loop or replay on
+    // recomposition; turning the adblocker off and on again plays it once more.
+    var removedAds by rememberSaveable { mutableIntStateOf(0) }
+    val blockedCount = if (adblockLevel == AdblockLevel.OFF) 0 else removedAds
 
-    LaunchedEffect(adblockLevel) {
+    LaunchedEffect(adblockLevel == AdblockLevel.OFF) {
         if (adblockLevel == AdblockLevel.OFF) {
-            ad1Scale.snapTo(1f)
-            ad1Alpha.snapTo(1f)
-            ad2Scale.snapTo(1f)
-            ad2Alpha.snapTo(1f)
-            ad3Scale.snapTo(1f)
-            ad3Alpha.snapTo(1f)
-            blockedCount = 0
+            removedAds = 0
             return@LaunchedEffect
         }
-        while (isActive) {
-            // Reset to visible at start of 3s cycle
-            ad1Scale.snapTo(1f)
-            ad1Alpha.snapTo(1f)
-            ad2Scale.snapTo(1f)
-            ad2Alpha.snapTo(1f)
-            ad3Scale.snapTo(1f)
-            ad3Alpha.snapTo(1f)
-            blockedCount = 0
-
-            delay(350L)
-
-            // Ad 1 pops out (scale 1->0, fade out)
-            launch {
-                ad1Scale.animateTo(0f, Motion.exit(Motion.SHORT))
-            }
-            launch {
-                ad1Alpha.animateTo(0f, Motion.exit(Motion.SHORT))
-            }
-            blockedCount = 1
-
-            delay(250L) // 250 ms apart
-
-            // Ad 2 pops out
-            launch {
-                ad2Scale.animateTo(0f, Motion.exit(Motion.SHORT))
-            }
-            launch {
-                ad2Alpha.animateTo(0f, Motion.exit(Motion.SHORT))
-            }
-            blockedCount = 2
-
-            delay(250L) // 250 ms apart
-
-            // Ad 3 pops out
-            launch {
-                ad3Scale.animateTo(0f, Motion.exit(Motion.SHORT))
-            }
-            launch {
-                ad3Alpha.animateTo(0f, Motion.exit(Motion.SHORT))
-            }
-            blockedCount = 3
-
-            // Wait remainder of 3-second cycle (3000 - 350 - 250 - 250 = 2150 ms)
-            delay(2150L)
+        if (removedAds == 0) delay(350L)
+        while (removedAds < 3) {
+            removedAds++
+            if (removedAds < 3) delay(450L)
         }
     }
 
@@ -482,81 +435,65 @@ private fun InAppBrowsingMock(adblockLevel: AdblockLevel) {
 
     Spacer(modifier = Modifier.height(8.dp))
 
-    // Mock page with 3 animated ad blocks popping out
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        // Ad 1: Top Banner Ad
-        MockAdBlock(
-            label = "Banner Advertisement",
-            scale = ad1Scale.value,
-            alpha = ad1Alpha.value,
-        )
-
-        // Mock article content
+    // Mock page with 3 ad blocks that collapse one after another. Gaps live inside each block (no spacedBy),
+    // so the page and the card around it shrink smoothly instead of jumping when a block leaves.
+    Column(modifier = Modifier.fillMaxWidth()) {
+        MockAdBlock(label = "Banner Advertisement", visible = removedAds < 1)
         MockPageContent()
-
-        // Ad 2: In-page sponsored box
-        MockAdBlock(
-            label = "Sponsored Ad",
-            scale = ad2Scale.value,
-            alpha = ad2Alpha.value,
-        )
-
+        Spacer(modifier = Modifier.height(6.dp))
+        MockAdBlock(label = "Sponsored Ad", visible = removedAds < 2)
         MockPageContent()
-
-        // Ad 3: Tracker / overlay ad
-        MockAdBlock(
-            label = "Pop-up / Tracker Ad",
-            scale = ad3Scale.value,
-            alpha = ad3Alpha.value,
-        )
+        MockAdBlock(label = "Pop-up / Tracker Ad", visible = removedAds < 3, gapAbove = true)
     }
 }
 
 @Composable
 private fun MockAdBlock(
     label: String,
-    scale: Float,
-    alpha: Float,
+    visible: Boolean,
     modifier: Modifier = Modifier,
+    gapAbove: Boolean = false,
 ) {
-    if (scale > 0.01f && alpha > 0.01f) {
-        Surface(
-            color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.4f)),
-            shape = RoundedCornerShape(8.dp),
-            modifier = modifier
-                .fillMaxWidth()
-                .graphicsLayer {
-                    scaleX = scale
-                    scaleY = scale
-                    this.alpha = alpha
-                },
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
+    AnimatedVisibility(
+        visible = visible,
+        enter = expandVertically(Motion.enter(Motion.LONG)) + fadeIn(Motion.enter(Motion.LONG)),
+        exit = shrinkVertically(Motion.standard(Motion.LONG)) +
+            fadeOut(Motion.exit(Motion.MEDIUM)) +
+            scaleOut(Motion.standard(Motion.LONG), targetScale = 0.92f),
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            if (gapAbove) Spacer(modifier = Modifier.height(6.dp))
+            Surface(
+                color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.4f)),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.fillMaxWidth(),
             ) {
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onErrorContainer,
-                )
-                Surface(
-                    color = MaterialTheme.colorScheme.error,
-                    shape = RoundedCornerShape(4.dp),
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Text(
-                        text = "Ad",
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onError,
-                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                        text = label,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
                     )
+                    Surface(
+                        color = MaterialTheme.colorScheme.error,
+                        shape = RoundedCornerShape(4.dp),
+                    ) {
+                        Text(
+                            text = "Ad",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onError,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                        )
+                    }
                 }
             }
+            if (!gapAbove) Spacer(modifier = Modifier.height(6.dp))
         }
     }
 }
