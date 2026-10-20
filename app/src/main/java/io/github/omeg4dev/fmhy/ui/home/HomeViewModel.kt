@@ -66,6 +66,45 @@ val EDUCATIONAL_TOOLS_SECTION = Section(
     entryCount = 0,
 )
 
+val BEGINNERS_GUIDE_SECTION = Section(
+    id = "beginners-guide",
+    title = "Beginner's guide",
+    description = "Essential setup, adblocking & safety",
+    ord = 0,
+    entryCount = 0,
+)
+
+val FAQ_SECTION = Section(
+    id = "faq",
+    title = "FAQ",
+    description = "Frequently asked questions & help",
+    ord = 0,
+    entryCount = 0,
+)
+
+val BACKUPS_SECTION = Section(
+    id = "backups",
+    title = "Backups & mirrors",
+    description = "Mirrors, archives & emergency links",
+    ord = 0,
+    entryCount = 0,
+)
+
+val POSTS_SECTION = Section(
+    id = "news-and-posts",
+    title = "News & posts",
+    description = "Monthly updates & announcements",
+    ord = 0,
+    entryCount = 0,
+)
+
+val MORE_VIRTUAL_SECTIONS = listOf(
+    BEGINNERS_GUIDE_SECTION,
+    FAQ_SECTION,
+    BACKUPS_SECTION,
+    POSTS_SECTION,
+)
+
 /** Home row id → (section, level-1 category title) it opens. */
 private val ANCHOR_TARGETS = mapOf(
     "audio-tools" to ("audio" to "Audio Tools"),
@@ -81,7 +120,7 @@ internal fun groupSections(
     val anchors = listOf(AUDIO_TOOLS_SECTION, EDUCATIONAL_TOOLS_SECTION)
         .map { it.copy(entryCount = anchorCounts[it.id] ?: 0) }
     if (order != SectionOrder.WEBSITE) {
-        val allSections = (sections + anchors)
+        val allSections = (sections + anchors + MORE_VIRTUAL_SECTIONS)
             .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.title })
         return listOf(SectionGroup(null, allSections.toImmutableList()))
     }
@@ -106,6 +145,10 @@ internal fun groupSections(
     }
     toolsList.addAll(insertIdx, anchors)
     byGroup["Tools"] = toolsList
+
+    val moreList = byGroup["More"]?.toMutableList() ?: mutableListOf()
+    moreList.addAll(MORE_VIRTUAL_SECTIONS)
+    byGroup["More"] = moreList
 
     return listOf("Wiki", "Tools", "More").mapNotNull { title ->
         byGroup[title]?.let { SectionGroup(title, it.toImmutableList()) }

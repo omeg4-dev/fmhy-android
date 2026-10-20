@@ -79,6 +79,8 @@ fun HomeScreen(
     onNavigateToSection: (String) -> Unit,
     onNavigateToSettings: () -> Unit,
     onNavigateToCheckLink: () -> Unit = {},
+    onNavigateToReader: (String, String) -> Unit = { _, _ -> },
+    onNavigateToPosts: () -> Unit = {},
     onShowSnackbar: (String) -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -426,6 +428,10 @@ fun HomeScreen(
                                                 when (section.id) {
                                                     "audio-tools" -> linkOpener.openUrl("https://fmhy.net/audio#audio-tools")
                                                     "educational-tools" -> linkOpener.openUrl("https://fmhy.net/educational#educational-tools")
+                                                    "beginners-guide" -> onNavigateToReader("beginners-guide.md", "Beginner's guide")
+                                                    "faq" -> onNavigateToReader("other/FAQ.md", "FAQ")
+                                                    "backups" -> onNavigateToReader("other/backups.md", "Backups & mirrors")
+                                                    "news-and-posts" -> onNavigateToPosts()
                                                     else -> onNavigateToSection(section.id)
                                                 }
                                             }

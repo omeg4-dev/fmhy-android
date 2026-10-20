@@ -27,6 +27,7 @@ import io.github.omeg4dev.fmhy.SectionNavKey
 import io.github.omeg4dev.fmhy.data.DatasetStore
 import io.github.omeg4dev.fmhy.data.OpenLinksWith
 import io.github.omeg4dev.fmhy.data.SettingsRepository
+import io.github.omeg4dev.fmhy.data.doc.DocFetcher
 import io.github.omeg4dev.fmhy.data.link.CrossLinks
 import io.github.omeg4dev.fmhy.data.link.LinkTarget
 import io.github.omeg4dev.fmhy.data.link.PasteLinks
@@ -40,6 +41,12 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.io.File
 
+data class PendingNote(
+    val path: String,
+    val originalUrl: String,
+    val title: String,
+)
+
 class LinkOpener(
     private val context: Context,
     private val store: DatasetStore,
@@ -50,6 +57,7 @@ class LinkOpener(
     private val onOpenInternal: (LinkTarget) -> Unit = {},
     private val pasteResolver: PasteResolver? = null,
     private val userStore: UserStore? = null,
+    val docFetcher: DocFetcher? = null,
 ) {
     /** Links decoded from a pastebin page that hides several; the chooser dialog shows them. */
     var pendingPasteChoices by mutableStateOf<List<String>?>(null)
@@ -61,10 +69,28 @@ class LinkOpener(
         private set
     private var pendingUnsafeEntryId: String? = null
 
+    var pendingNote by mutableStateOf<PendingNote?>(null)
+        private set
+
+    fun dismissNote() {
+        pendingNote = null
+    }
+
+    fun openNoteDirectly(url: String) {
+        pendingNote = null
+        openUrlDirectly(url)
+    }
+
     fun openUrl(url: String, entryId: String? = null) {
         val target = crossLinks?.value?.resolve(url)
         if (target != null) {
             onOpenInternal(target)
+            return
+        }
+        val noteInfo = extractNoteInfo(url)
+        if (noteInfo != null && docFetcher != null) {
+            val (path, title) = noteInfo
+            pendingNote = PendingNote(path = path, originalUrl = url, title = title)
             return
         }
         if (pasteResolver != null && PasteLinks.rawUrl(url) != null) {
@@ -195,6 +221,10 @@ class LinkOpener(
 @Composable
 fun UnsafeWarningDialog(opener: LinkOpener) {
     PasteChoiceDialog(opener)
+    val fetcher = opener.docFetcher
+    if (fetcher != null) {
+        NoteSheet(opener, fetcher)
+    }
     val reason = opener.pendingUnsafeReason ?: return
     AlertDialog(
         onDismissRequest = { opener.cancelOpenUnsafe() },
@@ -272,7 +302,26 @@ fun rememberLinkOpener(
             },
             pasteResolver = pasteResolverFor(container),
             userStore = container.userStore,
+            docFetcher = container.docFetcher,
         )
     }
+}
+
+fun extractNoteInfo(url: String): Pair<String, String>? {
+    val regex = Regex("""(?:\.vitepress/notes/|docs/\.vitepress/notes/)([^/?#]+\.md)""", RegexOption.IGNORE_CASE)
+    val match = regex.find(url.trim()) ?: return null
+    val fileName = match.groupValues[1]
+    val path = ".vitepress/notes/$fileName"
+    val title = formatNoteTitle(fileName)
+    return path to title
+}
+
+fun formatNoteTitle(fileName: String): String {
+    val base = fileName.substringAfterLast('/').removeSuffix(".md")
+    return base.split('-', '_', ' ')
+        .filter { it.isNotBlank() }
+        .joinToString(" ") { word ->
+            word.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+        }
 }
 

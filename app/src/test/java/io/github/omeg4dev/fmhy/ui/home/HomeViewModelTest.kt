@@ -109,6 +109,7 @@ class HomeViewModelTest {
         override val fmhySync: FmhySync get() = error("Not needed")
         override val searchEngine: SearchEngine get() = SearchEngine(datasetStore)
         override val bookmarks: io.github.omeg4dev.fmhy.data.BookmarksRepository get() = error("Not needed")
+        override val docFetcher: io.github.omeg4dev.fmhy.data.doc.DocFetcher get() = error("Not needed")
         override val safeGuard: io.github.omeg4dev.fmhy.data.safety.SafeGuard get() = io.github.omeg4dev.fmhy.data.safety.SafeGuard(datasetStore)
         override val crossLinks: StateFlow<io.github.omeg4dev.fmhy.data.link.CrossLinks?> = MutableStateFlow(null)
         private val _isInit = MutableStateFlow(true)
@@ -492,6 +493,14 @@ class HomeViewModelTest {
         assertEquals(audioIdx + 1, eduIdx)
         assertEquals(eduIdx + 1, devIdx)
 
+        val moreGroup = groups.firstOrNull { it.title == "More" }
+        assertNotNull(moreGroup)
+        val moreIds = moreGroup!!.sections.map { it.id }
+        assertTrue(moreIds.contains("beginners-guide"))
+        assertTrue(moreIds.contains("faq"))
+        assertTrue(moreIds.contains("backups"))
+        assertTrue(moreIds.contains("news-and-posts"))
+
         val alphaSections = sections.sortedBy { it.title }
         val alphaGroups = groupSections(alphaSections, SectionOrder.ALPHABETICAL)
         assertEquals(1, alphaGroups.size)
@@ -500,6 +509,10 @@ class HomeViewModelTest {
         assertEquals(alphaTitles.sortedWith(String.CASE_INSENSITIVE_ORDER), alphaTitles)
         assertTrue(alphaTitles.contains("Audio Tools"))
         assertTrue(alphaTitles.contains("Educational Tools"))
+        assertTrue(alphaTitles.contains("Beginner's guide"))
+        assertTrue(alphaTitles.contains("FAQ"))
+        assertTrue(alphaTitles.contains("Backups & mirrors"))
+        assertTrue(alphaTitles.contains("News & posts"))
 
         val counted = groupSections(sections, SectionOrder.WEBSITE, mapOf("audio-tools" to 41, "educational-tools" to 7))
             .first { it.title == "Tools" }.sections.associate { it.id to it.entryCount }
