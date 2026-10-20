@@ -16,11 +16,26 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.TextButton
+import io.github.omeg4dev.fmhy.browser.formatRelativeTime
+import io.github.omeg4dev.fmhy.data.adblock.FilterListCatalog
+import io.github.omeg4dev.fmhy.ui.settings.InfoRow
+import io.github.omeg4dev.fmhy.ui.settings.NavRow
+import io.github.omeg4dev.fmhy.ui.settings.SettingsGroupHeader
+import io.github.omeg4dev.fmhy.ui.settings.SiteSettingsScreen
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Explore
@@ -29,6 +44,9 @@ import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.Explore
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -37,6 +55,7 @@ import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -64,10 +83,20 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
 import io.github.omeg4dev.fmhy.nav.AppNavState
+import io.github.omeg4dev.fmhy.shortcuts.EXTRA_ENTRY_ID
+import io.github.omeg4dev.fmhy.shortcuts.EXTRA_FILTER
+import io.github.omeg4dev.fmhy.shortcuts.EXTRA_HEADING_ID
+import io.github.omeg4dev.fmhy.shortcuts.EXTRA_OPEN
+import io.github.omeg4dev.fmhy.shortcuts.EXTRA_SECTION_ID
+import io.github.omeg4dev.fmhy.shortcuts.ShortcutDestination
+import io.github.omeg4dev.fmhy.shortcuts.shortcutDestination
 import io.github.omeg4dev.fmhy.nav.LocalAppNav
+import io.github.omeg4dev.fmhy.nav.LocalAppNavOrNull
 import io.github.omeg4dev.fmhy.nav.LocalBottomBarPadding
 import io.github.omeg4dev.fmhy.nav.Tab
 import io.github.omeg4dev.fmhy.ui.common.BookmarksState
+import io.github.omeg4dev.fmhy.ui.common.LocalDatasetStore
+import io.github.omeg4dev.fmhy.ui.common.LocalUserStore
 import io.github.omeg4dev.fmhy.ui.common.LocalBookmarks
 import io.github.omeg4dev.fmhy.ui.common.SavedInfo
 import io.github.omeg4dev.fmhy.ui.common.LocalCrossLinks
@@ -83,12 +112,15 @@ import io.github.omeg4dev.fmhy.ui.section.SectionScreen
 import io.github.omeg4dev.fmhy.ui.section.SectionViewModel
 import io.github.omeg4dev.fmhy.ui.legend.LegendScreen
 import io.github.omeg4dev.fmhy.ui.check.CheckLinkScreen
+import io.github.omeg4dev.fmhy.ui.reader.ReaderScreen
+import io.github.omeg4dev.fmhy.ui.posts.PostsScreen
 import io.github.omeg4dev.fmhy.ui.settings.AboutPage
 import io.github.omeg4dev.fmhy.ui.settings.AppearancePage
 import io.github.omeg4dev.fmhy.ui.settings.BlockingPage
 import io.github.omeg4dev.fmhy.ui.settings.BrowserPage
 import io.github.omeg4dev.fmhy.ui.settings.DataPage
 import io.github.omeg4dev.fmhy.ui.settings.HomeListsPage
+import io.github.omeg4dev.fmhy.ui.settings.NavRow
 import io.github.omeg4dev.fmhy.ui.settings.NotificationsPage
 import io.github.omeg4dev.fmhy.ui.settings.PagesPage
 import io.github.omeg4dev.fmhy.ui.settings.PrivacyPage
@@ -97,9 +129,12 @@ import io.github.omeg4dev.fmhy.ui.settings.SavedPage
 import io.github.omeg4dev.fmhy.ui.settings.SettingsHub
 import io.github.omeg4dev.fmhy.ui.settings.SettingsViewModel
 import io.github.omeg4dev.fmhy.ui.settings.VideoPage
+import io.github.omeg4dev.fmhy.ui.onboarding.ONBOARDING_VERSION
+import io.github.omeg4dev.fmhy.ui.onboarding.OnboardingScreen
 import android.content.Intent
 import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
+import io.github.omeg4dev.fmhy.ui.common.NoteSheet
 import io.github.omeg4dev.fmhy.nav.resolveFmhyUri
 import io.github.omeg4dev.fmhy.nav.FmhyLinkDestination
 import kotlinx.coroutines.flow.SharedFlow
@@ -146,7 +181,7 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
     val scope = rememberCoroutineScope()
     val linkOpener = rememberLinkOpener(container, onShowSnackbar = { msg ->
         scope.launch { snackbarHostState.showSnackbar(msg) }
-    })
+    }, nav = nav)
 
     if (intentFlow != null) {
         LaunchedEffect(intentFlow) {
@@ -155,6 +190,53 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                 if (!checkLink.isNullOrEmpty()) {
                     nav.select(Tab.BROWSE)
                     nav.push(CheckLinkNavKey(checkLink))
+                    return@collect
+                }
+
+                val shortcut = shortcutDestination(
+                    open = incomingIntent.getStringExtra(EXTRA_OPEN),
+                    filter = incomingIntent.getStringExtra(EXTRA_FILTER),
+                    entryId = incomingIntent.getStringExtra(EXTRA_ENTRY_ID),
+                    sectionId = incomingIntent.getStringExtra(EXTRA_SECTION_ID),
+                    headingId = incomingIntent.getStringExtra(EXTRA_HEADING_ID),
+                )
+                if (shortcut != null) {
+                    // Handle each intent once: a replayed intent (rotation, re-collect) must not re-navigate.
+                    incomingIntent.removeExtra(EXTRA_OPEN)
+                    when (shortcut) {
+                        ShortcutDestination.Search -> {
+                            nav.select(Tab.SEARCH)
+                            nav.requestSearchFocus()
+                        }
+                        ShortcutDestination.Saved -> nav.select(Tab.SAVED)
+                        is ShortcutDestination.WhatsNew -> {
+                            nav.select(Tab.BROWSE)
+                            nav.push(WhatsNewNavKey(shortcut.filter))
+                        }
+                        ShortcutDestination.CheckLink -> {
+                            nav.select(Tab.BROWSE)
+                            nav.push(CheckLinkNavKey())
+                        }
+                        is ShortcutDestination.Random -> {
+                            val store = container.datasetStore
+                            val entry = runCatching {
+                                shortcut.entryId?.let { store.entry(it) } ?: store.randomTopPick()
+                            }.getOrNull()
+                            if (entry != null) {
+                                val anchor = runCatching {
+                                    entry.headingId?.let { hid ->
+                                        store.headings(entry.sectionId).firstOrNull { it.id == hid }?.anchor
+                                    }
+                                }.getOrNull()
+                                nav.select(Tab.BROWSE)
+                                nav.push(SectionNavKey(entry.sectionId, anchor = anchor, focusEntryId = entry.id))
+                            }
+                        }
+                        is ShortcutDestination.Pin -> {
+                            nav.select(Tab.BROWSE)
+                            nav.push(SectionNavKey(shortcut.sectionId, shortcut.headingId.ifEmpty { null }))
+                        }
+                    }
                     return@collect
                 }
 
@@ -259,6 +341,13 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
         }
     }
 
+    LaunchedEffect(container.navigationEvents) {
+        container.navigationEvents.collect { key ->
+            nav.select(Tab.BROWSE)
+            nav.push(key)
+        }
+    }
+
     var isBarVisible by remember { mutableStateOf(true) }
     val bottomBarController = remember {
         BottomBarController {
@@ -283,7 +372,10 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
         }
     }
 
-    val shouldShowBar = isBarVisible && currentTopKey !is SettingsNavKey && currentTopKey !is SettingsPageNavKey && currentTopKey !is LegendNavKey
+    val onboardingVersion by container.settingsRepository.onboardingVersion.collectAsStateWithLifecycle(initialValue = -1)
+    val showOnboarding = onboardingVersion in 0 until ONBOARDING_VERSION
+
+    val shouldShowBar = isBarVisible && !showOnboarding && currentTopKey !is SettingsNavKey && currentTopKey !is SettingsPageNavKey && currentTopKey !is LegendNavKey && currentTopKey !is SiteSettingsNavKey && currentTopKey !is ReaderNavKey
 
     BackHandler(enabled = nav.current != Tab.BROWSE && nav.currentStack.size == 1) {
         nav.back()
@@ -304,6 +396,8 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                 onNavigateToSection = { sectionId, anchor -> nav.push(SectionNavKey(sectionId, anchor)) },
                 onNavigateToSettings = { nav.push(SettingsNavKey) },
                 onNavigateToCheckLink = { nav.push(CheckLinkNavKey()) },
+                onNavigateToReader = { path, title -> nav.push(ReaderNavKey(path, title)) },
+                onNavigateToPosts = { nav.push(PostsNavKey) },
                 onShowSnackbar = { msg ->
                     scope.launch { snackbarHostState.showSnackbar(msg) }
                 }
@@ -316,6 +410,7 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
             }
             SectionScreen(
                 viewModel = sectionViewModel,
+                key = key,
                 container = container,
                 onBack = { if (!nav.back()) activity?.finish() },
                 onShowSnackbar = { msg ->
@@ -397,22 +492,152 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                     viewModel = settingsViewModel,
                     onBack = { if (!nav.back()) activity?.finish() },
                     onNavigateToPage = { page -> nav.push(SettingsPageNavKey(page)) },
+                    extraRows = {
+                        item {
+                            NavRow(
+                                title = "Site settings",
+                                summary = "Manage permissions and overrides per site",
+                                onClick = { nav.push(SiteSettingsNavKey) },
+                            )
+                        }
+                    },
                 )
-                SettingsPage.BLOCKING -> BlockingPage(
-                    viewModel = settingsViewModel,
-                    onBack = { if (!nav.back()) activity?.finish() },
-                )
+                SettingsPage.BLOCKING -> {
+                    val adblockStatus by container.adblockService.status.collectAsStateWithLifecycle()
+                    val listStates by container.adblockService.listStates.collectAsStateWithLifecycle()
+                    val blockingPrefs by settingsViewModel.blockingPrefs.collectAsStateWithLifecycle()
+
+                    BlockingPage(
+                        viewModel = settingsViewModel,
+                        onBack = { if (!nav.back()) activity?.finish() },
+                        extraRows = {
+                            item {
+                                SettingsGroupHeader(text = "Status")
+                            }
+                            item {
+                                InfoRow(
+                                    title = "Rules active",
+                                    value = "${adblockStatus.ruleCount}",
+                                )
+                            }
+                            item {
+                                InfoRow(
+                                    title = "Last updated",
+                                    value = formatRelativeTime(adblockStatus.lastUpdated),
+                                )
+                            }
+                            item {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                                ) {
+                                    FilledTonalButton(
+                                        onClick = {
+                                            scope.launch {
+                                                container.adblockService.updateNow()
+                                            }
+                                        },
+                                        enabled = !adblockStatus.updating,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    ) {
+                                        if (adblockStatus.updating) {
+                                            CircularProgressIndicator(
+                                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                                modifier = Modifier.size(16.dp),
+                                                strokeWidth = 2.dp,
+                                            )
+                                            Spacer(Modifier.width(8.dp))
+                                            Text("Updating lists…")
+                                        } else {
+                                            Text("Update lists now")
+                                        }
+                                    }
+                                }
+                            }
+                            if (adblockStatus.error != null) {
+                                item {
+                                    Text(
+                                        text = "Update error: ${adblockStatus.error}",
+                                        color = MaterialTheme.colorScheme.error,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                                    )
+                                }
+                            }
+                            item {
+                                SettingsGroupHeader(text = "Enabled list status")
+                            }
+                            items(blockingPrefs.enabledLists.toList()) { listId ->
+                                val catalogList = FilterListCatalog.byId(listId)
+                                val title = catalogList?.title ?: listId
+                                val state = listStates[listId]
+                                val desc = when {
+                                    state?.error != null -> "Error: ${state.error}"
+                                    state != null -> "${state.ruleLines} rules · updated ${formatRelativeTime(state.fetchedAt)}"
+                                    else -> "Not downloaded yet"
+                                }
+                                InfoRow(
+                                    title = title,
+                                    value = desc,
+                                )
+                            }
+                        },
+                    )
+                }
                 SettingsPage.PROTECTION -> ProtectionPage(
                     viewModel = settingsViewModel,
                     onBack = { if (!nav.back()) activity?.finish() },
                 )
-                SettingsPage.PRIVACY -> PrivacyPage(
-                    viewModel = settingsViewModel,
-                    onBack = { if (!nav.back()) activity?.finish() },
-                    onShowSnackbar = { msg ->
-                        scope.launch { snackbarHostState.showSnackbar(msg) }
-                    },
-                )
+                SettingsPage.PRIVACY -> {
+                    var showClearDataConfirmDialog by remember { mutableStateOf(false) }
+
+                    PrivacyPage(
+                        viewModel = settingsViewModel,
+                        onBack = { if (!nav.back()) activity?.finish() },
+                        onShowSnackbar = { msg ->
+                            scope.launch { snackbarHostState.showSnackbar(msg) }
+                        },
+                        extraRows = {
+                            item {
+                                NavRow(
+                                    title = "Clear cookies, cache and site storage",
+                                    summary = "Removes cookies, cache, web storage and passwords",
+                                    onClick = { showClearDataConfirmDialog = true },
+                                )
+                            }
+                        },
+                    )
+
+                    if (showClearDataConfirmDialog) {
+                        AlertDialog(
+                            onDismissRequest = { showClearDataConfirmDialog = false },
+                            title = { Text("Clear cookies, cache and site storage") },
+                            text = { Text("Clear all cookies, cache, web storage, and saved form data from the in-app browser?") },
+                            confirmButton = {
+                                TextButton(
+                                    onClick = {
+                                        showClearDataConfirmDialog = false
+                                        android.webkit.CookieManager.getInstance().removeAllCookies(null)
+                                        android.webkit.WebStorage.getInstance().deleteAllData()
+                                        android.webkit.WebView(context).clearCache(true)
+                                        runCatching { android.webkit.WebViewDatabase.getInstance(context).clearHttpAuthUsernamePassword() }
+                                        @Suppress("DEPRECATION")
+                                        runCatching { android.webkit.WebViewDatabase.getInstance(context).clearFormData() }
+                                        scope.launch { snackbarHostState.showSnackbar("Browsing data cleared") }
+                                    }
+                                ) {
+                                    Text("Clear")
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { showClearDataConfirmDialog = false }) {
+                                    Text("Cancel")
+                                }
+                            }
+                        )
+                    }
+                }
                 SettingsPage.PAGE -> PagesPage(
                     viewModel = settingsViewModel,
                     onBack = { if (!nav.back()) activity?.finish() },
@@ -421,13 +646,75 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                     viewModel = settingsViewModel,
                     onBack = { if (!nav.back()) activity?.finish() },
                 )
-                SettingsPage.NOTIFICATIONS -> NotificationsPage(
-                    viewModel = settingsViewModel,
-                    onBack = { if (!nav.back()) activity?.finish() },
-                    onShowSnackbar = { msg ->
-                        scope.launch { snackbarHostState.showSnackbar(msg) }
-                    },
-                )
+                SettingsPage.NOTIFICATIONS -> {
+                    val userStoreChanges by container.userStore.changes.collectAsStateWithLifecycle()
+                    var follows by remember { mutableStateOf<List<io.github.omeg4dev.fmhy.data.user.Follow>>(emptyList()) }
+                    LaunchedEffect(userStoreChanges) {
+                        follows = try { container.userStore.follows() } catch (_: Exception) { emptyList() }
+                    }
+                    var checking by remember { mutableStateOf(false) }
+                    NotificationsPage(
+                        viewModel = settingsViewModel,
+                        onBack = { if (!nav.back()) activity?.finish() },
+                        onShowSnackbar = { msg ->
+                            scope.launch { snackbarHostState.showSnackbar(msg) }
+                        },
+                        extraRows = {
+                            item { SettingsGroupHeader(text = "Followed") }
+                            if (follows.isEmpty()) {
+                                item {
+                                    InfoRow(
+                                        title = "Nothing followed yet",
+                                        value = "Follow a section or category from its menu or a site's details",
+                                    )
+                                }
+                            } else {
+                                items(follows, key = { "${it.sectionId}/${it.headingId}" }) { f ->
+                                    ListItem(
+                                        headlineContent = { Text(f.title) },
+                                        trailingContent = {
+                                            IconButton(onClick = {
+                                                scope.launch {
+                                                    container.userStore.unfollow(f.sectionId, f.headingId)
+                                                    snackbarHostState.showSnackbar("Unfollowed ${f.title}")
+                                                }
+                                            }) {
+                                                Icon(Icons.Default.Close, contentDescription = "Unfollow ${f.title}")
+                                            }
+                                        },
+                                    )
+                                }
+                            }
+                            item { SettingsGroupHeader(text = "Updates") }
+                            item {
+                                NavRow(
+                                    title = "What's new",
+                                    summary = "Added, updated and removed sites",
+                                    onClick = { nav.push(WhatsNewNavKey()) },
+                                )
+                            }
+                            item {
+                                NavRow(
+                                    title = "Check for updates now",
+                                    summary = if (checking) "Checking..." else "Sync and look for changes in what you follow",
+                                    enabled = !checking,
+                                    onClick = {
+                                        checking = true
+                                        scope.launch {
+                                            val outcome = try {
+                                                io.github.omeg4dev.fmhy.work.UpdateChecker.run(container.context, container)
+                                            } catch (e: Exception) {
+                                                null
+                                            }
+                                            checking = false
+                                            snackbarHostState.showSnackbar(outcome?.summary ?: "Check failed")
+                                        }
+                                    },
+                                )
+                            }
+                        },
+                    )
+                }
                 SettingsPage.DATA -> DataPage(
                     viewModel = settingsViewModel,
                     onBack = { if (!nav.back()) activity?.finish() },
@@ -442,12 +729,44 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                 SettingsPage.ABOUT -> AboutPage(
                     viewModel = settingsViewModel,
                     onBack = { if (!nav.back()) activity?.finish() },
+                    extraRows = {
+                        item {
+                            NavRow(
+                                title = "Run setup again",
+                                onClick = {
+                                    settingsViewModel.setOnboardingVersion(0)
+                                },
+                            )
+                        }
+                    },
                 )
             }
         }
 
+        entry<WhatsNewNavKey> { key ->
+            val whatsNewViewModel: io.github.omeg4dev.fmhy.ui.whatsnew.WhatsNewViewModel = viewModel(key = "whatsnew-${key.filter}") {
+                io.github.omeg4dev.fmhy.ui.whatsnew.WhatsNewViewModel(key.filter, container)
+            }
+            io.github.omeg4dev.fmhy.ui.whatsnew.WhatsNewScreen(
+                viewModel = whatsNewViewModel,
+                container = container,
+                onBack = { if (!nav.back()) activity?.finish() },
+                onShowSnackbar = { msg ->
+                    scope.launch { snackbarHostState.showSnackbar(msg) }
+                },
+            )
+        }
+
         entry<LegendNavKey> {
             LegendScreen(
+                onBack = { if (!nav.back()) activity?.finish() },
+            )
+        }
+
+        entry<SiteSettingsNavKey> {
+            SiteSettingsScreen(
+                userStore = container.userStore,
+                settingsRepository = container.settingsRepository,
                 onBack = { if (!nav.back()) activity?.finish() },
             )
         }
@@ -480,15 +799,43 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                 }
             )
         }
+
+        entry<ReaderNavKey> { key ->
+            ReaderScreen(
+                path = key.path,
+                title = key.title,
+                container = container,
+                onBack = { if (!nav.back()) activity?.finish() },
+                onShowSnackbar = { msg ->
+                    scope.launch { snackbarHostState.showSnackbar(msg) }
+                }
+            )
+        }
+
+        entry<PostsNavKey> {
+            PostsScreen(
+                container = container,
+                onBack = { if (!nav.back()) activity?.finish() },
+                onNavigateToReader = { path, title ->
+                    nav.push(ReaderNavKey(path, title))
+                },
+                onShowSnackbar = { msg ->
+                    scope.launch { snackbarHostState.showSnackbar(msg) }
+                }
+            )
+        }
     }
 
     CompositionLocalProvider(
         LocalAppNav provides nav,
+        LocalAppNavOrNull provides nav,
         LocalBottomBarPadding provides bottomBarPadding,
         LocalBottomBarController provides bottomBarController,
         LocalCrossLinks provides crossLinks,
         LocalPasteResolver provides remember(container) { pasteResolverFor(container) },
         LocalBookmarks provides bookmarksState,
+        LocalDatasetStore provides container.datasetStore,
+        LocalUserStore provides container.userStore,
     ) {
         Scaffold(
             snackbarHost = {
@@ -597,6 +944,19 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                             },
                             label = { Text("Saved") },
                             alwaysShowLabel = true,
+                        )
+                    }
+                }
+
+                // Onboarding full screen overlay
+                if (showOnboarding) {
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = MaterialTheme.colorScheme.background,
+                    ) {
+                        OnboardingScreen(
+                            container = container,
+                            onFinished = {},
                         )
                     }
                 }

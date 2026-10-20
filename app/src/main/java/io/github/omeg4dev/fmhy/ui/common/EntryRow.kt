@@ -3,6 +3,7 @@ package io.github.omeg4dev.fmhy.ui.common
 import androidx.compose.foundation.rememberScrollState
 import io.github.omeg4dev.fmhy.data.link.PasteResolver
 import io.github.omeg4dev.fmhy.data.link.PasteLinks
+import io.github.omeg4dev.fmhy.data.link.CrossLinks
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.foundation.verticalScroll
@@ -36,16 +37,21 @@ import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.automirrored.filled.Segment
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.Key
+import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
@@ -57,8 +63,14 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import io.github.omeg4dev.fmhy.data.model.ChangeItem
+import io.github.omeg4dev.fmhy.data.model.ChangeKind
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -120,6 +132,12 @@ fun EntryRow(
     alternatives: List<Entry> = emptyList(),
     nameHl: String? = null,
     descHl: String? = null,
+    isNew: Boolean = false,
+    updateLine: String? = null,
+    history: List<ChangeItem>? = null,
+    onShowInSection: (() -> Unit)? = null,
+    followState: FollowState? = null,
+    onToggleFollow: (() -> Unit)? = null,
     onOpenUrl: (String) -> Unit,
     onShowSnackbar: (String) -> Unit = {},
     folderLabel: String? = null,
@@ -128,6 +146,61 @@ fun EntryRow(
 ) {
     var showBottomSheet by remember { mutableStateOf(false) }
     val haptics = rememberHaptics()
+    val scope = rememberCoroutineScope()
+    val datasetStore = LocalDatasetStore.current
+    val userStore = LocalUserStore.current
+
+    var loadedHistory by remember(entry.id, history) { mutableStateOf<List<ChangeItem>?>(history) }
+    LaunchedEffect(showBottomSheet, history, entry.id) {
+        if (showBottomSheet && history == null && datasetStore != null) {
+            loadedHistory = try {
+                datasetStore.entryHistory(entry.id)
+            } catch (_: Exception) {
+                null
+            }
+        }
+    }
+
+    var followsList by remember { mutableStateOf<List<io.github.omeg4dev.fmhy.data.user.Follow>>(emptyList()) }
+    LaunchedEffect(userStore?.changes, showBottomSheet) {
+        if (showBottomSheet && userStore != null && followState == null) {
+            followsList = userStore.follows()
+        }
+    }
+
+    val categoryTitle = remember(entry.headingPath) {
+        val segments = entry.headingPath
+            .split(Regex("""\s*[›>]\s*"""))
+            .filter { it.isNotBlank() }
+            .map { CrossLinks.splitLinkTitle(it).first }
+        segments.drop(1).firstOrNull() ?: segments.firstOrNull().orEmpty()
+    }
+
+    val effectiveFollowState = remember(followState, followsList, entry.sectionId, entry.headingId, categoryTitle) {
+        followState ?: if (categoryTitle.isNotEmpty()) {
+            val isFollowing = followsList.any {
+                it.sectionId == entry.sectionId && (it.headingId == (entry.headingId ?: "") || it.headingId == "")
+            }
+            FollowState(categoryTitle = categoryTitle, isFollowing = isFollowing)
+        } else null
+    }
+
+    val effectiveToggleFollow: (() -> Unit)? = remember(onToggleFollow, effectiveFollowState, userStore, entry.sectionId, entry.headingId) {
+        onToggleFollow ?: if (userStore != null && effectiveFollowState != null) {
+            {
+                scope.launch {
+                    val targetHeadingId = entry.headingId ?: ""
+                    if (effectiveFollowState.isFollowing) {
+                        userStore.unfollow(entry.sectionId, targetHeadingId)
+                        onShowSnackbar("Unfollowed ${effectiveFollowState.categoryTitle}")
+                    } else {
+                        userStore.follow(entry.sectionId, targetHeadingId, effectiveFollowState.categoryTitle)
+                        onShowSnackbar("Following ${effectiveFollowState.categoryTitle}")
+                    }
+                }
+            }
+        } else null
+    }
 
     val primaryColor = MaterialTheme.colorScheme.primary
     val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
@@ -286,6 +359,21 @@ fun EntryRow(
                     overflow = TextOverflow.Ellipsis,
                 )
 
+                if (isNew) {
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                    ) {
+                        Text(
+                            text = "NEW",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
+                        )
+                    }
+                }
+
                 if (alternatives.isNotEmpty()) {
                     Surface(
                         shape = CircleShape,
@@ -389,6 +477,16 @@ fun EntryRow(
                 }
             }
 
+            if (!updateLine.isNullOrEmpty()) {
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = updateLine,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Medium,
+                )
+            }
+
             // Description
             if (displayDesc.isNotEmpty()) {
                 Spacer(Modifier.height(2.dp))
@@ -445,13 +543,16 @@ fun EntryRow(
         }
     }
 
-    val scope = rememberCoroutineScope()
     val pasteResolver = LocalPasteResolver.current
     if (showBottomSheet) {
         val context = LocalContext.current
         EntryDetailBottomSheet(
             entry = entry,
             alternatives = alternatives,
+            history = loadedHistory,
+            onShowInSection = onShowInSection,
+            followState = effectiveFollowState,
+            onToggleFollow = effectiveToggleFollow,
             onDismiss = { showBottomSheet = false },
             onOpenUrl = { url ->
                 showBottomSheet = false
@@ -487,6 +588,10 @@ fun EntryRow(
 fun EntryDetailBottomSheet(
     entry: Entry,
     alternatives: List<Entry> = emptyList(),
+    history: List<ChangeItem>? = null,
+    onShowInSection: (() -> Unit)? = null,
+    followState: FollowState? = null,
+    onToggleFollow: (() -> Unit)? = null,
     onDismiss: () -> Unit,
     onOpenUrl: (String) -> Unit,
     onCopyLink: (String) -> Unit,
@@ -1026,6 +1131,144 @@ fun EntryDetailBottomSheet(
                             supportingContent = { Text(extra.url, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                             modifier = Modifier.clickable { onOpenUrl(extra.url) }
                         )
+                    }
+                }
+            }
+
+            if (onShowInSection != null) {
+                HorizontalDivider(
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+                    thickness = 0.5.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                )
+                ListItem(
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                    leadingContent = {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Segment,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                    },
+                    headlineContent = {
+                        Text("Show in section", style = MaterialTheme.typography.titleSmall)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            onDismiss()
+                            onShowInSection()
+                        }
+                        .padding(horizontal = 8.dp),
+                )
+            }
+
+            if (followState != null && onToggleFollow != null) {
+                ListItem(
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                    leadingContent = {
+                        Icon(
+                            imageVector = if (followState.isFollowing) Icons.Default.NotificationsActive else Icons.Outlined.Notifications,
+                            contentDescription = null,
+                            tint = if (followState.isFollowing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    },
+                    headlineContent = {
+                        Text(
+                            text = if (followState.isFollowing) "Following ${followState.categoryTitle}" else "Follow ${followState.categoryTitle}",
+                            style = MaterialTheme.typography.titleSmall,
+                        )
+                    },
+                    trailingContent = {
+                        if (followState.isFollowing) {
+                            FilledTonalButton(onClick = onToggleFollow) {
+                                Text("Following")
+                            }
+                        } else {
+                            Button(onClick = onToggleFollow) {
+                                Text("Follow")
+                            }
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onToggleFollow() }
+                        .padding(horizontal = 8.dp),
+                )
+            }
+
+            if (!history.isNullOrEmpty()) {
+                HorizontalDivider(
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+                    thickness = 0.5.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                )
+                Text(
+                    text = "History",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp),
+                )
+                history.forEach { item ->
+                    val dateStr = DateFormatters.formatHistoryDate(item.ts)
+                    when (item.kind) {
+                        ChangeKind.ADDED -> {
+                            ListItem(
+                                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                headlineContent = { Text("Added $dateStr") },
+                            )
+                        }
+                        ChangeKind.STARRED -> {
+                            ListItem(
+                                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                headlineContent = { Text("Starred $dateStr") },
+                            )
+                        }
+                        ChangeKind.UNSTARRED -> {
+                            ListItem(
+                                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                headlineContent = { Text("Unstarred $dateStr") },
+                            )
+                        }
+                        ChangeKind.EDITED -> {
+                            var isExpanded by rememberSaveable { mutableStateOf(false) }
+                            ListItem(
+                                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                headlineContent = {
+                                    Text(
+                                        text = if (item.detail.isNotEmpty()) "Changed $dateStr — was: ${item.detail}" else "Changed $dateStr",
+                                        maxLines = if (isExpanded) Int.MAX_VALUE else 2,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                },
+                                modifier = Modifier.clickable { isExpanded = !isExpanded },
+                            )
+                        }
+                        ChangeKind.URL_CHANGED -> {
+                            val host = try { Uri.parse(item.url).host?.removePrefix("www.") ?: item.url } catch (_: Exception) { item.url }
+                            ListItem(
+                                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                headlineContent = { Text("New link: $host · $dateStr") },
+                            )
+                        }
+                        ChangeKind.REMOVED -> {
+                            ListItem(
+                                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                headlineContent = { Text("Removed $dateStr") },
+                            )
+                        }
+                        ChangeKind.RENAMED -> {
+                            ListItem(
+                                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                headlineContent = { Text("Renamed $dateStr") },
+                            )
+                        }
+                        ChangeKind.MOVED -> {
+                            ListItem(
+                                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                headlineContent = { Text("Moved $dateStr") },
+                            )
+                        }
                     }
                 }
             }

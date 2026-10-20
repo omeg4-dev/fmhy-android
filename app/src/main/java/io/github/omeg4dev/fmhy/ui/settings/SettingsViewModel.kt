@@ -345,4 +345,10 @@ class SettingsViewModel(
     suspend fun clearHistory() {
         container.userStore.clearHistory()
     }
+
+    fun setOnboardingVersion(v: Int) {
+        viewModelScope.launch {
+            settingsRepository.setOnboardingVersion(v)
+        }
+    }
 }

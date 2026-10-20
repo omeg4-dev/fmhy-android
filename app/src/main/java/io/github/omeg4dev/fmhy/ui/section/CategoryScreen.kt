@@ -1,6 +1,8 @@
 package io.github.omeg4dev.fmhy.ui.section
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -38,9 +40,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -78,18 +82,29 @@ fun CategoryScreen(
     var showJumpBottomSheet by remember { mutableStateOf(false) }
     var showLegendBottomSheet by remember { mutableStateOf(false) }
     var highlightedHeadingId by remember { mutableStateOf<String?>(null) }
+    var highlightedEntryId by remember { mutableStateOf<String?>(null) }
     var pendingSubSelection by remember { mutableStateOf<Int?>(null) }
+    var showOverflowMenu by remember { mutableStateOf(false) }
+
+    var follows by remember { mutableStateOf<List<io.github.omeg4dev.fmhy.data.user.Follow>>(emptyList()) }
+    LaunchedEffect(container.userStore.changes) {
+        follows = container.userStore.follows()
+    }
+    val currentSectionId = state.section?.id ?: key.sectionId
+    val currentSectionTitle = state.section?.title ?: "Section"
 
     val isFilterActive = state.starredOnly || !state.showIndexes
 
     val isOverview = key.categoryHeadingId == "__overview"
     val homePrefs by container.settingsRepository.homePrefs.collectAsStateWithLifecycle(initialValue = HomePrefs())
     val userChanges by container.userStore.changes.collectAsStateWithLifecycle()
-    var showCategoryMenu by remember { mutableStateOf(false) }
     var isCategoryPinned by remember { mutableStateOf(false) }
 
     val category = remember(state.structure.categories, key.categoryHeadingId) {
         if (isOverview) null else state.structure.categories.firstOrNull { it.heading.id == key.categoryHeadingId }
+    }
+    val isCategoryFollowed = remember(follows, currentSectionId, category) {
+        category != null && follows.any { it.sectionId == currentSectionId && it.headingId == category.heading.id }
     }
 
     val overviewEntryCount = remember(state.structure.overview) {
@@ -145,20 +160,43 @@ fun CategoryScreen(
         }
     }
 
-    // Scroll to focusHeadingId on first composition and highlight
-    LaunchedEffect(displayItems, key.focusHeadingId) {
-        val focusId = key.focusHeadingId
-        if (!focusId.isNullOrEmpty() && displayItems.isNotEmpty()) {
-            val targetIdx = displayItems.indexOfFirst {
-                it is SectionItem.HeadingItem &&
-                    (it.heading.id == focusId || it.heading.anchor.equals(focusId, ignoreCase = true) || it.heading.id.endsWith(focusId))
+    // Scroll to focusEntryId or focusHeadingId on first composition and highlight
+    var hasScrolledToFocus by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(displayItems, key.focusHeadingId, key.focusEntryId) {
+        if (!hasScrolledToFocus && displayItems.isNotEmpty()) {
+            val focusEntryId = key.focusEntryId
+            if (!focusEntryId.isNullOrEmpty()) {
+                val entryIdx = displayItems.indexOfFirst {
+                    when (it) {
+                        is SectionItem.EntryItem -> it.entry.id == focusEntryId || it.alternatives.any { a -> a.id == focusEntryId }
+                        is SectionItem.MoreGroup -> it.entries.any { e -> e.id == focusEntryId }
+                        else -> false
+                    }
+                }
+                if (entryIdx != -1) {
+                    hasScrolledToFocus = true
+                    listState.scrollToItem(entryIdx)
+                    highlightedEntryId = focusEntryId
+                    delay(1500)
+                    highlightedEntryId = null
+                    return@LaunchedEffect
+                }
             }
-            if (targetIdx != -1) {
-                listState.scrollToItem(targetIdx)
-                val matchedHeading = (displayItems[targetIdx] as SectionItem.HeadingItem).heading
-                highlightedHeadingId = matchedHeading.id
-                delay(1200)
-                highlightedHeadingId = null
+
+            val focusId = key.focusHeadingId
+            if (!focusId.isNullOrEmpty()) {
+                val targetIdx = displayItems.indexOfFirst {
+                    it is SectionItem.HeadingItem &&
+                        (it.heading.id == focusId || it.heading.anchor.equals(focusId, ignoreCase = true) || it.heading.id.endsWith(focusId))
+                }
+                if (targetIdx != -1) {
+                    hasScrolledToFocus = true
+                    listState.scrollToItem(targetIdx)
+                    val matchedHeading = (displayItems[targetIdx] as SectionItem.HeadingItem).heading
+                    highlightedHeadingId = matchedHeading.id
+                    delay(1200)
+                    highlightedHeadingId = null
+                }
             }
         }
     }
@@ -228,42 +266,63 @@ fun CategoryScreen(
                         IconButton(onClick = { showJumpBottomSheet = true }) {
                             Icon(Icons.AutoMirrored.Outlined.List, contentDescription = "Outline")
                         }
-                        if (homePrefs.personalHome) {
+                        val canFollowCat = !isOverview && category != null
+                        if (canFollowCat || homePrefs.personalHome) {
                             val catHeadingId = if (isOverview) "__overview" else (category?.heading?.id ?: key.categoryHeadingId)
                             LaunchedEffect(userChanges, key.sectionId, catHeadingId) {
                                 val pins = container.userStore.pins()
                                 isCategoryPinned = pins.any { it.sectionId == key.sectionId && it.headingId == catHeadingId }
                             }
                             Box {
-                                IconButton(onClick = { showCategoryMenu = true }) {
+                                IconButton(onClick = { showOverflowMenu = true }) {
                                     Icon(Icons.Default.MoreVert, contentDescription = "More options")
                                 }
                                 DropdownMenu(
-                                    expanded = showCategoryMenu,
-                                    onDismissRequest = { showCategoryMenu = false },
+                                    expanded = showOverflowMenu,
+                                    onDismissRequest = { showOverflowMenu = false },
                                 ) {
-                                    if (isCategoryPinned) {
+                                    if (canFollowCat) {
+                                        val fullCatTitle = "$currentSectionTitle › $categoryTitle"
                                         DropdownMenuItem(
-                                            text = { Text("Unpin") },
+                                            text = { Text(if (isCategoryFollowed) "Unfollow this category" else "Follow this category") },
                                             onClick = {
-                                                showCategoryMenu = false
+                                                showOverflowMenu = false
                                                 scope.launch {
-                                                    container.userStore.unpin(key.sectionId, catHeadingId)
-                                                    onShowSnackbar("Unpinned from Home")
+                                                    if (isCategoryFollowed) {
+                                                        container.userStore.unfollow(currentSectionId, category.heading.id)
+                                                        onShowSnackbar("Unfollowed $fullCatTitle")
+                                                    } else {
+                                                        container.userStore.follow(currentSectionId, category.heading.id, fullCatTitle)
+                                                        onShowSnackbar("Following $fullCatTitle")
+                                                    }
                                                 }
                                             },
                                         )
-                                    } else {
-                                        DropdownMenuItem(
-                                            text = { Text("Pin to Home") },
-                                            onClick = {
-                                                showCategoryMenu = false
-                                                scope.launch {
-                                                    container.userStore.pin(key.sectionId, catHeadingId, categoryTitle)
-                                                    onShowSnackbar("Pinned to Home")
-                                                }
-                                            },
-                                        )
+                                    }
+                                    if (homePrefs.personalHome) {
+                                        if (isCategoryPinned) {
+                                            DropdownMenuItem(
+                                                text = { Text("Unpin") },
+                                                onClick = {
+                                                    showOverflowMenu = false
+                                                    scope.launch {
+                                                        container.userStore.unpin(key.sectionId, catHeadingId)
+                                                        onShowSnackbar("Unpinned from Home")
+                                                    }
+                                                },
+                                            )
+                                        } else {
+                                            DropdownMenuItem(
+                                                text = { Text("Pin to Home") },
+                                                onClick = {
+                                                    showOverflowMenu = false
+                                                    scope.launch {
+                                                        container.userStore.pin(key.sectionId, catHeadingId, categoryTitle)
+                                                        onShowSnackbar("Pinned to Home")
+                                                    }
+                                                },
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -303,6 +362,21 @@ fun CategoryScreen(
                                     pendingSubSelection = index
                                     listState.animateScrollToItem(targetIdx)
                                     pendingSubSelection = null
+                                }
+                            }
+                        },
+                        onLongClickChip = { index ->
+                            val sub = subHeadings.getOrNull(index) ?: return@CategoryChipRail
+                            val subTitle = CrossLinks.splitLinkTitle(sub.title).first
+                            val fullTitle = "$currentSectionTitle › $subTitle"
+                            val isSubFollowed = follows.any { it.sectionId == currentSectionId && it.headingId == sub.id }
+                            scope.launch {
+                                if (isSubFollowed) {
+                                    container.userStore.unfollow(currentSectionId, sub.id)
+                                    onShowSnackbar("Unfollowed $fullTitle")
+                                } else {
+                                    container.userStore.follow(currentSectionId, sub.id, fullTitle)
+                                    onShowSnackbar("Following $fullTitle")
                                 }
                             }
                         },
@@ -377,10 +451,18 @@ fun CategoryScreen(
                                 )
                             }
                             is SectionItem.EntryItem -> {
-                                Column {
+                                val isEntryHighlighted = item.entry.id == highlightedEntryId || item.alternatives.any { it.id == highlightedEntryId }
+                                val targetBg = if (isEntryHighlighted) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f) else Color.Transparent
+                                val entryBg by animateColorAsState(
+                                    targetValue = targetBg,
+                                    animationSpec = tween(1500),
+                                    label = "category_entry_highlight",
+                                )
+                                Column(modifier = Modifier.background(entryBg)) {
                                     EntryRow(
                                         entry = item.entry,
                                         alternatives = item.alternatives,
+                                        isNew = item.entry.id in state.newEntryIds,
                                         onOpenUrl = { linkOpener.openUrl(it) },
                                         onShowSnackbar = onShowSnackbar,
                                     )

@@ -1,0 +1,4 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>redirect test</title>
+<p>After 1 s this page navigates to https://example.com/ without a gesture (should be blocked).</p>
+<script>setTimeout(function () { location = 'https://example.com/'; }, 1000);</script>

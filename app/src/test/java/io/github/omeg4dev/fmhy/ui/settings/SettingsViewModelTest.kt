@@ -87,6 +87,7 @@ class SettingsViewModelTest {
         override val okHttpClient: OkHttpClient get() = error("Not needed")
         override val searchEngine get() = error("Not needed")
         override val bookmarks: io.github.omeg4dev.fmhy.data.BookmarksRepository get() = error("Not needed")
+        override val docFetcher: io.github.omeg4dev.fmhy.data.doc.DocFetcher get() = error("Not needed")
         override val safeGuard: io.github.omeg4dev.fmhy.data.safety.SafeGuard get() = io.github.omeg4dev.fmhy.data.safety.SafeGuard(datasetStore)
         override val crossLinks: StateFlow<io.github.omeg4dev.fmhy.data.link.CrossLinks?> = MutableStateFlow(null)
         override val isInitialized: StateFlow<Boolean> = MutableStateFlow(true).asStateFlow()

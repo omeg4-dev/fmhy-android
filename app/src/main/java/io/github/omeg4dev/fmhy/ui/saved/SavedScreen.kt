@@ -94,6 +94,17 @@ fun SavedScreen(
     val bottomBarPadding = LocalBottomBarPadding.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val showInSection: (io.github.omeg4dev.fmhy.data.model.Entry) -> Unit = { entry ->
+        scope.launch {
+            val anchor = try {
+                entry.headingId?.let { hid ->
+                    container.datasetStore.headings(entry.sectionId).firstOrNull { it.id == hid }?.anchor
+                }
+            } catch (_: Exception) { null }
+            nav.select(Tab.BROWSE)
+            nav.push(io.github.omeg4dev.fmhy.SectionNavKey(entry.sectionId, anchor = anchor, focusEntryId = entry.id))
+        }
+    }
 
     var selectedTab by rememberSaveable { mutableStateOf("all") }
 
@@ -269,6 +280,7 @@ fun SavedScreen(
                                         if (item.liveEntry != null) {
                                             EntryRow(
                                                 entry = item.liveEntry,
+                                                onShowInSection = { showInSection(item.liveEntry) },
                                                 onOpenUrl = { linkOpener.openUrl(it) },
                                                 onShowSnackbar = onShowSnackbar,
                                             )
@@ -406,6 +418,7 @@ fun SavedScreen(
                                         if (item.liveEntry != null) {
                                             EntryRow(
                                                 entry = item.liveEntry,
+                                                onShowInSection = { showInSection(item.liveEntry) },
                                                 notePreview = noteFirstLine,
                                                 onOpenUrl = { linkOpener.openUrl(it) },
                                                 onShowSnackbar = onShowSnackbar,
@@ -506,6 +519,7 @@ fun SavedScreen(
                                     if (item.liveEntry != null) {
                                         EntryRow(
                                             entry = item.liveEntry,
+                                            onShowInSection = { showInSection(item.liveEntry) },
                                             folderLabel = item.folderName,
                                             notePreview = noteFirstLine,
                                             onOpenUrl = { linkOpener.openUrl(it) },

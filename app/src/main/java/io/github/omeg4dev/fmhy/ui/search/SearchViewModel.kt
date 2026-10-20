@@ -12,6 +12,7 @@ import io.github.omeg4dev.fmhy.data.model.Section
 import io.github.omeg4dev.fmhy.data.search.SearchEngine
 import io.github.omeg4dev.fmhy.data.search.SearchGroup
 import io.github.omeg4dev.fmhy.data.search.SearchResults
+import io.github.omeg4dev.fmhy.ui.common.NewBadgeLogic
 import io.github.omeg4dev.fmhy.data.safety.SafeGuard
 import io.github.omeg4dev.fmhy.data.safety.Verdict
 import io.github.omeg4dev.fmhy.ui.check.looksLikeUrl
@@ -46,6 +47,7 @@ data class SearchUiState(
     val isSearching: Boolean = false,
     val hasSearched: Boolean = false,
     val verdict: Verdict? = null,
+    val newEntryIds: Set<String> = emptySet(),
 )
 
 @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
@@ -118,29 +120,47 @@ class SearchViewModel(
         SearchEngineAndVerdict(results, verdict)
     }.flowOn(Dispatchers.IO)
 
+    private data class RecentsAndPrefs(
+        val recents: List<String>,
+        val homePrefs: io.github.omeg4dev.fmhy.data.HomePrefs,
+    )
+
     val uiState: StateFlow<SearchUiState> = combine(
         combine(query, starredOnly, b64Only) { q, starred, b64 -> Triple(q, starred, b64) },
         selectedSectionFilters,
         allSections,
-        settingsRepository.recentSearches,
+        combine(settingsRepository.recentSearches, settingsRepository.homePrefs) { r, h -> RecentsAndPrefs(r, h) },
         searchResults,
-    ) { (q, starred, b64), filters, sections, recents, engineAndVerdict ->
+    ) { (q, starred, b64), filters, sections, recentsAndPrefs, engineAndVerdict ->
         val results = engineAndVerdict.results
+        val groups: ImmutableList<SearchGroup> = (results?.groups ?: emptyList()).toImmutableList()
+        val badgeDays = recentsAndPrefs.homePrefs.newBadgeDays
+        val allVisibleIds = groups.flatMap { g -> g.hits.map { it.entry.id } }
+        val newEntryIds = if (badgeDays > 0 && allVisibleIds.isNotEmpty()) {
+            val addedMap = try {
+                store.addedAt(allVisibleIds)
+            } catch (_: Exception) {
+                emptyMap()
+            }
+            val nowSec = System.currentTimeMillis() / 1000
+            addedMap.filter { NewBadgeLogic.isNew(it.value, nowSec, badgeDays) }.keys
+        } else emptySet()
         SearchUiState(
             query = q,
             starredOnly = starred,
             b64Only = b64,
             selectedSectionFilters = filters,
             availableSections = sections,
-            groups = (results?.groups ?: emptyList()).toImmutableList(),
+            groups = groups,
             total = results?.total ?: 0,
             tookMs = results?.tookMs ?: 0L,
-            recentSearches = recents.toImmutableList(),
+            recentSearches = recentsAndPrefs.recents.toImmutableList(),
             isSearching = false,
             hasSearched = results != null || engineAndVerdict.verdict != null,
             verdict = engineAndVerdict.verdict,
+            newEntryIds = newEntryIds,
         )
-    }.stateIn(
+    }.flowOn(Dispatchers.IO).stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5000),
         SearchUiState(query = initialQuery)

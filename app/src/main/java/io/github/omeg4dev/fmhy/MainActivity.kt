@@ -18,6 +18,7 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.omeg4dev.fmhy.data.Appearance
 import io.github.omeg4dev.fmhy.data.ThemeMode
+import io.github.omeg4dev.fmhy.di.AppContainer
 import io.github.omeg4dev.fmhy.theme.FMHYTheme
 import kotlinx.coroutines.flow.MutableSharedFlow
 
@@ -31,6 +32,7 @@ class MainActivity : ComponentActivity() {
 
         val container = (application as FmhyApp).container
 
+        handleIntent(intent, container)
         intent?.let { intentFlow.tryEmit(it) }
 
         setContent {
@@ -71,6 +73,16 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        handleIntent(intent, (application as FmhyApp).container)
         intentFlow.tryEmit(intent)
+    }
+
+    private fun handleIntent(intent: Intent?, container: AppContainer) {
+        if (intent == null) return
+        if (BuildConfig.DEBUG && intent.hasExtra("debug_tracker_url")) {
+            container.debugTrackerUrl = intent.getStringExtra("debug_tracker_url")
+        }
+        // `open` extras (launcher shortcuts, widget taps) are routed in MainNavigation's intentFlow collector,
+        // which is replayed on cold start; see shortcutDestination().
     }
 }

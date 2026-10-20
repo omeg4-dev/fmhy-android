@@ -76,3 +76,6 @@ class AppNavState(
 }
 
 val LocalAppNav = staticCompositionLocalOf<AppNavState> { error("no nav") }
+
+/** Like [LocalAppNav], but null outside the main navigation (e.g. CheckLinkActivity, BrowserActivity). */
+val LocalAppNavOrNull = staticCompositionLocalOf<AppNavState?> { null }
