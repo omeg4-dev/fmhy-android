@@ -10,6 +10,8 @@ import io.github.omeg4dev.fmhy.data.SettingsRepository
 import io.github.omeg4dev.fmhy.data.model.ChangeKind
 import io.github.omeg4dev.fmhy.data.model.Entry
 import io.github.omeg4dev.fmhy.data.user.Folder
+import io.github.omeg4dev.fmhy.data.user.HistoryItem
+import io.github.omeg4dev.fmhy.data.user.UserBookmark
 import io.github.omeg4dev.fmhy.data.user.UserStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
@@ -145,6 +147,30 @@ class SavedViewModel(
         viewModelScope.launch {
             bookmarksRepository.remove(entryId)
         }
+    }
+
+    suspend fun removeBookmarkWithSnapshot(entryId: String): UserBookmark? {
+        return userStore?.removeBookmarkWithSnapshot(entryId)
+    }
+
+    suspend fun restoreBookmark(b: UserBookmark) {
+        userStore?.restoreBookmark(b)
+    }
+
+    suspend fun deleteFolderWithSnapshot(id: Long): UserStore.DeletedFolderSnapshot? {
+        return userStore?.deleteFolderWithSnapshot(id)
+    }
+
+    suspend fun restoreFolder(snapshot: UserStore.DeletedFolderSnapshot) {
+        userStore?.restoreFolder(snapshot)
+    }
+
+    suspend fun clearHistoryWithSnapshot(): List<HistoryItem> {
+        return userStore?.clearHistoryWithSnapshot() ?: emptyList()
+    }
+
+    suspend fun restoreHistory(items: List<HistoryItem>) {
+        userStore?.restoreHistory(items)
     }
 
     fun setNote(entryId: String, note: String) {

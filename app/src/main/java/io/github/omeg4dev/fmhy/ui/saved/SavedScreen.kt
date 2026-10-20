@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -28,6 +29,8 @@ import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.BookmarkBorder
+import androidx.compose.material.icons.outlined.FolderOpen
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
@@ -47,12 +50,15 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -74,9 +80,17 @@ import io.github.omeg4dev.fmhy.di.AppContainer
 import io.github.omeg4dev.fmhy.nav.LocalAppNav
 import io.github.omeg4dev.fmhy.nav.LocalBottomBarPadding
 import io.github.omeg4dev.fmhy.nav.Tab
+import io.github.omeg4dev.fmhy.ui.common.CrossfadeContent
+import io.github.omeg4dev.fmhy.ui.common.EmptyState
 import io.github.omeg4dev.fmhy.ui.common.EntryRow
+import io.github.omeg4dev.fmhy.ui.common.LocalSnackbarHost
+import io.github.omeg4dev.fmhy.ui.common.SkeletonRows
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
+import io.github.omeg4dev.fmhy.ui.common.enterStagger
+import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
+import io.github.omeg4dev.fmhy.ui.common.showUndo
+import androidx.compose.material3.minimumInteractiveComponentSize
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 
@@ -94,6 +108,8 @@ fun SavedScreen(
     val bottomBarPadding = LocalBottomBarPadding.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val haptics = rememberHaptics()
+    val snackbarHostState = remember { SnackbarHostState() }
     val showInSection: (io.github.omeg4dev.fmhy.data.model.Entry) -> Unit = { entry ->
         scope.launch {
             val anchor = try {
@@ -154,13 +170,20 @@ fun SavedScreen(
                     }
                 }
             )
+        },
+        snackbarHost = {
+            SnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier.padding(bottom = bottomBarPadding),
+            )
         }
     ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
+        CompositionLocalProvider(LocalSnackbarHost provides snackbarHostState) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+            ) {
             // Chip row under top bar
             Row(
                 modifier = Modifier
@@ -200,351 +223,359 @@ fun SavedScreen(
                 )
             }
 
-            Box(modifier = Modifier.fillMaxSize()) {
-                if (state.isLoading) {
-                    Box(
+            CrossfadeContent(
+                targetState = state.isLoading,
+                modifier = Modifier.fillMaxSize(),
+            ) { isLoading ->
+                if (isLoading) {
+                    SkeletonRows(count = 6)
+                } else {
+                    CrossfadeContent(
+                        targetState = selectedTab,
                         modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        CircularProgressIndicator()
-                    }
-                } else when {
-                    selectedTab == "history" -> {
-                        if (!state.keepHistory) {
-                            Box(
-                                modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    modifier = Modifier.padding(24.dp),
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.History,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(48.dp),
+                    ) { currentTab ->
+                        when {
+                            currentTab == "history" -> {
+                                if (!state.keepHistory) {
+                                    EmptyState(
+                                        icon = Icons.Outlined.History,
+                                        title = "History is off",
+                                        actionLabel = "Turn on",
+                                        onAction = { viewModel.enableKeepHistory() },
                                     )
-                                    Spacer(Modifier.height(16.dp))
-                                    Text(
-                                        text = "History is off",
-                                        style = MaterialTheme.typography.titleMedium,
+                                } else if (state.historyGroups.isEmpty()) {
+                                    EmptyState(
+                                        icon = Icons.Outlined.History,
+                                        title = "No history yet",
+                                        body = "Sites you open from the app show up here.",
                                     )
-                                    Spacer(Modifier.height(12.dp))
-                                    Button(onClick = { viewModel.enableKeepHistory() }) {
-                                        Text("Turn on history")
+                                } else {
+                                    LazyColumn(
+                                        state = listState,
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentPadding = PaddingValues(bottom = 16.dp + bottomBarPadding),
+                                    ) {
+                                        state.historyGroups.forEach { group ->
+                                            item(key = "hist_header_${group.dayLabel}") {
+                                                Text(
+                                                    text = group.dayLabel,
+                                                    style = MaterialTheme.typography.labelLarge,
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 6.dp),
+                                                )
+                                            }
+                                            itemsIndexed(group.items, key = { _, item -> "hist_${item.history.id}" }) { itemIndex, item ->
+                                                if (item.liveEntry != null) {
+                                                    EntryRow(
+                                                        entry = item.liveEntry,
+                                                        modifier = Modifier
+                                                            .animateItem()
+                                                            .enterStagger(index = itemIndex, key = currentTab),
+                                                        onShowInSection = { showInSection(item.liveEntry) },
+                                                        onOpenUrl = { linkOpener.openUrl(it) },
+                                                        onShowSnackbar = onShowSnackbar,
+                                                    )
+                                                } else {
+                                                    ListItem(
+                                                        headlineContent = { Text(item.history.title) },
+                                                        supportingContent = {
+                                                            Text(
+                                                                text = "${item.host} · ${item.timeLabel}",
+                                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                                style = MaterialTheme.typography.bodySmall,
+                                                            )
+                                                        },
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .animateItem()
+                                                            .enterStagger(index = itemIndex, key = currentTab)
+                                                            .clickable { linkOpener.openUrl(item.history.url) },
+                                                    )
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
-                        } else if (state.historyGroups.isEmpty()) {
-                            Box(
-                                modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    modifier = Modifier.padding(24.dp),
+
+                            selectedFolder != null -> {
+                                // Folder View
+                                val folderGroups = state.folderGroups[selectedFolder.id] ?: emptyList()
+                                val folderItemsCount = state.folderCounts[selectedFolder.id] ?: 0
+
+                                LazyColumn(
+                                    state = listState,
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentPadding = PaddingValues(bottom = 16.dp + bottomBarPadding),
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.History,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(48.dp),
-                                    )
-                                    Spacer(Modifier.height(16.dp))
-                                    Text(
-                                        text = "Sites you open show up here.",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-                            }
-                        } else {
-                            LazyColumn(
-                                state = listState,
-                                modifier = Modifier.fillMaxSize(),
-                                contentPadding = PaddingValues(bottom = 16.dp + bottomBarPadding),
-                            ) {
-                                state.historyGroups.forEach { group ->
-                                    item(key = "hist_header_${group.dayLabel}") {
-                                        Text(
-                                            text = group.dayLabel,
-                                            style = MaterialTheme.typography.labelLarge,
-                                            color = MaterialTheme.colorScheme.primary,
+                                    item(key = "folder_header_card") {
+                                        var overflowExpanded by remember { mutableStateOf(false) }
+                                        Card(
+                                            colors = CardDefaults.cardColors(
+                                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                                            ),
+                                            shape = RoundedCornerShape(12.dp),
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 6.dp),
-                                        )
-                                    }
-                                    items(group.items, key = { "hist_${it.history.id}" }) { item ->
-                                        if (item.liveEntry != null) {
-                                            EntryRow(
-                                                entry = item.liveEntry,
-                                                onShowInSection = { showInSection(item.liveEntry) },
-                                                onOpenUrl = { linkOpener.openUrl(it) },
-                                                onShowSnackbar = onShowSnackbar,
-                                            )
-                                        } else {
-                                            ListItem(
-                                                headlineContent = { Text(item.history.title) },
-                                                supportingContent = {
-                                                    Text(
-                                                        text = "${item.host} · ${item.timeLabel}",
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                        style = MaterialTheme.typography.bodySmall,
-                                                    )
-                                                },
+                                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                                        ) {
+                                            Row(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
-                                                    .clickable { linkOpener.openUrl(item.history.url) },
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    selectedFolder != null -> {
-                        // Folder View
-                        val folderGroups = state.folderGroups[selectedFolder.id] ?: emptyList()
-                        val folderItemsCount = state.folderCounts[selectedFolder.id] ?: 0
-
-                        LazyColumn(
-                            state = listState,
-                            modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(bottom = 16.dp + bottomBarPadding),
-                        ) {
-                            item(key = "folder_header_card") {
-                                var overflowExpanded by remember { mutableStateOf(false) }
-                                Card(
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-                                    ),
-                                    shape = RoundedCornerShape(12.dp),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                                ) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(16.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = selectedFolder.name,
-                                                style = MaterialTheme.typography.titleLarge,
-                                            )
-                                            Spacer(Modifier.height(4.dp))
-                                            Text(
-                                                text = "$folderItemsCount ${if (folderItemsCount == 1) "site" else "sites"}",
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            )
-                                        }
-
-                                        Box {
-                                            IconButton(onClick = { overflowExpanded = true }) {
-                                                Icon(Icons.Default.MoreVert, contentDescription = "Folder options")
-                                            }
-                                            DropdownMenu(
-                                                expanded = overflowExpanded,
-                                                onDismissRequest = { overflowExpanded = false },
+                                                    .padding(16.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
                                             ) {
-                                                DropdownMenuItem(
-                                                    text = { Text("Rename") },
-                                                    onClick = {
-                                                        overflowExpanded = false
-                                                        folderToRename = selectedFolder
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text(
+                                                        text = selectedFolder.name,
+                                                        style = MaterialTheme.typography.titleLarge,
+                                                    )
+                                                    Spacer(Modifier.height(4.dp))
+                                                    Text(
+                                                        text = "$folderItemsCount ${if (folderItemsCount == 1) "site" else "sites"}",
+                                                        style = MaterialTheme.typography.bodyMedium,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    )
+                                                }
+
+                                                Box {
+                                                    IconButton(
+                                                        onClick = { overflowExpanded = true },
+                                                        modifier = Modifier.minimumInteractiveComponentSize(),
+                                                    ) {
+                                                        Icon(Icons.Default.MoreVert, contentDescription = "Folder options")
                                                     }
-                                                )
-                                                DropdownMenuItem(
-                                                    text = { Text("Share as list") },
-                                                    onClick = {
-                                                        overflowExpanded = false
-                                                        val allFolderItems = folderGroups.flatMap { it.items }
-                                                        val shareText = ShareListFormatter.format(selectedFolder.name, allFolderItems)
-                                                        val sendIntent = Intent(Intent.ACTION_SEND).apply {
-                                                            type = "text/plain"
-                                                            putExtra(Intent.EXTRA_TEXT, shareText)
-                                                        }
-                                                        context.startActivity(Intent.createChooser(sendIntent, "Share ${selectedFolder.name}"))
+                                                    DropdownMenu(
+                                                        expanded = overflowExpanded,
+                                                        onDismissRequest = { overflowExpanded = false },
+                                                    ) {
+                                                        DropdownMenuItem(
+                                                            text = { Text("Rename") },
+                                                            onClick = {
+                                                                overflowExpanded = false
+                                                                folderToRename = selectedFolder
+                                                            }
+                                                        )
+                                                        DropdownMenuItem(
+                                                            text = { Text("Share as list") },
+                                                            onClick = {
+                                                                overflowExpanded = false
+                                                                val allFolderItems = folderGroups.flatMap { it.items }
+                                                                val shareText = ShareListFormatter.format(selectedFolder.name, allFolderItems)
+                                                                val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                                                    type = "text/plain"
+                                                                    putExtra(Intent.EXTRA_TEXT, shareText)
+                                                                }
+                                                                context.startActivity(Intent.createChooser(sendIntent, "Share ${selectedFolder.name}"))
+                                                            }
+                                                        )
+                                                        DropdownMenuItem(
+                                                            text = { Text("Delete") },
+                                                            onClick = {
+                                                                overflowExpanded = false
+                                                                folderToDelete = selectedFolder
+                                                            }
+                                                        )
                                                     }
-                                                )
-                                                DropdownMenuItem(
-                                                    text = { Text("Delete") },
-                                                    onClick = {
-                                                        overflowExpanded = false
-                                                        folderToDelete = selectedFolder
-                                                    }
-                                                )
+                                                }
                                             }
                                         }
                                     }
-                                }
-                            }
 
-                            if (folderGroups.isEmpty()) {
-                                item(key = "empty_folder_notice") {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(top = 48.dp),
-                                        contentAlignment = Alignment.Center,
-                                    ) {
-                                        Text(
-                                            text = "No sites in this folder yet",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-                                    }
-                                }
-                            } else {
-                                folderGroups.forEach { group ->
-                                    item(key = "header_${group.sectionTitle}") {
-                                        Text(
-                                            text = group.sectionTitle,
-                                            style = MaterialTheme.typography.labelLarge,
-                                            color = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 6.dp),
-                                        )
-                                    }
-                                    items(group.items, key = { it.bookmark.entryId }) { item ->
-                                        val noteFirstLine = item.bookmark.note.lines().firstOrNull { it.isNotBlank() }
-                                        if (item.liveEntry != null) {
-                                            EntryRow(
-                                                entry = item.liveEntry,
-                                                onShowInSection = { showInSection(item.liveEntry) },
-                                                notePreview = noteFirstLine,
-                                                onOpenUrl = { linkOpener.openUrl(it) },
-                                                onShowSnackbar = onShowSnackbar,
-                                                trailingContent = {
-                                                    RowOverflowMenu(
-                                                        bookmark = item.bookmark,
-                                                        onMoveTo = { bookmarkForMove = item.bookmark },
-                                                        onEditNote = {
-                                                            bookmarkForNote = item.bookmark
-                                                            noteInputText = item.bookmark.note
-                                                        },
-                                                        onRemove = { viewModel.removeBookmark(item.bookmark.entryId) },
-                                                    )
-                                                }
-                                            )
-                                        } else {
-                                            RemovedSiteRow(
-                                                item = item,
-                                                notePreview = noteFirstLine,
-                                                onOpenUrl = { linkOpener.openUrl(item.bookmark.url) },
-                                                onReplacements = {
-                                                    bookmarkForReplacements = item.bookmark
-                                                    isReplacementsLoading = true
-                                                    scope.launch {
-                                                        replacementsList = viewModel.getReplacements(item.bookmark)
-                                                        isReplacementsLoading = false
-                                                    }
-                                                },
-                                                trailingContent = {
-                                                    RowOverflowMenu(
-                                                        bookmark = item.bookmark,
-                                                        onMoveTo = { bookmarkForMove = item.bookmark },
-                                                        onEditNote = {
-                                                            bookmarkForNote = item.bookmark
-                                                            noteInputText = item.bookmark.note
-                                                        },
-                                                        onRemove = { viewModel.removeBookmark(item.bookmark.entryId) },
-                                                    )
-                                                }
+                                    if (folderGroups.isEmpty()) {
+                                        item(key = "empty_folder_notice") {
+                                            EmptyState(
+                                                icon = Icons.Outlined.FolderOpen,
+                                                title = "This folder is empty",
+                                                body = "Move sites here from their menu.",
                                             )
                                         }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    state.groups.isEmpty() -> {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.padding(24.dp),
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.BookmarkBorder,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(48.dp),
-                                )
-                                Spacer(Modifier.height(16.dp))
-                                Text(
-                                    text = "Nothing saved yet",
-                                    style = MaterialTheme.typography.titleMedium,
-                                )
-                                Spacer(Modifier.height(4.dp))
-                                Text(
-                                    text = "Long-press any site and tap Save.",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        }
-                    }
-
-                    else -> {
-                        // All View
-                        LazyColumn(
-                            state = listState,
-                            modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(bottom = 16.dp + bottomBarPadding),
-                        ) {
-                            state.groups.forEach { group ->
-                                item(key = "header_${group.sectionTitle}") {
-                                    Text(
-                                        text = group.sectionTitle,
-                                        style = MaterialTheme.typography.labelLarge,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 6.dp),
-                                    )
-                                }
-                                items(group.items, key = { it.bookmark.entryId }) { item ->
-                                    val noteFirstLine = item.bookmark.note.lines().firstOrNull { it.isNotBlank() }
-                                    if (item.liveEntry != null) {
-                                        EntryRow(
-                                            entry = item.liveEntry,
-                                            onShowInSection = { showInSection(item.liveEntry) },
-                                            folderLabel = item.folderName,
-                                            notePreview = noteFirstLine,
-                                            onOpenUrl = { linkOpener.openUrl(it) },
-                                            onShowSnackbar = onShowSnackbar,
-                                        )
                                     } else {
-                                        RemovedSiteRow(
-                                            item = item,
-                                            folderLabel = item.folderName,
-                                            notePreview = noteFirstLine,
-                                            onOpenUrl = { linkOpener.openUrl(item.bookmark.url) },
-                                            onReplacements = {
-                                                bookmarkForReplacements = item.bookmark
-                                                isReplacementsLoading = true
-                                                scope.launch {
-                                                    replacementsList = viewModel.getReplacements(item.bookmark)
-                                                    isReplacementsLoading = false
-                                                }
-                                            },
-                                            trailingContent = {
-                                                IconButton(onClick = { viewModel.removeBookmark(item.bookmark.entryId) }) {
-                                                    Icon(Icons.Default.Close, contentDescription = "Remove")
+                                        folderGroups.forEach { group ->
+                                            item(key = "header_${group.sectionTitle}") {
+                                                Text(
+                                                    text = group.sectionTitle,
+                                                    style = MaterialTheme.typography.labelLarge,
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 6.dp),
+                                                )
+                                            }
+                                            itemsIndexed(group.items, key = { _, it -> it.bookmark.entryId }) { itemIndex, item ->
+                                                val noteFirstLine = item.bookmark.note.lines().firstOrNull { it.isNotBlank() }
+                                                if (item.liveEntry != null) {
+                                                    EntryRow(
+                                                        entry = item.liveEntry,
+                                                        modifier = Modifier
+                                                            .animateItem()
+                                                            .enterStagger(index = itemIndex, key = currentTab),
+                                                        onShowInSection = { showInSection(item.liveEntry) },
+                                                        notePreview = noteFirstLine,
+                                                        onOpenUrl = { linkOpener.openUrl(it) },
+                                                        onShowSnackbar = onShowSnackbar,
+                                                        trailingContent = {
+                                                            RowOverflowMenu(
+                                                                bookmark = item.bookmark,
+                                                                onMoveTo = { bookmarkForMove = item.bookmark },
+                                                                onEditNote = {
+                                                                    bookmarkForNote = item.bookmark
+                                                                    noteInputText = item.bookmark.note
+                                                                },
+                                                                onRemove = {
+                                                                    haptics.click()
+                                                                    scope.launch {
+                                                                        val snapshot = viewModel.removeBookmarkWithSnapshot(item.bookmark.entryId)
+                                                                        if (snackbarHostState.showUndo("Removed from Saved")) {
+                                                                            if (snapshot != null) viewModel.restoreBookmark(snapshot)
+                                                                        }
+                                                                    }
+                                                                },
+                                                            )
+                                                        }
+                                                    )
+                                                } else {
+                                                    RemovedSiteRow(
+                                                        item = item,
+                                                        modifier = Modifier
+                                                            .animateItem()
+                                                            .enterStagger(index = itemIndex, key = currentTab),
+                                                        notePreview = noteFirstLine,
+                                                        onOpenUrl = { linkOpener.openUrl(item.bookmark.url) },
+                                                        onReplacements = {
+                                                            bookmarkForReplacements = item.bookmark
+                                                            isReplacementsLoading = true
+                                                            scope.launch {
+                                                                replacementsList = viewModel.getReplacements(item.bookmark)
+                                                                isReplacementsLoading = false
+                                                            }
+                                                        },
+                                                        trailingContent = {
+                                                            RowOverflowMenu(
+                                                                bookmark = item.bookmark,
+                                                                onMoveTo = { bookmarkForMove = item.bookmark },
+                                                                onEditNote = {
+                                                                    bookmarkForNote = item.bookmark
+                                                                    noteInputText = item.bookmark.note
+                                                                },
+                                                                onRemove = {
+                                                                    haptics.click()
+                                                                    scope.launch {
+                                                                        val snapshot = viewModel.removeBookmarkWithSnapshot(item.bookmark.entryId)
+                                                                        if (snackbarHostState.showUndo("Removed from Saved")) {
+                                                                            if (snapshot != null) viewModel.restoreBookmark(snapshot)
+                                                                        }
+                                                                    }
+                                                                },
+                                                            )
+                                                        }
+                                                    )
                                                 }
                                             }
-                                        )
+                                        }
+                                    }
+                                }
+                            }
+
+                            state.groups.isEmpty() -> {
+                                EmptyState(
+                                    icon = Icons.Outlined.BookmarkBorder,
+                                    title = "Nothing saved yet",
+                                    body = "Tap a site, then Save. Saved sites work offline and you can sort them into folders.",
+                                    actionLabel = "Browse FMHY",
+                                    onAction = { nav.select(Tab.BROWSE) },
+                                )
+                            }
+
+                            else -> {
+                                // All View
+                                LazyColumn(
+                                    state = listState,
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentPadding = PaddingValues(bottom = 16.dp + bottomBarPadding),
+                                ) {
+                                    state.groups.forEach { group ->
+                                        item(key = "header_${group.sectionTitle}") {
+                                            Text(
+                                                text = group.sectionTitle,
+                                                style = MaterialTheme.typography.labelLarge,
+                                                color = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 6.dp),
+                                            )
+                                        }
+                                        itemsIndexed(group.items, key = { _, it -> it.bookmark.entryId }) { itemIndex, item ->
+                                            val noteFirstLine = item.bookmark.note.lines().firstOrNull { it.isNotBlank() }
+                                            if (item.liveEntry != null) {
+                                                EntryRow(
+                                                    entry = item.liveEntry,
+                                                    modifier = Modifier
+                                                        .animateItem()
+                                                        .enterStagger(index = itemIndex, key = currentTab),
+                                                    onShowInSection = { showInSection(item.liveEntry) },
+                                                    folderLabel = item.folderName,
+                                                    notePreview = noteFirstLine,
+                                                    onOpenUrl = { linkOpener.openUrl(it) },
+                                                    onShowSnackbar = onShowSnackbar,
+                                                    trailingContent = {
+                                                        RowOverflowMenu(
+                                                            bookmark = item.bookmark,
+                                                            onMoveTo = { bookmarkForMove = item.bookmark },
+                                                            onEditNote = {
+                                                                bookmarkForNote = item.bookmark
+                                                                noteInputText = item.bookmark.note
+                                                            },
+                                                            onRemove = {
+                                                                haptics.click()
+                                                                scope.launch {
+                                                                    val snapshot = viewModel.removeBookmarkWithSnapshot(item.bookmark.entryId)
+                                                                    if (snackbarHostState.showUndo("Removed from Saved")) {
+                                                                        if (snapshot != null) viewModel.restoreBookmark(snapshot)
+                                                                    }
+                                                                }
+                                                            },
+                                                        )
+                                                    }
+                                                )
+                                            } else {
+                                                RemovedSiteRow(
+                                                    item = item,
+                                                    modifier = Modifier
+                                                        .animateItem()
+                                                        .enterStagger(index = itemIndex, key = currentTab),
+                                                    folderLabel = item.folderName,
+                                                    notePreview = noteFirstLine,
+                                                    onOpenUrl = { linkOpener.openUrl(item.bookmark.url) },
+                                                    onReplacements = {
+                                                        bookmarkForReplacements = item.bookmark
+                                                        isReplacementsLoading = true
+                                                        scope.launch {
+                                                            replacementsList = viewModel.getReplacements(item.bookmark)
+                                                            isReplacementsLoading = false
+                                                        }
+                                                    },
+                                                    trailingContent = {
+                                                        IconButton(
+                                                            onClick = {
+                                                                haptics.click()
+                                                                scope.launch {
+                                                                    val snapshot = viewModel.removeBookmarkWithSnapshot(item.bookmark.entryId)
+                                                                    if (snackbarHostState.showUndo("Removed from Saved")) {
+                                                                        if (snapshot != null) viewModel.restoreBookmark(snapshot)
+                                                                    }
+                                                                }
+                                                            },
+                                                            modifier = Modifier.minimumInteractiveComponentSize(),
+                                                        ) {
+                                                            Icon(Icons.Default.Close, contentDescription = "Remove")
+                                                        }
+                                                    }
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -553,6 +584,7 @@ fun SavedScreen(
                 }
             }
         }
+    }
     }
 
     // Dialogs
@@ -638,11 +670,18 @@ fun SavedScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        viewModel.deleteFolder(folder.id)
-                        if (selectedTab == "folder_${folder.id}") {
+                        val toDelete = folder
+                        folderToDelete = null
+                        if (selectedTab == "folder_${toDelete.id}") {
                             selectedTab = "all"
                         }
-                        folderToDelete = null
+                        haptics.click()
+                        scope.launch {
+                            val snapshot = viewModel.deleteFolderWithSnapshot(toDelete.id)
+                            if (snackbarHostState.showUndo("Deleted folder ${toDelete.name}")) {
+                                if (snapshot != null) viewModel.restoreFolder(snapshot)
+                            }
+                        }
                     }
                 ) {
                     Text("Delete")
@@ -665,8 +704,13 @@ fun SavedScreen(
                 TextButton(
                     onClick = {
                         showClearHistoryDialog = false
-                        viewModel.clearHistory()
-                        onShowSnackbar("History cleared")
+                        haptics.click()
+                        scope.launch {
+                            val snapshot = viewModel.clearHistoryWithSnapshot()
+                            if (snackbarHostState.showUndo("History cleared")) {
+                                viewModel.restoreHistory(snapshot)
+                            }
+                        }
                     }
                 ) {
                     Text("Clear")
@@ -882,8 +926,11 @@ private fun RowOverflowMenu(
 ) {
     var expanded by remember { mutableStateOf(false) }
     Box {
-        IconButton(onClick = { expanded = true }) {
-            Icon(Icons.Default.MoreVert, contentDescription = "Row options")
+        IconButton(
+            onClick = { expanded = true },
+            modifier = Modifier.minimumInteractiveComponentSize(),
+        ) {
+            Icon(Icons.Default.MoreVert, contentDescription = "More options")
         }
         DropdownMenu(
             expanded = expanded,
@@ -917,6 +964,7 @@ private fun RowOverflowMenu(
 @Composable
 private fun RemovedSiteRow(
     item: SavedEntryItem,
+    modifier: Modifier = Modifier,
     folderLabel: String? = null,
     notePreview: String? = null,
     onOpenUrl: () -> Unit,
@@ -979,7 +1027,7 @@ private fun RemovedSiteRow(
             }
         },
         trailingContent = trailingContent,
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onOpenUrl),
     )

@@ -20,7 +20,6 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -29,11 +28,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import io.github.omeg4dev.fmhy.data.HomePrefs
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -57,9 +59,15 @@ import io.github.omeg4dev.fmhy.data.model.SectionItem
 import io.github.omeg4dev.fmhy.di.AppContainer
 import io.github.omeg4dev.fmhy.nav.LocalAppNav
 import io.github.omeg4dev.fmhy.nav.LocalBottomBarPadding
+import io.github.omeg4dev.fmhy.ui.common.CrossfadeContent
 import io.github.omeg4dev.fmhy.ui.common.EntryRow
+import io.github.omeg4dev.fmhy.ui.common.LocalSnackbarHost
+import io.github.omeg4dev.fmhy.ui.common.SkeletonRows
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
+import io.github.omeg4dev.fmhy.ui.common.enterStagger
+import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
+import io.github.omeg4dev.fmhy.ui.common.showUndo
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -75,6 +83,9 @@ fun CategoryScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     val nav = LocalAppNav.current
+    val haptics = rememberHaptics()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val bottomBarPadding = LocalBottomBarPadding.current
     val bottomBarController = LocalBottomBarController.current
     val linkOpener = rememberLinkOpener(container, onShowSnackbar)
 
@@ -219,6 +230,12 @@ fun CategoryScreen(
     }
 
     Scaffold(
+        snackbarHost = {
+            SnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier.padding(bottom = bottomBarPadding),
+            )
+        },
         topBar = {
             Column(
                 modifier = Modifier
@@ -289,8 +306,13 @@ fun CategoryScreen(
                                                 showOverflowMenu = false
                                                 scope.launch {
                                                     if (isCategoryFollowed) {
+                                                        val snapshot = follows.firstOrNull { it.sectionId == currentSectionId && it.headingId == category.heading.id } ?: io.github.omeg4dev.fmhy.data.user.Follow(currentSectionId, category.heading.id, fullCatTitle, System.currentTimeMillis())
                                                         container.userStore.unfollow(currentSectionId, category.heading.id)
-                                                        onShowSnackbar("Unfollowed $fullCatTitle")
+                                                        haptics.click()
+                                                        val undone = snackbarHostState.showUndo("Unfollowed $fullCatTitle")
+                                                        if (undone) {
+                                                            container.userStore.restoreFollow(snapshot)
+                                                        }
                                                     } else {
                                                         container.userStore.follow(currentSectionId, category.heading.id, fullCatTitle)
                                                         onShowSnackbar("Following $fullCatTitle")
@@ -306,8 +328,13 @@ fun CategoryScreen(
                                                 onClick = {
                                                     showOverflowMenu = false
                                                     scope.launch {
+                                                        val snapshot = container.userStore.pins().firstOrNull { it.sectionId == key.sectionId && it.headingId == catHeadingId } ?: io.github.omeg4dev.fmhy.data.user.Pin(key.sectionId, catHeadingId, categoryTitle, 0)
                                                         container.userStore.unpin(key.sectionId, catHeadingId)
-                                                        onShowSnackbar("Unpinned from Home")
+                                                        haptics.click()
+                                                        val undone = snackbarHostState.showUndo("Unpinned $categoryTitle")
+                                                        if (undone) {
+                                                            container.userStore.restorePin(snapshot)
+                                                        }
                                                     }
                                                 },
                                             )
@@ -369,11 +396,15 @@ fun CategoryScreen(
                             val sub = subHeadings.getOrNull(index) ?: return@CategoryChipRail
                             val subTitle = CrossLinks.splitLinkTitle(sub.title).first
                             val fullTitle = "$currentSectionTitle › $subTitle"
-                            val isSubFollowed = follows.any { it.sectionId == currentSectionId && it.headingId == sub.id }
+                            val subFollow = follows.firstOrNull { it.sectionId == currentSectionId && it.headingId == sub.id }
                             scope.launch {
-                                if (isSubFollowed) {
+                                if (subFollow != null) {
                                     container.userStore.unfollow(currentSectionId, sub.id)
-                                    onShowSnackbar("Unfollowed $fullTitle")
+                                    haptics.click()
+                                    val undone = snackbarHostState.showUndo("Unfollowed $fullTitle")
+                                    if (undone) {
+                                        container.userStore.restoreFollow(subFollow)
+                                    }
                                 } else {
                                     container.userStore.follow(currentSectionId, sub.id, fullTitle)
                                     onShowSnackbar("Following $fullTitle")
@@ -390,100 +421,109 @@ fun CategoryScreen(
             }
         }
     ) { innerPadding ->
-        if (state.isLoading) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                contentAlignment = Alignment.Center,
-            ) {
-                CircularProgressIndicator()
-            }
-        } else if (displayItems.isEmpty() && isFilterActive) {
-            FilterEmptyState(
-                onShowAll = {
-                    viewModel.setStarredOnly(false)
-                    viewModel.setShowIndexes(true)
-                },
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-            )
-        } else {
-            LazyColumn(
-                state = listState,
-                contentPadding = PaddingValues(
-                    top = innerPadding.calculateTopPadding(),
-                    bottom = LocalBottomBarPadding.current + 16.dp,
-                ),
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.surface),
-            ) {
-                itemsIndexed(
-                    displayItems,
-                    key = { _, item ->
-                        when (item) {
-                            is SectionItem.HeadingItem -> "h_${item.heading.id}"
-                            is SectionItem.EntryItem -> "e_${item.entry.id}"
-                            is SectionItem.NoteItem -> "n_${item.note.id}"
-                            is SectionItem.MoreGroup -> "mg_${item.entries.first().id}"
-                        }
-                    }
-                ) { index, item ->
-                    Box(modifier = Modifier.animateItem()) {
-                        when (item) {
-                            is SectionItem.HeadingItem -> {
-                                val entryCount = remember(category, overviewEntryCount, isOverview, item.heading.id) {
-                                    when {
-                                        !isOverview && category != null && item.heading.id == category.heading.id -> category.entryCount
-                                        isOverview && item.heading.id == "__overview" -> overviewEntryCount
-                                        else -> null
-                                    }
+        CompositionLocalProvider(LocalSnackbarHost provides snackbarHostState) {
+            CrossfadeContent(
+                targetState = state.isLoading,
+                modifier = Modifier.fillMaxSize(),
+            ) { loading ->
+                if (loading) {
+                    SkeletonRows(
+                        count = 8,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(top = innerPadding.calculateTopPadding()),
+                    )
+                } else if (displayItems.isEmpty() && isFilterActive) {
+                    FilterEmptyState(
+                        onShowAll = {
+                            viewModel.setStarredOnly(false)
+                            viewModel.setShowIndexes(true)
+                        },
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(innerPadding),
+                    )
+                } else {
+                    LazyColumn(
+                        state = listState,
+                        contentPadding = PaddingValues(
+                            top = innerPadding.calculateTopPadding(),
+                            bottom = bottomBarPadding + 16.dp,
+                        ),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.surface),
+                    ) {
+                        itemsIndexed(
+                            displayItems,
+                            key = { _, item ->
+                                when (item) {
+                                    is SectionItem.HeadingItem -> "h_${item.heading.id}"
+                                    is SectionItem.EntryItem -> "e_${item.entry.id}"
+                                    is SectionItem.NoteItem -> "n_${item.note.id}"
+                                    is SectionItem.MoreGroup -> "mg_${item.entries.first().id}"
                                 }
-                                HeadingHeader(
-                                    heading = item.heading,
-                                    isHighlighted = item.heading.id == highlightedHeadingId,
-                                    isFirstItem = index == 0,
-                                    entryCount = entryCount,
-                                    onOpenUrl = { linkOpener.openUrl(it) },
-                                    sectionId = key.sectionId,
-                                )
                             }
-                            is SectionItem.EntryItem -> {
-                                val isEntryHighlighted = item.entry.id == highlightedEntryId || item.alternatives.any { it.id == highlightedEntryId }
-                                val targetBg = if (isEntryHighlighted) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f) else Color.Transparent
-                                val entryBg by animateColorAsState(
-                                    targetValue = targetBg,
-                                    animationSpec = tween(1500),
-                                    label = "category_entry_highlight",
-                                )
-                                Column(modifier = Modifier.background(entryBg)) {
-                                    EntryRow(
-                                        entry = item.entry,
-                                        alternatives = item.alternatives,
-                                        isNew = item.entry.id in state.newEntryIds,
-                                        onOpenUrl = { linkOpener.openUrl(it) },
-                                        onShowSnackbar = onShowSnackbar,
-                                    )
-                                    val nextItem = displayItems.getOrNull(index + 1)
-                                    if (nextItem is SectionItem.EntryItem) {
-                                        HorizontalDivider(
-                                            modifier = Modifier.padding(start = 16.dp),
-                                            thickness = 0.5.dp,
-                                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
+                        ) { index, item ->
+                            Box(
+                                modifier = Modifier
+                                    .animateItem()
+                                    .enterStagger(index, key.categoryHeadingId)
+                            ) {
+                                when (item) {
+                                    is SectionItem.HeadingItem -> {
+                                        val entryCount = remember(category, overviewEntryCount, isOverview, item.heading.id) {
+                                            when {
+                                                !isOverview && category != null && item.heading.id == category.heading.id -> category.entryCount
+                                                isOverview && item.heading.id == "__overview" -> overviewEntryCount
+                                                else -> null
+                                            }
+                                        }
+                                        HeadingHeader(
+                                            heading = item.heading,
+                                            isHighlighted = item.heading.id == highlightedHeadingId,
+                                            isFirstItem = index == 0,
+                                            entryCount = entryCount,
+                                            onOpenUrl = { linkOpener.openUrl(it) },
+                                            sectionId = key.sectionId,
+                                        )
+                                    }
+                                    is SectionItem.EntryItem -> {
+                                        val isEntryHighlighted = item.entry.id == highlightedEntryId || item.alternatives.any { it.id == highlightedEntryId }
+                                        val targetBg = if (isEntryHighlighted) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f) else Color.Transparent
+                                        val entryBg by animateColorAsState(
+                                            targetValue = targetBg,
+                                            animationSpec = tween(1500),
+                                            label = "category_entry_highlight",
+                                        )
+                                        Column(modifier = Modifier.background(entryBg)) {
+                                            EntryRow(
+                                                entry = item.entry,
+                                                alternatives = item.alternatives,
+                                                isNew = item.entry.id in state.newEntryIds,
+                                                onOpenUrl = { linkOpener.openUrl(it) },
+                                                onShowSnackbar = onShowSnackbar,
+                                            )
+                                            val nextItem = displayItems.getOrNull(index + 1)
+                                            if (nextItem is SectionItem.EntryItem) {
+                                                HorizontalDivider(
+                                                    modifier = Modifier.padding(start = 16.dp),
+                                                    thickness = 0.5.dp,
+                                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
+                                                )
+                                            }
+                                        }
+                                    }
+                                    is SectionItem.NoteItem -> {
+                                        NoteCallout(note = item.note)
+                                    }
+                                    is SectionItem.MoreGroup -> {
+                                        MoreGroupRow(
+                                            entries = item.entries,
+                                            onOpenUrl = { linkOpener.openUrl(it) },
                                         )
                                     }
                                 }
-                            }
-                            is SectionItem.NoteItem -> {
-                                NoteCallout(note = item.note)
-                            }
-                            is SectionItem.MoreGroup -> {
-                                MoreGroupRow(
-                                    entries = item.entries,
-                                    onOpenUrl = { linkOpener.openUrl(it) },
-                                )
                             }
                         }
                     }

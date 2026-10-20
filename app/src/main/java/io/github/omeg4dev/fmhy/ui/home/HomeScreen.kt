@@ -18,6 +18,7 @@ import androidx.compose.ui.draw.clip
 import io.github.omeg4dev.fmhy.SectionNavKey
 import io.github.omeg4dev.fmhy.WhatsNewNavKey
 import io.github.omeg4dev.fmhy.data.link.CrossLinks
+import io.github.omeg4dev.fmhy.data.user.Pin
 import io.github.omeg4dev.fmhy.ui.common.EntryDetailBottomSheet
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,6 +37,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -52,15 +55,19 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.minimumInteractiveComponentSize
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -82,12 +89,16 @@ import io.github.omeg4dev.fmhy.di.AppContainer
 import io.github.omeg4dev.fmhy.nav.LocalAppNav
 import io.github.omeg4dev.fmhy.nav.LocalBottomBarPadding
 import io.github.omeg4dev.fmhy.nav.Tab
+import io.github.omeg4dev.fmhy.ui.common.CrossfadeContent
 import io.github.omeg4dev.fmhy.ui.common.LocalPasteResolver
+import io.github.omeg4dev.fmhy.ui.common.LocalSnackbarHost
 import io.github.omeg4dev.fmhy.ui.common.SyncBanner
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
+import io.github.omeg4dev.fmhy.ui.common.enterStagger
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
 import io.github.omeg4dev.fmhy.ui.common.sectionIcon
+import io.github.omeg4dev.fmhy.ui.common.showUndo
 import kotlinx.coroutines.flow.filter
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -109,6 +120,8 @@ fun HomeScreen(
     val nav = LocalAppNav.current
     val haptics = rememberHaptics()
     val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val bottomBarPadding = LocalBottomBarPadding.current
     var showRandomPickDetails by remember { mutableStateOf(false) }
 
     LaunchedEffect(nav) {
@@ -118,6 +131,12 @@ fun HomeScreen(
     }
 
     Scaffold(
+        snackbarHost = {
+            SnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier.padding(bottom = bottomBarPadding),
+            )
+        },
         topBar = {
             TopAppBar(
                 title = {
@@ -146,48 +165,57 @@ fun HomeScreen(
             )
         }
     ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
-            if (!state.isReady) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        CircularProgressIndicator()
-                        Spacer(Modifier.height(16.dp))
-                        Text(
-                            "Preparing FMHY dataset...",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            } else if (state.isEmptyState) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.padding(24.dp)
-                    ) {
-                        Text(
-                            "No data yet — pull to update",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(Modifier.height(16.dp))
-                        Button(onClick = { viewModel.triggerSync() }) {
-                            Text("Download Dataset")
+        CompositionLocalProvider(LocalSnackbarHost provides snackbarHostState) {
+            CrossfadeContent(
+                targetState = when {
+                    !state.isReady -> 0
+                    state.isEmptyState -> 1
+                    else -> 2
+                },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+            ) { page ->
+                when (page) {
+                    0 -> {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                CircularProgressIndicator()
+                                Spacer(Modifier.height(16.dp))
+                                Text(
+                                    "Preparing FMHY dataset...",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
-                }
-            } else {
-                val totalEntries = remember(state.sections) { state.sections.sumOf { it.entryCount } }
+                    1 -> {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(24.dp)
+                            ) {
+                                Text(
+                                    "No data yet — pull to update",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(Modifier.height(16.dp))
+                                Button(onClick = { viewModel.triggerSync() }) {
+                                    Text("Download Dataset")
+                                }
+                            }
+                        }
+                    }
+                    2 -> {
+                        val totalEntries = remember(state.sections) { state.sections.sumOf { it.entryCount } }
 
                 LazyColumn(
                     state = listState,
@@ -253,6 +281,102 @@ fun HomeScreen(
                             }
                         }
                         Spacer(Modifier.height(8.dp))
+                    }
+
+                    // Setup pill (ad-block download progress / ready / failed)
+                    item(key = "adblock-setup-pill") {
+                        AnimatedVisibility(
+                            visible = state.adblockSetup != null,
+                            enter = expandVertically() + fadeIn(),
+                            exit = shrinkVertically() + fadeOut(),
+                        ) {
+                            val setup = state.adblockSetup
+                            if (setup != null) {
+                                val containerColor = when (setup) {
+                                    is AdblockSetupUiState.Failed -> MaterialTheme.colorScheme.errorContainer
+                                    else -> MaterialTheme.colorScheme.secondaryContainer
+                                }
+                                val contentColor = when (setup) {
+                                    is AdblockSetupUiState.Failed -> MaterialTheme.colorScheme.onErrorContainer
+                                    else -> MaterialTheme.colorScheme.onSecondaryContainer
+                                }
+
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp)
+                                        .padding(bottom = 8.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = containerColor,
+                                        modifier = Modifier
+                                            .height(40.dp)
+                                            .then(
+                                                if (setup is AdblockSetupUiState.Failed) {
+                                                    Modifier.clickable {
+                                                        haptics.click()
+                                                        viewModel.startFilterDownload()
+                                                    }
+                                                } else Modifier
+                                            ),
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            modifier = Modifier.padding(horizontal = 16.dp),
+                                        ) {
+                                            when (setup) {
+                                                is AdblockSetupUiState.Downloading -> {
+                                                    CircularProgressIndicator(
+                                                        strokeWidth = 2.dp,
+                                                        modifier = Modifier.size(16.dp),
+                                                        color = contentColor,
+                                                    )
+                                                    val text = if (setup.progress != null) {
+                                                        "Downloading ad-block lists · ${(setup.progress * 100).toInt()}%"
+                                                    } else {
+                                                        "Downloading ad-block lists…"
+                                                    }
+                                                    Text(
+                                                        text = text,
+                                                        style = MaterialTheme.typography.labelMedium,
+                                                        color = contentColor,
+                                                    )
+                                                }
+                                                is AdblockSetupUiState.Ready -> {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Check,
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(16.dp),
+                                                        tint = contentColor,
+                                                    )
+                                                    Text(
+                                                        text = "Ad blocking ready",
+                                                        style = MaterialTheme.typography.labelMedium,
+                                                        color = contentColor,
+                                                    )
+                                                }
+                                                is AdblockSetupUiState.Failed -> {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Refresh,
+                                                        contentDescription = "Retry",
+                                                        modifier = Modifier.size(16.dp),
+                                                        tint = contentColor,
+                                                    )
+                                                    Text(
+                                                        text = "Ad-block lists failed to download · Retry",
+                                                        style = MaterialTheme.typography.labelMedium,
+                                                        color = contentColor,
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
 
                     // "New since last visit: N" card (when > 0)
@@ -342,7 +466,7 @@ fun HomeScreen(
                                                 haptics.click()
                                                 viewModel.refreshRandomPick()
                                             },
-                                            modifier = Modifier.size(24.dp),
+                                            modifier = Modifier.minimumInteractiveComponentSize(),
                                         ) {
                                             Icon(
                                                 imageVector = Icons.Default.Refresh,
@@ -432,7 +556,11 @@ fun HomeScreen(
                     if (state.personalHome) {
                         if (state.pins.isEmpty()) {
                             item(key = "pins-empty-card") {
-                                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                                Column(
+                                    modifier = Modifier
+                                        .animateItem()
+                                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                                ) {
                                     Text(
                                         text = "Pinned",
                                         style = MaterialTheme.typography.titleSmall,
@@ -455,7 +583,11 @@ fun HomeScreen(
                             }
                         } else {
                             item(key = "pins-block") {
-                                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                                Column(
+                                    modifier = Modifier
+                                        .animateItem()
+                                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                                ) {
                                     Text(
                                         text = "Pinned",
                                         style = MaterialTheme.typography.titleSmall,
@@ -480,6 +612,26 @@ fun HomeScreen(
                                                         modifier = Modifier.size(18.dp),
                                                     )
                                                 },
+                                                trailingIcon = {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Close,
+                                                        contentDescription = "Unpin ${pin.label}",
+                                                        modifier = Modifier
+                                                            .minimumInteractiveComponentSize()
+                                                            .size(16.dp)
+                                                            .clickable {
+                                                                haptics.click()
+                                                                scope.launch {
+                                                                    val snapshot = pin.pin ?: Pin(pin.sectionId, pin.headingId, pin.label, 0)
+                                                                    container.userStore.unpin(pin.sectionId, pin.headingId)
+                                                                    val undo = snackbarHostState.showUndo("Unpinned ${pin.label}")
+                                                                    if (undo) {
+                                                                        container.userStore.restorePin(snapshot)
+                                                                    }
+                                                                }
+                                                            },
+                                                    )
+                                                },
                                                 label = {
                                                     Text(
                                                         text = pin.label,
@@ -501,13 +653,16 @@ fun HomeScreen(
                     }
 
                     // Sections header
-                    state.sectionGroups.forEach { group ->
+                    state.sectionGroups.forEachIndexed { groupIndex, group ->
                     item(key = "sections-header-${group.title}") {
                         Text(
                             text = group.title ?: "Sections",
                             style = MaterialTheme.typography.titleSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(start = 16.dp, top = 20.dp, bottom = 8.dp),
+                            modifier = Modifier
+                                .animateItem()
+                                .enterStagger(groupIndex * 2, state.datasetVersion)
+                                .padding(start = 16.dp, top = 20.dp, bottom = 8.dp),
                         )
                     }
 
@@ -517,6 +672,8 @@ fun HomeScreen(
                             shape = MaterialTheme.shapes.large,
                             color = MaterialTheme.colorScheme.surfaceContainerLow,
                             modifier = Modifier
+                                .animateItem()
+                                .enterStagger(groupIndex * 2 + 1, state.datasetVersion)
                                 .fillMaxWidth()
                                 .padding(horizontal = 16.dp),
                         ) {
@@ -631,6 +788,8 @@ fun HomeScreen(
             }
         }
     }
+}
+}
 
     if (showRandomPickDetails && state.randomPick != null) {
         val pick = state.randomPick!!

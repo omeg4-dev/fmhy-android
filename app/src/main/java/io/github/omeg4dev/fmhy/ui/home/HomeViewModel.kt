@@ -23,12 +23,21 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import io.github.omeg4dev.fmhy.data.HomePrefs
+import io.github.omeg4dev.fmhy.data.OpenLinksWith
 import io.github.omeg4dev.fmhy.data.user.Pin
 import io.github.omeg4dev.fmhy.data.user.UserStore
+
+@Immutable
+sealed interface AdblockSetupUiState {
+    data class Downloading(val progress: Float?) : AdblockSetupUiState
+    data object Ready : AdblockSetupUiState
+    data object Failed : AdblockSetupUiState
+}
 
 @Immutable
 data class SyncBannerUiState(
@@ -43,6 +52,7 @@ data class ResolvedPin(
     val headingId: String = "",
     val label: String,
     val anchor: String? = null,
+    val pin: Pin? = null,
 )
 
 @Immutable
@@ -60,6 +70,7 @@ data class HomeUiState(
     val pins: ImmutableList<ResolvedPin> = persistentListOf(),
     val hiddenSectionsCount: Int = 0,
     val showingHiddenSections: Boolean = false,
+    val adblockSetup: AdblockSetupUiState? = null,
 )
 
 /** A titled block of sections on Home; [title] is null when the list is not grouped (A–Z). */
@@ -183,6 +194,7 @@ internal fun resolvePins(
                 headingId = "",
                 label = sectionTitle,
                 anchor = null,
+                pin = pin,
             )
         } else {
             val label = "$sectionTitle › ${pin.title}"
@@ -191,6 +203,7 @@ internal fun resolvePins(
                 headingId = pin.headingId,
                 label = label,
                 anchor = pin.headingId,
+                pin = pin,
             )
         }
     }
@@ -220,6 +233,16 @@ class HomeViewModel(
     private val _syncBanner = MutableStateFlow<SyncBannerUiState?>(null)
     private val _showHiddenSections = MutableStateFlow(false)
 
+    private val adblockService = try { container.adblockService } catch (_: Throwable) { null }
+    private val _adblockSetup = MutableStateFlow<AdblockSetupUiState?>(null)
+    val adblockSetup: StateFlow<AdblockSetupUiState?> = _adblockSetup.asStateFlow()
+    private var readyDismissJob: Job? = null
+
+    fun startFilterDownload() {
+        _adblockSetup.value = AdblockSetupUiState.Downloading(null)
+        container.startFilterDownload()
+    }
+
     fun toggleShowHiddenSections() {
         _showHiddenSections.value = !_showHiddenSections.value
     }
@@ -239,6 +262,40 @@ class HomeViewModel(
         viewModelScope.launch {
             container.syncStatus.collect { status ->
                 handleSyncStatus(status)
+            }
+        }
+        if (adblockService != null) {
+            viewModelScope.launch {
+                combine(
+                    settingsRepository.browserPrefs,
+                    settingsRepository.blockingPrefs,
+                    adblockService.status,
+                ) { browserPrefs, blockingPrefs, status ->
+                    Triple(browserPrefs, blockingPrefs, status)
+                }.collect { (browserPrefs, blockingPrefs, adblockStatus) ->
+                    val enabled = browserPrefs.openLinksWith == OpenLinksWith.IN_APP && blockingPrefs.adblock
+                    if (!enabled) {
+                        _adblockSetup.value = null
+                        return@collect
+                    }
+                    if (adblockStatus.updating) {
+                        readyDismissJob?.cancel()
+                        _adblockSetup.value = AdblockSetupUiState.Downloading(adblockStatus.progress)
+                    } else if (_adblockSetup.value is AdblockSetupUiState.Downloading) {
+                        if (adblockStatus.error != null) {
+                            _adblockSetup.value = AdblockSetupUiState.Failed
+                        } else {
+                            _adblockSetup.value = AdblockSetupUiState.Ready
+                            readyDismissJob?.cancel()
+                            readyDismissJob = viewModelScope.launch {
+                                delay(2000)
+                                _adblockSetup.value = null
+                            }
+                        }
+                    } else if (adblockStatus.error != null && !adblockStatus.ready) {
+                        _adblockSetup.value = AdblockSetupUiState.Failed
+                    }
+                }
             }
         }
     }
@@ -340,6 +397,13 @@ class HomeViewModel(
         val showHidden: Boolean,
     )
 
+    private data class HomeUiExtras(
+        val randomPick: Entry?,
+        val refreshing: Boolean,
+        val banner: SyncBannerUiState?,
+        val adblockSetup: AdblockSetupUiState?,
+    )
+
     val uiState: StateFlow<HomeUiState> = combine(
         combine(
             container.isInitialized,
@@ -356,14 +420,19 @@ class HomeViewModel(
         ) { homePrefs, userChanges, showHidden ->
             HomeUserData(homePrefs, userChanges, showHidden)
         },
-        _randomPick,
-        _isRefreshing,
-        _syncBanner,
-    ) { (initialized, version, lastVisitTs, appearance), (homePrefs, _, showHidden), randomPick, refreshing, banner ->
+        combine(
+            _randomPick,
+            _isRefreshing,
+            _syncBanner,
+            _adblockSetup,
+        ) { randomPick, refreshing, banner, adblockSetup ->
+            HomeUiExtras(randomPick, refreshing, banner, adblockSetup)
+        }
+    ) { (initialized, version, lastVisitTs, appearance), (homePrefs, _, showHidden), (randomPick, refreshing, banner, adblockSetup) ->
         if (!initialized) {
-            HomeUiState(isLoading = true, isReady = false, syncBanner = banner)
+            HomeUiState(isLoading = true, isReady = false, syncBanner = banner, adblockSetup = adblockSetup)
         } else if (!store.isAvailable) {
-            HomeUiState(isLoading = refreshing, isReady = true, isEmptyState = true, syncBanner = banner)
+            HomeUiState(isLoading = refreshing, isReady = true, isEmptyState = true, syncBanner = banner, adblockSetup = adblockSetup)
         } else {
             val personalHome = homePrefs.personalHome
             val allSections = store.sections(appearance.sectionOrder)
@@ -396,6 +465,7 @@ class HomeViewModel(
                 pins = resolvedPins,
                 hiddenSectionsCount = hiddenSections.size,
                 showingHiddenSections = showHidden,
+                adblockSetup = adblockSetup,
             )
         }
     }.stateIn(

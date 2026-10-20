@@ -521,4 +521,21 @@ class HomeViewModelTest {
         assertEquals(41, counted["audio-tools"])
         assertEquals(7, counted["educational-tools"])
     }
+
+    @Test
+    fun testAdblockSetupInitialStateNull() = runTest(testDispatcher) {
+        val fakeStore = FakeDatasetStore()
+        val settings = FakeSettingsRepository()
+        val container = FakeContainer(datasetStore = fakeStore, settingsRepository = settings)
+        val vm = HomeViewModel(fakeStore, settings, container)
+
+        val job = launch(UnconfinedTestDispatcher(testScheduler)) {
+            vm.uiState.collect()
+        }
+
+        assertNull(vm.uiState.value.adblockSetup)
+        vm.startFilterDownload()
+
+        job.cancel()
+    }
 }
