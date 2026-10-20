@@ -62,7 +62,6 @@ fun ContinueBrowsingCard(tabs: List<TabState>, totalTabs: Int, modifier: Modifie
                     modifier = Modifier.weight(1f),
                 )
                 TextButton(onClick = {
-                    haptics.click()
                     bringBrowserToFront(context, showTabs = true)
                 }) { Text("All tabs ($totalTabs)") }
             }
@@ -74,7 +73,6 @@ fun ContinueBrowsingCard(tabs: List<TabState>, totalTabs: Int, modifier: Modifie
                         .fillMaxWidth()
                         .heightIn(min = 48.dp)
                         .clickable {
-                            haptics.click()
                             bringBrowserToFront(context, selectTabId = tab.id)
                         }
                         .padding(horizontal = 16.dp, vertical = 6.dp),

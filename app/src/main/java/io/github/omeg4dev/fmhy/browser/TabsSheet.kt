@@ -124,7 +124,6 @@ fun TabsSheet(
                     ) {
                         FilledTonalButton(
                             onClick = {
-                                haptics.tick()
                                 onNewTab(false)
                             },
                         ) {
@@ -135,7 +134,6 @@ fun TabsSheet(
 
                         Box {
                             IconButton(onClick = {
-                                haptics.tick()
                                 showOverflow = true
                             }) {
                                 Icon(Icons.Default.MoreVert, contentDescription = "Menu")
@@ -149,7 +147,6 @@ fun TabsSheet(
                                     text = { Text("New private tab") },
                                     onClick = {
                                         showOverflow = false
-                                        haptics.tick()
                                         onNewTab(true)
                                     },
                                     leadingIcon = {
@@ -188,7 +185,7 @@ fun TabsSheet(
                             confirmValueChange = { value ->
                                 if (value != SwipeToDismissBoxValue.Settled && !isDismissed) {
                                     isDismissed = true
-                                    haptics.click()
+                                    haptics.remove()
                                     val index = tabs.indexOfFirst { it.id == tab.id }
                                     onCloseTab(tab.id)
                                     scope.launch {
@@ -220,11 +217,10 @@ fun TabsSheet(
                                 thumbnail = remember(tab.id, thumbnailVersion) { tabManager.getThumbnail(tab.id) },
                                 isSelected = tab.id == currentTabId,
                                 onSelect = {
-                                    haptics.tick()
                                     onSelectTab(tab.id)
                                 },
                                 onClose = {
-                                    haptics.click()
+                                    haptics.remove()
                                     val index = tabs.indexOfFirst { it.id == tab.id }
                                     onCloseTab(tab.id)
                                     scope.launch {
@@ -265,7 +261,7 @@ fun TabsSheet(
                 TextButton(
                     onClick = {
                         showCloseAllDialog = false
-                        haptics.click()
+                        haptics.remove()
                         onCloseAll()
                     }
                 ) {

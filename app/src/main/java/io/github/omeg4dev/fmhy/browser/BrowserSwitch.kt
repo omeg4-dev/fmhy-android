@@ -67,7 +67,6 @@ fun BrowserSwitchChip(tabCount: Int, modifier: Modifier = Modifier) {
     ) {
         Surface(
             onClick = {
-                haptics.click()
                 bringBrowserToFront(context)
             },
             shape = MaterialTheme.shapes.small,
