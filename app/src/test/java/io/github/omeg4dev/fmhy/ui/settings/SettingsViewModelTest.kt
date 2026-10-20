@@ -283,4 +283,47 @@ class SettingsViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
         assertFalse(viewModel.uiState.value.appearance.hapticFeedback)
     }
+
+    @Test
+    fun testBrowserToolbarPositionUpdate() = runTest {
+        val store = FakeDatasetStore()
+        val settings = FakeSettingsRepository()
+        val container = FakeContainer(store, settings)
+
+        val viewModel = SettingsViewModel(store, settings, container)
+        backgroundScope.launch(kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)) { viewModel.browserPrefs.collect() }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(io.github.omeg4dev.fmhy.data.ToolbarPosition.TOP, viewModel.browserPrefs.value.toolbarPosition)
+        viewModel.updateBrowser { it.copy(toolbarPosition = io.github.omeg4dev.fmhy.data.ToolbarPosition.BOTTOM) }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(io.github.omeg4dev.fmhy.data.ToolbarPosition.BOTTOM, viewModel.browserPrefs.value.toolbarPosition)
+    }
+
+    @Test
+    fun testFollowsAndSavedCountFlows() = runTest {
+        val store = FakeDatasetStore()
+        val settings = FakeSettingsRepository()
+        val container = FakeContainer(store, settings)
+
+        val viewModel = SettingsViewModel(store, settings, container)
+        backgroundScope.launch(kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)) { viewModel.follows.collect() }
+        backgroundScope.launch(kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)) { viewModel.savedCount.collect() }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(0, viewModel.follows.value.size)
+        assertEquals(0, viewModel.savedCount.value)
+
+        container.userStore.follow("section-1", "heading-1", "Section 1")
+        val followsList = viewModel.follows.first { it.isNotEmpty() }
+
+        assertEquals(1, followsList.size)
+        assertEquals("heading-1", followsList.first().headingId)
+
+        viewModel.unfollow("section-1", "heading-1")
+        val emptyFollows = viewModel.follows.first { it.isEmpty() }
+
+        assertEquals(0, emptyFollows.size)
+    }
 }

@@ -2,6 +2,8 @@ package io.github.omeg4dev.fmhy.ui.settings
 
 import android.content.pm.PackageManager
 import android.os.Build
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBars
@@ -11,9 +13,11 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bookmarks
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Public
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -26,14 +30,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.omeg4dev.fmhy.SettingsPage
 import io.github.omeg4dev.fmhy.data.ColorSource
 import io.github.omeg4dev.fmhy.data.OpenLinksWith
 import io.github.omeg4dev.fmhy.data.SectionOrder
 import io.github.omeg4dev.fmhy.data.ThemeMode
+import io.github.omeg4dev.fmhy.data.adblock.FilterListCatalog
 import io.github.omeg4dev.fmhy.theme.ACCENT_PRESETS
-import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -46,8 +51,10 @@ fun SettingsHub(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val browserPrefs by viewModel.browserPrefs.collectAsStateWithLifecycle()
     val blockingPrefs by viewModel.blockingPrefs.collectAsStateWithLifecycle()
+    val privacyPrefs by viewModel.privacyPrefs.collectAsStateWithLifecycle()
     val notificationPrefs by viewModel.notificationPrefs.collectAsStateWithLifecycle()
-    val dataPrefs by viewModel.dataPrefs.collectAsStateWithLifecycle()
+    val follows by viewModel.follows.collectAsStateWithLifecycle()
+    val savedCount by viewModel.savedCount.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
     val versionName = remember(context) {
@@ -82,9 +89,13 @@ fun SettingsHub(
     ) { innerPadding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = innerPadding,
+            contentPadding = PaddingValues(
+                top = innerPadding.calculateTopPadding() + 8.dp,
+                bottom = innerPadding.calculateBottomPadding() + 24.dp,
+            ),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            // Appearance
+            // Look & feel
             item {
                 val themeStr = when (state.appearance.themeMode) {
                     ThemeMode.SYSTEM -> "System"
@@ -96,85 +107,132 @@ fun SettingsHub(
                 } else {
                     ACCENT_PRESETS.firstOrNull { it.seed == state.appearance.accentSeed }?.name ?: "Custom"
                 }
-                val textScaleStr = "${(state.appearance.textScale * 100).roundToInt()} %"
-                NavRow(
-                    title = "Appearance",
-                    summary = "$themeStr · $accentStr · $textScaleStr",
-                    icon = Icons.Default.Palette,
-                    onClick = { onNavigateToPage(SettingsPage.APPEARANCE) },
-                )
+                val orderStr = if (state.appearance.sectionOrder == SectionOrder.WEBSITE) {
+                    "Website order"
+                } else {
+                    "A–Z order"
+                }
+
+                SettingsSection(title = "Look & feel") {
+                    NavRow(
+                        title = "Appearance",
+                        summary = "$themeStr · $accentStr",
+                        icon = Icons.Default.Palette,
+                        onClick = { onNavigateToPage(SettingsPage.APPEARANCE) },
+                    )
+                    SettingsDivider(hasIcon = true)
+                    NavRow(
+                        title = "Home & lists",
+                        summary = orderStr,
+                        icon = Icons.Default.Home,
+                        onClick = { onNavigateToPage(SettingsPage.HOME_LISTS) },
+                    )
+                }
             }
 
-            // Home & lists
-            item {
-                val orderStr = if (state.appearance.sectionOrder == SectionOrder.WEBSITE) "Website order" else "A–Z order"
-                val randomStr = if (state.appearance.showRandomPick) "Random pick on" else "Random pick off"
-                NavRow(
-                    title = "Home & lists",
-                    summary = "$orderStr · $randomStr",
-                    icon = Icons.Default.Home,
-                    onClick = { onNavigateToPage(SettingsPage.HOME_LISTS) },
-                )
-            }
-
-            // Browser
+            // Browsing
             item {
                 val browserStr = when (browserPrefs.openLinksWith) {
                     OpenLinksWith.IN_APP -> "In-app browser"
                     OpenLinksWith.CUSTOM_TAB -> "Custom tab"
                     OpenLinksWith.EXTERNAL -> "External browser"
                 }
-                val adblockStr = if (blockingPrefs.adblock) "Ad blocking on" else "Ad blocking off"
-                NavRow(
-                    title = "Browser",
-                    summary = "$browserStr · $adblockStr",
-                    icon = Icons.Default.Public,
-                    onClick = { onNavigateToPage(SettingsPage.BROWSER) },
-                )
+                val adblockStr = when {
+                    !blockingPrefs.adblock -> "Off"
+                    blockingPrefs.enabledLists == FilterListCatalog.balancedIds -> "Balanced"
+                    blockingPrefs.enabledLists == FilterListCatalog.strictIds -> "Strict"
+                    else -> "Custom"
+                }
+                val privacyOnCount = listOf(
+                    privacyPrefs.blockThirdPartyCookies,
+                    privacyPrefs.hideCookieBanners,
+                    privacyPrefs.clearDataOnExit,
+                    privacyPrefs.privateTabsByDefault,
+                    privacyPrefs.sendGpc,
+                ).count { it }
+                val privacyStr = if (privacyOnCount >= 3) "Strict" else "Standard"
+
+                SettingsSection(title = "Browsing") {
+                    NavRow(
+                        title = "Browser",
+                        summary = browserStr,
+                        icon = Icons.Default.Public,
+                        onClick = { onNavigateToPage(SettingsPage.BROWSER) },
+                    )
+                    SettingsDivider(hasIcon = true)
+                    NavRow(
+                        title = "Ad blocking & protection",
+                        summary = adblockStr,
+                        icon = Icons.Default.Shield,
+                        onClick = { onNavigateToPage(SettingsPage.BLOCKING) },
+                    )
+                    SettingsDivider(hasIcon = true)
+                    NavRow(
+                        title = "Privacy",
+                        summary = privacyStr,
+                        icon = Icons.Default.Lock,
+                        onClick = { onNavigateToPage(SettingsPage.PRIVACY) },
+                    )
+                }
             }
 
-            // What's new & notifications
+            // Updates
             item {
-                val notifStr = if (notificationPrefs.enabled) "Notifications on" else "Notifications off"
-                NavRow(
-                    title = "What's new & notifications",
-                    summary = notifStr,
-                    icon = Icons.Default.NotificationsActive,
-                    onClick = { onNavigateToPage(SettingsPage.NOTIFICATIONS) },
-                )
+                val notifStr = if (!notificationPrefs.enabled) {
+                    "Notifications off"
+                } else if (follows.isNotEmpty()) {
+                    val count = follows.size
+                    "$count followed ${if (count == 1) "section" else "sections"}"
+                } else {
+                    "Notifications on"
+                }
+
+                SettingsSection(title = "Updates") {
+                    NavRow(
+                        title = "What's new & notifications",
+                        summary = notifStr,
+                        icon = Icons.Default.NotificationsActive,
+                        onClick = { onNavigateToPage(SettingsPage.NOTIFICATIONS) },
+                    )
+                }
             }
 
-            // Data & sync
+            // Your data
             item {
-                val sitesStr = if (state.entryCount > 0) "%,d sites".format(state.entryCount) else "No sites"
-                val syncStr = state.lastSyncedText
-                NavRow(
-                    title = "Data & sync",
-                    summary = "$sitesStr · $syncStr",
-                    icon = Icons.Default.Sync,
-                    onClick = { onNavigateToPage(SettingsPage.DATA) },
-                )
-            }
+                val savedStr = "$savedCount saved"
+                val syncStr = if (state.lastSyncedText.startsWith("Never")) {
+                    "Never synced"
+                } else {
+                    "Synced ${state.lastSyncedText.substringBefore(" via ")}"
+                }
 
-            // Saved & history
-            item {
-                val historyStr = if (dataPrefs.keepHistory) "History on" else "History off"
-                NavRow(
-                    title = "Saved & history",
-                    summary = historyStr,
-                    icon = Icons.Default.Bookmarks,
-                    onClick = { onNavigateToPage(SettingsPage.SAVED) },
-                )
+                SettingsSection(title = "Your data") {
+                    NavRow(
+                        title = "Saved & history",
+                        summary = savedStr,
+                        icon = Icons.Default.Bookmarks,
+                        onClick = { onNavigateToPage(SettingsPage.SAVED) },
+                    )
+                    SettingsDivider(hasIcon = true)
+                    NavRow(
+                        title = "Data & sync",
+                        summary = syncStr,
+                        icon = Icons.Default.Sync,
+                        onClick = { onNavigateToPage(SettingsPage.DATA) },
+                    )
+                }
             }
 
             // About
             item {
-                NavRow(
-                    title = "About",
-                    summary = "Version $versionName",
-                    icon = Icons.Default.Info,
-                    onClick = { onNavigateToPage(SettingsPage.ABOUT) },
-                )
+                SettingsSection(title = "About") {
+                    NavRow(
+                        title = "About",
+                        summary = "Version $versionName",
+                        icon = Icons.Default.Info,
+                        onClick = { onNavigateToPage(SettingsPage.ABOUT) },
+                    )
+                }
             }
         }
     }

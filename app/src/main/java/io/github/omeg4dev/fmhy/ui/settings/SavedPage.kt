@@ -4,7 +4,9 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -12,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
@@ -112,54 +115,52 @@ fun SavedPage(
     ) { innerPadding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = innerPadding,
+            contentPadding = PaddingValues(
+                top = innerPadding.calculateTopPadding() + 8.dp,
+                bottom = innerPadding.calculateBottomPadding() + 24.dp,
+            ),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            // History section
             item {
-                SwitchRow(
-                    title = "Keep history of opened sites",
-                    checked = dataPrefs.keepHistory,
-                    onChange = { checked ->
-                        viewModel.updateData { it.copy(keepHistory = checked) }
-                    },
-                )
+                SettingsSection(title = "History") {
+                    SwitchRow(
+                        title = "Keep history of opened sites",
+                        checked = dataPrefs.keepHistory,
+                        onChange = { checked ->
+                            viewModel.updateData { it.copy(keepHistory = checked) }
+                        },
+                    )
+                    SettingsDivider()
+                    NavRow(
+                        title = "Clear history",
+                        summary = "Remove all recorded browsing history",
+                        onClick = {
+                            showClearHistoryConfirmDialog = true
+                        }
+                    )
+                }
             }
 
+            // Backup & restore section
             item {
-                SettingsGroupHeader(text = "Backup & restore")
-            }
-
-            item {
-                NavRow(
-                    title = "Export backup",
-                    summary = "Save bookmarks, folders, and preferences as JSON",
-                    onClick = {
-                        showExportConfirmDialog = true
-                    }
-                )
-            }
-
-            item {
-                NavRow(
-                    title = "Import backup",
-                    summary = "Restore bookmarks, folders, and preferences from JSON",
-                    onClick = {
-                        importLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
-                    }
-                )
-            }
-
-            item {
-                SettingsGroupHeader(text = "History")
-            }
-
-            item {
-                NavRow(
-                    title = "Clear history",
-                    summary = "Remove all recorded browsing history",
-                    onClick = {
-                        showClearHistoryConfirmDialog = true
-                    }
-                )
+                SettingsSection(title = "Backup & restore") {
+                    NavRow(
+                        title = "Export backup",
+                        summary = "Save bookmarks, folders, and preferences as JSON",
+                        onClick = {
+                            showExportConfirmDialog = true
+                        }
+                    )
+                    SettingsDivider()
+                    NavRow(
+                        title = "Import backup",
+                        summary = "Restore bookmarks, folders, and preferences from JSON",
+                        onClick = {
+                            importLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
+                        }
+                    )
+                }
             }
 
             extraRows()

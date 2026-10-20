@@ -1,8 +1,11 @@
 package io.github.omeg4dev.fmhy.ui.settings
 
+import android.content.Context
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import io.github.omeg4dev.fmhy.browser.adblock.AdblockStatus
+import io.github.omeg4dev.fmhy.data.adblock.ListState
 import io.github.omeg4dev.fmhy.data.AppIcon
 import io.github.omeg4dev.fmhy.data.Appearance
 import io.github.omeg4dev.fmhy.data.BlockingPrefs
@@ -21,12 +24,14 @@ import io.github.omeg4dev.fmhy.data.ThemeMode
 import io.github.omeg4dev.fmhy.data.sync.SyncResult
 import io.github.omeg4dev.fmhy.data.sync.SyncState
 import io.github.omeg4dev.fmhy.data.model.Section
+import io.github.omeg4dev.fmhy.data.user.Follow
 import io.github.omeg4dev.fmhy.data.user.ImportResult
 import io.github.omeg4dev.fmhy.data.user.Pin
 import io.github.omeg4dev.fmhy.di.AppContainer
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
@@ -108,6 +113,33 @@ class SettingsViewModel(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
+    val follows: StateFlow<List<Follow>> = container.userStore.changes
+        .map {
+            try { container.userStore.follows() } catch (_: Exception) { emptyList() }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val savedCount: StateFlow<Int> = container.userStore.changes
+        .map {
+            try { container.userStore.bookmarks().size } catch (_: Exception) { 0 }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    val adblockStatus: StateFlow<AdblockStatus> = runCatching {
+        container.adblockService.status
+    }.getOrElse {
+        MutableStateFlow(AdblockStatus())
+    }
+
+    val listStates: StateFlow<Map<String, ListState>> = runCatching {
+        container.adblockService.listStates
+    }.getOrElse {
+        MutableStateFlow(emptyMap())
+    }
+
+    private val _isCheckingUpdates = MutableStateFlow(false)
+    val isCheckingUpdates: StateFlow<Boolean> = _isCheckingUpdates.asStateFlow()
+
     val allSections: StateFlow<List<Section>> = flow {
         val list = try { store.sections(SectionOrder.WEBSITE) } catch (_: Exception) { emptyList() }
         emit(list)
@@ -146,6 +178,68 @@ class SettingsViewModel(
     fun setSectionHidden(sectionId: String, hidden: Boolean) {
         viewModelScope.launch {
             container.userStore.setSectionHidden(sectionId, hidden)
+        }
+    }
+
+    fun unfollow(sectionId: String, headingId: String) {
+        viewModelScope.launch {
+            try {
+                container.userStore.unfollow(sectionId, headingId)
+            } catch (_: Exception) {}
+        }
+    }
+
+    fun updateAdblockNow() {
+        viewModelScope.launch {
+            runCatching {
+                container.adblockService.updateNow()
+            }
+        }
+    }
+
+    fun checkForUpdates(onResult: (String) -> Unit) {
+        if (_isCheckingUpdates.value) return
+        viewModelScope.launch {
+            _isCheckingUpdates.value = true
+            try {
+                val outcome = io.github.omeg4dev.fmhy.work.UpdateChecker.run(container.context, container)
+                onResult(outcome.summary)
+            } catch (e: Exception) {
+                onResult("Check failed: ${e.message}")
+            } finally {
+                _isCheckingUpdates.value = false
+            }
+        }
+    }
+
+    fun clearBrowsingData(
+        clearCookiesAndStorage: Boolean,
+        clearCache: Boolean,
+        clearHistory: Boolean,
+        context: Context,
+        onFinished: () -> Unit,
+    ) {
+        viewModelScope.launch {
+            if (clearCookiesAndStorage) {
+                try {
+                    android.webkit.CookieManager.getInstance().removeAllCookies(null)
+                    android.webkit.WebStorage.getInstance().deleteAllData()
+                    runCatching { android.webkit.WebViewDatabase.getInstance(context).clearHttpAuthUsernamePassword() }
+                    @Suppress("DEPRECATION")
+                    runCatching { android.webkit.WebViewDatabase.getInstance(context).clearFormData() }
+                } catch (_: Exception) {}
+            }
+            if (clearCache) {
+                try {
+                    android.webkit.WebView(context).clearCache(true)
+                } catch (_: Exception) {}
+            }
+            if (clearHistory) {
+                try {
+                    container.userStore.clearHistory()
+                } catch (_: Exception) {}
+            }
+            onFinished()
         }
     }
 
@@ -320,7 +414,7 @@ class SettingsViewModel(
         }
     }
 
-    private fun formatRelativeTime(seconds: Long): String {
+    fun formatRelativeTime(seconds: Long): String {
         val nowSec = System.currentTimeMillis() / 1000
         val diff = nowSec - seconds
         return when {
