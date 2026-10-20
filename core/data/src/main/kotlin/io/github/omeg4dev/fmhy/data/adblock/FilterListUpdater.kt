@@ -108,13 +108,16 @@ class FilterListUpdater(
     suspend fun update(
         enabled: Set<String>,
         customRules: String,
-        force: Boolean
+        force: Boolean,
+        /** Called with (lists handled, lists enabled) before each list and once more when all are handled. */
+        onProgress: (done: Int, total: Int) -> Unit = { _, _ -> },
     ): FilterEngine = withContext(Dispatchers.IO) {
         val currentStates = states().toMutableMap()
         var anyChanged = false
         val now = clock()
 
-        for (id in enabled) {
+        for ((index, id) in enabled.withIndex()) {
+            onProgress(index, enabled.size)
             val listDef = FilterListCatalog.byId(id)
             if (listDef == null) {
                 log("Unknown list id in enabled set: $id")

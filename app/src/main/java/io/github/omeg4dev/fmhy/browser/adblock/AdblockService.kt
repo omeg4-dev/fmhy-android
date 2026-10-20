@@ -105,12 +105,16 @@ class AdblockService(
     }
 
     private suspend fun updateInternal(force: Boolean) = withContext(ioDispatcher) {
-        _status.value = _status.value.copy(updating = true, error = null)
+        _status.value = _status.value.copy(updating = true, error = null, progress = 0f)
         try {
             val prefs = settingsRepository.blockingPrefs.first()
             var newEngine: FilterEngine
             val time = measureTimeMillis {
-                newEngine = updater.update(prefs.enabledLists, prefs.customRules, force)
+                newEngine = updater.update(prefs.enabledLists, prefs.customRules, force) { done, total ->
+                    // Downloads are ~90 %, building the engine the rest.
+                    val p = if (total == 0) 0.9f else 0.9f * done / total
+                    _status.value = _status.value.copy(progress = p)
+                }
             }
             engineRef.set(newEngine)
             _listStates.value = updater.states()
@@ -118,7 +122,7 @@ class AdblockService(
             logEngineStats("Updated ($time ms)", newEngine)
         } catch (e: Exception) {
             logE(TAG, "Update failed: ${e.message}", e)
-            _status.value = _status.value.copy(updating = false, error = e.message ?: e.toString())
+            _status.value = _status.value.copy(updating = false, error = e.message ?: e.toString(), progress = null)
         }
     }
 

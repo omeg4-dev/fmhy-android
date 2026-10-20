@@ -35,7 +35,12 @@ class AdblockServiceTest {
         val rebuildCalls = mutableListOf<Pair<Set<String>, String>>()
         val updateCalls = mutableListOf<Triple<Set<String>, String, Boolean>>()
 
-        override suspend fun update(enabled: Set<String>, customRules: String, force: Boolean): FilterEngine {
+        override suspend fun update(
+            enabled: Set<String>,
+            customRules: String,
+            force: Boolean,
+            onProgress: (done: Int, total: Int) -> Unit,
+        ): FilterEngine {
             updateCalls.add(Triple(enabled, customRules, force))
             val newEngine = FilterEngineBuilder().apply {
                 if (customRules.isNotEmpty()) addCustomRules(customRules)
