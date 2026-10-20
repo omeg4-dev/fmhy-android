@@ -12,6 +12,14 @@ import io.github.omeg4dev.fmhy.data.bookmarksDataStore
 import io.github.omeg4dev.fmhy.data.link.CrossLinks
 import io.github.omeg4dev.fmhy.data.safety.SafeGuard
 import io.github.omeg4dev.fmhy.data.user.UserStore
+import io.github.omeg4dev.fmhy.browser.BrowserHooks
+import io.github.omeg4dev.fmhy.browser.DefaultBrowserHooks
+import io.github.omeg4dev.fmhy.browser.TabManager
+import io.github.omeg4dev.fmhy.browser.adblock.AdblockService
+import io.github.omeg4dev.fmhy.browser.adblock.DefaultAdblockUpdater
+import io.github.omeg4dev.fmhy.browser.adblock.ScriptletLibrary
+import io.github.omeg4dev.fmhy.data.adblock.FilterListUpdater
+import io.github.omeg4dev.fmhy.data.adblock.OkHttpListFetcher
 import java.io.File
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineScope
@@ -56,6 +64,9 @@ interface AppContainer {
     val syncStatus: StateFlow<SyncStatus>
     val snackbarEvents: SharedFlow<String>
     val isSyncBannerConsumed: Boolean
+    val adblockService: AdblockService get() = error("Not supported")
+    val tabManager: TabManager get() = error("Not supported")
+    val browserHooks: BrowserHooks get() = error("Not supported")
 
     fun markSyncBannerConsumed()
     fun showSnackbar(message: String)
@@ -82,6 +93,48 @@ class DefaultAppContainer(override val context: Context) : AppContainer {
         BookmarksRepository(
             userStore = userStore,
             legacyDataStore = context.bookmarksDataStore,
+        )
+    }
+
+    override val browserHooks: BrowserHooks by lazy {
+        DefaultBrowserHooks()
+    }
+
+    private val adblockDir by lazy {
+        File(context.filesDir, "filters")
+    }
+
+    private val filterListUpdater by lazy {
+        FilterListUpdater(
+            dir = adblockDir,
+            fetcher = OkHttpListFetcher(okHttpClient),
+            clock = { System.currentTimeMillis() },
+            log = { msg -> Log.d("FmhyAdblock", msg) }
+        )
+    }
+
+    private val scriptletLibrary by lazy {
+        ScriptletLibrary(context)
+    }
+
+    override val adblockService: AdblockService by lazy {
+        AdblockService(
+            settingsRepository = settingsRepository,
+            updater = DefaultAdblockUpdater(filterListUpdater),
+            scriptletLibrary = scriptletLibrary,
+            coroutineScope = appScope,
+        )
+    }
+
+    override val tabManager: TabManager by lazy {
+        TabManager(
+            appContext = context.applicationContext,
+            settingsRepository = settingsRepository,
+            userStore = userStore,
+            adblockService = adblockService,
+            scriptletLibrary = scriptletLibrary,
+            browserHooks = browserHooks,
+            appScope = appScope,
         )
     }
 
@@ -178,6 +231,7 @@ class DefaultAppContainer(override val context: Context) : AppContainer {
                     datasetStore.close()
                     installSnapshotIfAvailable()
                 }
+                adblockService.initialize()
             } catch (e: Exception) {
                 Log.e("FmhySync", "Initialization error: ${e.message}", e)
             } finally {

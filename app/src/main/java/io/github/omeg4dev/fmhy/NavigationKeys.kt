@@ -46,6 +46,9 @@ data object LegendNavKey : NavKey
 @Serializable
 data class CheckLinkNavKey(val initial: String = "") : NavKey
 
+@Serializable
+data object SiteSettingsNavKey : NavKey
+
 // Also aliases matching the brief names:
 typealias Home = HomeNavKey
 typealias Section = SectionNavKey
