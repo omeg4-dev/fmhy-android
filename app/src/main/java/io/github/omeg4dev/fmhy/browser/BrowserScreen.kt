@@ -25,6 +25,8 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.windowInsetsTopHeight
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.SentimentDissatisfied
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -67,6 +69,7 @@ import io.github.omeg4dev.fmhy.data.ToolbarPosition
 import io.github.omeg4dev.fmhy.data.search.SearchEngine as DatasetSearchEngine
 import io.github.omeg4dev.fmhy.data.user.UserBookmark
 import io.github.omeg4dev.fmhy.ui.common.BookmarksState
+import io.github.omeg4dev.fmhy.ui.common.EmptyState
 import io.github.omeg4dev.fmhy.ui.common.LocalBookmarks
 import io.github.omeg4dev.fmhy.ui.common.Motion
 import io.github.omeg4dev.fmhy.ui.common.SavedInfo
@@ -97,6 +100,7 @@ fun BrowserScreen(
 
     val tabs by tabManager.tabs.collectAsStateWithLifecycle()
     val currentTabId by tabManager.currentTabId.collectAsStateWithLifecycle()
+    val webViewVersion by tabManager.webViewVersion.collectAsStateWithLifecycle()
     val adblockStatus by adblockService.status.collectAsStateWithLifecycle()
 
     val browserPrefs by settingsRepository.browserPrefs.collectAsStateWithLifecycle(initialValue = tabManager.currentBrowserPrefs)
@@ -111,6 +115,13 @@ fun BrowserScreen(
     var isEditMode by remember { mutableStateOf(false) }
     var showShieldSheet by remember { mutableStateOf(false) }
     var showTabsSheet by remember { mutableStateOf(false) }
+    val showTabsRequested by tabManager.showTabsRequested.collectAsStateWithLifecycle()
+    LaunchedEffect(showTabsRequested) {
+        if (showTabsRequested) {
+            showTabsSheet = true
+            tabManager.consumeShowTabs()
+        }
+    }
 
     // Find in page state
     var isFindMode by remember { mutableStateOf(false) }
@@ -279,8 +290,25 @@ fun BrowserScreen(
                         },
                         onCloseActivity = onFinishActivity,
                     )
+                } else if (currentTab.crashed) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        EmptyState(
+                            icon = Icons.Outlined.SentimentDissatisfied,
+                            title = "This page stopped",
+                            body = "It used too much memory or crashed.",
+                            actionLabel = "Reload",
+                            onAction = {
+                                tabManager.reloadTab(currentTab.id)
+                            },
+                        )
+                    }
                 } else {
                     // Active web content with Pull-to-refresh
+                    @Suppress("UNUSED_VARIABLE")
+                    val version = webViewVersion
                     val record = tabManager.getTabRecord(currentTab.id)
                     val webView = record?.webView
 

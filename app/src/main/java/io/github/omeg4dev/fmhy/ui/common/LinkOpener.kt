@@ -1,5 +1,6 @@
 package io.github.omeg4dev.fmhy.ui.common
 
+import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
@@ -171,7 +172,10 @@ class LinkOpener(
                 OpenLinksWith.IN_APP -> {
                     try {
                         val intent = BrowserActivity.intent(context, url, entryId).apply {
-                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+                            if (context !is Activity) {
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
                         }
                         context.startActivity(intent)
                     } catch (_: Exception) {

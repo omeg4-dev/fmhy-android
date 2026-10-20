@@ -1,6 +1,7 @@
 package io.github.omeg4dev.fmhy.browser
 
 import android.app.PictureInPictureParams
+import android.content.ComponentCallbacks2
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
@@ -39,15 +40,38 @@ class BrowserActivity : ComponentActivity() {
     private var isInPipMode by mutableStateOf(false)
     private var originalOrientation: Int = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
 
+    private var showCustomViewListener: ((android.view.View) -> Unit)? = null
+    private var hideCustomViewListener: (() -> Unit)? = null
+    private var videoPlayingListener: ((Boolean) -> Unit)? = null
+
+    @Suppress("DEPRECATION")
+    private val trimMemoryCallbacks = object : ComponentCallbacks2 {
+        override fun onTrimMemory(level: Int) {
+            if (level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) {
+                val container = (application as FmhyApp).container
+                container.tabManager.onTrimMemory()
+            }
+        }
+
+        override fun onConfigurationChanged(newConfig: Configuration) {}
+
+        @Deprecated("Deprecated in Java")
+        override fun onLowMemory() {
+            val container = (application as FmhyApp).container
+            container.tabManager.onTrimMemory()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        registerComponentCallbacks(trimMemoryCallbacks)
 
         val container = (application as FmhyApp).container
         val dataUri = intent?.dataString
         val entryId = intent?.getStringExtra(EXTRA_ENTRY_ID)
 
         val hooks = container.browserHooks as? DefaultBrowserHooks
-        hooks?.onShowCustomViewListener = {
+        val showListener: (android.view.View) -> Unit = {
             originalOrientation = requestedOrientation
             if (container.tabManager.currentBrowserPrefs.videoAutoRotate) {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
@@ -60,15 +84,20 @@ class BrowserActivity : ComponentActivity() {
                 controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             }
         }
-        hooks?.onHideCustomViewListener = {
+        showCustomViewListener = showListener
+        hooks?.onShowCustomViewListener = showListener
+
+        val hideListener: () -> Unit = {
             requestedOrientation = originalOrientation
             if (container.tabManager.isVideoPlaying() != true || !container.tabManager.currentBrowserPrefs.keepScreenOn) {
                 window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             }
             WindowInsetsControllerCompat(window, window.decorView).show(WindowInsetsCompat.Type.systemBars())
         }
+        hideCustomViewListener = hideListener
+        hooks?.onHideCustomViewListener = hideListener
 
-        container.tabManager.onVideoPlayingChanged = { isPlaying ->
+        val videoListener: (Boolean) -> Unit = { isPlaying ->
             val keepOn = container.tabManager.currentBrowserPrefs.keepScreenOn
             if (isPlaying && keepOn) {
                 window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -76,9 +105,12 @@ class BrowserActivity : ComponentActivity() {
                 window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             }
         }
+        videoPlayingListener = videoListener
+        container.tabManager.onVideoPlayingChanged = videoListener
 
         lifecycleScope.launch {
             container.tabManager.restoreTabsIfNeeded(dataUri, entryId)
+            if (savedInstanceState == null) handleSwitchExtras(intent)
         }
 
         setContent {
@@ -152,37 +184,79 @@ class BrowserActivity : ComponentActivity() {
         isInPipMode = isInPictureInPictureMode
     }
 
+    override fun onPause() {
+        super.onPause()
+        val container = (application as FmhyApp).container
+        container.tabManager.onActivityPause()
+    }
+
     override fun onResume() {
         super.onResume()
         val container = (application as FmhyApp).container
         container.tabManager.attachActivity(this, container.tabManager.isAppDark)
+        container.tabManager.onActivityResume()
+    }
+
+    @Suppress("DEPRECATION")
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        if (level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) {
+            val container = (application as FmhyApp).container
+            container.tabManager.onTrimMemory()
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         val container = (application as FmhyApp).container
-        val url = intent.dataString ?: return
-        val entryId = intent.getStringExtra(EXTRA_ENTRY_ID)
-        val newTab = intent.getBooleanExtra(EXTRA_NEW_TAB, true)
-
-        if (!newTab) {
-            val existing = container.tabManager.findTabByUrl(url)
-            if (existing != null) {
-                container.tabManager.selectTab(existing.id)
-                return
+        val url = intent.dataString
+        if (url.isNullOrBlank()) {
+            if (container.tabManager.linkQueue.isRestored.get()) handleSwitchExtras(intent)
+        } else {
+            val entryId = intent.getStringExtra(EXTRA_ENTRY_ID)
+            val newTab = intent.getBooleanExtra(EXTRA_NEW_TAB, true)
+            container.tabManager.linkQueue.offerOrExecute(
+                QueuedLink(url = url, entryId = entryId, newTab = newTab)
+            ) { link, select ->
+                container.tabManager.openQueuedLink(link, select)
             }
         }
-        container.tabManager.openTab(url = url, entryId = entryId, isPrivate = false, select = true)
+    }
+
+    /** Home card extras: select a specific tab and/or open the tabs sheet. Consumed once. */
+    private fun handleSwitchExtras(intent: Intent?) {
+        if (intent == null) return
+        val tabManager = (application as FmhyApp).container.tabManager
+        val tabId = intent.getLongExtra(EXTRA_SELECT_TAB, -1L)
+        if (tabId >= 0) {
+            intent.removeExtra(EXTRA_SELECT_TAB)
+            tabManager.selectTab(tabId)
+        }
+        if (intent.getBooleanExtra(EXTRA_SHOW_TABS, false)) {
+            intent.removeExtra(EXTRA_SHOW_TABS)
+            tabManager.requestShowTabs()
+        }
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        unregisterComponentCallbacks(trimMemoryCallbacks)
         val container = (application as FmhyApp).container
+        val hooks = container.browserHooks as? DefaultBrowserHooks
+        if (hooks?.onShowCustomViewListener === showCustomViewListener) {
+            hooks?.onShowCustomViewListener = null
+        }
+        if (hooks?.onHideCustomViewListener === hideCustomViewListener) {
+            hooks?.onHideCustomViewListener = null
+        }
+        if (container.tabManager.onVideoPlayingChanged === videoPlayingListener) {
+            container.tabManager.onVideoPlayingChanged = null
+        }
         if (isFinishing && container.tabManager.tabs.value.isEmpty() && container.tabManager.currentPrivacyPrefs.clearDataOnExit) {
             container.tabManager.clearAllBrowsingData()
         }
-        container.tabManager.detachActivity()
+        container.tabManager.detachActivity(this)
     }
 
     companion object {

@@ -39,6 +39,8 @@ data class TabState(
     val siteBarState: SiteBarState? = null,
     val interstitialState: InterstitialState? = null,
     val isVideoPlaying: Boolean = false,
+    val crashed: Boolean = false,
+    val lastActiveTime: Long = 0L,
 )
 
 @Serializable

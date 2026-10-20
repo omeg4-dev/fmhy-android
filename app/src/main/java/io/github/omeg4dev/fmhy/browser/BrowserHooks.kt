@@ -154,6 +154,7 @@ class DefaultBrowserHooks(
     var onHideCustomViewListener: (() -> Unit)? = null
 
     private val hostVerdictCache = ConcurrentHashMap<String, Verdict>()
+    private val livePopupCount = java.util.concurrent.atomic.AtomicInteger(0)
 
     override fun handleCreateWindow(
         context: Context,
@@ -164,15 +165,29 @@ class DefaultBrowserHooks(
     ): Boolean {
         if (resultMsg == null) return false
         val transport = resultMsg.obj as? WebView.WebViewTransport ?: return false
+        if (livePopupCount.get() >= 3) return false
 
+        livePopupCount.incrementAndGet()
         val tempWebView = WebView(context)
+        var cleanedUp = false
+        fun cleanup() {
+            if (!cleanedUp) {
+                cleanedUp = true
+                livePopupCount.decrementAndGet()
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    try { tempWebView.destroy() } catch (_: Exception) {}
+                }
+            }
+        }
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ cleanup() }, 10_000L)
+
         tempWebView.webViewClient = object : WebViewClient() {
             private var handled = false
 
             private fun processUrl(targetUrl: String) {
                 if (handled || targetUrl.isBlank() || targetUrl == "about:blank") return
                 handled = true
-                android.os.Handler(android.os.Looper.getMainLooper()).post { try { tempWebView.destroy() } catch (_: Exception) {} }
+                cleanup()
 
                 val protectionPrefs = tabManager?.currentProtectionPrefs ?: ProtectionPrefs()
                 val decision = PopupPolicy.evaluate(
@@ -228,6 +243,10 @@ class DefaultBrowserHooks(
 
             override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
                 processUrl(url)
+            }
+
+            override fun onReceivedError(view: WebView, request: WebResourceRequest, error: android.webkit.WebResourceError) {
+                cleanup()
             }
         }
 

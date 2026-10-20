@@ -373,7 +373,10 @@ fun BrowserEditMode(
                                                         if (follow.headingId.isNotEmpty()) {
                                                             putExtra("heading_id", follow.headingId)
                                                         }
-                                                        addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                                                        addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+                                                        if (context !is android.app.Activity) {
+                                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                        }
                                                     }
                                                     context.startActivity(intent)
                                                     onCloseActivity()
