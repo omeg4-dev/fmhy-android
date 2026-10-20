@@ -345,6 +345,31 @@ class TrackerSyncTest {
     }
 
     @Test
+    fun testSameNameNewAddressIsOneUrlChangedRow() = runTest {
+        val dbFile = tempFolder.newFile("test_swap.db")
+        val store = DatasetStoreTest.createSampleDb(dbFile)
+        setupTestDatabase(store)
+        val tracker = TrackerSync(store = store, dir = tempFolder.newFolder(), client = client, clock = { 1000L }, log = {})
+
+        val commit = TrackerCommit(
+            sha = "sha-swap",
+            date = "2026-03-02T10:00:00Z",
+            message = "swap link",
+            added = listOf(TrackerLink(link = "* [CMVTV](https://new.example.com/) - Live TV", source = "video", type = "new")),
+            removed = listOf(TrackerLink(link = "* [CMVTV](https://old.example.com/) - Live TV", source = "video", type = "removed")),
+        )
+        tracker.applyCommits(listOf(commit))
+
+        val kinds = mutableListOf<Pair<String, String>>()
+        store.withConnection { conn ->
+            conn.prepare("SELECT kind, detail FROM changes WHERE commit_sha = 'sha-swap'").use { stmt ->
+                while (stmt.step()) kinds.add(stmt.getText(0) to stmt.getText(1))
+            }
+        }
+        assertEquals(listOf("url_changed" to "https://old.example.com/"), kinds)
+    }
+
+    @Test
     fun testRealMonthlyCommitsData() = runTest {
         val realJsonFile = sequenceOf(
             File(".cache/ref/tracker/monthly_commits.json"),

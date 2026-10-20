@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -650,12 +649,14 @@ private fun SummaryLine(
 
     if (activeSegments.isEmpty()) return
 
-    FlowRow(
+    // One scrollable line: each segment keeps a 48 dp touch target without wrapping into tall gaps.
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         activeSegments.forEachIndexed { index, (kind, count) ->
             val look = kind.style()
@@ -692,7 +693,6 @@ private fun SummaryLine(
                     text = "·",
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.outlineVariant,
-                    modifier = Modifier.align(Alignment.CenterVertically),
                 )
             }
         }

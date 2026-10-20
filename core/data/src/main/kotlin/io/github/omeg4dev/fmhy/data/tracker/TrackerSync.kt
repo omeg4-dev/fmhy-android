@@ -50,6 +50,8 @@ private data class TrackerState(
     val etag: String? = null,
     val lastCheck: Long = 0L,
     val lastSuccess: Long = 0L,
+    /** Version of the classification rules that produced the stored rows (see [TrackerSync.RULES_VERSION]). */
+    val rulesVersion: Int = 0,
 )
 
 
@@ -104,10 +106,13 @@ class TrackerSync(
     suspend fun sync(force: Boolean = false): TrackerResult = withContext(Dispatchers.IO) {
         try {
             dir.mkdirs()
-            val state = loadState()
+            val loaded = loadState()
             val now = clock()
+            // Rows from older rules (e.g. an EDITED row for every tracker update) are replaced once.
+            val reclassify = loaded.rulesVersion < RULES_VERSION
+            val state = if (reclassify) loaded.copy(etag = null) else loaded
 
-            if (!force && state.lastCheck > 0L && (now - state.lastCheck < 3600L)) {
+            if (!force && !reclassify && state.lastCheck > 0L && (now - state.lastCheck < 3600L)) {
                 log("TrackerSync: skipped (checked ${now - state.lastCheck} s ago)")
                 return@withContext TrackerResult.UpToDate
             }
@@ -131,8 +136,9 @@ class TrackerSync(
                 val body = resp.body.string()
                 val newEtag = resp.header("ETag") ?: state.etag
                 val commits = parse(body)
+                if (reclassify) dropOutdatedRows()
                 val inserted = applyCommits(commits)
-                saveState(TrackerState(etag = newEtag, lastCheck = now, lastSuccess = now))
+                saveState(TrackerState(etag = newEtag, lastCheck = now, lastSuccess = now, rulesVersion = RULES_VERSION))
                 log("TrackerSync: updated ($inserted rows inserted)")
                 return@withContext TrackerResult.Updated(inserted)
             }
@@ -143,6 +149,11 @@ class TrackerSync(
     }
 
     val lastUnknownSources = mutableSetOf<String>()
+
+    /** Only the tracker ever wrote EDITED rows (the bundled history has none), so they can all go. */
+    private suspend fun dropOutdatedRows() = store.withTransaction { conn ->
+        conn.prepare("DELETE FROM changes WHERE kind = 'edited'").use { it.step() }
+    }
 
     internal suspend fun applyCommits(commits: List<TrackerCommit>): Int = store.withTransaction { conn ->
         lastUnknownSources.clear()
@@ -283,6 +294,23 @@ class TrackerSync(
                 val nw = newItems[newIdx]
                 val isMove = rem.item.source != nw.item.source
                 pairs.add(ItemPair(rem, nw, isMove))
+            }
+        }
+
+        // Same page, same name, new address: a link swap done as remove + add (e.g. CMVTV).
+        for ((remIdx, rem) in removedItems.withIndex()) {
+            if (remIdx in pairedRemoved) continue
+            val remName = ChangeClassifier.collapseWhitespace(rem.linkInfo.name).lowercase()
+            val newIdx = newItems.indices.firstOrNull { idx ->
+                idx !in pairedNew &&
+                newItems[idx].item.source == rem.item.source &&
+                ChangeClassifier.collapseWhitespace(newItems[idx].linkInfo.name).lowercase() == remName &&
+                newItems[idx].commit.date >= rem.commit.date
+            }
+            if (newIdx != null) {
+                pairedRemoved.add(remIdx)
+                pairedNew.add(newIdx)
+                pairs.add(ItemPair(rem, newItems[newIdx], isMove = false))
             }
         }
 
@@ -481,6 +509,9 @@ class TrackerSync(
     }
 
     companion object {
+        /** Bump when the classification of tracker items changes, so stored rows get rebuilt. */
+        const val RULES_VERSION = 3
+
         internal fun parseLinkLine(line: String): ParsedLink? =
             ChangeClassifier.parseLinkLine(line)
 
