@@ -236,7 +236,7 @@ fun VerdictCard(
 
             // "Check just <host>" button if a path was given on NO_DATA or DOMAIN_LISTED
             val targetHost = verdict.host
-            if (onCheckHost != null && !targetHost.isNullOrBlank() && inputHasPath &&
+            if (onCheckHost != null && !targetHost.isNullOrBlank() && inputHasPath && verdict.sharedHostListedCount == 0 &&
                 (verdict.status == SafetyStatus.NO_DATA || verdict.status == SafetyStatus.DOMAIN_LISTED)
             ) {
                 Spacer(Modifier.height(8.dp))

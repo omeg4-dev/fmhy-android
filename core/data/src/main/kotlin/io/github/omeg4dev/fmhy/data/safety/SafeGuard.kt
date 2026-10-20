@@ -208,6 +208,8 @@ class SafeGuard(private val store: DatasetStore) {
     }
 
     private suspend fun findLookalikes(host: String): List<Entry> {
+        // A repo on github.com or a page on a hosting site says nothing about look-alike domains.
+        if (isSharedResourceHost(host) || SUBDOMAIN_HOSTING_HOSTS.any { host == it || host.endsWith(".$it") }) return emptyList()
         val targetLabel = extractMainLabel(host)
         if (targetLabel.length < 4) return emptyList()
 
@@ -221,6 +223,7 @@ class SafeGuard(private val store: DatasetStore) {
         for (entry in candidates) {
             val cHost = extractHostFromUrl(entry.url) ?: continue
             if (cHost == cleanHost) continue // Exclude entries on the same host
+            if (isSharedResourceHost(cHost) || SUBDOMAIN_HOSTING_HOSTS.any { cHost == it || cHost.endsWith(".$it") }) continue
 
             val candidateLabel = extractMainLabel(cHost)
             if (candidateLabel.length < 4) continue

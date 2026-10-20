@@ -129,6 +129,7 @@ class SafeGuardMatchingTest {
         val verdict = safeGuard.check("https://github.com/unlisted/repo")
         assertEquals(SafetyStatus.NO_DATA, verdict.status)
         assertEquals(2, verdict.sharedHostListedCount)
+        assertTrue("shared hosts never get look-alikes", verdict.lookalikes.isEmpty())
     }
 
     @Test
