@@ -52,9 +52,14 @@ fun SwipeToSave(
     val currentActions by rememberUpdatedState(actions)
     val currentEntry by rememberUpdatedState(entry)
 
+    // confirmValueChange is called several times for one swipe (each time the target is re-checked while the row
+    // springs back); without this guard a single swipe toggled the bookmark up to three times.
+    val lastToggleAt = remember { longArrayOf(0L) }
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { v ->
-            if (v != SwipeToDismissBoxValue.Settled) {
+            val now = android.os.SystemClock.uptimeMillis()
+            if (v != SwipeToDismissBoxValue.Settled && now - lastToggleAt[0] > SWIPE_TOGGLE_DEBOUNCE_MS) {
+                lastToggleAt[0] = now
                 currentActions.toggle(currentEntry)
             }
             false
@@ -171,3 +176,5 @@ fun SwipeToSave(
         }
     }
 }
+
+private const val SWIPE_TOGGLE_DEBOUNCE_MS = 800L

@@ -5,8 +5,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
+import io.github.omeg4dev.fmhy.FmhyApp
 import io.github.omeg4dev.fmhy.data.model.Entry
 import io.github.omeg4dev.fmhy.data.user.Folder
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 data class SavedInfo(
@@ -44,7 +48,13 @@ fun rememberSaveActions(
     val userStore = LocalUserStore.current
     val snackbarHost = LocalSnackbarHost.current
     val haptics = rememberHaptics()
-    val scope = rememberCoroutineScope()
+    val rowScope = rememberCoroutineScope()
+    // Unsave + Undo outlives the row: in Saved the row leaves the list the moment its bookmark is removed,
+    // which cancelled a row-scoped coroutine mid-snackbar and lost the Undo.
+    val appScope = (LocalContext.current.applicationContext as? FmhyApp)?.container?.appScope
+    val scope = remember(appScope, rowScope) {
+        if (appScope != null) CoroutineScope(appScope.coroutineContext + Dispatchers.Main.immediate) else rowScope
+    }
 
     return remember(bookmarksState, userStore, snackbarHost, haptics, scope, onShowSnackbar) {
         object : SaveActions {
