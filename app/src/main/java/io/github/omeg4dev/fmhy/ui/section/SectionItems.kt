@@ -81,6 +81,32 @@ import io.github.omeg4dev.fmhy.data.model.Heading
 import io.github.omeg4dev.fmhy.data.model.Note
 import io.github.omeg4dev.fmhy.data.model.SectionItem
 import io.github.omeg4dev.fmhy.ui.common.MarkdownText
+import android.content.Intent
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.net.toUri
+import io.github.omeg4dev.fmhy.FmhyApp
+import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
+import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener as rememberAppContainerLinkOpener
+
+@Composable
+private fun rememberLinkOpener(): (String) -> Unit {
+    val context = LocalContext.current
+    val container = (context.applicationContext as? FmhyApp)?.container
+    if (container != null) {
+        val opener = rememberAppContainerLinkOpener(container, onShowSnackbar = {})
+        UnsafeWarningDialog(opener)
+        val lambda: (String) -> Unit = { url -> opener.openUrl(url) }
+        return lambda
+    } else {
+        return { url: String ->
+            try {
+                context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                })
+            } catch (_: Exception) {}
+        }
+    }
+}
 
 @Composable
 fun HeadingHeader(
@@ -250,7 +276,10 @@ fun HeadingHeader(
 fun NoteCallout(
     note: Note,
     modifier: Modifier = Modifier,
+    onOpenUrl: ((String) -> Unit)? = null,
 ) {
+    val defaultOpenUrl = rememberLinkOpener()
+    val openUrl = onOpenUrl ?: defaultOpenUrl
     var expanded by remember { mutableStateOf(false) }
     var hasOverflow by remember { mutableStateOf(false) }
 
@@ -313,6 +342,7 @@ fun NoteCallout(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = if (expanded) Int.MAX_VALUE else 3,
                 overflow = if (expanded) TextOverflow.Clip else TextOverflow.Ellipsis,
+                onOpenUrl = { openUrl(it) },
                 onTextLayout = { layoutResult ->
                     if (!expanded && layoutResult.hasVisualOverflow) {
                         hasOverflow = true
