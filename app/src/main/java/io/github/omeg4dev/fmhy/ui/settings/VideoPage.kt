@@ -111,6 +111,13 @@ fun VideoPage(
                         onSelect = { mode -> viewModel.updateBrowser { it.copy(autoplay = mode) } },
                     )
                     SettingsDivider()
+                    SwitchRow(
+                        title = "Play in background",
+                        summary = "Keep audio playing when you leave the app or lock the screen",
+                        checked = prefs.backgroundPlayback,
+                        onChange = { checked -> viewModel.updateBrowser { it.copy(backgroundPlayback = checked) } },
+                    )
+                    SettingsDivider()
                     ChoiceRow(
                         title = "Default speed",
                         options = PLAYBACK_SPEEDS.map { it to speedLabel(it) },

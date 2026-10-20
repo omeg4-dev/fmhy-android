@@ -80,6 +80,8 @@ data class BrowserPrefs(
     /** Enter picture-in-picture on its own when leaving the app while a video plays. */
     val autoPip: Boolean = true,
     val keepScreenOn: Boolean = true,
+    /** Keep audio/video playing (with a media notification) when leaving the app or locking the screen. */
+    val backgroundPlayback: Boolean = false,
     val autoplay: AutoplayMode = AutoplayMode.ALLOW_MUTED,
     /** Double-tap the left or right third of a fullscreen video to seek 10 s. */
     val doubleTapSeek: Boolean = true,

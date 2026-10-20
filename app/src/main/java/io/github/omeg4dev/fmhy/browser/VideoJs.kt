@@ -2,6 +2,15 @@ package io.github.omeg4dev.fmhy.browser
 
 /** Page script that watches <video>/<audio> elements and reports what the app needs to know. */
 object VideoJs {
+    /** Pauses whatever is playing and remembers it so [RESUME_MEDIA] can carry on. */
+    const val PAUSE_MEDIA = "(function(){try{document.querySelectorAll('video,audio').forEach(function(m){" +
+        "if(!m.paused){m.__fmhyWasPlaying=true;m.pause();}});}catch(e){}})();"
+
+    /** Resumes what [PAUSE_MEDIA] paused, else the first media element. */
+    const val RESUME_MEDIA = "(function(){try{var l=Array.prototype.slice.call(document.querySelectorAll('video,audio'));" +
+        "var t=l.filter(function(m){return m.__fmhyWasPlaying;});if(!t.length)t=l.slice(0,1);" +
+        "t.forEach(function(m){m.__fmhyWasPlaying=false;var p=m.play();if(p&&p.catch)p.catch(function(){});});}catch(e){}})();"
+
     /** JS that jumps the fullscreen video (else the first one on the page) by [seconds]. */
     fun seekCall(seconds: Int): String = "(function(d){try{" +
         "var f=document.fullscreenElement,v=null;" +

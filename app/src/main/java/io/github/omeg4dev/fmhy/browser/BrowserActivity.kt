@@ -30,6 +30,8 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import io.github.omeg4dev.fmhy.FmhyApp
+import io.github.omeg4dev.fmhy.browser.media.BackgroundMediaService
+import io.github.omeg4dev.fmhy.browser.media.shouldKeepPlaying
 import io.github.omeg4dev.fmhy.data.Appearance
 import io.github.omeg4dev.fmhy.data.ThemeMode
 import io.github.omeg4dev.fmhy.theme.FMHYTheme
@@ -234,10 +236,29 @@ class BrowserActivity : ComponentActivity() {
         isInPipMode = isInPictureInPictureMode
     }
 
+    /**
+     * The browser left the foreground. Keeps the current tab playing (and starts the media
+     * notification) when background playback is on; otherwise pauses as usual. A video that is
+     * showing in the picture-in-picture window keeps playing too.
+     */
+    private fun enterBackground() {
+        val tabManager = (application as FmhyApp).container.tabManager
+        val playing = tabManager.getActiveTabRecord()?.isVideoPlaying == true
+        val keep = shouldKeepPlaying(tabManager.currentBrowserPrefs.backgroundPlayback, playing, isFinishing)
+        val inPip = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPictureInPictureMode
+        tabManager.onActivityPause(keepPlaying = keep || (inPip && playing && !isFinishing))
+        if (keep) BackgroundMediaService.start(this)
+    }
+
     override fun onPause() {
         super.onPause()
-        val container = (application as FmhyApp).container
-        container.tabManager.onActivityPause()
+        enterBackground()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // Also covers closing the picture-in-picture window, which stops the activity without a new pause.
+        enterBackground()
     }
 
     override fun onResume() {
@@ -245,6 +266,7 @@ class BrowserActivity : ComponentActivity() {
         val container = (application as FmhyApp).container
         container.tabManager.attachActivity(this, container.tabManager.isAppDark)
         container.tabManager.onActivityResume()
+        BackgroundMediaService.stop(this)
         updatePipParams()
     }
 

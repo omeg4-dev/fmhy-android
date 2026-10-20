@@ -675,9 +675,21 @@ class TabManager(
         } catch (_: Throwable) {}
     }
 
-    fun onActivityPause() {
+    /**
+     * The activity is going away from the foreground. With [keepPlaying] the active tab keeps running
+     * (its WebView is not paused and timers keep ticking) so its media goes on in the background;
+     * every other tab is paused individually.
+     */
+    fun onActivityPause(keepPlaying: Boolean = false) {
         isActivityResumed = false
         val active = getActiveTabRecord()
+        if (keepPlaying && active != null) {
+            keepAliveTabId = active.id
+            val others = synchronized(records) { records.filter { it.id != active.id } }
+            others.forEach { pauseTab(it) }
+            return
+        }
+        keepAliveTabId = null
         if (active != null && active.id != keepAliveTabId) {
             pauseTab(active)
         }
@@ -689,6 +701,7 @@ class TabManager(
 
     fun onActivityResume() {
         isActivityResumed = true
+        keepAliveTabId = null
         val active = getActiveTabRecord()
         try {
             val wv = active?.webView ?: synchronized(records) { records.firstNotNullOfOrNull { it.webView } }
@@ -928,6 +941,49 @@ class TabManager(
                 try {
                     wv.settings.mediaPlaybackRequiresUserGesture = autoplayNeedsGesture(mode)
                     wv.evaluateJavascript(js, null)
+                } catch (_: Throwable) {}
+            }
+        }
+    }
+
+    /** Pauses or resumes the media of [tabId]; used by the background playback notification. */
+    fun controlMedia(tabId: Long, play: Boolean) {
+        val record = getTabRecord(tabId) ?: return
+        postToMain {
+            val wv = record.webView ?: return@postToMain
+            try {
+                if (play) {
+                    // A programmatic play() has no user gesture; allow it for this call only.
+                    val strict = wv.settings.mediaPlaybackRequiresUserGesture
+                    if (strict) wv.settings.mediaPlaybackRequiresUserGesture = false
+                    wv.evaluateJavascript(VideoJs.RESUME_MEDIA, null)
+                    if (strict) mainHandler?.postDelayed({
+                        try { wv.settings.mediaPlaybackRequiresUserGesture = currentBrowserPrefs.autoplay == AutoplayMode.BLOCK } catch (_: Throwable) {}
+                    }, 1500L)
+                } else {
+                    wv.evaluateJavascript(VideoJs.PAUSE_MEDIA, null)
+                }
+            } catch (_: Throwable) {}
+        }
+    }
+
+    /** Background playback is over (closed, idle too long): stop the media and pause the tab like normal. */
+    fun endBackgroundPlayback() {
+        val id = keepAliveTabId
+        keepAliveTabId = null
+        if (id == null) return
+        val record = getTabRecord(id)
+        postToMain {
+            val wv = record?.webView
+            if (wv != null) {
+                try { wv.evaluateJavascript(VideoJs.PAUSE_MEDIA, null) } catch (_: Throwable) {}
+            }
+            if (!isActivityResumed) {
+                if (record != null) pauseTab(record)
+                // Timers are global: the kept tab's WebView was the one left running.
+                try {
+                    val any = wv ?: synchronized(records) { records.firstNotNullOfOrNull { it.webView } }
+                    any?.pauseTimers()
                 } catch (_: Throwable) {}
             }
         }
