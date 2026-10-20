@@ -228,7 +228,10 @@ class DefaultAppContainer(override val context: Context) : AppContainer {
     }
 
     override fun startFilterDownload() {
-        // wired after merge
+        appScope.launch(Dispatchers.IO) {
+            runCatching { adblockService.updateNow() }
+                .onFailure { Log.w("FmhyAdblock", "Filter list download failed", it) }
+        }
     }
 
     override fun initialize() {
