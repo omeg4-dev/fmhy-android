@@ -1,0 +1,8 @@
+- Swipe a site to save it; swipe in Saved to remove (with Undo)
+- Search finds categories and suggests fixes for typos
+- Links in tips work; nicer beginner's guide and monthly posts
+- NEW tag only on sites that are really new
+- Pins open the right place
+- Browser copes with many tabs and crashed pages; quick switch to and from FMHY; Continue browsing on Home
+- Video settings: picture-in-picture, speed, double-tap seek, background audio
+- More app icons with a preview
