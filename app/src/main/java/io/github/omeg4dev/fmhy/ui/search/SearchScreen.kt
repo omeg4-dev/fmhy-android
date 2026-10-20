@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -21,6 +22,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -45,6 +47,9 @@ import androidx.compose.material3.InputChip
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -52,8 +57,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -72,19 +79,32 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.omeg4dev.fmhy.data.BrowserPrefs
 import io.github.omeg4dev.fmhy.data.link.CrossLinks
 import io.github.omeg4dev.fmhy.SectionNavKey
 import io.github.omeg4dev.fmhy.di.AppContainer
 import io.github.omeg4dev.fmhy.nav.LocalAppNav
 import io.github.omeg4dev.fmhy.nav.LocalBottomBarPadding
 import io.github.omeg4dev.fmhy.nav.Tab
+import io.github.omeg4dev.fmhy.ui.common.CrossfadeContent
+import io.github.omeg4dev.fmhy.ui.common.EmptyState
 import io.github.omeg4dev.fmhy.ui.common.EntryRow
+import io.github.omeg4dev.fmhy.ui.common.LocalSnackbarHost
+import io.github.omeg4dev.fmhy.ui.common.SkeletonRows
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
+import io.github.omeg4dev.fmhy.ui.common.enterStagger
 import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
 import io.github.omeg4dev.fmhy.ui.common.sectionIcon
 import io.github.omeg4dev.fmhy.ui.check.VerdictCard
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
+
+private enum class SearchContentMode {
+    RECENT,
+    SEARCHING,
+    EMPTY,
+    RESULTS,
+}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
@@ -105,6 +125,26 @@ fun SearchScreen(
     var showFiltersSheet by remember { mutableStateOf(false) }
 
     val linkOpener = rememberLinkOpener(container, onShowSnackbar)
+
+    val browserPrefs by container.settingsRepository.browserPrefs.collectAsStateWithLifecycle(initialValue = BrowserPrefs())
+    val encodedQuery = remember(state.query) {
+        try {
+            java.net.URLEncoder.encode(state.query, "UTF-8")
+        } catch (_: Exception) {
+            state.query
+        }
+    }
+    val searchUrl = "${browserPrefs.searchEngine.queryUrl}$encodedQuery"
+
+    val snackbarHostState = remember { SnackbarHostState() }
+    val bottomBarPadding = LocalBottomBarPadding.current
+
+    val contentMode = when {
+        !state.hasSearched -> SearchContentMode.RECENT
+        state.isSearching -> SearchContentMode.SEARCHING
+        state.total == 0 && state.verdict == null -> SearchContentMode.EMPTY
+        else -> SearchContentMode.RESULTS
+    }
 
     val trySuggestions = remember {
         listOf(
@@ -136,11 +176,18 @@ fun SearchScreen(
         }
     }
 
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = MaterialTheme.colorScheme.background,
-    ) {
-        Column(modifier = Modifier.fillMaxSize()) {
+    Scaffold(
+        snackbarHost = {
+            SnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier.padding(bottom = bottomBarPadding),
+            )
+        },
+        containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+    ) { _ ->
+        CompositionLocalProvider(LocalSnackbarHost provides snackbarHostState) {
+            Column(modifier = Modifier.fillMaxSize()) {
             // Top area: Surface 52dp tall, 16dp horizontal margin, 8dp top with status-bar inset
             Surface(
                 shape = CircleShape,
@@ -221,6 +268,7 @@ fun SearchScreen(
                                 Icons.Default.Close,
                                 contentDescription = "Remove Starred filter",
                                 modifier = Modifier
+                                    .minimumInteractiveComponentSize()
                                     .size(16.dp)
                                     .clickable { viewModel.toggleStarredOnly() },
                             )
@@ -238,6 +286,7 @@ fun SearchScreen(
                                 Icons.Default.Close,
                                 contentDescription = "Remove Hidden links filter",
                                 modifier = Modifier
+                                    .minimumInteractiveComponentSize()
                                     .size(16.dp)
                                     .clickable { viewModel.toggleB64Only() },
                             )
@@ -256,6 +305,7 @@ fun SearchScreen(
                                 Icons.Default.Close,
                                 contentDescription = "Remove $title filter",
                                 modifier = Modifier
+                                    .minimumInteractiveComponentSize()
                                     .size(16.dp)
                                     .clickable { viewModel.toggleSectionFilter(secId) },
                             )
@@ -266,222 +316,215 @@ fun SearchScreen(
 
             HorizontalDivider(thickness = 0.5.dp)
 
-            if (!state.hasSearched) {
-                // Empty query state: Recent searches then "Try" suggestions
-                LazyColumn(modifier = Modifier.fillMaxWidth()) {
-                    if (state.recentSearches.isNotEmpty()) {
-                        item(key = "hdr_recent") {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp),
-                            ) {
+            CrossfadeContent(
+                targetState = contentMode,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+            ) { mode ->
+                when (mode) {
+                    SearchContentMode.RECENT -> {
+                        LazyColumn(modifier = Modifier.fillMaxWidth()) {
+                            if (state.recentSearches.isNotEmpty()) {
+                                item(key = "hdr_recent") {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp),
+                                    ) {
+                                        Text(
+                                            text = "Recent",
+                                            style = MaterialTheme.typography.titleSmall,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.weight(1f),
+                                        )
+                                        TextButton(onClick = { viewModel.clearRecentSearches() }) {
+                                            Text("Clear all")
+                                        }
+                                    }
+                                }
+
+                                items(state.recentSearches, key = { "recent_$it" }) { recent ->
+                                    ListItem(
+                                        leadingContent = { Icon(Icons.Default.History, contentDescription = null) },
+                                        headlineContent = { Text(recent) },
+                                        trailingContent = {
+                                            IconButton(onClick = { viewModel.removeRecentSearch(recent) }) {
+                                                Icon(Icons.Default.Close, contentDescription = "Remove")
+                                            }
+                                        },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                viewModel.selectRecentSearch(recent)
+                                                keyboardController?.hide()
+                                                focusManager.clearFocus()
+                                            },
+                                    )
+                                }
+                            }
+
+                            item(key = "hdr_try") {
                                 Text(
-                                    text = "Recent",
+                                    text = "Try",
                                     style = MaterialTheme.typography.titleSmall,
                                     color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.weight(1f),
+                                    modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp),
                                 )
-                                TextButton(onClick = { viewModel.clearRecentSearches() }) {
-                                    Text("Clear all")
+                            }
+
+                            item(key = "try_chips") {
+                                FlowRow(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    trySuggestions.forEach { suggestion ->
+                                        SuggestionChip(
+                                            onClick = { viewModel.onQueryChange(suggestion) },
+                                            label = { Text(suggestion) },
+                                        )
+                                    }
                                 }
                             }
                         }
-
-                        items(state.recentSearches, key = { "recent_$it" }) { recent ->
-                            ListItem(
-                                leadingContent = { Icon(Icons.Default.History, contentDescription = null) },
-                                headlineContent = { Text(recent) },
-                                trailingContent = {
-                                    IconButton(onClick = { viewModel.removeRecentSearch(recent) }) {
-                                        Icon(Icons.Default.Close, contentDescription = "Remove")
-                                    }
-                                },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        viewModel.selectRecentSearch(recent)
-                                        keyboardController?.hide()
-                                        focusManager.clearFocus()
-                                    },
-                            )
-                        }
                     }
-
-                    item(key = "hdr_try") {
-                        Text(
-                            text = "Try",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp),
-                        )
+                    SearchContentMode.SEARCHING -> {
+                        SkeletonRows(count = 6, modifier = Modifier.padding(top = 16.dp))
                     }
-
-                    item(key = "try_chips") {
-                        FlowRow(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                    SearchContentMode.EMPTY -> {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center,
                         ) {
-                            trySuggestions.forEach { suggestion ->
-                                SuggestionChip(
-                                    onClick = { viewModel.onQueryChange(suggestion) },
-                                    label = { Text(suggestion) },
-                                )
-                            }
-                        }
-                    }
-                }
-            } else if (state.total == 0 && state.verdict == null) {
-                // No-results state
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.padding(24.dp),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.SearchOff,
-                            contentDescription = null,
-                            modifier = Modifier.size(48.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Spacer(Modifier.height(16.dp))
-                        Text(
-                            text = "No results",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            text = "Check the spelling or remove filters",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        if (activeFilterCount > 0) {
-                            Spacer(Modifier.height(8.dp))
-                            TextButton(onClick = { viewModel.clearAllFilters() }) {
-                                Text("Clear filters")
-                            }
-                        }
-                    }
-                }
-            } else {
-                // Results count line (drop the ms)
-                if (state.total > 0) {
-                    Text(
-                        text = if (state.total >= 200) "200+ results" else "${"%,d".format(state.total)} results",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.outline,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    )
-                }
-
-                LazyColumn(
-                    state = resultsListState,
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(bottom = 24.dp + LocalBottomBarPadding.current),
-                ) {
-                    if (state.verdict != null) {
-                        item(key = "hdr_verdict_card") {
-                            VerdictCard(
-                                verdict = state.verdict!!,
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                                onOpenUrl = { linkOpener.openUrl(it) },
-                                onShowSnackbar = onShowSnackbar,
+                            EmptyState(
+                                icon = Icons.Outlined.SearchOff,
+                                title = "No sites match “${state.query}”",
+                                body = "Try fewer words or another spelling.",
+                                actionLabel = "Search the web",
+                                onAction = { linkOpener.openUrl(searchUrl) },
                             )
                         }
                     }
-
-                    if (state.total == 0 && state.verdict != null) {
-                        item(key = "no_search_results_under_verdict") {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 24.dp, horizontal = 16.dp),
-                                contentAlignment = Alignment.Center,
-                            ) {
+                    SearchContentMode.RESULTS -> {
+                        Column(modifier = Modifier.fillMaxSize()) {
+                            if (state.total > 0) {
                                 Text(
-                                    text = "No matching entries in search results",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        }
-                    }
-
-                    state.groups.forEach { group ->
-                        stickyHeader(key = "hdr_${group.section.id}") {
-                            Surface(
-                                modifier = Modifier.fillMaxWidth(),
-                                color = MaterialTheme.colorScheme.surface,
-                            ) {
-                                Text(
-                                    text = group.section.title,
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 6.dp),
-                                )
-                            }
-                        }
-
-                        items(group.hits, key = { "hit_${it.entry.id}" }) { hit ->
-                            val segments = remember(hit.entry.headingPath) {
-                                hit.entry.headingPath
-                                    .split(Regex("""\s*[›>]\s*"""))
-                                    .filter { it.isNotBlank() }
-                            }
-                            val headingSegments = if (segments.size > 1) segments.drop(1) else emptyList()
-                            val breadcrumb = remember(headingSegments) {
-                                headingSegments.joinToString(" › ") { CrossLinks.splitLinkTitle(it).first }
-                            }
-
-                            if (breadcrumb.isNotEmpty()) {
-                                Text(
-                                    text = breadcrumb,
+                                    text = if (state.total >= 200) "200+ results" else "${"%,d".format(state.total)} results",
                                     style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.padding(start = 16.dp, top = 10.dp, bottom = 0.dp),
+                                    color = MaterialTheme.colorScheme.outline,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                                 )
                             }
 
-                            EntryRow(
-                                entry = hit.entry,
-                                nameHl = hit.nameHl,
-                                descHl = hit.descriptionHl,
-                                isNew = hit.entry.id in state.newEntryIds,
-                                onShowInSection = {
-                                    scope.launch {
-                                        val anchor = try {
-                                            hit.entry.headingId?.let { hid ->
-                                                container.datasetStore.headings(hit.entry.sectionId).firstOrNull { it.id == hid }?.anchor
-                                            }
-                                        } catch (_: Exception) { null }
-                                        nav.select(Tab.BROWSE)
-                                        nav.push(SectionNavKey(hit.entry.sectionId, anchor = anchor, focusEntryId = hit.entry.id))
+                            LazyColumn(
+                                state = resultsListState,
+                                modifier = Modifier.fillMaxSize(),
+                                contentPadding = PaddingValues(bottom = 24.dp + bottomBarPadding),
+                            ) {
+                                if (state.verdict != null) {
+                                    item(key = "hdr_verdict_card") {
+                                        VerdictCard(
+                                            verdict = state.verdict!!,
+                                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                                            onOpenUrl = { linkOpener.openUrl(it) },
+                                            onShowSnackbar = onShowSnackbar,
+                                        )
                                     }
-                                },
-                                onOpenUrl = { linkOpener.openUrl(it) },
-                                onShowSnackbar = onShowSnackbar,
-                            )
+                                }
 
-                            HorizontalDivider(
-                                modifier = Modifier.padding(start = 16.dp),
-                                thickness = 0.5.dp,
-                                color = MaterialTheme.colorScheme.outlineVariant,
-                            )
+                                if (state.total == 0 && state.verdict != null) {
+                                    item(key = "no_search_results_under_verdict") {
+                                        EmptyState(
+                                            icon = Icons.Outlined.SearchOff,
+                                            title = "No sites match “${state.query}”",
+                                            body = "Try fewer words or another spelling.",
+                                            actionLabel = "Search the web",
+                                            onAction = { linkOpener.openUrl(searchUrl) },
+                                        )
+                                    }
+                                }
+
+                                state.groups.forEach { group ->
+                                    stickyHeader(key = "hdr_${group.section.id}") {
+                                        Surface(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            color = MaterialTheme.colorScheme.surface,
+                                        ) {
+                                            Text(
+                                                text = group.section.title,
+                                                style = MaterialTheme.typography.labelLarge,
+                                                color = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 6.dp),
+                                            )
+                                        }
+                                    }
+
+                                    itemsIndexed(group.hits, key = { _, hit -> "hit_${hit.entry.id}" }) { index, hit ->
+                                        Column(
+                                            modifier = Modifier
+                                                .animateItem()
+                                                .enterStagger(index, state.query)
+                                        ) {
+                                            val segments = remember(hit.entry.headingPath) {
+                                                hit.entry.headingPath
+                                                    .split(Regex("""\s*[›>]\s*"""))
+                                                    .filter { it.isNotBlank() }
+                                            }
+                                            val headingSegments = if (segments.size > 1) segments.drop(1) else emptyList()
+                                            val breadcrumb = remember(headingSegments) {
+                                                headingSegments.joinToString(" › ") { CrossLinks.splitLinkTitle(it).first }
+                                            }
+
+                                            if (breadcrumb.isNotEmpty()) {
+                                                Text(
+                                                    text = breadcrumb,
+                                                    style = MaterialTheme.typography.labelMedium,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                    modifier = Modifier.padding(start = 16.dp, top = 10.dp, bottom = 0.dp),
+                                                )
+                                            }
+
+                                            EntryRow(
+                                                entry = hit.entry,
+                                                nameHl = hit.nameHl,
+                                                descHl = hit.descriptionHl,
+                                                isNew = hit.entry.id in state.newEntryIds,
+                                                onShowInSection = {
+                                                    scope.launch {
+                                                        val anchor = try {
+                                                            hit.entry.headingId?.let { hid ->
+                                                                container.datasetStore.headings(hit.entry.sectionId).firstOrNull { it.id == hid }?.anchor
+                                                            }
+                                                        } catch (_: Exception) { null }
+                                                        nav.select(Tab.BROWSE)
+                                                        nav.push(SectionNavKey(hit.entry.sectionId, anchor = anchor, focusEntryId = hit.entry.id))
+                                                    }
+                                                },
+                                                onOpenUrl = { linkOpener.openUrl(it) },
+                                                onShowSnackbar = onShowSnackbar,
+                                            )
+
+                                            HorizontalDivider(
+                                                modifier = Modifier.padding(start = 16.dp),
+                                                thickness = 0.5.dp,
+                                                color = MaterialTheme.colorScheme.outlineVariant,
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
         }
+    }
     }
 
     if (showFiltersSheet) {

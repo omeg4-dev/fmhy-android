@@ -202,6 +202,37 @@ open class UserStore(
         bumpChanges()
     }
 
+    suspend fun removeBookmarkWithSnapshot(entryId: String): UserBookmark? = withTransaction { conn ->
+        val bookmark = readBookmarkInternal(conn, entryId) ?: return@withTransaction null
+        conn.prepare("DELETE FROM bookmarks WHERE entry_id = ?").use { stmt ->
+            stmt.bindText(1, entryId)
+            stmt.step()
+        }
+        bumpChanges()
+        bookmark
+    }
+
+    suspend fun restoreBookmark(b: UserBookmark) = withConnection { conn ->
+        val sql = """
+            INSERT INTO bookmarks (entry_id, name, url, section_id, section_title, heading_path, saved_at, note, folder_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(entry_id) DO UPDATE SET
+                name = excluded.name,
+                url = excluded.url,
+                section_id = excluded.section_id,
+                section_title = excluded.section_title,
+                heading_path = excluded.heading_path,
+                saved_at = excluded.saved_at,
+                note = excluded.note,
+                folder_id = excluded.folder_id
+        """.trimIndent()
+        conn.prepare(sql).use { stmt ->
+            bindBookmark(stmt, b)
+            stmt.step()
+        }
+        bumpChanges()
+    }
+
     suspend fun setNote(entryId: String, note: String) = withConnection { conn ->
         conn.prepare("UPDATE bookmarks SET note = ? WHERE entry_id = ?").use { stmt ->
             stmt.bindText(1, note)
@@ -301,6 +332,66 @@ open class UserStore(
         bumpChanges()
     }
 
+    data class DeletedFolderSnapshot(
+        val folder: Folder,
+        val bookmarkEntryIds: List<String>,
+    )
+
+    suspend fun deleteFolderWithSnapshot(id: Long): DeletedFolderSnapshot? = withTransaction { conn ->
+        val folder = conn.prepare("SELECT id, name, ord, created_at FROM folders WHERE id = ?").use { stmt ->
+            stmt.bindLong(1, id)
+            if (stmt.step()) {
+                Folder(
+                    id = stmt.getLong(0),
+                    name = stmt.getText(1),
+                    ord = stmt.getLong(2).toInt(),
+                    createdAt = stmt.getLong(3),
+                )
+            } else null
+        } ?: return@withTransaction null
+
+        val bookmarkIds = mutableListOf<String>()
+        conn.prepare("SELECT entry_id FROM bookmarks WHERE folder_id = ?").use { stmt ->
+            stmt.bindLong(1, id)
+            while (stmt.step()) {
+                bookmarkIds.add(stmt.getText(0))
+            }
+        }
+
+        conn.prepare("DELETE FROM folders WHERE id = ?").use { stmt ->
+            stmt.bindLong(1, id)
+            stmt.step()
+        }
+        bumpChanges()
+        DeletedFolderSnapshot(folder, bookmarkIds)
+    }
+
+    suspend fun restoreFolder(snapshot: DeletedFolderSnapshot) = withTransaction { conn ->
+        val sql = """
+            INSERT INTO folders (id, name, ord, created_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET name = excluded.name, ord = excluded.ord, created_at = excluded.created_at
+        """.trimIndent()
+        conn.prepare(sql).use { stmt ->
+            stmt.bindLong(1, snapshot.folder.id)
+            stmt.bindText(2, snapshot.folder.name)
+            stmt.bindLong(3, snapshot.folder.ord.toLong())
+            stmt.bindLong(4, snapshot.folder.createdAt)
+            stmt.step()
+        }
+        if (snapshot.bookmarkEntryIds.isNotEmpty()) {
+            conn.prepare("UPDATE bookmarks SET folder_id = ? WHERE entry_id = ?").use { stmt ->
+                for (entryId in snapshot.bookmarkEntryIds) {
+                    stmt.bindLong(1, snapshot.folder.id)
+                    stmt.bindText(2, entryId)
+                    stmt.step()
+                    stmt.reset()
+                }
+            }
+        }
+        bumpChanges()
+    }
+
     suspend fun reorderFolders(idsInOrder: List<Long>) = withTransaction { conn ->
         conn.prepare("UPDATE folders SET ord = ? WHERE id = ?").use { stmt ->
             for ((idx, id) in idsInOrder.withIndex()) {
@@ -374,6 +465,48 @@ open class UserStore(
         bumpChanges()
     }
 
+    suspend fun clearHistoryWithSnapshot(): List<HistoryItem> = withTransaction { conn ->
+        val result = mutableListOf<HistoryItem>()
+        val sql = "SELECT id, url, entry_id, title, ts FROM history ORDER BY ts DESC, id DESC"
+        conn.prepare(sql).use { stmt ->
+            while (stmt.step()) {
+                result.add(
+                    HistoryItem(
+                        id = stmt.getLong(0),
+                        url = stmt.getText(1),
+                        entryId = if (stmt.isNull(2)) null else stmt.getText(2),
+                        title = stmt.getText(3),
+                        ts = stmt.getLong(4),
+                    )
+                )
+            }
+        }
+        conn.execSQL("DELETE FROM history;")
+        bumpChanges()
+        result
+    }
+
+    suspend fun restoreHistory(items: List<HistoryItem>) = withTransaction { conn ->
+        if (items.isEmpty()) return@withTransaction
+        val sql = """
+            INSERT INTO history (id, url, entry_id, title, ts)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET url = excluded.url, entry_id = excluded.entry_id, title = excluded.title, ts = excluded.ts
+        """.trimIndent()
+        conn.prepare(sql).use { stmt ->
+            for (item in items) {
+                stmt.bindLong(1, item.id)
+                stmt.bindText(2, item.url)
+                if (item.entryId != null) stmt.bindText(3, item.entryId) else stmt.bindNull(3)
+                stmt.bindText(4, item.title)
+                stmt.bindLong(5, item.ts)
+                stmt.step()
+                stmt.reset()
+            }
+        }
+        bumpChanges()
+    }
+
     // --- Follows / Pins / Hidden ---
 
     suspend fun follows(): List<Follow> = withConnection { conn ->
@@ -414,6 +547,22 @@ open class UserStore(
         conn.prepare("DELETE FROM follows WHERE section_id = ? AND heading_id = ?").use { stmt ->
             stmt.bindText(1, sectionId)
             stmt.bindText(2, headingId)
+            stmt.step()
+        }
+        bumpChanges()
+    }
+
+    suspend fun restoreFollow(follow: Follow) = withConnection { conn ->
+        val sql = """
+            INSERT INTO follows (section_id, heading_id, title, created_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(section_id, heading_id) DO UPDATE SET title = excluded.title, created_at = excluded.created_at
+        """.trimIndent()
+        conn.prepare(sql).use { stmt ->
+            stmt.bindText(1, follow.sectionId)
+            stmt.bindText(2, follow.headingId)
+            stmt.bindText(3, follow.title)
+            stmt.bindLong(4, follow.createdAt)
             stmt.step()
         }
         bumpChanges()
@@ -469,6 +618,22 @@ open class UserStore(
         conn.prepare("DELETE FROM pins WHERE section_id = ? AND heading_id = ?").use { stmt ->
             stmt.bindText(1, sectionId)
             stmt.bindText(2, headingId)
+            stmt.step()
+        }
+        bumpChanges()
+    }
+
+    suspend fun restorePin(pin: Pin) = withConnection { conn ->
+        val sql = """
+            INSERT INTO pins (section_id, heading_id, title, ord)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(section_id, heading_id) DO UPDATE SET title = excluded.title, ord = excluded.ord
+        """.trimIndent()
+        conn.prepare(sql).use { stmt ->
+            stmt.bindText(1, pin.sectionId)
+            stmt.bindText(2, pin.headingId)
+            stmt.bindText(3, pin.title)
+            stmt.bindLong(4, pin.ord.toLong())
             stmt.step()
         }
         bumpChanges()

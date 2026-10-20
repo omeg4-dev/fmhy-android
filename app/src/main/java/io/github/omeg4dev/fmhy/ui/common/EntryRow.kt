@@ -1,6 +1,13 @@
 package io.github.omeg4dev.fmhy.ui.common
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material3.minimumInteractiveComponentSize
 import io.github.omeg4dev.fmhy.data.link.PasteResolver
 import io.github.omeg4dev.fmhy.data.link.PasteLinks
 import io.github.omeg4dev.fmhy.data.link.CrossLinks
@@ -148,6 +155,7 @@ fun EntryRow(
     val scope = rememberCoroutineScope()
     val datasetStore = LocalDatasetStore.current
     val userStore = LocalUserStore.current
+    val snackbarHost = LocalSnackbarHost.current
 
     var loadedHistory by remember(entry.id, history) { mutableStateOf<List<ChangeItem>?>(history) }
     LaunchedEffect(showBottomSheet, history, entry.id) {
@@ -184,14 +192,26 @@ fun EntryRow(
         } else null
     }
 
-    val effectiveToggleFollow: (() -> Unit)? = remember(onToggleFollow, effectiveFollowState, userStore, entry.sectionId, entry.headingId) {
+    val effectiveToggleFollow: (() -> Unit)? = remember(onToggleFollow, effectiveFollowState, userStore, entry.sectionId, entry.headingId, snackbarHost) {
         onToggleFollow ?: if (userStore != null && effectiveFollowState != null) {
             {
                 scope.launch {
                     val targetHeadingId = entry.headingId ?: ""
                     if (effectiveFollowState.isFollowing) {
+                        val snapshot = followsList.firstOrNull {
+                            it.sectionId == entry.sectionId && (it.headingId == targetHeadingId || it.headingId == "")
+                        }
+                        haptics.click()
                         userStore.unfollow(entry.sectionId, targetHeadingId)
-                        onShowSnackbar("Unfollowed ${effectiveFollowState.categoryTitle}")
+                        val host = snackbarHost
+                        if (host != null) {
+                            if (host.showUndo("Unfollowed ${effectiveFollowState.categoryTitle}")) {
+                                if (snapshot != null) userStore.restoreFollow(snapshot)
+                                else userStore.follow(entry.sectionId, targetHeadingId, effectiveFollowState.categoryTitle)
+                            }
+                        } else {
+                            onShowSnackbar("Unfollowed ${effectiveFollowState.categoryTitle}")
+                        }
                     } else {
                         userStore.follow(entry.sectionId, targetHeadingId, effectiveFollowState.categoryTitle)
                         onShowSnackbar("Following ${effectiveFollowState.categoryTitle}")
@@ -449,13 +469,28 @@ fun EntryRow(
                         contentDescription = "Saved",
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier
+                            .minimumInteractiveComponentSize()
                             .size(16.dp)
                             .clickable {
                                 if (alternatives.isNotEmpty()) {
                                     showBottomSheet = true
                                 } else {
-                                    bookmarksState.toggle(entry)
-                                    onShowSnackbar("Removed from Saved")
+                                    haptics.click()
+                                    scope.launch {
+                                        val snapshot = userStore?.removeBookmarkWithSnapshot(entry.id)
+                                        if (snapshot == null) {
+                                            bookmarksState.toggle(entry)
+                                        }
+                                        val host = snackbarHost
+                                        if (host != null) {
+                                            if (host.showUndo("Removed from Saved")) {
+                                                if (snapshot != null) userStore.restoreBookmark(snapshot)
+                                                else bookmarksState.toggle(entry)
+                                            }
+                                        } else {
+                                            onShowSnackbar("Removed from Saved")
+                                        }
+                                    }
                                 }
                             },
                     )
@@ -603,6 +638,9 @@ fun EntryDetailBottomSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val bookmarksState = LocalBookmarks.current
     val haptics = rememberHaptics()
+    val scope = rememberCoroutineScope()
+    val userStore = LocalUserStore.current
+    val snackbarHost = LocalSnackbarHost.current
     val isSaved = entry.id in bookmarksState.savedIds || savedInfo != null
     val currentSavedInfo = savedInfo ?: bookmarksState.savedInfo(entry.id) ?: (if (isSaved) SavedInfo() else null)
     val editNoteAction = onEditNote ?: { note: String -> bookmarksState.setNote(entry.id, note) }
@@ -645,6 +683,7 @@ fun EntryDetailBottomSheet(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 24.dp)
+                        .enterStagger(index = 0)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         EntryMarker(entry, size = 22.dp, modifier = Modifier.padding(end = 8.dp))
@@ -675,7 +714,8 @@ fun EntryDetailBottomSheet(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 16.dp),
+                        .padding(horizontal = 16.dp, vertical = 16.dp)
+                        .enterStagger(index = 1),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     // Open
@@ -739,18 +779,51 @@ fun EntryDetailBottomSheet(
                     ) {
                         FilledTonalIconButton(
                             onClick = {
-                                haptics.click()
-                                bookmarksState.toggle(entry)
-                                onShowSnackbar(if (isSaved) "Removed from Saved" else "Saved")
+                                if (isSaved) {
+                                    haptics.click()
+                                    scope.launch {
+                                        val snapshot = userStore?.removeBookmarkWithSnapshot(entry.id)
+                                        if (snapshot == null) {
+                                            bookmarksState.toggle(entry)
+                                        }
+                                        val host = snackbarHost
+                                        if (host != null) {
+                                            if (host.showUndo("Removed from Saved")) {
+                                                if (snapshot != null) userStore.restoreBookmark(snapshot)
+                                                else bookmarksState.toggle(entry)
+                                            }
+                                        } else {
+                                            onShowSnackbar("Removed from Saved")
+                                        }
+                                    }
+                                } else {
+                                    haptics.confirm()
+                                    bookmarksState.toggle(entry)
+                                    val host = snackbarHost
+                                    if (host != null) {
+                                        scope.launch { host.showSnackbar("Saved") }
+                                    } else {
+                                        onShowSnackbar("Saved")
+                                    }
+                                }
                                 onDismiss()
                             },
                             modifier = Modifier.size(56.dp),
                         ) {
-                            Icon(
-                                imageVector = if (isSaved) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
-                                contentDescription = if (isSaved) "Saved" else "Save",
-                                tint = if (isSaved) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                            )
+                            AnimatedContent(
+                                targetState = isSaved,
+                                transitionSpec = {
+                                    (fadeIn(Motion.standard(Motion.SHORT)) + scaleIn(initialScale = 0.8f, animationSpec = Motion.standard(Motion.SHORT)))
+                                        .togetherWith(fadeOut(Motion.exit(Motion.SHORT)) + scaleOut(targetScale = 0.8f, animationSpec = Motion.exit(Motion.SHORT)))
+                                },
+                                label = "saveIconPop",
+                            ) { saved ->
+                                Icon(
+                                    imageVector = if (saved) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
+                                    contentDescription = if (saved) "Saved" else "Save",
+                                    tint = if (saved) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                )
+                            }
                         }
                         Spacer(Modifier.height(8.dp))
                         Text(if (isSaved) "Saved" else "Save", style = MaterialTheme.typography.labelMedium)
@@ -762,6 +835,7 @@ fun EntryDetailBottomSheet(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 24.dp, vertical = 8.dp)
+                            .enterStagger(index = 2)
                     ) {
                         Text(
                             text = "My FMHY",
@@ -890,7 +964,8 @@ fun EntryDetailBottomSheet(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(start = 24.dp, end = 12.dp),
+                                .padding(start = 24.dp, end = 12.dp)
+                                .enterStagger(index = index),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             EntryMarker(site, size = 16.dp, modifier = Modifier.padding(end = 8.dp))
@@ -915,7 +990,9 @@ fun EntryDetailBottomSheet(
                                     haptics.click()
                                     onOpenUrl(site.url)
                                 },
-                                modifier = Modifier.size(40.dp)
+                                modifier = Modifier
+                                    .minimumInteractiveComponentSize()
+                                    .size(40.dp)
                             ) {
                                 Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Open ${site.name}", modifier = Modifier.size(20.dp))
                             }
@@ -924,7 +1001,9 @@ fun EntryDetailBottomSheet(
                                     haptics.confirm()
                                     onCopyLink(site.url)
                                 },
-                                modifier = Modifier.size(40.dp)
+                                modifier = Modifier
+                                    .minimumInteractiveComponentSize()
+                                    .size(40.dp)
                             ) {
                                 Icon(Icons.Default.ContentCopy, contentDescription = "Copy link", modifier = Modifier.size(20.dp))
                             }
@@ -933,24 +1012,61 @@ fun EntryDetailBottomSheet(
                                     haptics.click()
                                     onShareLink(site.url)
                                 },
-                                modifier = Modifier.size(40.dp)
+                                modifier = Modifier
+                                    .minimumInteractiveComponentSize()
+                                    .size(40.dp)
                             ) {
                                 Icon(Icons.Default.Share, contentDescription = "Share", modifier = Modifier.size(20.dp))
                             }
                             IconButton(
                                 onClick = {
-                                    haptics.click()
-                                    bookmarksState.toggle(site)
-                                    onShowSnackbar(if (isSiteSaved) "Removed from Saved" else "Saved")
+                                    if (isSiteSaved) {
+                                        haptics.click()
+                                        scope.launch {
+                                            val snapshot = userStore?.removeBookmarkWithSnapshot(site.id)
+                                            if (snapshot == null) {
+                                                bookmarksState.toggle(site)
+                                            }
+                                            val host = snackbarHost
+                                            if (host != null) {
+                                                if (host.showUndo("Removed from Saved")) {
+                                                    if (snapshot != null) userStore.restoreBookmark(snapshot)
+                                                    else bookmarksState.toggle(site)
+                                                }
+                                            } else {
+                                                onShowSnackbar("Removed from Saved")
+                                            }
+                                        }
+                                    } else {
+                                        haptics.confirm()
+                                        bookmarksState.toggle(site)
+                                        val host = snackbarHost
+                                        if (host != null) {
+                                            scope.launch { host.showSnackbar("Saved") }
+                                        } else {
+                                            onShowSnackbar("Saved")
+                                        }
+                                    }
                                 },
-                                modifier = Modifier.size(40.dp),
+                                modifier = Modifier
+                                    .minimumInteractiveComponentSize()
+                                    .size(40.dp),
                             ) {
-                                Icon(
-                                    imageVector = if (isSiteSaved) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
-                                    contentDescription = if (isSiteSaved) "Saved" else "Save",
-                                    tint = if (isSiteSaved) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(20.dp),
-                                )
+                                AnimatedContent(
+                                    targetState = isSiteSaved,
+                                    transitionSpec = {
+                                        (fadeIn(Motion.standard(Motion.SHORT)) + scaleIn(initialScale = 0.8f, animationSpec = Motion.standard(Motion.SHORT)))
+                                            .togetherWith(fadeOut(Motion.exit(Motion.SHORT)) + scaleOut(targetScale = 0.8f, animationSpec = Motion.exit(Motion.SHORT)))
+                                    },
+                                    label = "altSavePop",
+                                ) { saved ->
+                                    Icon(
+                                        imageVector = if (saved) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
+                                        contentDescription = if (saved) "Saved" else "Save",
+                                        tint = if (saved) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(20.dp),
+                                    )
+                                }
                             }
                         }
                     } else {
@@ -958,6 +1074,7 @@ fun EntryDetailBottomSheet(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 24.dp)
+                                .enterStagger(index = 0)
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 EntryMarker(site, size = 20.dp, modifier = Modifier.padding(end = 8.dp))
@@ -1045,17 +1162,50 @@ fun EntryDetailBottomSheet(
                             ) {
                                 FilledTonalIconButton(
                                     onClick = {
-                                        haptics.click()
-                                        bookmarksState.toggle(site)
-                                        onShowSnackbar(if (isSiteSaved) "Removed from Saved" else "Saved")
+                                        if (isSiteSaved) {
+                                            haptics.click()
+                                            scope.launch {
+                                                val snapshot = userStore?.removeBookmarkWithSnapshot(site.id)
+                                                if (snapshot == null) {
+                                                    bookmarksState.toggle(site)
+                                                }
+                                                val host = snackbarHost
+                                                if (host != null) {
+                                                    if (host.showUndo("Removed from Saved")) {
+                                                        if (snapshot != null) userStore.restoreBookmark(snapshot)
+                                                        else bookmarksState.toggle(site)
+                                                    }
+                                                } else {
+                                                    onShowSnackbar("Removed from Saved")
+                                                }
+                                            }
+                                        } else {
+                                            haptics.confirm()
+                                            bookmarksState.toggle(site)
+                                            val host = snackbarHost
+                                            if (host != null) {
+                                                scope.launch { host.showSnackbar("Saved") }
+                                            } else {
+                                                onShowSnackbar("Saved")
+                                            }
+                                        }
                                     },
                                     modifier = Modifier.size(48.dp),
                                 ) {
-                                    Icon(
-                                        imageVector = if (isSiteSaved) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
-                                        contentDescription = if (isSiteSaved) "Saved" else "Save",
-                                        tint = if (isSiteSaved) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                                    )
+                                    AnimatedContent(
+                                        targetState = isSiteSaved,
+                                        transitionSpec = {
+                                            (fadeIn(Motion.standard(Motion.SHORT)) + scaleIn(initialScale = 0.8f, animationSpec = Motion.standard(Motion.SHORT)))
+                                                .togetherWith(fadeOut(Motion.exit(Motion.SHORT)) + scaleOut(targetScale = 0.8f, animationSpec = Motion.exit(Motion.SHORT)))
+                                        },
+                                        label = "primaryAltSavePop",
+                                    ) { saved ->
+                                        Icon(
+                                            imageVector = if (saved) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
+                                            contentDescription = if (saved) "Saved" else "Save",
+                                            tint = if (saved) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                        )
+                                    }
                                 }
                                 Spacer(Modifier.height(4.dp))
                                 Text(if (isSiteSaved) "Saved" else "Save", style = MaterialTheme.typography.labelSmall)

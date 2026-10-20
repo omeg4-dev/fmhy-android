@@ -560,4 +560,132 @@ class UserStoreTest {
 
         store.close()
     }
+
+    @Test
+    fun testUnsaveAndRestoreKeepsNoteAndFolder() = runTest {
+        val store = createStore()
+        val folder = store.createFolder("Work Tools")
+        val bookmark = sampleBookmark("b1", savedAt = 12345L, note = "Important site", folderId = folder.id)
+        store.upsertBookmark(bookmark)
+
+        val before = store.bookmark("b1")
+        assertNotNull(before)
+        assertEquals("Important site", before?.note)
+        assertEquals(folder.id, before?.folderId)
+
+        // Snapshot and remove
+        val snapshot = store.removeBookmarkWithSnapshot("b1")
+        assertNotNull(snapshot)
+        assertEquals("b1", snapshot?.entryId)
+        assertEquals("Important site", snapshot?.note)
+        assertEquals(folder.id, snapshot?.folderId)
+        assertNull(store.bookmark("b1"))
+
+        // Restore
+        store.restoreBookmark(snapshot!!)
+        val restored = store.bookmark("b1")
+        assertNotNull(restored)
+        assertEquals("Important site", restored?.note)
+        assertEquals(folder.id, restored?.folderId)
+        assertEquals(12345L, restored?.savedAt)
+
+        store.close()
+    }
+
+    @Test
+    fun testFolderDeleteAndRestoreKeepsFolderAndBookmarkAssignments() = runTest {
+        val store = createStore()
+        val f1 = store.createFolder("Folder 1")
+        val f2 = store.createFolder("Folder 2")
+        val b1 = sampleBookmark("b1", folderId = f1.id)
+        val b2 = sampleBookmark("b2", folderId = f1.id)
+        val b3 = sampleBookmark("b3", folderId = f2.id)
+        store.upsertBookmark(b1)
+        store.upsertBookmark(b2)
+        store.upsertBookmark(b3)
+
+        // Delete f1 with snapshot
+        val snapshot = store.deleteFolderWithSnapshot(f1.id)
+        assertNotNull(snapshot)
+        assertEquals(f1.id, snapshot?.folder?.id)
+        assertEquals(setOf("b1", "b2"), snapshot?.bookmarkEntryIds?.toSet())
+
+        // Folder is deleted, and its bookmarks have folderId = null (due to ON DELETE SET NULL)
+        assertNull(store.folders().firstOrNull { it.id == f1.id })
+        assertNull(store.bookmark("b1")?.folderId)
+        assertNull(store.bookmark("b2")?.folderId)
+        assertEquals(f2.id, store.bookmark("b3")?.folderId)
+
+        // Restore f1
+        store.restoreFolder(snapshot!!)
+        val restoredFolder = store.folders().firstOrNull { it.id == f1.id }
+        assertNotNull(restoredFolder)
+        assertEquals("Folder 1", restoredFolder?.name)
+        assertEquals(f1.ord, restoredFolder?.ord)
+        assertEquals(f1.id, store.bookmark("b1")?.folderId)
+        assertEquals(f1.id, store.bookmark("b2")?.folderId)
+        assertEquals(f2.id, store.bookmark("b3")?.folderId)
+
+        store.close()
+    }
+
+    @Test
+    fun testHistoryClearAndRestore() = runTest {
+        val store = createStore()
+        store.addHistory("https://site1.com", "e1", "Site 1")
+        store.addHistory("https://site2.com", "e2", "Site 2")
+        val historyBefore = store.history()
+        assertEquals(2, historyBefore.size)
+
+        // Clear with snapshot
+        val snapshot = store.clearHistoryWithSnapshot()
+        assertEquals(2, snapshot.size)
+        assertTrue(store.history().isEmpty())
+
+        // Restore
+        store.restoreHistory(snapshot)
+        val restoredHistory = store.history()
+        assertEquals(2, restoredHistory.size)
+        assertEquals(historyBefore.map { it.url }, restoredHistory.map { it.url })
+        assertEquals(historyBefore.map { it.title }, restoredHistory.map { it.title })
+        assertEquals(historyBefore.map { it.id }, restoredHistory.map { it.id })
+
+        store.close()
+    }
+
+    @Test
+    fun testPinAndFollowRestore() = runTest {
+        val store = createStore()
+        store.pin("sec1", "", "Section 1")
+        store.pin("sec2", "cat1", "Cat 1")
+        val pinsBefore = store.pins()
+        assertEquals(2, pinsBefore.size)
+        val pinToUnpin = pinsBefore[0]
+
+        // Unpin
+        store.unpin(pinToUnpin.sectionId, pinToUnpin.headingId)
+        assertEquals(1, store.pins().size)
+
+        // Restore pin at its old position
+        store.restorePin(pinToUnpin)
+        val pinsAfter = store.pins()
+        assertEquals(2, pinsAfter.size)
+        assertEquals(pinToUnpin.sectionId, pinsAfter[0].sectionId)
+        assertEquals(pinToUnpin.ord, pinsAfter[0].ord)
+
+        // Follow restore
+        store.follow("sec1", "cat1", "Cat 1")
+        val followsBefore = store.follows()
+        val followToUnfollow = followsBefore[0]
+        store.unfollow(followToUnfollow.sectionId, followToUnfollow.headingId)
+        assertTrue(store.follows().isEmpty())
+
+        store.restoreFollow(followToUnfollow)
+        val followsAfter = store.follows()
+        assertEquals(1, followsAfter.size)
+        assertEquals(followToUnfollow.sectionId, followsAfter[0].sectionId)
+        assertEquals(followToUnfollow.title, followsAfter[0].title)
+
+        store.close()
+    }
 }

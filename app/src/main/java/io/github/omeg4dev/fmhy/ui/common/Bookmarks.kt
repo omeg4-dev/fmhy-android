@@ -1,5 +1,6 @@
 package io.github.omeg4dev.fmhy.ui.common
 
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.compositionLocalOf
 import io.github.omeg4dev.fmhy.data.model.Entry
 import io.github.omeg4dev.fmhy.data.user.Folder
@@ -21,3 +22,4 @@ class BookmarksState(
 )
 
 val LocalBookmarks = compositionLocalOf { BookmarksState() }
+val LocalSnackbarHost = compositionLocalOf<SnackbarHostState?> { null }

@@ -36,7 +36,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.outlined.Lightbulb
+import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material.icons.outlined.WarningAmber
+import io.github.omeg4dev.fmhy.ui.common.EmptyState
 import androidx.compose.material.icons.rounded.VerticalAlignTop
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
@@ -51,7 +53,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.rememberModalBottomSheetState
+import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -349,6 +353,7 @@ fun MoreGroupRow(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
+                .minimumInteractiveComponentSize()
                 .clickable { expanded = !expanded }
         ) {
             Text(
@@ -413,6 +418,8 @@ fun CategoryChipRail(
     railState: LazyListState = rememberLazyListState(),
     onLongClickChip: ((Int) -> Unit)? = null,
 ) {
+    val haptics = rememberHaptics()
+
     LaunchedEffect(selectedIndex) {
         if (selectedIndex in chips.indices) {
             railState.animateScrollToItem((selectedIndex - 1).coerceAtLeast(0))
@@ -447,20 +454,29 @@ fun CategoryChipRail(
             )
             val border = if (isSelected) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
 
-            val chipModifier = if (onLongClickChip != null) {
-                Modifier
-                    .height(32.dp)
-                    .clip(CircleShape)
-                    .combinedClickable(
-                        onClick = { onSelectChip(index) },
-                        onLongClick = { onLongClickChip(index) },
-                    )
-            } else {
-                Modifier
-                    .height(32.dp)
-                    .clip(CircleShape)
-                    .clickable { onSelectChip(index) }
-            }
+            val chipModifier = Modifier
+                .minimumInteractiveComponentSize()
+                .height(32.dp)
+                .clip(CircleShape)
+                .then(
+                    if (onLongClickChip != null) {
+                        Modifier.combinedClickable(
+                            onClick = {
+                                haptics.tick()
+                                onSelectChip(index)
+                            },
+                            onLongClick = {
+                                haptics.longPress()
+                                onLongClickChip(index)
+                            },
+                        )
+                    } else {
+                        Modifier.clickable {
+                            haptics.tick()
+                            onSelectChip(index)
+                        }
+                    }
+                )
 
             Surface(
                 shape = CircleShape,
@@ -817,25 +833,12 @@ fun FilterEmptyState(
     onShowAll: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(32.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Text(
-                text = "Nothing matches the filters",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Button(onClick = onShowAll) {
-                Text("Show all")
-            }
-        }
-    }
+    EmptyState(
+        icon = Icons.Outlined.StarBorder,
+        title = "No starred sites here",
+        actionLabel = "Show all sites",
+        onAction = onShowAll,
+        modifier = modifier,
+    )
 }
 
