@@ -3,9 +3,17 @@ package io.github.omeg4dev.fmhy.ui.settings
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import io.github.omeg4dev.fmhy.data.AppIcon
 import io.github.omeg4dev.fmhy.data.Appearance
+import io.github.omeg4dev.fmhy.data.BlockingPrefs
+import io.github.omeg4dev.fmhy.data.BrowserPrefs
 import io.github.omeg4dev.fmhy.data.ColorSource
+import io.github.omeg4dev.fmhy.data.DataPrefs
 import io.github.omeg4dev.fmhy.data.DatasetStore
+import io.github.omeg4dev.fmhy.data.HomePrefs
+import io.github.omeg4dev.fmhy.data.NotificationPrefs
+import io.github.omeg4dev.fmhy.data.PrivacyPrefs
+import io.github.omeg4dev.fmhy.data.ProtectionPrefs
 import io.github.omeg4dev.fmhy.data.SectionLayout
 import io.github.omeg4dev.fmhy.data.SectionOrder
 import io.github.omeg4dev.fmhy.data.SettingsRepository
@@ -25,7 +33,6 @@ data class SettingsUiState(
     val entryCount: Int = 0,
     val lastSyncedText: String = "",
     val datasetVersion: Long = 0L,
-    val openInExternalBrowser: Boolean = false,
     val isUpdating: Boolean = false,
     val updateStatusMessage: String? = null,
     val appearance: Appearance = Appearance(),
@@ -43,14 +50,13 @@ class SettingsViewModel(
     val uiState: StateFlow<SettingsUiState> = combine(
         combine(
             store.changes,
-            settingsRepository.openInExternalBrowser,
             settingsRepository.appearance,
-        ) { version, openExternal, appearance ->
-            Triple(version, openExternal, appearance)
+        ) { version, appearance ->
+            Pair(version, appearance)
         },
         _isUpdating,
         _updateStatusMessage,
-    ) { (version, openExternal, appearance), updating, statusMsg ->
+    ) { (version, appearance), updating, statusMsg ->
         val count = try { store.entryCount() } catch (_: Exception) { 0 }
         val syncState = try { container.fmhySync.loadState() } catch (_: Exception) { SyncState() }
         val lastSyncedStr = when {
@@ -69,7 +75,6 @@ class SettingsViewModel(
             entryCount = count,
             lastSyncedText = lastSyncedStr,
             datasetVersion = version,
-            openInExternalBrowser = openExternal,
             isUpdating = updating,
             updateStatusMessage = statusMsg,
             appearance = appearance,
@@ -80,9 +85,93 @@ class SettingsViewModel(
         SettingsUiState()
     )
 
-    fun setOpenInExternalBrowser(open: Boolean) {
+    val homePrefs: StateFlow<HomePrefs> = settingsRepository.homePrefs.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5000),
+        HomePrefs()
+    )
+
+    val browserPrefs: StateFlow<BrowserPrefs> = settingsRepository.browserPrefs.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5000),
+        BrowserPrefs()
+    )
+
+    val blockingPrefs: StateFlow<BlockingPrefs> = settingsRepository.blockingPrefs.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5000),
+        BlockingPrefs()
+    )
+
+    val protectionPrefs: StateFlow<ProtectionPrefs> = settingsRepository.protectionPrefs.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5000),
+        ProtectionPrefs()
+    )
+
+    val privacyPrefs: StateFlow<PrivacyPrefs> = settingsRepository.privacyPrefs.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5000),
+        PrivacyPrefs()
+    )
+
+    val notificationPrefs: StateFlow<NotificationPrefs> = settingsRepository.notificationPrefs.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5000),
+        NotificationPrefs()
+    )
+
+    val dataPrefs: StateFlow<DataPrefs> = settingsRepository.dataPrefs.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5000),
+        DataPrefs()
+    )
+
+    fun updateHome(f: (HomePrefs) -> HomePrefs) {
         viewModelScope.launch {
-            settingsRepository.setOpenInExternalBrowser(open)
+            settingsRepository.updateHome(f)
+        }
+    }
+
+    fun updateBrowser(f: (BrowserPrefs) -> BrowserPrefs) {
+        viewModelScope.launch {
+            settingsRepository.updateBrowser(f)
+        }
+    }
+
+    fun updateBlocking(f: (BlockingPrefs) -> BlockingPrefs) {
+        viewModelScope.launch {
+            settingsRepository.updateBlocking(f)
+        }
+    }
+
+    fun updateProtection(f: (ProtectionPrefs) -> ProtectionPrefs) {
+        viewModelScope.launch {
+            settingsRepository.updateProtection(f)
+        }
+    }
+
+    fun updatePrivacy(f: (PrivacyPrefs) -> PrivacyPrefs) {
+        viewModelScope.launch {
+            settingsRepository.updatePrivacy(f)
+        }
+    }
+
+    fun updateNotifications(f: (NotificationPrefs) -> NotificationPrefs) {
+        viewModelScope.launch {
+            settingsRepository.updateNotifications(f)
+        }
+    }
+
+    fun updateData(f: (DataPrefs) -> DataPrefs) {
+        viewModelScope.launch {
+            settingsRepository.updateData(f)
+        }
+    }
+
+    fun setAppIcon(icon: AppIcon) {
+        viewModelScope.launch {
+            settingsRepository.setAppIcon(icon)
         }
     }
 

@@ -81,8 +81,20 @@ import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import io.github.omeg4dev.fmhy.ui.section.SectionScreen
 import io.github.omeg4dev.fmhy.ui.section.SectionViewModel
 import io.github.omeg4dev.fmhy.ui.legend.LegendScreen
-import io.github.omeg4dev.fmhy.ui.settings.SettingsScreen
+import io.github.omeg4dev.fmhy.ui.settings.AboutPage
+import io.github.omeg4dev.fmhy.ui.settings.AppearancePage
+import io.github.omeg4dev.fmhy.ui.settings.BlockingPage
+import io.github.omeg4dev.fmhy.ui.settings.BrowserPage
+import io.github.omeg4dev.fmhy.ui.settings.DataPage
+import io.github.omeg4dev.fmhy.ui.settings.HomeListsPage
+import io.github.omeg4dev.fmhy.ui.settings.NotificationsPage
+import io.github.omeg4dev.fmhy.ui.settings.PagesPage
+import io.github.omeg4dev.fmhy.ui.settings.PrivacyPage
+import io.github.omeg4dev.fmhy.ui.settings.ProtectionPage
+import io.github.omeg4dev.fmhy.ui.settings.SavedPage
+import io.github.omeg4dev.fmhy.ui.settings.SettingsHub
 import io.github.omeg4dev.fmhy.ui.settings.SettingsViewModel
+import io.github.omeg4dev.fmhy.ui.settings.VideoPage
 import kotlinx.coroutines.launch
 
 fun interface BottomBarController {
@@ -189,7 +201,7 @@ fun MainNavigation() {
         }
     }
 
-    val shouldShowBar = isBarVisible && currentTopKey !is SettingsNavKey && currentTopKey !is LegendNavKey
+    val shouldShowBar = isBarVisible && currentTopKey !is SettingsNavKey && currentTopKey !is SettingsPageNavKey && currentTopKey !is LegendNavKey
 
     BackHandler(enabled = nav.current != Tab.BROWSE && nav.currentStack.size == 1) {
         nav.back()
@@ -272,11 +284,79 @@ fun MainNavigation() {
                     container,
                 )
             }
-            SettingsScreen(
+            SettingsHub(
                 viewModel = settingsViewModel,
                 onBack = { if (!nav.back()) activity?.finish() },
-                onNavigateToLegend = { nav.push(LegendNavKey) },
+                onNavigateToPage = { page -> nav.push(SettingsPageNavKey(page)) },
             )
+        }
+
+        entry<SettingsPageNavKey> { key ->
+            val settingsViewModel: SettingsViewModel = viewModel {
+                SettingsViewModel(
+                    container.datasetStore,
+                    container.settingsRepository,
+                    container,
+                )
+            }
+            when (key.page) {
+                SettingsPage.APPEARANCE -> AppearancePage(
+                    viewModel = settingsViewModel,
+                    onBack = { if (!nav.back()) activity?.finish() },
+                )
+                SettingsPage.HOME_LISTS -> HomeListsPage(
+                    viewModel = settingsViewModel,
+                    onBack = { if (!nav.back()) activity?.finish() },
+                    onNavigateToLegend = { nav.push(LegendNavKey) },
+                )
+                SettingsPage.BROWSER -> BrowserPage(
+                    viewModel = settingsViewModel,
+                    onBack = { if (!nav.back()) activity?.finish() },
+                    onNavigateToPage = { page -> nav.push(SettingsPageNavKey(page)) },
+                )
+                SettingsPage.BLOCKING -> BlockingPage(
+                    viewModel = settingsViewModel,
+                    onBack = { if (!nav.back()) activity?.finish() },
+                )
+                SettingsPage.PROTECTION -> ProtectionPage(
+                    viewModel = settingsViewModel,
+                    onBack = { if (!nav.back()) activity?.finish() },
+                )
+                SettingsPage.PRIVACY -> PrivacyPage(
+                    viewModel = settingsViewModel,
+                    onBack = { if (!nav.back()) activity?.finish() },
+                    onShowSnackbar = { msg ->
+                        scope.launch { snackbarHostState.showSnackbar(msg) }
+                    },
+                )
+                SettingsPage.PAGE -> PagesPage(
+                    viewModel = settingsViewModel,
+                    onBack = { if (!nav.back()) activity?.finish() },
+                )
+                SettingsPage.VIDEO -> VideoPage(
+                    viewModel = settingsViewModel,
+                    onBack = { if (!nav.back()) activity?.finish() },
+                )
+                SettingsPage.NOTIFICATIONS -> NotificationsPage(
+                    viewModel = settingsViewModel,
+                    onBack = { if (!nav.back()) activity?.finish() },
+                    onShowSnackbar = { msg ->
+                        scope.launch { snackbarHostState.showSnackbar(msg) }
+                    },
+                )
+                SettingsPage.DATA -> DataPage(
+                    viewModel = settingsViewModel,
+                    onBack = { if (!nav.back()) activity?.finish() },
+                )
+                SettingsPage.SAVED -> SavedPage(
+                    viewModel = settingsViewModel,
+                    onBack = { if (!nav.back()) activity?.finish() },
+                )
+                SettingsPage.ABOUT -> AboutPage(
+                    viewModel = settingsViewModel,
+                    onBack = { if (!nav.back()) activity?.finish() },
+                )
+            }
         }
 
         entry<LegendNavKey> {

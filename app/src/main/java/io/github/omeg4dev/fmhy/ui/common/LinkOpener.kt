@@ -24,6 +24,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import io.github.omeg4dev.fmhy.SectionNavKey
 import io.github.omeg4dev.fmhy.data.DatasetStore
+import io.github.omeg4dev.fmhy.data.OpenLinksWith
 import io.github.omeg4dev.fmhy.data.SettingsRepository
 import io.github.omeg4dev.fmhy.data.link.CrossLinks
 import io.github.omeg4dev.fmhy.data.link.LinkTarget
@@ -84,7 +85,8 @@ class LinkOpener(
 
     private fun openChecked(url: String) {
         coroutineScope.launch {
-            val reason = if (store.isAvailable) store.unsafeReason(url) else null
+            val unsafeWarning = settingsRepository.protectionPrefs.first().unsafeWarning
+            val reason = if (unsafeWarning && store.isAvailable) store.unsafeReason(url) else null
             if (reason != null) {
                 pendingUnsafeReason = reason
                 pendingUnsafeUrl = url
@@ -110,34 +112,39 @@ class LinkOpener(
 
     private fun openUrlDirectly(url: String) {
         coroutineScope.launch {
-            val openExternal = settingsRepository.openInExternalBrowser.first()
+            val openWith = settingsRepository.browserPrefs.first().openLinksWith
             val uri = url.toUri()
-            if (openExternal) {
-                try {
-                    val intent = Intent(Intent.ACTION_VIEW, uri).apply {
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    }
-                    context.startActivity(intent)
-                } catch (_: ActivityNotFoundException) {
-                    onShowSnackbar("No browser found to open link")
-                }
-            } else {
-                try {
-                    val customTabsIntent = CustomTabsIntent.Builder()
-                        .setShowTitle(true)
-                        .build()
-                    customTabsIntent.intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    customTabsIntent.launchUrl(context, uri)
-                } catch (_: ActivityNotFoundException) {
-                    onShowSnackbar("No browser found to open link")
-                } catch (_: Exception) {
+            when (openWith) {
+                OpenLinksWith.EXTERNAL -> {
                     try {
                         val intent = Intent(Intent.ACTION_VIEW, uri).apply {
                             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                         }
                         context.startActivity(intent)
-                    } catch (_: Exception) {
+                    } catch (_: ActivityNotFoundException) {
                         onShowSnackbar("No browser found to open link")
+                    }
+                }
+                OpenLinksWith.CUSTOM_TAB,
+                OpenLinksWith.IN_APP -> {
+                    // IN_APP: BrowserActivity (0.5 wave 2)
+                    try {
+                        val customTabsIntent = CustomTabsIntent.Builder()
+                            .setShowTitle(true)
+                            .build()
+                        customTabsIntent.intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        customTabsIntent.launchUrl(context, uri)
+                    } catch (_: ActivityNotFoundException) {
+                        onShowSnackbar("No browser found to open link")
+                    } catch (_: Exception) {
+                        try {
+                            val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            context.startActivity(intent)
+                        } catch (_: Exception) {
+                            onShowSnackbar("No browser found to open link")
+                        }
                     }
                 }
             }
