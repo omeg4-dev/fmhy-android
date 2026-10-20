@@ -3,9 +3,9 @@
 - [x] 1. Bar hopping: reproduce, fix, before/after
 - [x] 2. Thinner site bar (28 dp)
 - [x] 3. "‹ FMHY" pill + fullscreen check
-- [ ] 4. Floating browser bubble (+ settings, prefs, tests)
-- [ ] 5. Checks (haptics rg, compile, tests, evidence)
-- [ ] 6. Final report
+- [x] 4. Floating browser bubble (+ settings, prefs, tests)
+- [x] 5. Checks (haptics rg, compile, tests, evidence)
+- [x] 6. Final report
 
 ## Haptics call sites changed
 (file:line | old | new/removed) -- line numbers are pre-edit; browser/** only
@@ -48,3 +48,5 @@ BrowserToolbar.kt Back-to-FMHY click: removed (replaced by pill).
 - T2: site bar now 28 dp (Row height, labelSmall, 14dp icons, 28dp Box dismiss). Evidence shots/pill-sitebar-{top,bottom}.png (bar ~74px tall at 2.625 density).
 - T3: 'FMHY' pill (primaryContainer, 32dp, chevron + bold label, 48dp touch). Fits at 1080px wide emulator (not tested at 360dp). Fullscreen: shots/fullscreen.png shows no toolbar/pill (served via adb reverse + http://10.0.2.2:8123/fs.html; localhost blocked by app).
 - Haptics: all click()/confirm() removed from browser/** (rg check clean).
+- T4: BrowserBubble.kt (drag/tap/hold, ModalBottomSheet menu, close-all + hide dialogs), BubbleLogic.kt + BubbleLogicTest, prefs (BrowserButtonStyle FLOATING/TOP_BAR, browserBubbleHidden, bubbleSide, bubbleY) in Prefs.kt + SettingsRepository, Settings row in BrowserPage.kt, TabManager.closeAllTabsIncludingRestorable (clears restore store, count 0), LocalBrowserButtonStyle makes BrowserSwitchChip hide when Floating (Home/Saved call sites untouched). Emulator verified: bubble on Home + section screen, drag snaps left and persists side/y, hold -> sheet (Close a tab / Close all tabs / Hide button), dialogs, tap opens browser, close all -> bubble gone, count 0, store '[]', new link afterwards opens normally (BrowserActivity resumed with example.com), Hide -> bubble gone, Settings shows 'Hidden from the hold menu' + Show again (restored). Evidence: shots/bubble-*.png, settings-browser-button.png.
+- T5 checks: rg haptics click/confirm in browser/** -> no output. compileDebugKotlin OK. testDebugUnitTest (app module): 338 tests, 0 failures, 0 errors (includes BubbleLogicTest, BarScrollTrackerTest, SettingsViewModelTest.testBrowserButtonDefaultsAndUpdate). core:data tests not re-run (untouched). Emulator left at toolbar TOP, button Floating, not hidden.

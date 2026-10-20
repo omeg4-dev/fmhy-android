@@ -106,6 +106,10 @@ class DefaultSettingsRepository(
         private val KEY_BROWSER_RESTORE_TABS = booleanPreferencesKey("browser_restore_tabs")
         private val KEY_BROWSER_SEARCH_ENGINE = stringPreferencesKey("browser_search_engine")
         private val KEY_BROWSER_TOOLBAR_POSITION = stringPreferencesKey("browser_toolbar_position")
+        private val KEY_BROWSER_BUTTON = stringPreferencesKey("browser_button_style")
+        private val KEY_BROWSER_BUBBLE_HIDDEN = booleanPreferencesKey("browser_bubble_hidden")
+        private val KEY_BROWSER_BUBBLE_SIDE = stringPreferencesKey("browser_bubble_side")
+        private val KEY_BROWSER_BUBBLE_Y = floatPreferencesKey("browser_bubble_y")
         private val KEY_BROWSER_JAVASCRIPT = booleanPreferencesKey("browser_javascript")
         private val KEY_BROWSER_FORCE_DARK = booleanPreferencesKey("browser_force_dark")
         private val KEY_BROWSER_DESKTOP_BY_DEFAULT = booleanPreferencesKey("browser_desktop_by_default")
@@ -381,6 +385,12 @@ class DefaultSettingsRepository(
         val toolbarPosition = prefs[KEY_BROWSER_TOOLBAR_POSITION]?.let { name ->
             try { ToolbarPosition.valueOf(name) } catch (_: IllegalArgumentException) { default.toolbarPosition }
         } ?: default.toolbarPosition
+        val browserButton = prefs[KEY_BROWSER_BUTTON]?.let { name ->
+            try { BrowserButtonStyle.valueOf(name) } catch (_: IllegalArgumentException) { default.browserButton }
+        } ?: default.browserButton
+        val bubbleSide = prefs[KEY_BROWSER_BUBBLE_SIDE]?.let { name ->
+            try { BubbleSide.valueOf(name) } catch (_: IllegalArgumentException) { default.bubbleSide }
+        } ?: default.bubbleSide
 
         return BrowserPrefs(
             openLinksWith = openLinksWith,
@@ -390,6 +400,10 @@ class DefaultSettingsRepository(
             restoreTabs = prefs[KEY_BROWSER_RESTORE_TABS] ?: default.restoreTabs,
             searchEngine = searchEngine,
             toolbarPosition = toolbarPosition,
+            browserButton = browserButton,
+            browserBubbleHidden = prefs[KEY_BROWSER_BUBBLE_HIDDEN] ?: default.browserBubbleHidden,
+            bubbleSide = bubbleSide,
+            bubbleY = (prefs[KEY_BROWSER_BUBBLE_Y] ?: default.bubbleY).coerceIn(0f, 1f),
             javascript = prefs[KEY_BROWSER_JAVASCRIPT] ?: default.javascript,
             forceDark = prefs[KEY_BROWSER_FORCE_DARK] ?: default.forceDark,
             desktopByDefault = prefs[KEY_BROWSER_DESKTOP_BY_DEFAULT] ?: default.desktopByDefault,
@@ -416,6 +430,10 @@ class DefaultSettingsRepository(
         prefs[KEY_BROWSER_RESTORE_TABS] = p.restoreTabs
         prefs[KEY_BROWSER_SEARCH_ENGINE] = p.searchEngine.name
         prefs[KEY_BROWSER_TOOLBAR_POSITION] = p.toolbarPosition.name
+        prefs[KEY_BROWSER_BUTTON] = p.browserButton.name
+        prefs[KEY_BROWSER_BUBBLE_HIDDEN] = p.browserBubbleHidden
+        prefs[KEY_BROWSER_BUBBLE_SIDE] = p.bubbleSide.name
+        prefs[KEY_BROWSER_BUBBLE_Y] = p.bubbleY
         prefs[KEY_BROWSER_JAVASCRIPT] = p.javascript
         prefs[KEY_BROWSER_FORCE_DARK] = p.forceDark
         prefs[KEY_BROWSER_DESKTOP_BY_DEFAULT] = p.desktopByDefault

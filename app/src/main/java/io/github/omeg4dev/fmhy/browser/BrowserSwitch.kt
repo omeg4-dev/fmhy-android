@@ -29,7 +29,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.github.omeg4dev.fmhy.MainActivity
 import io.github.omeg4dev.fmhy.ui.common.Motion
-import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 
 const val EXTRA_SELECT_TAB = "select_tab"
 const val EXTRA_SHOW_TABS = "show_tabs"
@@ -57,8 +56,9 @@ fun bringFmhyToFront(context: Context) {
 /** "Browser · N" pill for the Home and Saved top bars. Visible only when [tabCount] > 0. */
 @Composable
 fun BrowserSwitchChip(tabCount: Int, modifier: Modifier = Modifier) {
+    // The floating bubble replaces the chip unless the user chose "In top bar".
+    if (LocalBrowserButtonStyle.current != io.github.omeg4dev.fmhy.data.BrowserButtonStyle.TOP_BAR) return
     val context = LocalContext.current
-    val haptics = rememberHaptics()
     AnimatedVisibility(
         visible = tabCount > 0,
         enter = fadeIn(Motion.enter()) + scaleIn(Motion.enter(), initialScale = 0.8f),

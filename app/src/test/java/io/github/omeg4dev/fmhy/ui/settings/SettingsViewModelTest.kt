@@ -302,6 +302,27 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun testBrowserButtonDefaultsAndUpdate() = runTest {
+        val store = FakeDatasetStore()
+        val settings = FakeSettingsRepository()
+        val container = FakeContainer(store, settings)
+
+        val viewModel = SettingsViewModel(store, settings, container)
+        backgroundScope.launch(kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)) { viewModel.browserPrefs.collect() }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val d = viewModel.browserPrefs.value
+        assertEquals(io.github.omeg4dev.fmhy.data.BrowserButtonStyle.FLOATING, d.browserButton)
+        assertEquals(false, d.browserBubbleHidden)
+        assertEquals(io.github.omeg4dev.fmhy.data.BubbleSide.RIGHT, d.bubbleSide)
+        assertEquals(0.75f, d.bubbleY, 0f)
+        viewModel.updateBrowser { it.copy(browserButton = io.github.omeg4dev.fmhy.data.BrowserButtonStyle.TOP_BAR, browserBubbleHidden = true) }
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(io.github.omeg4dev.fmhy.data.BrowserButtonStyle.TOP_BAR, viewModel.browserPrefs.value.browserButton)
+        assertEquals(true, viewModel.browserPrefs.value.browserBubbleHidden)
+    }
+
+    @Test
     fun testFollowsAndSavedCountFlows() = runTest {
         val store = FakeDatasetStore()
         val settings = FakeSettingsRepository()
