@@ -488,233 +488,34 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                     onBack = { if (!nav.back()) activity?.finish() },
                     onNavigateToLegend = { nav.push(LegendNavKey) },
                 )
-                SettingsPage.BROWSER -> BrowserPage(
+                SettingsPage.BROWSER,
+                SettingsPage.PAGE,
+                SettingsPage.VIDEO -> BrowserPage(
                     viewModel = settingsViewModel,
                     onBack = { if (!nav.back()) activity?.finish() },
                     onNavigateToPage = { page -> nav.push(SettingsPageNavKey(page)) },
-                    extraRows = {
-                        item {
-                            NavRow(
-                                title = "Site settings",
-                                summary = "Manage permissions and overrides per site",
-                                onClick = { nav.push(SiteSettingsNavKey) },
-                            )
-                        }
+                    onNavigateToSiteSettings = { nav.push(SiteSettingsNavKey) },
+                )
+                SettingsPage.BLOCKING,
+                SettingsPage.PROTECTION -> BlockingPage(
+                    viewModel = settingsViewModel,
+                    onBack = { if (!nav.back()) activity?.finish() },
+                )
+                SettingsPage.PRIVACY -> PrivacyPage(
+                    viewModel = settingsViewModel,
+                    onBack = { if (!nav.back()) activity?.finish() },
+                    onShowSnackbar = { msg ->
+                        scope.launch { snackbarHostState.showSnackbar(msg) }
                     },
                 )
-                SettingsPage.BLOCKING -> {
-                    val adblockStatus by container.adblockService.status.collectAsStateWithLifecycle()
-                    val listStates by container.adblockService.listStates.collectAsStateWithLifecycle()
-                    val blockingPrefs by settingsViewModel.blockingPrefs.collectAsStateWithLifecycle()
-
-                    BlockingPage(
-                        viewModel = settingsViewModel,
-                        onBack = { if (!nav.back()) activity?.finish() },
-                        extraRows = {
-                            item {
-                                SettingsGroupHeader(text = "Status")
-                            }
-                            item {
-                                InfoRow(
-                                    title = "Rules active",
-                                    value = "${adblockStatus.ruleCount}",
-                                )
-                            }
-                            item {
-                                InfoRow(
-                                    title = "Last updated",
-                                    value = formatRelativeTime(adblockStatus.lastUpdated),
-                                )
-                            }
-                            item {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                                ) {
-                                    FilledTonalButton(
-                                        onClick = {
-                                            scope.launch {
-                                                container.adblockService.updateNow()
-                                            }
-                                        },
-                                        enabled = !adblockStatus.updating,
-                                        modifier = Modifier.fillMaxWidth(),
-                                    ) {
-                                        if (adblockStatus.updating) {
-                                            CircularProgressIndicator(
-                                                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                                modifier = Modifier.size(16.dp),
-                                                strokeWidth = 2.dp,
-                                            )
-                                            Spacer(Modifier.width(8.dp))
-                                            Text("Updating lists…")
-                                        } else {
-                                            Text("Update lists now")
-                                        }
-                                    }
-                                }
-                            }
-                            if (adblockStatus.error != null) {
-                                item {
-                                    Text(
-                                        text = "Update error: ${adblockStatus.error}",
-                                        color = MaterialTheme.colorScheme.error,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                                    )
-                                }
-                            }
-                            item {
-                                SettingsGroupHeader(text = "Enabled list status")
-                            }
-                            items(blockingPrefs.enabledLists.toList()) { listId ->
-                                val catalogList = FilterListCatalog.byId(listId)
-                                val title = catalogList?.title ?: listId
-                                val state = listStates[listId]
-                                val desc = when {
-                                    state?.error != null -> "Error: ${state.error}"
-                                    state != null -> "${state.ruleLines} rules · updated ${formatRelativeTime(state.fetchedAt)}"
-                                    else -> "Not downloaded yet"
-                                }
-                                InfoRow(
-                                    title = title,
-                                    value = desc,
-                                )
-                            }
-                        },
-                    )
-                }
-                SettingsPage.PROTECTION -> ProtectionPage(
+                SettingsPage.NOTIFICATIONS -> NotificationsPage(
                     viewModel = settingsViewModel,
                     onBack = { if (!nav.back()) activity?.finish() },
+                    onShowSnackbar = { msg ->
+                        scope.launch { snackbarHostState.showSnackbar(msg) }
+                    },
+                    onNavigateToWhatsNew = { nav.push(WhatsNewNavKey()) },
                 )
-                SettingsPage.PRIVACY -> {
-                    var showClearDataConfirmDialog by remember { mutableStateOf(false) }
-
-                    PrivacyPage(
-                        viewModel = settingsViewModel,
-                        onBack = { if (!nav.back()) activity?.finish() },
-                        onShowSnackbar = { msg ->
-                            scope.launch { snackbarHostState.showSnackbar(msg) }
-                        },
-                        extraRows = {
-                            item {
-                                NavRow(
-                                    title = "Clear cookies, cache and site storage",
-                                    summary = "Removes cookies, cache, web storage and passwords",
-                                    onClick = { showClearDataConfirmDialog = true },
-                                )
-                            }
-                        },
-                    )
-
-                    if (showClearDataConfirmDialog) {
-                        AlertDialog(
-                            onDismissRequest = { showClearDataConfirmDialog = false },
-                            title = { Text("Clear cookies, cache and site storage") },
-                            text = { Text("Clear all cookies, cache, web storage, and saved form data from the in-app browser?") },
-                            confirmButton = {
-                                TextButton(
-                                    onClick = {
-                                        showClearDataConfirmDialog = false
-                                        android.webkit.CookieManager.getInstance().removeAllCookies(null)
-                                        android.webkit.WebStorage.getInstance().deleteAllData()
-                                        android.webkit.WebView(context).clearCache(true)
-                                        runCatching { android.webkit.WebViewDatabase.getInstance(context).clearHttpAuthUsernamePassword() }
-                                        @Suppress("DEPRECATION")
-                                        runCatching { android.webkit.WebViewDatabase.getInstance(context).clearFormData() }
-                                        scope.launch { snackbarHostState.showSnackbar("Browsing data cleared") }
-                                    }
-                                ) {
-                                    Text("Clear")
-                                }
-                            },
-                            dismissButton = {
-                                TextButton(onClick = { showClearDataConfirmDialog = false }) {
-                                    Text("Cancel")
-                                }
-                            }
-                        )
-                    }
-                }
-                SettingsPage.PAGE -> PagesPage(
-                    viewModel = settingsViewModel,
-                    onBack = { if (!nav.back()) activity?.finish() },
-                )
-                SettingsPage.VIDEO -> VideoPage(
-                    viewModel = settingsViewModel,
-                    onBack = { if (!nav.back()) activity?.finish() },
-                )
-                SettingsPage.NOTIFICATIONS -> {
-                    val userStoreChanges by container.userStore.changes.collectAsStateWithLifecycle()
-                    var follows by remember { mutableStateOf<List<io.github.omeg4dev.fmhy.data.user.Follow>>(emptyList()) }
-                    LaunchedEffect(userStoreChanges) {
-                        follows = try { container.userStore.follows() } catch (_: Exception) { emptyList() }
-                    }
-                    var checking by remember { mutableStateOf(false) }
-                    NotificationsPage(
-                        viewModel = settingsViewModel,
-                        onBack = { if (!nav.back()) activity?.finish() },
-                        onShowSnackbar = { msg ->
-                            scope.launch { snackbarHostState.showSnackbar(msg) }
-                        },
-                        extraRows = {
-                            item { SettingsGroupHeader(text = "Followed") }
-                            if (follows.isEmpty()) {
-                                item {
-                                    InfoRow(
-                                        title = "Nothing followed yet",
-                                        value = "Follow a section or category from its menu or a site's details",
-                                    )
-                                }
-                            } else {
-                                items(follows, key = { "${it.sectionId}/${it.headingId}" }) { f ->
-                                    ListItem(
-                                        headlineContent = { Text(f.title) },
-                                        trailingContent = {
-                                            IconButton(onClick = {
-                                                scope.launch {
-                                                    container.userStore.unfollow(f.sectionId, f.headingId)
-                                                    snackbarHostState.showSnackbar("Unfollowed ${f.title}")
-                                                }
-                                            }) {
-                                                Icon(Icons.Default.Close, contentDescription = "Unfollow ${f.title}")
-                                            }
-                                        },
-                                    )
-                                }
-                            }
-                            item { SettingsGroupHeader(text = "Updates") }
-                            item {
-                                NavRow(
-                                    title = "What's new",
-                                    summary = "Added, updated and removed sites",
-                                    onClick = { nav.push(WhatsNewNavKey()) },
-                                )
-                            }
-                            item {
-                                NavRow(
-                                    title = "Check for updates now",
-                                    summary = if (checking) "Checking..." else "Sync and look for changes in what you follow",
-                                    enabled = !checking,
-                                    onClick = {
-                                        checking = true
-                                        scope.launch {
-                                            val outcome = try {
-                                                io.github.omeg4dev.fmhy.work.UpdateChecker.run(container.context, container)
-                                            } catch (e: Exception) {
-                                                null
-                                            }
-                                            checking = false
-                                            snackbarHostState.showSnackbar(outcome?.summary ?: "Check failed")
-                                        }
-                                    },
-                                )
-                            }
-                        },
-                    )
-                }
                 SettingsPage.DATA -> DataPage(
                     viewModel = settingsViewModel,
                     onBack = { if (!nav.back()) activity?.finish() },
@@ -729,16 +530,6 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                 SettingsPage.ABOUT -> AboutPage(
                     viewModel = settingsViewModel,
                     onBack = { if (!nav.back()) activity?.finish() },
-                    extraRows = {
-                        item {
-                            NavRow(
-                                title = "Run setup again",
-                                onClick = {
-                                    settingsViewModel.setOnboardingVersion(0)
-                                },
-                            )
-                        }
-                    },
                 )
             }
         }
