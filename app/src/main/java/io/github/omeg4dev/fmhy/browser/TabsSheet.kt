@@ -58,6 +58,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -82,6 +83,7 @@ fun TabsSheet(
 ) {
     val haptics = rememberHaptics()
     val scope = rememberCoroutineScope()
+    val thumbnailVersion by tabManager.thumbnailVersion.collectAsStateWithLifecycle()
     var showOverflow by remember { mutableStateOf(false) }
     var showCloseAllDialog by remember { mutableStateOf(false) }
     val sheetSnackbarHostState = remember { SnackbarHostState() }
@@ -180,29 +182,33 @@ fun TabsSheet(
                         .weight(1f, fill = false),
                 ) {
                     items(tabs, key = { it.id }) { tab ->
-                        val dismissState = rememberSwipeToDismissBoxState()
-
-                        LaunchedEffect(dismissState.currentValue) {
-                            if (dismissState.currentValue == SwipeToDismissBoxValue.StartToEnd ||
-                                dismissState.currentValue == SwipeToDismissBoxValue.EndToStart
-                            ) {
-                                haptics.click()
-                                val index = tabs.indexOfFirst { it.id == tab.id }
-                                onCloseTab(tab.id)
-                                scope.launch {
-                                    val undo = sheetSnackbarHostState.showUndo("Tab closed")
-                                    if (undo) {
-                                        tabManager.restoreTab(
-                                            url = tab.url,
-                                            title = tab.title,
-                                            index = index,
-                                            isPrivate = tab.isPrivate,
-                                            entryId = tab.entryId,
-                                        )
+                        var isDismissed by remember(tab.id) { mutableStateOf(false) }
+                        @Suppress("DEPRECATION")
+                        val dismissState = rememberSwipeToDismissBoxState(
+                            confirmValueChange = { value ->
+                                if (value != SwipeToDismissBoxValue.Settled && !isDismissed) {
+                                    isDismissed = true
+                                    haptics.click()
+                                    val index = tabs.indexOfFirst { it.id == tab.id }
+                                    onCloseTab(tab.id)
+                                    scope.launch {
+                                        val undo = sheetSnackbarHostState.showUndo("Tab closed")
+                                        if (undo) {
+                                            tabManager.restoreTab(
+                                                url = tab.url,
+                                                title = tab.title,
+                                                index = index,
+                                                isPrivate = tab.isPrivate,
+                                                entryId = tab.entryId,
+                                            )
+                                        }
                                     }
+                                    true
+                                } else {
+                                    true
                                 }
                             }
-                        }
+                        )
 
                         SwipeToDismissBox(
                             state = dismissState,
@@ -211,7 +217,7 @@ fun TabsSheet(
                         ) {
                             TabCard(
                                 tab = tab,
-                                thumbnail = tabManager.getThumbnail(tab.id),
+                                thumbnail = remember(tab.id, thumbnailVersion) { tabManager.getThumbnail(tab.id) },
                                 isSelected = tab.id == currentTabId,
                                 onSelect = {
                                     haptics.tick()

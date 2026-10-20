@@ -44,7 +44,7 @@ class TabRecord(
     var favicon: Bitmap? = null,
     val isPrivate: Boolean = false,
     var entryId: String? = null,
-    var blocked: Int = 0,
+    val blockedCount: java.util.concurrent.atomic.AtomicInteger = java.util.concurrent.atomic.AtomicInteger(0),
     var canGoBack: Boolean = false,
     var canGoForward: Boolean = false,
     var isLoading: Boolean = false,
@@ -58,6 +58,7 @@ class TabRecord(
     var isVideoPlaying: Boolean = false,
     var hasStartedFirstLoad: Boolean = false,
     var entryHost: String? = null,
+    var lastLoadedHost: String? = null,
     var lastActiveTime: Long = System.currentTimeMillis(),
     val allowedOnceUrls: MutableSet<String> = mutableSetOf(),
     val allowedHosts: MutableSet<String> = mutableSetOf(),
@@ -68,6 +69,10 @@ class TabRecord(
     var crashed: Boolean = false,
     var savedState: android.os.Bundle? = null,
 ) {
+    var blocked: Int
+        get() = blockedCount.get()
+        set(value) { blockedCount.set(value) }
+
     fun toState(): TabState = TabState(
         id = id,
         url = url,
@@ -75,7 +80,7 @@ class TabRecord(
         favicon = favicon,
         isPrivate = isPrivate,
         entryId = entryId,
-        blocked = blocked,
+        blocked = blockedCount.get(),
         canGoBack = canGoBack,
         canGoForward = canGoForward,
         isLoading = isLoading,
@@ -141,6 +146,45 @@ class TabManager(
         _webViewVersion.value++
     }
 
+    private val _thumbnailVersion = MutableStateFlow(0)
+    val thumbnailVersion: StateFlow<Int> = _thumbnailVersion.asStateFlow()
+
+    fun bumpThumbnailVersion() {
+        _thumbnailVersion.value++
+    }
+
+    private val throttler = TabUpdateThrottler(
+        intervalMs = 100L,
+        postDelayed = { delayMs, action ->
+            if (delayMs <= 0L) {
+                postToMain(action)
+            } else {
+                val handler = mainHandler
+                if (handler != null) {
+                    handler.postDelayed(action, delayMs)
+                } else {
+                    postToMain(action)
+                }
+            }
+        },
+        emit = {
+            postToMain {
+                val list = synchronized(records) {
+                    records.map { it.toState() }
+                }
+                _tabs.value = list
+            }
+        }
+    )
+
+    fun updateTabsFlow(immediate: Boolean = false) {
+        if (immediate) {
+            throttler.emitImmediate()
+        } else {
+            throttler.requestThrottled()
+        }
+    }
+
     var keepAliveTabId: Long? = null
     var previousTabId: Long? = null
     private var isActivityResumed = false
@@ -162,6 +206,7 @@ class TabManager(
     var onVideoPlayingChanged: ((Boolean) -> Unit)? = null
 
     private val thumbnails = java.util.concurrent.ConcurrentHashMap<Long, Bitmap>()
+    private val lastThumbnailCapture = java.util.concurrent.ConcurrentHashMap<Long, Long>()
 
     fun getThumbnail(tabId: Long): Bitmap? = thumbnails[tabId]
 
@@ -169,28 +214,19 @@ class TabManager(
 
     fun setThumbnailForTest(tabId: Long, bitmap: Bitmap) {
         thumbnails[tabId] = bitmap
+        bumpThumbnailVersion()
     }
 
     fun releaseThumbnail(tabId: Long) {
-        val old = thumbnails.remove(tabId)
-        if (old != null) {
-            try {
-                if (!old.isRecycled) {
-                    old.recycle()
-                }
-            } catch (_: Throwable) {}
-        }
+        thumbnails.remove(tabId)
+        lastThumbnailCapture.remove(tabId)
+        bumpThumbnailVersion()
     }
 
     fun releaseAllThumbnails() {
-        for ((_, bm) in thumbnails) {
-            try {
-                if (!bm.isRecycled) {
-                    bm.recycle()
-                }
-            } catch (_: Throwable) {}
-        }
         thumbnails.clear()
+        lastThumbnailCapture.clear()
+        bumpThumbnailVersion()
     }
 
     fun captureThumbnail(tabId: Long) {
@@ -199,21 +235,28 @@ class TabManager(
             releaseThumbnail(tabId)
             return
         }
+        val now = System.currentTimeMillis()
+        val last = lastThumbnailCapture[tabId] ?: 0L
+        if (now - last < 2000L) {
+            return
+        }
+        lastThumbnailCapture[tabId] = now
+
         val webView = record.webView ?: return
         postToMain {
             try {
-                if (webView.width > 0 && webView.height > 0) {
-                    val original = webView.drawToBitmap()
+                val wvWidth = webView.width
+                val wvHeight = webView.height
+                if (wvWidth > 0 && wvHeight > 0) {
                     val targetWidth = 320
-                    val targetHeight = ((original.height.toFloat() / original.width.toFloat()) * targetWidth).toInt().coerceAtLeast(1)
-                    val scaled = Bitmap.createScaledBitmap(original, targetWidth, targetHeight, true)
-                    if (scaled != original) {
-                        original.recycle()
-                    }
-                    val old = thumbnails.put(tabId, scaled)
-                    if (old != null && old != scaled && !old.isRecycled) {
-                        old.recycle()
-                    }
+                    val targetHeight = ((wvHeight.toFloat() / wvWidth.toFloat()) * targetWidth).toInt().coerceAtLeast(1)
+                    val bitmap = Bitmap.createBitmap(targetWidth, targetHeight, Bitmap.Config.ARGB_8888)
+                    val canvas = android.graphics.Canvas(bitmap)
+                    val scale = targetWidth.toFloat() / wvWidth.toFloat()
+                    canvas.scale(scale, scale)
+                    webView.draw(canvas)
+                    thumbnails[tabId] = bitmap
+                    bumpThumbnailVersion()
                 }
             } catch (_: Throwable) {}
         }
@@ -368,6 +411,7 @@ class TabManager(
             isPrivate = actualPrivate,
             entryId = entryId,
             entryHost = initialHost,
+            lastLoadedHost = initialHost,
             desktopSite = currentBrowserPrefs.desktopByDefault,
         )
 
@@ -387,7 +431,7 @@ class TabManager(
             }
         }
 
-        updateTabsFlow()
+        updateTabsFlow(immediate = true)
 
         if (select || _currentTabId.value == null) {
             selectTab(id)
@@ -416,7 +460,7 @@ class TabManager(
         if (isActivityResumed) {
             resumeTab(record)
         }
-        updateTabsFlow()
+        updateTabsFlow(immediate = true)
     }
 
     fun restoreTab(
@@ -435,6 +479,7 @@ class TabManager(
             isPrivate = isPrivate,
             entryId = entryId,
             entryHost = initialHost,
+            lastLoadedHost = initialHost,
             desktopSite = currentBrowserPrefs.desktopByDefault,
         )
 
@@ -453,7 +498,7 @@ class TabManager(
             }
         }
 
-        updateTabsFlow()
+        updateTabsFlow(immediate = true)
         selectTab(id)
         return id
     }
@@ -501,7 +546,7 @@ class TabManager(
                 }
             }
         }
-        updateTabsFlow()
+        updateTabsFlow(immediate = true)
     }
 
     fun closeAllTabs() {
@@ -532,7 +577,7 @@ class TabManager(
         if (currentPrivacyPrefs.clearDataOnExit) {
             clearAllBrowsingData()
         }
-        updateTabsFlow()
+        updateTabsFlow(immediate = true)
     }
 
     fun pauseTab(record: TabRecord) {
@@ -741,14 +786,15 @@ class TabManager(
         record.rescueState = null
         if (title.isNotEmpty()) record.title = title
         val host = try { Uri.parse(url).host } catch (_: Exception) { null }
-        if (!host.isNullOrEmpty()) {
+        if (!host.isNullOrEmpty() && host != record.lastLoadedHost) {
+            record.lastLoadedHost = host
             appScope.launch {
                 val sp = userStore.sitePrefs(host)
                 record.sitePrefs = sp
                 notifyTabChanged(tabId)
             }
         }
-        updateTabsFlow()
+        updateTabsFlow(immediate = false)
     }
 
     fun setRescueState(tabId: Long, rescueState: RescueState?) {
@@ -836,8 +882,8 @@ class TabManager(
 
     fun incrementBlocked(tabId: Long) {
         val record = getTabRecord(tabId) ?: return
-        record.blocked++
-        updateTabsFlow()
+        record.blockedCount.incrementAndGet()
+        updateTabsFlow(immediate = false)
     }
 
     fun allowUrlOnce(tabId: Long, url: String) {
@@ -928,12 +974,5 @@ class TabManager(
         val record = getTabRecord(tabId) ?: return
         val js = io.github.omeg4dev.fmhy.browser.adblock.SelectorPicker.buildPickerJs(bridgeName)
         record.webView?.evaluateJavascript(js, null)
-    }
-
-    private fun updateTabsFlow() {
-        val list = synchronized(records) {
-            records.map { it.toState() }
-        }
-        _tabs.value = list
     }
 }
