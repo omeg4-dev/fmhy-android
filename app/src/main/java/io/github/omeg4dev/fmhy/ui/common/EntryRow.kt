@@ -38,17 +38,23 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.Key
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -116,6 +122,9 @@ fun EntryRow(
     descHl: String? = null,
     onOpenUrl: (String) -> Unit,
     onShowSnackbar: (String) -> Unit = {},
+    folderLabel: String? = null,
+    notePreview: String? = null,
+    trailingContent: (@Composable () -> Unit)? = null,
 ) {
     var showBottomSheet by remember { mutableStateOf(false) }
     val haptics = rememberHaptics()
@@ -373,6 +382,11 @@ fun EntryRow(
                         modifier = Modifier.size(16.dp),
                     )
                 }
+
+                if (trailingContent != null) {
+                    Spacer(Modifier.weight(1f))
+                    trailingContent()
+                }
             }
 
             // Description
@@ -395,6 +409,38 @@ fun EntryRow(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
+            }
+
+            if (folderLabel != null || !notePreview.isNullOrEmpty()) {
+                Spacer(Modifier.height(4.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    if (folderLabel != null) {
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = MaterialTheme.colorScheme.secondaryContainer,
+                        ) {
+                            Text(
+                                text = folderLabel,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            )
+                        }
+                    }
+                    if (!notePreview.isNullOrEmpty()) {
+                        Text(
+                            text = notePreview,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
             }
         }
     }
@@ -446,10 +492,23 @@ fun EntryDetailBottomSheet(
     onCopyLink: (String) -> Unit,
     onShareLink: (String) -> Unit,
     onShowSnackbar: (String) -> Unit = {},
+    savedInfo: SavedInfo? = null,
+    onEditNote: ((String) -> Unit)? = null,
+    onMoveToFolder: ((Long?) -> Unit)? = null,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val bookmarksState = LocalBookmarks.current
     val haptics = rememberHaptics()
+    val isSaved = entry.id in bookmarksState.savedIds || savedInfo != null
+    val currentSavedInfo = savedInfo ?: bookmarksState.savedInfo(entry.id) ?: (if (isSaved) SavedInfo() else null)
+    val editNoteAction = onEditNote ?: { note: String -> bookmarksState.setNote(entry.id, note) }
+    val moveToFolderAction = onMoveToFolder ?: { folderId: Long? -> bookmarksState.moveToFolder(entry.id, folderId) }
+
+    var showFolderPicker by remember { mutableStateOf(false) }
+    var showNewFolderDialog by remember { mutableStateOf(false) }
+    var showNoteDialog by remember { mutableStateOf(false) }
+    var noteInput by remember(currentSavedInfo?.note) { mutableStateOf(currentSavedInfo?.note.orEmpty()) }
+    var newFolderName by remember { mutableStateOf("") }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -476,7 +535,6 @@ fun EntryDetailBottomSheet(
                         ""
                     }
                 }
-                val isSaved = entry.id in bookmarksState.savedIds
 
                 // Header
                 Column(
@@ -592,6 +650,72 @@ fun EntryDetailBottomSheet(
                         }
                         Spacer(Modifier.height(8.dp))
                         Text(if (isSaved) "Saved" else "Save", style = MaterialTheme.typography.labelMedium)
+                    }
+                }
+
+                if (isSaved && currentSavedInfo != null) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 24.dp, vertical = 8.dp)
+                    ) {
+                        Text(
+                            text = "My FMHY",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            AssistChip(
+                                onClick = { showFolderPicker = true },
+                                label = { Text(currentSavedInfo.folderName ?: "No folder") },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Default.Folder,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                },
+                            )
+                        }
+
+                        Spacer(Modifier.height(4.dp))
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    noteInput = currentSavedInfo.note
+                                    showNoteDialog = true
+                                }
+                                .padding(vertical = 4.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Edit,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    text = if (currentSavedInfo.note.isNotBlank()) currentSavedInfo.note else "Add note…",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = if (currentSavedInfo.note.isNotBlank()) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
+                                    maxLines = 3,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f),
+                                )
+                            }
+                        }
                     }
                 }
 
@@ -906,6 +1030,124 @@ fun EntryDetailBottomSheet(
                 }
             }
         }
+    }
+
+    if (showFolderPicker) {
+        AlertDialog(
+            onDismissRequest = { showFolderPicker = false },
+            title = { Text("Move to folder") },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+                    ListItem(
+                        headlineContent = { Text("No folder") },
+                        modifier = Modifier.clickable {
+                            moveToFolderAction(null)
+                            showFolderPicker = false
+                        }
+                    )
+                    bookmarksState.folders.forEach { folder ->
+                        ListItem(
+                            headlineContent = { Text(folder.name) },
+                            modifier = Modifier.clickable {
+                                moveToFolderAction(folder.id)
+                                showFolderPicker = false
+                            }
+                        )
+                    }
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                    ListItem(
+                        headlineContent = { Text("+ New folder…", color = MaterialTheme.colorScheme.primary) },
+                        modifier = Modifier.clickable {
+                            showFolderPicker = false
+                            newFolderName = ""
+                            showNewFolderDialog = true
+                        }
+                    )
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showFolderPicker = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    if (showNewFolderDialog) {
+        AlertDialog(
+            onDismissRequest = { showNewFolderDialog = false },
+            title = { Text("New folder") },
+            text = {
+                OutlinedTextField(
+                    value = newFolderName,
+                    onValueChange = { newFolderName = it },
+                    label = { Text("Folder name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val trimmed = newFolderName.trim()
+                        if (trimmed.isNotEmpty()) {
+                            bookmarksState.createFolder(trimmed) { createdFolder ->
+                                moveToFolderAction(createdFolder.id)
+                            }
+                        }
+                        showNewFolderDialog = false
+                    },
+                    enabled = newFolderName.isNotBlank()
+                ) {
+                    Text("Create")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showNewFolderDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    if (showNoteDialog) {
+        AlertDialog(
+            onDismissRequest = { showNoteDialog = false },
+            title = { Text("Note") },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = noteInput,
+                        onValueChange = {
+                            if (it.length <= 500) {
+                                noteInput = it
+                            }
+                        },
+                        label = { Text("Note (max 500 chars)") },
+                        supportingText = {
+                            Text(
+                                text = "${noteInput.length} / 500",
+                                modifier = Modifier.fillMaxWidth(),
+                                textAlign = androidx.compose.ui.text.style.TextAlign.End
+                            )
+                        },
+                        maxLines = 5,
+                        minLines = 3,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        editNoteAction(noteInput.trim())
+                        showNoteDialog = false
+                    }
+                ) {
+                    Text("Save")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showNoteDialog = false }) { Text("Cancel") }
+            }
+        )
     }
 }
 

@@ -118,4 +118,44 @@ class BookmarksRepositoryTest {
 
         store2.close()
     }
+
+    @Test
+    fun testBackupRoundTripThroughRepository() = runTest {
+        val db1 = tmp.newFile("user_export.db")
+        val store1 = UserStore(db1)
+        val repo1 = BookmarksRepository(userStore = store1, clock = { 1000L })
+
+        val folder = repo1.createFolder("My Folder")
+        val entry = createEntry("e1", "Site A")
+        repo1.toggle(entry, "Section A")
+        repo1.moveToFolder("e1", folder.id)
+        repo1.setNote("e1", "Great site")
+
+        val backupJson = repo1.exportJson(includeHistory = false)
+        assertTrue(backupJson.contains("fmhy-backup"))
+        assertTrue(backupJson.contains("My Folder"))
+        assertTrue(backupJson.contains("Great site"))
+
+        store1.close()
+
+        val db2 = tmp.newFile("user_import.db")
+        val store2 = UserStore(db2)
+        val repo2 = BookmarksRepository(userStore = store2, clock = { 2000L })
+
+        val result = repo2.importJson(backupJson)
+        assertEquals(1, result.bookmarks)
+        assertEquals(1, result.folders)
+
+        val restoredBookmarks = repo2.bookmarks.first()
+        assertEquals(1, restoredBookmarks.size)
+        assertEquals("e1", restoredBookmarks[0].entryId)
+        assertEquals("Great site", restoredBookmarks[0].note)
+
+        val restoredFolders = repo2.folders.first()
+        assertEquals(1, restoredFolders.size)
+        assertEquals("My Folder", restoredFolders[0].name)
+        assertEquals(restoredFolders[0].id, restoredBookmarks[0].folderId)
+
+        store2.close()
+    }
 }
