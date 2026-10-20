@@ -1,8 +1,8 @@
 package io.github.omeg4dev.fmhy.data
 
-import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import io.github.omeg4dev.fmhy.data.model.Entry
 import io.github.omeg4dev.fmhy.data.model.Tier
+import io.github.omeg4dev.fmhy.data.user.UserStore
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -44,12 +44,8 @@ class BookmarksRepositoryTest {
 
     @Test
     fun testToggleAddsThenRemoves() = runTest {
-        val file = tmp.newFile("b.preferences_pb")
-        val dataStore = PreferenceDataStoreFactory.create(
-            scope = backgroundScope,
-            produceFile = { file }
-        )
-        val repository = BookmarksRepository(dataStore, clock = { 1000L })
+        val userStore = UserStore(tmp.newFile("user1.db"))
+        val repository = BookmarksRepository(userStore = userStore, clock = { 1000L })
         val entry = createEntry("e1", "Entry 1")
 
         // Initially empty
@@ -69,17 +65,15 @@ class BookmarksRepositoryTest {
         repository.toggle(entry, "Section 1")
         assertTrue(repository.bookmarks.first().isEmpty())
         assertTrue(repository.savedIds.first().isEmpty())
+
+        userStore.close()
     }
 
     @Test
     fun testNewestFirst() = runTest {
-        val file = tmp.newFile("b.preferences_pb")
-        val dataStore = PreferenceDataStoreFactory.create(
-            scope = backgroundScope,
-            produceFile = { file }
-        )
+        val userStore = UserStore(tmp.newFile("user2.db"))
         var currentTime = 1000L
-        val repository = BookmarksRepository(dataStore, clock = { currentTime })
+        val repository = BookmarksRepository(userStore = userStore, clock = { currentTime })
 
         val entry1 = createEntry("e1", "Entry 1")
         val entry2 = createEntry("e2", "Entry 2")
@@ -96,32 +90,24 @@ class BookmarksRepositoryTest {
         assertEquals(2000L, bookmarks[0].savedAt)
         assertEquals("e1", bookmarks[1].entryId)
         assertEquals(1000L, bookmarks[1].savedAt)
+
+        userStore.close()
     }
 
     @Test
     fun testSurvivesNewRepositoryInstanceOnSameFile() = runTest {
-        val file = tmp.newFile("b.preferences_pb")
-        val job1 = kotlinx.coroutines.Job()
-        val scope1 = kotlinx.coroutines.CoroutineScope(backgroundScope.coroutineContext + job1)
-        val dataStore1 = PreferenceDataStoreFactory.create(
-            scope = scope1,
-            produceFile = { file }
-        )
-        val repo1 = BookmarksRepository(dataStore1, clock = { 1234L })
+        val dbFile = tmp.newFile("user3.db")
+        val store1 = UserStore(dbFile)
+        val repo1 = BookmarksRepository(userStore = store1, clock = { 1234L })
         val entry = createEntry("e1", "Persistent Entry")
 
         repo1.toggle(entry, "Section P")
         assertEquals(1, repo1.bookmarks.first().size)
+        store1.close()
 
-        // Cancel scope1 so dataStore1 is closed
-        job1.cancel()
-
-        // New data store and repository instance on the same file
-        val dataStore2 = PreferenceDataStoreFactory.create(
-            scope = backgroundScope,
-            produceFile = { file }
-        )
-        val repo2 = BookmarksRepository(dataStore2)
+        // New repository instance on the same file
+        val store2 = UserStore(dbFile)
+        val repo2 = BookmarksRepository(userStore = store2)
 
         val restored = repo2.bookmarks.first()
         assertEquals(1, restored.size)
@@ -129,5 +115,7 @@ class BookmarksRepositoryTest {
         assertEquals("Persistent Entry", restored[0].name)
         assertEquals("Section P", restored[0].sectionTitle)
         assertEquals(setOf("e1"), repo2.savedIds.first())
+
+        store2.close()
     }
 }

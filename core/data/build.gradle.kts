@@ -28,7 +28,7 @@ dependencies {
 
 tasks.named<ProcessResources>("processResources") {
   from(rootProject.file("schema")) {
-    include("dataset.sql")
+    include("dataset.sql", "user.sql")
   }
 }
 

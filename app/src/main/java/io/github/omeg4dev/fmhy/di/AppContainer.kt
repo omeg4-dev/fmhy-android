@@ -10,6 +10,7 @@ import io.github.omeg4dev.fmhy.data.sync.SyncResult
 import io.github.omeg4dev.fmhy.data.BookmarksRepository
 import io.github.omeg4dev.fmhy.data.bookmarksDataStore
 import io.github.omeg4dev.fmhy.data.link.CrossLinks
+import io.github.omeg4dev.fmhy.data.user.UserStore
 import java.io.File
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineScope
@@ -43,6 +44,7 @@ interface AppContainer {
     val appScope: CoroutineScope
     val okHttpClient: OkHttpClient
     val datasetStore: DatasetStore
+    val userStore: UserStore
     val fmhySync: FmhySync
     val searchEngine: SearchEngine
     val settingsRepository: SettingsRepository
@@ -63,8 +65,22 @@ class DefaultAppContainer(override val context: Context) : AppContainer {
 
     override val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
+    private val userDir by lazy {
+        File(context.filesDir, "user").apply { mkdirs() }
+    }
+    private val userDbFile by lazy {
+        File(userDir, "user.db")
+    }
+
+    override val userStore: UserStore by lazy {
+        UserStore(userDbFile)
+    }
+
     override val bookmarks: BookmarksRepository by lazy {
-        BookmarksRepository(context.bookmarksDataStore)
+        BookmarksRepository(
+            userStore = userStore,
+            legacyDataStore = context.bookmarksDataStore,
+        )
     }
 
     override val crossLinks: StateFlow<CrossLinks?> by lazy {
@@ -151,6 +167,7 @@ class DefaultAppContainer(override val context: Context) : AppContainer {
     override fun initialize() {
         appScope.launch(Dispatchers.IO) {
             try {
+                bookmarks.migrateLegacyIfNeeded()
                 if (!dbFile.exists() || !datasetStore.isSchemaCurrent()) {
                     datasetStore.close()
                     installSnapshotIfAvailable()
