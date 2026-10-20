@@ -39,6 +39,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -181,7 +182,7 @@ fun OnboardingScreen(
                 },
             )
         },
-        contentWindowInsets = WindowInsets.statusBars,
+        contentWindowInsets = WindowInsets(0),
         modifier = modifier.fillMaxSize(),
     ) { innerPadding ->
         HorizontalPager(
@@ -229,6 +230,7 @@ private fun OnboardingTopBar(
     Column(
         modifier = modifier
             .fillMaxWidth()
+            .windowInsetsPadding(WindowInsets.statusBars)
             .padding(top = 8.dp),
     ) {
         // Segmented progress bar
