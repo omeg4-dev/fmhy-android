@@ -127,10 +127,10 @@ class RecentChangesTest {
         val addedMap = store.addedAt(listOf("e-root", "e-sub", "e-audio", "unknown"))
         // e-root gets earliest added ts = 400
         assertEquals(400L, addedMap["e-root"])
-        // e-sub has no changes, falls back to first_seen = 600
-        assertEquals(600L, addedMap["e-sub"])
-        // e-audio has no changes, falls back to first_seen = 700
-        assertEquals(700L, addedMap["e-audio"])
+        // Entries without an 'added' change are not new, whatever their first_seen (snapshot build time)
+        assertEquals(null, addedMap["e-sub"])
+        assertEquals(null, addedMap["e-audio"])
+        assertEquals(null, addedMap["unknown"])
     }
 
     @Test

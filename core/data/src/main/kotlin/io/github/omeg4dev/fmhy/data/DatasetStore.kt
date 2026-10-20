@@ -596,8 +596,12 @@ open class DatasetStore(
     }
 
     /**
-     * Map of entryId to timestamp (unix epoch seconds) when it was added:
-     * earliest 'added' ts in changes table, falling back to entries.first_seen.
+     * Map of entryId to timestamp (unix epoch seconds) when it was added: the earliest 'added' ts in the
+     * changes table. Entries without an 'added' change are absent from the map.
+     *
+     * `entries.first_seen` is deliberately not used: a bundled snapshot stamps every entry with its build
+     * time, which made the whole catalogue look new for a week after each release. Real additions always
+     * get an 'added' change row (device sync and tracker both write one).
      */
     open suspend fun addedAt(entryIds: Collection<String>): Map<String, Long> = withConnection { conn ->
         if (entryIds.isEmpty()) return@withConnection emptyMap()
@@ -605,19 +609,8 @@ open class DatasetStore(
 
         for (chunk in entryIds.chunked(500)) {
             val placeholders = chunk.joinToString(",") { "?" }
-
-            // First get first_seen from entries
-            val sqlEntries = "SELECT id, first_seen FROM entries WHERE id IN ($placeholders)"
-            conn.prepare(sqlEntries).use { stmt ->
-                chunk.forEachIndexed { i, id -> stmt.bindText(i + 1, id) }
-                while (stmt.step()) {
-                    result[stmt.getText(0)] = stmt.getLong(1)
-                }
-            }
-
-            // Then override with earliest 'added' ts from changes if available
-            val sqlChanges = "SELECT entry_id, MIN(ts) FROM changes WHERE kind = 'added' AND entry_id IN ($placeholders) GROUP BY entry_id"
-            conn.prepare(sqlChanges).use { stmt ->
+            val sql = "SELECT entry_id, MIN(ts) FROM changes WHERE kind = 'added' AND entry_id IN ($placeholders) GROUP BY entry_id"
+            conn.prepare(sql).use { stmt ->
                 chunk.forEachIndexed { i, id -> stmt.bindText(i + 1, id) }
                 while (stmt.step()) {
                     result[stmt.getText(0)] = stmt.getLong(1)
