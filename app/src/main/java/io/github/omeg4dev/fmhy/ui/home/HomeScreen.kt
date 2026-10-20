@@ -98,6 +98,8 @@ import io.github.omeg4dev.fmhy.ui.common.enterStagger
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
 import io.github.omeg4dev.fmhy.browser.BrowserSwitchChip
+import io.github.omeg4dev.fmhy.browser.ContinueBrowsingCard
+import io.github.omeg4dev.fmhy.browser.continueBrowsingRows
 import io.github.omeg4dev.fmhy.ui.common.sectionIcon
 import io.github.omeg4dev.fmhy.ui.common.showUndo
 import kotlinx.coroutines.flow.filter
@@ -117,6 +119,7 @@ fun HomeScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val browserTabCount by container.tabManager.browserTabCount.collectAsStateWithLifecycle()
+    val openTabs by container.tabManager.tabs.collectAsStateWithLifecycle()
     val linkOpener = rememberLinkOpener(container, onShowSnackbar)
     val listState = rememberLazyListState()
     val nav = LocalAppNav.current
@@ -379,6 +382,19 @@ fun HomeScreen(
                                     }
                                 }
                             }
+                        }
+                    }
+
+                    // Continue browsing (open browser tabs, most recent first)
+                    item(key = "continue-browsing") {
+                        val rows = continueBrowsingRows(openTabs)
+                        AnimatedVisibility(
+                            visible = rows.isNotEmpty(),
+                            enter = expandVertically() + fadeIn(),
+                            exit = shrinkVertically() + fadeOut(),
+                            modifier = Modifier.animateItem(),
+                        ) {
+                            ContinueBrowsingCard(tabs = openTabs, totalTabs = openTabs.size)
                         }
                     }
 
