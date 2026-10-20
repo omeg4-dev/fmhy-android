@@ -25,6 +25,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,11 +47,15 @@ fun SwipeToSave(
     val actions = rememberSaveActions()
     val isSaved = actions.isSaved(entry)
     val haptics = rememberHaptics()
+    // The dismiss state keeps its first confirmValueChange lambda; read the current actions/entry through
+    // updated state, otherwise every swipe acts on the saved set from the first composition (always "save").
+    val currentActions by rememberUpdatedState(actions)
+    val currentEntry by rememberUpdatedState(entry)
 
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { v ->
             if (v != SwipeToDismissBoxValue.Settled) {
-                actions.toggle(entry)
+                currentActions.toggle(currentEntry)
             }
             false
         },
