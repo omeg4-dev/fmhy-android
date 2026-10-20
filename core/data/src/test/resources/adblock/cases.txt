@@ -1,0 +1,144 @@
+# Comprehensive uBO / ABP static filter test cases
+# Format: RULES ... ;; URL ... ;; SRC ... ;; TYPE ... ;; EXPECT ...
+# or for cosmetic: RULES ... ;; PAGE ... ;; COSMETIC_EXPECT ...
+# or for generic cosmetic: RULES ... ;; PAGE ... ;; CLASSES ... ;; IDS ... ;; GENERIC_EXPECT ...
+# or for scriptlet: RULES ... ;; PAGE ... ;; SCRIPTLET_EXPECT ...
+
+# 1. Anchors
+RULES ||ads.example.com^ ;; URL https://ads.example.com/banner.js ;; SRC https://news.com/ ;; TYPE SCRIPT ;; EXPECT Block
+RULES ||ads.example.com^ ;; URL http://sub.ads.example.com/banner.js ;; SRC https://news.com/ ;; TYPE SCRIPT ;; EXPECT Block
+RULES ||ads.example.com^ ;; URL https://notads.example.com/banner.js ;; SRC https://news.com/ ;; TYPE SCRIPT ;; EXPECT NoMatch
+RULES |https://cdn.example.com/ ;; URL https://cdn.example.com/lib.js ;; SRC https://news.com/ ;; TYPE SCRIPT ;; EXPECT Block
+RULES |https://cdn.example.com/ ;; URL http://cdn.example.com/lib.js ;; SRC https://news.com/ ;; TYPE SCRIPT ;; EXPECT NoMatch
+RULES /ad.js| ;; URL https://example.com/js/ad.js ;; SRC https://example.com/ ;; TYPE SCRIPT ;; EXPECT Block
+RULES /ad.js| ;; URL https://example.com/js/ad.js?v=1 ;; SRC https://example.com/ ;; TYPE SCRIPT ;; EXPECT NoMatch
+RULES |https://example.com/exact.js| ;; URL https://example.com/exact.js ;; SRC https://example.com/ ;; TYPE SCRIPT ;; EXPECT Block
+RULES |https://example.com/exact.js| ;; URL https://example.com/exact.js/ ;; SRC https://example.com/ ;; TYPE SCRIPT ;; EXPECT NoMatch
+
+# 2. Separator ^
+RULES ||example.com/banner^ ;; URL https://example.com/banner/foo ;; SRC https://news.com/ ;; TYPE IMAGE ;; EXPECT Block
+RULES ||example.com/banner^ ;; URL https://example.com/banner?id=1 ;; SRC https://news.com/ ;; TYPE IMAGE ;; EXPECT Block
+RULES ||example.com/banner^ ;; URL https://example.com/banner ;; SRC https://news.com/ ;; TYPE IMAGE ;; EXPECT Block
+RULES ||example.com/banner^ ;; URL https://example.com/banners ;; SRC https://news.com/ ;; TYPE IMAGE ;; EXPECT NoMatch
+RULES ||example.com/banner^ ;; URL https://example.com/banner-ad ;; SRC https://news.com/ ;; TYPE IMAGE ;; EXPECT NoMatch
+
+# 3. Wildcard *
+RULES ||example.com/*/ad_*.js ;; URL https://example.com/v1/ad_test.js ;; SRC https://example.com/ ;; TYPE SCRIPT ;; EXPECT Block
+RULES ||example.com/*/ad_*.js ;; URL https://example.com/v1/content.js ;; SRC https://example.com/ ;; TYPE SCRIPT ;; EXPECT NoMatch
+
+# 4. Regex
+RULES /banner\d+\.gif/ ;; URL https://example.com/banner123.gif ;; SRC https://news.com/ ;; TYPE IMAGE ;; EXPECT Block
+RULES /banner\d+\.gif/ ;; URL https://example.com/banner.gif ;; SRC https://news.com/ ;; TYPE IMAGE ;; EXPECT NoMatch
+RULES /Ad\d+/$match-case ;; URL https://example.com/Ad123 ;; SRC https://news.com/ ;; TYPE OTHER ;; EXPECT Block
+RULES /Ad\d+/$match-case ;; URL https://example.com/ad123 ;; SRC https://news.com/ ;; TYPE OTHER ;; EXPECT NoMatch
+
+# 5. Party restrictions (1p vs 3p)
+RULES ||tracker.com^$3p ;; URL https://tracker.com/t.js ;; SRC https://news.com/ ;; TYPE SCRIPT ;; EXPECT Block
+RULES ||tracker.com^$3p ;; URL https://tracker.com/t.js ;; SRC https://tracker.com/ ;; TYPE SCRIPT ;; EXPECT NoMatch
+RULES ||site.com/track.js$1p ;; URL https://site.com/track.js ;; SRC https://sub.site.com/ ;; TYPE SCRIPT ;; EXPECT Block
+RULES ||site.com/track.js$1p ;; URL https://site.com/track.js ;; SRC https://other.com/ ;; TYPE SCRIPT ;; EXPECT NoMatch
+RULES ||site.com/track.js$strict1p ;; URL https://site.com/track.js ;; SRC https://site.com/ ;; TYPE SCRIPT ;; EXPECT Block
+RULES ||tracker.com^$strict3p ;; URL https://tracker.com/t.js ;; SRC https://news.com/ ;; TYPE SCRIPT ;; EXPECT Block
+RULES ||site.com/track.js$~third-party ;; URL https://site.com/track.js ;; SRC https://site.com/ ;; TYPE SCRIPT ;; EXPECT Block
+
+# 6. Domain restrictions (domain= and ~)
+RULES ||ads.com^$domain=example.com ;; URL https://ads.com/a.js ;; SRC https://example.com/ ;; TYPE SCRIPT ;; EXPECT Block
+RULES ||ads.com^$domain=example.com ;; URL https://ads.com/a.js ;; SRC https://other.com/ ;; TYPE SCRIPT ;; EXPECT NoMatch
+RULES ||ads.com^$domain=example.com|~sub.example.com ;; URL https://ads.com/a.js ;; SRC https://sub.example.com/ ;; TYPE SCRIPT ;; EXPECT NoMatch
+RULES ||ads.com^$domain=example.com|~sub.example.com ;; URL https://ads.com/a.js ;; SRC https://news.example.com/ ;; TYPE SCRIPT ;; EXPECT Block
+RULES ||ads.com^$domain=~safe.com ;; URL https://ads.com/a.js ;; SRC https://safe.com/ ;; TYPE SCRIPT ;; EXPECT NoMatch
+RULES ||ads.com^$domain=~safe.com ;; URL https://ads.com/a.js ;; SRC https://random.com/ ;; TYPE SCRIPT ;; EXPECT Block
+
+# 7. Entity matching (example.*)
+RULES ||bad.com^$domain=entity.* ;; URL https://bad.com/b.js ;; SRC https://entity.co.uk/ ;; TYPE SCRIPT ;; EXPECT Block
+RULES ||bad.com^$domain=entity.* ;; URL https://bad.com/b.js ;; SRC https://sub.entity.com/ ;; TYPE SCRIPT ;; EXPECT Block
+RULES ||bad.com^$domain=entity.* ;; URL https://bad.com/b.js ;; SRC https://notentity.com/ ;; TYPE SCRIPT ;; EXPECT NoMatch
+RULES ||entity.*^$all ;; URL https://sub.entity.org/ad ;; SRC https://other.com/ ;; TYPE OTHER ;; EXPECT Block
+
+# 8. Resource types and negations
+RULES ||ads.com^$script ;; URL https://ads.com/a.js ;; SRC https://news.com/ ;; TYPE SCRIPT ;; EXPECT Block
+RULES ||ads.com^$script ;; URL https://ads.com/a.png ;; SRC https://news.com/ ;; TYPE IMAGE ;; EXPECT NoMatch
+RULES ||ads.com^$image ;; URL https://ads.com/img.png ;; SRC https://news.com/ ;; TYPE IMAGE ;; EXPECT Block
+RULES ||ads.com^$stylesheet ;; URL https://ads.com/style.css ;; SRC https://news.com/ ;; TYPE STYLESHEET ;; EXPECT Block
+RULES ||ads.com^$css ;; URL https://ads.com/style.css ;; SRC https://news.com/ ;; TYPE STYLESHEET ;; EXPECT Block
+RULES ||ads.com^$xhr ;; URL https://ads.com/api ;; SRC https://news.com/ ;; TYPE XHR ;; EXPECT Block
+RULES ||ads.com^$xmlhttprequest ;; URL https://ads.com/api ;; SRC https://news.com/ ;; TYPE XHR ;; EXPECT Block
+RULES ||ads.com^$subdocument ;; URL https://ads.com/frame.html ;; SRC https://news.com/ ;; TYPE SUBDOCUMENT ;; EXPECT Block
+RULES ||ads.com^$frame ;; URL https://ads.com/frame.html ;; SRC https://news.com/ ;; TYPE SUBDOCUMENT ;; EXPECT Block
+RULES ||ads.com^$media ;; URL https://ads.com/video.mp4 ;; SRC https://news.com/ ;; TYPE MEDIA ;; EXPECT Block
+RULES ||ads.com^$font ;; URL https://ads.com/font.woff2 ;; SRC https://news.com/ ;; TYPE FONT ;; EXPECT Block
+RULES ||ads.com^$websocket ;; URL wss://ads.com/socket ;; SRC https://news.com/ ;; TYPE WEBSOCKET ;; EXPECT Block
+RULES ||ads.com^$ping ;; URL https://ads.com/beacon ;; SRC https://news.com/ ;; TYPE PING ;; EXPECT Block
+RULES ||ads.com^$other ;; URL https://ads.com/data ;; SRC https://news.com/ ;; TYPE OTHER ;; EXPECT Block
+RULES ||ads.com^$object ;; URL https://ads.com/plugin ;; SRC https://news.com/ ;; TYPE OTHER ;; EXPECT Block
+RULES ||ads.com^$document ;; URL https://ads.com/page ;; SRC https://ads.com/page ;; TYPE DOCUMENT ;; EXPECT Block
+RULES ||ads.com^$doc ;; URL https://ads.com/page ;; SRC https://ads.com/page ;; TYPE DOCUMENT ;; EXPECT Block
+RULES ||ads.com^$popup ;; URL https://ads.com/pop ;; SRC https://news.com/ ;; TYPE POPUP ;; EXPECT Block
+RULES ||ads.com^$all ;; URL https://ads.com/page ;; SRC https://ads.com/page ;; TYPE DOCUMENT ;; EXPECT Block
+RULES ||ads.com^$all ;; URL https://ads.com/pop ;; SRC https://news.com/ ;; TYPE POPUP ;; EXPECT Block
+RULES ||ads.com^$~image ;; URL https://ads.com/a.js ;; SRC https://news.com/ ;; TYPE SCRIPT ;; EXPECT Block
+RULES ||ads.com^$~image ;; URL https://ads.com/a.png ;; SRC https://news.com/ ;; TYPE IMAGE ;; EXPECT NoMatch
+
+# 9. Default types vs Document / Popup
+RULES ||ads.com^ ;; URL https://ads.com/page ;; SRC https://ads.com/page ;; TYPE DOCUMENT ;; EXPECT NoMatch
+RULES ||ads.com^ ;; URL https://ads.com/pop ;; SRC https://news.com/ ;; TYPE POPUP ;; EXPECT NoMatch
+RULES ||ads.com^ ;; URL https://ads.com/a.js ;; SRC https://news.com/ ;; TYPE SCRIPT ;; EXPECT Block
+RULES ||ads.com^ ;; URL https://ads.com/data ;; SRC https://news.com/ ;; TYPE OTHER ;; EXPECT Block
+
+# 10. Important rules and Exceptions
+RULES ||ads.com^ \n @@||ads.com/safe.js ;; URL https://ads.com/safe.js ;; SRC https://news.com/ ;; TYPE SCRIPT ;; EXPECT Allow
+RULES ||ads.com/safe.js$important \n @@||ads.com/safe.js ;; URL https://ads.com/safe.js ;; SRC https://news.com/ ;; TYPE SCRIPT ;; EXPECT Block
+RULES ||ads.com/safe.js$important \n @@||ads.com/safe.js$important ;; URL https://ads.com/safe.js ;; SRC https://news.com/ ;; TYPE SCRIPT ;; EXPECT Allow
+RULES ||ads.com^ ;; URL https://ads.com/other.js ;; SRC https://news.com/ ;; TYPE SCRIPT ;; EXPECT Block
+
+# 11. Badfilter
+RULES ||ads.com/x.js$script \n ||ads.com/x.js$script,badfilter ;; URL https://ads.com/x.js ;; SRC https://news.com/ ;; TYPE SCRIPT ;; EXPECT NoMatch
+
+# 12. Redirect & Redirect-rule
+RULES ||tracker.com/t.js$script,redirect=noopjs ;; URL https://tracker.com/t.js ;; SRC https://news.com/ ;; TYPE SCRIPT ;; EXPECT Redirect:noopjs
+RULES ||tracker.com/t.js$script,redirect=noopjs:10 ;; URL https://tracker.com/t.js ;; SRC https://news.com/ ;; TYPE SCRIPT ;; EXPECT Redirect:noopjs
+RULES ||tracker.com/t.js$script,redirect=nonexistentres ;; URL https://tracker.com/t.js ;; SRC https://news.com/ ;; TYPE SCRIPT ;; EXPECT Block
+RULES ||tracker.com/t.js$script,redirect-rule=noopjs ;; URL https://tracker.com/t.js ;; SRC https://news.com/ ;; TYPE SCRIPT ;; EXPECT NoMatch
+RULES ||tracker.com/t.js$script,redirect-rule=noopjs \n ||tracker.com^$script ;; URL https://tracker.com/t.js ;; SRC https://news.com/ ;; TYPE SCRIPT ;; EXPECT Redirect:noopjs
+
+# 13. Denyallow & To=
+RULES ||*/a.js$to=target.com ;; URL https://target.com/a.js ;; SRC https://news.com/ ;; TYPE SCRIPT ;; EXPECT Block
+RULES ||*/a.js$to=target.com ;; URL https://other.com/a.js ;; SRC https://news.com/ ;; TYPE SCRIPT ;; EXPECT NoMatch
+RULES ||cdn.com^$denyallow=bad.cdn.com ;; URL https://bad.cdn.com/a.js ;; SRC https://news.com/ ;; TYPE SCRIPT ;; EXPECT NoMatch
+RULES ||cdn.com^$denyallow=bad.cdn.com ;; URL https://good.cdn.com/a.js ;; SRC https://news.com/ ;; TYPE SCRIPT ;; EXPECT Block
+
+# 14. Hosts file & Plain domain lines
+RULES 0.0.0.0 adserver.com ;; URL https://adserver.com/test ;; SRC https://news.com/ ;; TYPE SCRIPT ;; EXPECT Block
+RULES 0.0.0.0 adserver.com ;; URL https://adserver.com/ ;; SRC https://adserver.com/ ;; TYPE DOCUMENT ;; EXPECT Block
+RULES 127.0.0.1 malicious.org ;; URL https://malicious.org/ ;; SRC https://malicious.org/ ;; TYPE DOCUMENT ;; EXPECT Block
+RULES plain-domain.net ;; URL https://plain-domain.net/lib.js ;; SRC https://news.com/ ;; TYPE SCRIPT ;; EXPECT Block
+RULES plain-domain.net ;; URL https://plain-domain.net/ ;; SRC https://plain-domain.net/ ;; TYPE DOCUMENT ;; EXPECT Block
+
+# 15. Page exceptions (@@||host^$document, generichide, elemhide, specifichide)
+RULES @@||safe-site.com^$document \n ||ads.com^ ;; URL https://ads.com/banner.js ;; SRC https://safe-site.com/ ;; TYPE SCRIPT ;; EXPECT Allow
+RULES @@||safe-site.com^$document \n ||safe-site.com^$document ;; URL https://safe-site.com/ ;; SRC https://safe-site.com/ ;; TYPE DOCUMENT ;; EXPECT Allow
+RULES @@||news.com^$generichide \n news.com##.dom-ad \n ##.gen-ad ;; PAGE https://news.com/ ;; COSMETIC_EXPECT .dom-ad{display:none!important}
+RULES @@||news.com^$elemhide \n news.com##.dom-ad \n ##.gen-ad ;; PAGE https://news.com/ ;; COSMETIC_EXPECT 
+RULES @@||news.com^$specifichide \n news.com##.dom-ad ;; PAGE https://news.com/ ;; COSMETIC_EXPECT 
+
+# 16. Cosmetic CSS domain, exception, entity, :has() kept, procedural ignored
+RULES news.com##.ad-banner ;; PAGE https://news.com/ ;; COSMETIC_EXPECT .ad-banner{display:none!important}
+RULES news.com##.ad-banner \n news.com#@#.ad-banner ;; PAGE https://news.com/ ;; COSMETIC_EXPECT 
+RULES entity.*##.sponsor ;; PAGE https://entity.com/ ;; COSMETIC_EXPECT .sponsor{display:none!important}
+RULES site.com,~sub.site.com##.promo ;; PAGE https://sub.site.com/ ;; COSMETIC_EXPECT 
+RULES site.com,~sub.site.com##.promo ;; PAGE https://site.com/ ;; COSMETIC_EXPECT .promo{display:none!important}
+RULES news.com##div:has(> a.ad) ;; PAGE https://news.com/ ;; COSMETIC_EXPECT div:has(> a.ad){display:none!important}
+RULES news.com##div:has-text(Sponsored) ;; PAGE https://news.com/ ;; COSMETIC_EXPECT 
+RULES news.com##div:upward(2) ;; PAGE https://news.com/ ;; COSMETIC_EXPECT 
+RULES ##.cls1 \n ###id1 ;; PAGE https://news.com/ ;; CLASSES cls1 ;; IDS id1 ;; GENERIC_EXPECT .cls1,#id1
+RULES ##.cls1 \n ###id1 \n #@#.cls1 ;; PAGE https://news.com/ ;; CLASSES cls1 ;; IDS id1 ;; GENERIC_EXPECT #id1
+RULES ##.cls1 \n ###id1 \n news.com#@#.cls1 ;; PAGE https://news.com/ ;; CLASSES cls1 ;; IDS id1 ;; GENERIC_EXPECT #id1
+RULES ##.cls1 \n ###id1 \n news.com#@#.cls1 ;; PAGE https://other.com/ ;; CLASSES cls1 ;; IDS id1 ;; GENERIC_EXPECT .cls1,#id1
+
+# 17. Scriptlets
+RULES news.com##+js(set, foo, bar) ;; PAGE https://news.com/ ;; SCRIPTLET_EXPECT set-constant(foo,bar)
+RULES news.com##+js(set.js, foo\,bar, baz) ;; PAGE https://news.com/ ;; SCRIPTLET_EXPECT set-constant(foo,bar,baz)
+RULES news.com##+js(aopr, window.ad) ;; PAGE https://news.com/ ;; SCRIPTLET_EXPECT abort-on-property-read(window.ad)
+RULES news.com##+js(set, a, 1) \n news.com#@#+js(set) ;; PAGE https://news.com/ ;; SCRIPTLET_EXPECT 
+RULES news.com##+js(set, a, 1) \n news.com#@#+js() ;; PAGE https://news.com/ ;; SCRIPTLET_EXPECT 
+RULES ##+js(set, a, 1) ;; PAGE https://news.com/ ;; SCRIPTLET_EXPECT 
