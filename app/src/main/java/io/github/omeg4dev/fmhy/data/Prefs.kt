@@ -8,6 +8,12 @@ import io.github.omeg4dev.fmhy.data.adblock.FilterListCatalog
 enum class OpenLinksWith { IN_APP, CUSTOM_TAB, EXTERNAL }
 enum class ToolbarPosition { TOP, BOTTOM }
 
+enum class AutoplayMode(val label: String) {
+    BLOCK("Never"),
+    ALLOW_MUTED("Only muted videos"),
+    ALLOW("Always"),
+}
+
 enum class FullscreenOrientation(val label: String) {
     /** Landscape for wide videos, portrait for tall ones. */
     AUTO("Auto (match the video)"),
@@ -74,6 +80,7 @@ data class BrowserPrefs(
     /** Enter picture-in-picture on its own when leaving the app while a video plays. */
     val autoPip: Boolean = true,
     val keepScreenOn: Boolean = true,
+    val autoplay: AutoplayMode = AutoplayMode.ALLOW_MUTED,
     /** Double-tap the left or right third of a fullscreen video to seek 10 s. */
     val doubleTapSeek: Boolean = true,
     /** Playback speed applied to media on pages without a remembered per-site speed. */

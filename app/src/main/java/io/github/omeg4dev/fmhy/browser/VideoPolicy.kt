@@ -1,6 +1,7 @@
 package io.github.omeg4dev.fmhy.browser
 
 import android.content.pm.ActivityInfo
+import io.github.omeg4dev.fmhy.data.AutoplayMode
 import io.github.omeg4dev.fmhy.data.FullscreenOrientation
 
 /** A width:height ratio kept as plain ints so it is testable without android.util.Rational. */
@@ -61,3 +62,9 @@ fun formatStoredSpeed(speed: Float): String = speed.toString()
 /** Parses a stored speed; null for missing, malformed or out-of-range values. */
 fun parseStoredSpeed(value: String?): Float? =
     value?.toFloatOrNull()?.takeIf { it in 0.0625f..16f }
+
+/** What the page script enforces: "muted" pauses unmuted media that starts without a gesture. */
+fun autoplayScriptMode(mode: AutoplayMode): String = if (mode == AutoplayMode.ALLOW_MUTED) "muted" else "any"
+
+/** True when [mode] lets the WebView start media without a user gesture at all. */
+fun autoplayNeedsGesture(mode: AutoplayMode): Boolean = mode == AutoplayMode.BLOCK

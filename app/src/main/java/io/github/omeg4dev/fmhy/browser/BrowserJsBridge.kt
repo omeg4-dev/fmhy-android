@@ -89,6 +89,10 @@ class BrowserJsBridge(
         }
     }
 
+    /** "muted" when unmuted media may not start without a user gesture, otherwise "any". */
+    @JavascriptInterface
+    fun autoplayMode(): String = autoplayScriptMode(tabManager.currentBrowserPrefs.autoplay)
+
     @JavascriptInterface
     fun hasMedia(found: Boolean) {
         if (!found) return

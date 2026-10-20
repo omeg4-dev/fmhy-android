@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.omeg4dev.fmhy.browser.PLAYBACK_SPEEDS
 import io.github.omeg4dev.fmhy.browser.speedLabel
+import io.github.omeg4dev.fmhy.data.AutoplayMode
 import io.github.omeg4dev.fmhy.data.FullscreenOrientation
 
 /** Settings → Browsing → Video: fullscreen, picture-in-picture and playback options. */
@@ -103,6 +104,13 @@ fun VideoPage(
             }
             item {
                 SettingsSection(title = "Playback") {
+                    ChoiceRow(
+                        title = "Autoplay",
+                        options = AutoplayMode.entries.map { it to it.label },
+                        selected = prefs.autoplay,
+                        onSelect = { mode -> viewModel.updateBrowser { it.copy(autoplay = mode) } },
+                    )
+                    SettingsDivider()
                     ChoiceRow(
                         title = "Default speed",
                         options = PLAYBACK_SPEEDS.map { it to speedLabel(it) },

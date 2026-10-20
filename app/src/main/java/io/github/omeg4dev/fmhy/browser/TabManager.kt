@@ -15,6 +15,7 @@ import androidx.core.view.drawToBitmap
 import io.github.omeg4dev.fmhy.browser.adblock.AdblockService
 import io.github.omeg4dev.fmhy.browser.adblock.ScriptletLibrary
 import io.github.omeg4dev.fmhy.data.Appearance
+import io.github.omeg4dev.fmhy.data.AutoplayMode
 import io.github.omeg4dev.fmhy.data.BrowserPrefs
 import io.github.omeg4dev.fmhy.data.DataPrefs
 import io.github.omeg4dev.fmhy.data.PrivacyPrefs
@@ -300,7 +301,12 @@ class TabManager(
     init {
         (browserHooks as? DefaultBrowserHooks)?.attachTabManager(this)
         appScope.launch {
-            settingsRepository.browserPrefs.collect { currentBrowserPrefs = it }
+            var lastAutoplay: AutoplayMode? = null
+            settingsRepository.browserPrefs.collect {
+                currentBrowserPrefs = it
+                if (lastAutoplay != null && lastAutoplay != it.autoplay) applyAutoplayToWebViews(it.autoplay)
+                lastAutoplay = it.autoplay
+            }
         }
         appScope.launch {
             try {
@@ -910,6 +916,20 @@ class TabManager(
         if (_currentTabId.value == tabId) {
             onVideoPlayingChanged?.invoke(isPlaying)
             onPipStateChanged?.invoke()
+        }
+    }
+
+    /** Applies the autoplay setting to every live WebView straight away. */
+    private fun applyAutoplayToWebViews(mode: AutoplayMode) {
+        val views = synchronized(records) { records.mapNotNull { it.webView } }
+        val js = VideoJs.setAutoplayCall(autoplayScriptMode(mode))
+        postToMain {
+            views.forEach { wv ->
+                try {
+                    wv.settings.mediaPlaybackRequiresUserGesture = autoplayNeedsGesture(mode)
+                    wv.evaluateJavascript(js, null)
+                } catch (_: Throwable) {}
+            }
         }
     }
 

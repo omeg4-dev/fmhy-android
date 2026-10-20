@@ -11,6 +11,9 @@ object VideoJs {
         "}catch(e){}})($seconds);"
 
     /** JS that sets the playback speed on the page's media; a rate of 0 or less hands control back to the page. */
+    fun setAutoplayCall(mode: String): String =
+        "window.__fmhyVideo&&window.__fmhyVideo.setAutoplay('$mode');"
+
     fun setRateCall(rate: Float): String =
         "window.__fmhyVideo&&window.__fmhyVideo.setRate(${if (rate > 0f) rate.toString() else "null"});"
 
@@ -63,6 +66,24 @@ object VideoJs {
             var list = document.querySelectorAll('video,audio');
             for (var i = 0; i < list.length; i++) { list[i].__fmhyFixes = 0; applyRate(list[i]); }
         };
+        // Autoplay: in "muted" mode, media that starts unmuted without a recent gesture is paused.
+        var autoplayGuard = false, lastGesture = -100000;
+        function gesture() { lastGesture = Date.now(); }
+        ['pointerdown', 'touchstart', 'keydown', 'click'].forEach(function(evt) {
+            window.addEventListener(evt, gesture, true);
+        });
+        V.setAutoplay = function(mode) { autoplayGuard = (mode === 'muted'); };
+        try { if (B.autoplayMode) V.setAutoplay(B.autoplayMode()); } catch (_) {}
+        function userStarted() {
+            try { if (navigator.userActivation && navigator.userActivation.isActive) return true; } catch (_) {}
+            return Date.now() - lastGesture <= 1000;
+        }
+        document.addEventListener('play', function(e) {
+            var m = e.target;
+            if (autoplayGuard && isMedia(m) && !m.muted && m.volume > 0 && !userStarted()) {
+                try { m.pause(); } catch (_) {}
+            }
+        }, true);
         var scanTimer = null;
         function scheduleScan() {
             if (scanTimer) return;

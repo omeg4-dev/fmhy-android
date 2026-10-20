@@ -57,6 +57,9 @@ class SettingsRepositoryTest {
             pictureInPicture = false,
             autoPip = false,
             keepScreenOn = false,
+            doubleTapSeek = false,
+            defaultSpeed = 1.5f,
+            autoplay = AutoplayMode.BLOCK,
         )
         repo.updateBrowser { expected }
         assertEquals(expected, repo.browserPrefs.first())

@@ -16,6 +16,7 @@ import androidx.webkit.WebViewFeature
 import io.github.omeg4dev.fmhy.browser.adblock.AdblockService
 import io.github.omeg4dev.fmhy.browser.adblock.ScriptletLibrary
 import io.github.omeg4dev.fmhy.data.Appearance
+import io.github.omeg4dev.fmhy.data.AutoplayMode
 import io.github.omeg4dev.fmhy.data.BrowserPrefs
 import io.github.omeg4dev.fmhy.data.ProtectionPrefs
 import io.github.omeg4dev.fmhy.data.user.SitePrefs
@@ -52,7 +53,7 @@ class BrowserWebViewFactory(
         settings.databaseEnabled = true
 
         // Media
-        settings.mediaPlaybackRequiresUserGesture = true
+        settings.mediaPlaybackRequiresUserGesture = browserPrefs.autoplay == AutoplayMode.BLOCK
 
         // Windows
         settings.setSupportMultipleWindows(true)
@@ -240,6 +241,7 @@ class BrowserWebViewFactory(
     ) {
         val settings = webView.settings
         val defaultUa = settings.userAgentString
+        settings.mediaPlaybackRequiresUserGesture = browserPrefs.autoplay == AutoplayMode.BLOCK
 
         val jsAllowed = record.sitePrefs?.javascript ?: browserPrefs.javascript
         settings.javaScriptEnabled = jsAllowed
