@@ -513,7 +513,7 @@ class TrackerSync(
 
     companion object {
         /** Bump when the classification of tracker items changes, so stored rows get rebuilt. */
-        const val RULES_VERSION = 5
+        const val RULES_VERSION = 6
 
         internal fun parseLinkLine(line: String): ParsedLink? =
             ChangeClassifier.parseLinkLine(line)

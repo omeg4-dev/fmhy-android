@@ -133,7 +133,7 @@ object ChangeClassifier {
     }
 
     internal fun parseLinkLine(line: String): ParsedLink? {
-        val trimmed = line.trim()
+        val trimmed = FmhyParser.stripInvisibleChars(line).trim()
         if (trimmed.isEmpty()) return null
         val stripped = trimmed.removePrefix("* ").removePrefix("- ").trim()
         val (tier, _, rest) = FmhyParser.detectTierAndKind(stripped)

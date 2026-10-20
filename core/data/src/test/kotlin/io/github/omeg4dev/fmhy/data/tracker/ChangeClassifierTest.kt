@@ -169,6 +169,15 @@ class ChangeClassifierTest {
         if (readdLogs.size > 10) println("  ... and ${readdLogs.size - 10} more")
         println("===============================\n")
     }
+
+    @Test
+    fun parseLinkLineIgnoresWordJoiners() {
+        // fmhy/edit lines often start with U+2060; it must not end up in names or hide the star.
+        val parsed = ChangeClassifier.parseLinkLine("* \u2060⭐ **[\u2060Neon Wardens](https://neonwardens.com/)** - Game guides")
+        assertEquals("Neon Wardens", parsed?.name)
+        assertEquals("https://neonwardens.com/", parsed?.url)
+        assertEquals(1, parsed?.tier)
+    }
 }
 
 @Serializable
