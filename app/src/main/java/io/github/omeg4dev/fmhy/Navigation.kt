@@ -16,11 +16,26 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.TextButton
+import io.github.omeg4dev.fmhy.browser.formatRelativeTime
+import io.github.omeg4dev.fmhy.data.adblock.FilterListCatalog
+import io.github.omeg4dev.fmhy.ui.settings.InfoRow
+import io.github.omeg4dev.fmhy.ui.settings.NavRow
+import io.github.omeg4dev.fmhy.ui.settings.SettingsGroupHeader
+import io.github.omeg4dev.fmhy.ui.settings.SiteSettingsScreen
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Explore
@@ -37,6 +52,7 @@ import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -71,6 +87,7 @@ import io.github.omeg4dev.fmhy.ui.common.BookmarksState
 import io.github.omeg4dev.fmhy.ui.common.LocalDatasetStore
 import io.github.omeg4dev.fmhy.ui.common.LocalUserStore
 import io.github.omeg4dev.fmhy.ui.common.LocalBookmarks
+import io.github.omeg4dev.fmhy.ui.common.SavedInfo
 import io.github.omeg4dev.fmhy.ui.common.LocalCrossLinks
 import io.github.omeg4dev.fmhy.ui.home.HomeScreen
 import io.github.omeg4dev.fmhy.ui.home.HomeViewModel
@@ -83,12 +100,16 @@ import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import io.github.omeg4dev.fmhy.ui.section.SectionScreen
 import io.github.omeg4dev.fmhy.ui.section.SectionViewModel
 import io.github.omeg4dev.fmhy.ui.legend.LegendScreen
+import io.github.omeg4dev.fmhy.ui.check.CheckLinkScreen
+import io.github.omeg4dev.fmhy.ui.reader.ReaderScreen
+import io.github.omeg4dev.fmhy.ui.posts.PostsScreen
 import io.github.omeg4dev.fmhy.ui.settings.AboutPage
 import io.github.omeg4dev.fmhy.ui.settings.AppearancePage
 import io.github.omeg4dev.fmhy.ui.settings.BlockingPage
 import io.github.omeg4dev.fmhy.ui.settings.BrowserPage
 import io.github.omeg4dev.fmhy.ui.settings.DataPage
 import io.github.omeg4dev.fmhy.ui.settings.HomeListsPage
+import io.github.omeg4dev.fmhy.ui.settings.NavRow
 import io.github.omeg4dev.fmhy.ui.settings.NotificationsPage
 import io.github.omeg4dev.fmhy.ui.settings.PagesPage
 import io.github.omeg4dev.fmhy.ui.settings.PrivacyPage
@@ -97,6 +118,16 @@ import io.github.omeg4dev.fmhy.ui.settings.SavedPage
 import io.github.omeg4dev.fmhy.ui.settings.SettingsHub
 import io.github.omeg4dev.fmhy.ui.settings.SettingsViewModel
 import io.github.omeg4dev.fmhy.ui.settings.VideoPage
+import io.github.omeg4dev.fmhy.ui.onboarding.ONBOARDING_VERSION
+import io.github.omeg4dev.fmhy.ui.onboarding.OnboardingScreen
+import android.content.Intent
+import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
+import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
+import io.github.omeg4dev.fmhy.ui.common.NoteSheet
+import io.github.omeg4dev.fmhy.nav.resolveFmhyUri
+import io.github.omeg4dev.fmhy.nav.FmhyLinkDestination
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 fun interface BottomBarController {
@@ -106,7 +137,7 @@ fun interface BottomBarController {
 val LocalBottomBarController = staticCompositionLocalOf { BottomBarController {} }
 
 @Composable
-fun MainNavigation() {
+fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
     val context = LocalContext.current
     val app = context.applicationContext as FmhyApp
     val container = app.container
@@ -137,9 +168,55 @@ fun MainNavigation() {
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val linkOpener = rememberLinkOpener(container, onShowSnackbar = { msg ->
+        scope.launch { snackbarHostState.showSnackbar(msg) }
+    })
+
+    if (intentFlow != null) {
+        LaunchedEffect(intentFlow) {
+            intentFlow.collect { incomingIntent ->
+                val checkLink = incomingIntent.getStringExtra(EXTRA_CHECK_LINK_INITIAL)
+                if (!checkLink.isNullOrEmpty()) {
+                    nav.select(Tab.BROWSE)
+                    nav.push(CheckLinkNavKey(checkLink))
+                    return@collect
+                }
+
+                if (incomingIntent.action == Intent.ACTION_VIEW) {
+                    val data = incomingIntent.dataString
+                    if (!data.isNullOrEmpty()) {
+                        val cross = if (container.datasetStore.isAvailable) {
+                            container.crossLinks.first { it != null }
+                        } else null
+
+                        when (val dest = resolveFmhyUri(data, cross)) {
+                            is FmhyLinkDestination.Navigate -> {
+                                nav.select(Tab.BROWSE)
+                                if (dest.navKey is HomeNavKey) {
+                                    if (browseStack.lastOrNull() != HomeNavKey) {
+                                        nav.push(HomeNavKey)
+                                    }
+                                } else {
+                                    nav.push(dest.navKey)
+                                }
+                            }
+                            is FmhyLinkDestination.OpenBrowser -> {
+                                linkOpener.openUrl(dest.url)
+                            }
+                            null -> {
+                                linkOpener.openUrl(data)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     val crossLinks by container.crossLinks.collectAsStateWithLifecycle()
     val savedIds by container.bookmarks.savedIds.collectAsStateWithLifecycle(initialValue = emptySet())
+    val bookmarksList by container.bookmarks.bookmarks.collectAsStateWithLifecycle(initialValue = emptyList())
+    val foldersList by container.bookmarks.folders.collectAsStateWithLifecycle(initialValue = emptyList())
 
     var sectionTitles by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     LaunchedEffect(container.datasetStore.changes) {
@@ -150,13 +227,40 @@ fun MainNavigation() {
         }
     }
 
-    val bookmarksState = remember(savedIds, sectionTitles) {
+    val bookmarksState = remember(savedIds, bookmarksList, foldersList, sectionTitles) {
+        val folderMap = foldersList.associate { it.id to it.name }
+        val bookmarkMap = bookmarksList.associateBy { it.entryId }
         BookmarksState(
             savedIds = savedIds,
             toggle = { entry ->
                 scope.launch {
                     val title = sectionTitles[entry.sectionId] ?: entry.headingPath
                     container.bookmarks.toggle(entry, title)
+                }
+            },
+            folders = foldersList,
+            savedInfo = { entryId ->
+                val b = bookmarkMap[entryId] ?: return@BookmarksState null
+                SavedInfo(
+                    folderId = b.folderId,
+                    folderName = b.folderId?.let { folderMap[it] },
+                    note = b.note,
+                )
+            },
+            setNote = { entryId, note ->
+                scope.launch {
+                    container.bookmarks.setNote(entryId, note)
+                }
+            },
+            moveToFolder = { entryId, folderId ->
+                scope.launch {
+                    container.bookmarks.moveToFolder(entryId, folderId)
+                }
+            },
+            createFolder = { name, onCreated ->
+                scope.launch {
+                    val f = container.bookmarks.createFolder(name)
+                    onCreated(f)
                 }
             }
         )
@@ -210,7 +314,10 @@ fun MainNavigation() {
         }
     }
 
-    val shouldShowBar = isBarVisible && currentTopKey !is SettingsNavKey && currentTopKey !is SettingsPageNavKey && currentTopKey !is LegendNavKey
+    val onboardingVersion by container.settingsRepository.onboardingVersion.collectAsStateWithLifecycle(initialValue = -1)
+    val showOnboarding = onboardingVersion in 0 until ONBOARDING_VERSION
+
+    val shouldShowBar = isBarVisible && !showOnboarding && currentTopKey !is SettingsNavKey && currentTopKey !is SettingsPageNavKey && currentTopKey !is LegendNavKey && currentTopKey !is SiteSettingsNavKey && currentTopKey !is ReaderNavKey
 
     BackHandler(enabled = nav.current != Tab.BROWSE && nav.currentStack.size == 1) {
         nav.back()
@@ -230,6 +337,9 @@ fun MainNavigation() {
                 },
                 onNavigateToSection = { sectionId -> nav.push(SectionNavKey(sectionId)) },
                 onNavigateToSettings = { nav.push(SettingsNavKey) },
+                onNavigateToCheckLink = { nav.push(CheckLinkNavKey()) },
+                onNavigateToReader = { path, title -> nav.push(ReaderNavKey(path, title)) },
+                onNavigateToPosts = { nav.push(PostsNavKey) },
                 onShowSnackbar = { msg ->
                     scope.launch { snackbarHostState.showSnackbar(msg) }
                 }
@@ -273,6 +383,7 @@ fun MainNavigation() {
                     container.datasetStore,
                     container.searchEngine,
                     container.settingsRepository,
+                    container.safeGuard,
                 )
             }
             SearchScreen(
@@ -323,22 +434,152 @@ fun MainNavigation() {
                     viewModel = settingsViewModel,
                     onBack = { if (!nav.back()) activity?.finish() },
                     onNavigateToPage = { page -> nav.push(SettingsPageNavKey(page)) },
+                    extraRows = {
+                        item {
+                            NavRow(
+                                title = "Site settings",
+                                summary = "Manage permissions and overrides per site",
+                                onClick = { nav.push(SiteSettingsNavKey) },
+                            )
+                        }
+                    },
                 )
-                SettingsPage.BLOCKING -> BlockingPage(
-                    viewModel = settingsViewModel,
-                    onBack = { if (!nav.back()) activity?.finish() },
-                )
+                SettingsPage.BLOCKING -> {
+                    val adblockStatus by container.adblockService.status.collectAsStateWithLifecycle()
+                    val listStates by container.adblockService.listStates.collectAsStateWithLifecycle()
+                    val blockingPrefs by settingsViewModel.blockingPrefs.collectAsStateWithLifecycle()
+
+                    BlockingPage(
+                        viewModel = settingsViewModel,
+                        onBack = { if (!nav.back()) activity?.finish() },
+                        extraRows = {
+                            item {
+                                SettingsGroupHeader(text = "Status")
+                            }
+                            item {
+                                InfoRow(
+                                    title = "Rules active",
+                                    value = "${adblockStatus.ruleCount}",
+                                )
+                            }
+                            item {
+                                InfoRow(
+                                    title = "Last updated",
+                                    value = formatRelativeTime(adblockStatus.lastUpdated),
+                                )
+                            }
+                            item {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                                ) {
+                                    FilledTonalButton(
+                                        onClick = {
+                                            scope.launch {
+                                                container.adblockService.updateNow()
+                                            }
+                                        },
+                                        enabled = !adblockStatus.updating,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    ) {
+                                        if (adblockStatus.updating) {
+                                            CircularProgressIndicator(
+                                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                                modifier = Modifier.size(16.dp),
+                                                strokeWidth = 2.dp,
+                                            )
+                                            Spacer(Modifier.width(8.dp))
+                                            Text("Updating lists…")
+                                        } else {
+                                            Text("Update lists now")
+                                        }
+                                    }
+                                }
+                            }
+                            if (adblockStatus.error != null) {
+                                item {
+                                    Text(
+                                        text = "Update error: ${adblockStatus.error}",
+                                        color = MaterialTheme.colorScheme.error,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                                    )
+                                }
+                            }
+                            item {
+                                SettingsGroupHeader(text = "Enabled list status")
+                            }
+                            items(blockingPrefs.enabledLists.toList()) { listId ->
+                                val catalogList = FilterListCatalog.byId(listId)
+                                val title = catalogList?.title ?: listId
+                                val state = listStates[listId]
+                                val desc = when {
+                                    state?.error != null -> "Error: ${state.error}"
+                                    state != null -> "${state.ruleLines} rules · updated ${formatRelativeTime(state.fetchedAt)}"
+                                    else -> "Not downloaded yet"
+                                }
+                                InfoRow(
+                                    title = title,
+                                    value = desc,
+                                )
+                            }
+                        },
+                    )
+                }
                 SettingsPage.PROTECTION -> ProtectionPage(
                     viewModel = settingsViewModel,
                     onBack = { if (!nav.back()) activity?.finish() },
                 )
-                SettingsPage.PRIVACY -> PrivacyPage(
-                    viewModel = settingsViewModel,
-                    onBack = { if (!nav.back()) activity?.finish() },
-                    onShowSnackbar = { msg ->
-                        scope.launch { snackbarHostState.showSnackbar(msg) }
-                    },
-                )
+                SettingsPage.PRIVACY -> {
+                    var showClearDataConfirmDialog by remember { mutableStateOf(false) }
+
+                    PrivacyPage(
+                        viewModel = settingsViewModel,
+                        onBack = { if (!nav.back()) activity?.finish() },
+                        onShowSnackbar = { msg ->
+                            scope.launch { snackbarHostState.showSnackbar(msg) }
+                        },
+                        extraRows = {
+                            item {
+                                NavRow(
+                                    title = "Clear cookies, cache and site storage",
+                                    summary = "Removes cookies, cache, web storage and passwords",
+                                    onClick = { showClearDataConfirmDialog = true },
+                                )
+                            }
+                        },
+                    )
+
+                    if (showClearDataConfirmDialog) {
+                        AlertDialog(
+                            onDismissRequest = { showClearDataConfirmDialog = false },
+                            title = { Text("Clear cookies, cache and site storage") },
+                            text = { Text("Clear all cookies, cache, web storage, and saved form data from the in-app browser?") },
+                            confirmButton = {
+                                TextButton(
+                                    onClick = {
+                                        showClearDataConfirmDialog = false
+                                        android.webkit.CookieManager.getInstance().removeAllCookies(null)
+                                        android.webkit.WebStorage.getInstance().deleteAllData()
+                                        android.webkit.WebView(context).clearCache(true)
+                                        runCatching { android.webkit.WebViewDatabase.getInstance(context).clearHttpAuthUsernamePassword() }
+                                        @Suppress("DEPRECATION")
+                                        runCatching { android.webkit.WebViewDatabase.getInstance(context).clearFormData() }
+                                        scope.launch { snackbarHostState.showSnackbar("Browsing data cleared") }
+                                    }
+                                ) {
+                                    Text("Clear")
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { showClearDataConfirmDialog = false }) {
+                                    Text("Cancel")
+                                }
+                            }
+                        )
+                    }
+                }
                 SettingsPage.PAGE -> PagesPage(
                     viewModel = settingsViewModel,
                     onBack = { if (!nav.back()) activity?.finish() },
@@ -361,10 +602,23 @@ fun MainNavigation() {
                 SettingsPage.SAVED -> SavedPage(
                     viewModel = settingsViewModel,
                     onBack = { if (!nav.back()) activity?.finish() },
+                    onShowSnackbar = { msg ->
+                        scope.launch { snackbarHostState.showSnackbar(msg) }
+                    },
                 )
                 SettingsPage.ABOUT -> AboutPage(
                     viewModel = settingsViewModel,
                     onBack = { if (!nav.back()) activity?.finish() },
+                    extraRows = {
+                        item {
+                            NavRow(
+                                title = "Run setup again",
+                                onClick = {
+                                    settingsViewModel.setOnboardingVersion(0)
+                                },
+                            )
+                        }
+                    },
                 )
             }
         }
@@ -375,16 +629,62 @@ fun MainNavigation() {
             )
         }
 
+        entry<SiteSettingsNavKey> {
+            SiteSettingsScreen(
+                userStore = container.userStore,
+                settingsRepository = container.settingsRepository,
+                onBack = { if (!nav.back()) activity?.finish() },
+            )
+        }
+
         entry<SavedNavKey> {
             val savedViewModel: SavedViewModel = viewModel {
                 SavedViewModel(
                     container.datasetStore,
                     container.bookmarks,
+                    container.userStore,
+                    container.settingsRepository,
                 )
             }
             SavedScreen(
                 viewModel = savedViewModel,
                 container = container,
+                onShowSnackbar = { msg ->
+                    scope.launch { snackbarHostState.showSnackbar(msg) }
+                }
+            )
+        }
+
+        entry<CheckLinkNavKey> { key ->
+            CheckLinkScreen(
+                initialQuery = key.initial,
+                container = container,
+                onBack = { if (!nav.back()) activity?.finish() },
+                onShowSnackbar = { msg ->
+                    scope.launch { snackbarHostState.showSnackbar(msg) }
+                }
+            )
+        }
+
+        entry<ReaderNavKey> { key ->
+            ReaderScreen(
+                path = key.path,
+                title = key.title,
+                container = container,
+                onBack = { if (!nav.back()) activity?.finish() },
+                onShowSnackbar = { msg ->
+                    scope.launch { snackbarHostState.showSnackbar(msg) }
+                }
+            )
+        }
+
+        entry<PostsNavKey> {
+            PostsScreen(
+                container = container,
+                onBack = { if (!nav.back()) activity?.finish() },
+                onNavigateToReader = { path, title ->
+                    nav.push(ReaderNavKey(path, title))
+                },
                 onShowSnackbar = { msg ->
                     scope.launch { snackbarHostState.showSnackbar(msg) }
                 }
@@ -512,7 +812,21 @@ fun MainNavigation() {
                         )
                     }
                 }
+
+                // Onboarding full screen overlay
+                if (showOnboarding) {
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = MaterialTheme.colorScheme.background,
+                    ) {
+                        OnboardingScreen(
+                            container = container,
+                            onFinished = {},
+                        )
+                    }
+                }
             }
         }
+        UnsafeWarningDialog(linkOpener)
     }
 }

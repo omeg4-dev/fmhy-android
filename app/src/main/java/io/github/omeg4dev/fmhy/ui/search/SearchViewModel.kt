@@ -13,6 +13,9 @@ import io.github.omeg4dev.fmhy.data.search.SearchEngine
 import io.github.omeg4dev.fmhy.data.search.SearchGroup
 import io.github.omeg4dev.fmhy.data.search.SearchResults
 import io.github.omeg4dev.fmhy.ui.common.NewBadgeLogic
+import io.github.omeg4dev.fmhy.data.safety.SafeGuard
+import io.github.omeg4dev.fmhy.data.safety.Verdict
+import io.github.omeg4dev.fmhy.ui.check.looksLikeUrl
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
@@ -43,6 +46,7 @@ data class SearchUiState(
     val recentSearches: ImmutableList<String> = persistentListOf(),
     val isSearching: Boolean = false,
     val hasSearched: Boolean = false,
+    val verdict: Verdict? = null,
     val newEntryIds: Set<String> = emptySet(),
 )
 
@@ -52,6 +56,7 @@ class SearchViewModel(
     private val store: DatasetStore,
     private val searchEngine: SearchEngine,
     private val settingsRepository: SettingsRepository,
+    private val safeGuard: SafeGuard = SafeGuard(store),
 ) : ViewModel() {
 
     val query = MutableStateFlow(initialQuery)
@@ -78,9 +83,21 @@ class SearchViewModel(
     }.debounce(40L)
      .distinctUntilChanged()
 
+    private data class SearchEngineAndVerdict(
+        val results: SearchResults?,
+        val verdict: Verdict?,
+    )
+
     private val searchResults = searchParams.mapLatest { params ->
+        val trimmedQuery = params.query.trim()
+        val verdict = if (looksLikeUrl(trimmedQuery) && store.isAvailable) {
+            safeGuard.check(trimmedQuery)
+        } else {
+            null
+        }
+
         val effectiveQuery = buildString {
-            append(params.query.trim())
+            append(trimmedQuery)
             if (params.starredOnly) {
                 if (isNotEmpty()) append(" ")
                 append("is:starred")
@@ -91,7 +108,7 @@ class SearchViewModel(
             }
         }
 
-        if ((effectiveQuery.isBlank() && params.filters.isEmpty()) || !store.isAvailable) {
+        val results = if ((effectiveQuery.isBlank() && params.filters.isEmpty()) || !store.isAvailable) {
             null
         } else {
             searchEngine.search(
@@ -100,59 +117,50 @@ class SearchViewModel(
                 limit = 200
             )
         }
+        SearchEngineAndVerdict(results, verdict)
     }.flowOn(Dispatchers.IO)
 
-    private data class FilterParams(
-        val query: String,
-        val starredOnly: Boolean,
-        val b64Only: Boolean,
-        val selectedSectionFilters: Set<String>,
+    private data class RecentsAndPrefs(
+        val recents: List<String>,
         val homePrefs: io.github.omeg4dev.fmhy.data.HomePrefs,
     )
 
-    private val filterParams = combine(
-        query,
-        starredOnly,
-        b64Only,
-        selectedSectionFilters,
-        settingsRepository.homePrefs,
-    ) { q, starred, b64, filters, homePrefs ->
-        FilterParams(q, starred, b64, filters, homePrefs)
-    }
-
     val uiState: StateFlow<SearchUiState> = combine(
-        filterParams,
+        combine(query, starredOnly, b64Only) { q, starred, b64 -> Triple(q, starred, b64) },
+        selectedSectionFilters,
         allSections,
-        settingsRepository.recentSearches,
+        combine(settingsRepository.recentSearches, settingsRepository.homePrefs) { r, h -> RecentsAndPrefs(r, h) },
         searchResults,
-    ) { params: FilterParams, sections: List<Section>, recents: List<String>, results: SearchResults? ->
+    ) { (q, starred, b64), filters, sections, recentsAndPrefs, engineAndVerdict ->
+        val results = engineAndVerdict.results
         val groups: ImmutableList<SearchGroup> = (results?.groups ?: emptyList()).toImmutableList()
+        val badgeDays = recentsAndPrefs.homePrefs.newBadgeDays
         val allVisibleIds = groups.flatMap { g -> g.hits.map { it.entry.id } }
-        val newEntryIds = if (params.homePrefs.newBadgeDays > 0 && allVisibleIds.isNotEmpty()) {
+        val newEntryIds = if (badgeDays > 0 && allVisibleIds.isNotEmpty()) {
             val addedMap = try {
                 store.addedAt(allVisibleIds)
             } catch (_: Exception) {
                 emptyMap()
             }
             val nowSec = System.currentTimeMillis() / 1000
-            addedMap.filter { NewBadgeLogic.isNew(it.value, nowSec, params.homePrefs.newBadgeDays) }.keys
+            addedMap.filter { NewBadgeLogic.isNew(it.value, nowSec, badgeDays) }.keys
         } else emptySet()
-
         SearchUiState(
-            query = params.query,
-            starredOnly = params.starredOnly,
-            b64Only = params.b64Only,
-            selectedSectionFilters = params.selectedSectionFilters,
-            availableSections = sections.toImmutableList(),
+            query = q,
+            starredOnly = starred,
+            b64Only = b64,
+            selectedSectionFilters = filters,
+            availableSections = sections,
             groups = groups,
             total = results?.total ?: 0,
             tookMs = results?.tookMs ?: 0L,
-            recentSearches = recents.toImmutableList(),
+            recentSearches = recentsAndPrefs.recents.toImmutableList(),
             isSearching = false,
-            hasSearched = results != null,
+            hasSearched = results != null || engineAndVerdict.verdict != null,
+            verdict = engineAndVerdict.verdict,
             newEntryIds = newEntryIds,
         )
-    }.stateIn(
+    }.flowOn(Dispatchers.IO).stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5000),
         SearchUiState(query = initialQuery)

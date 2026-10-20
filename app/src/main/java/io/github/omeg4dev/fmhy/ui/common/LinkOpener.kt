@@ -22,14 +22,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
+import io.github.omeg4dev.fmhy.browser.BrowserActivity
 import io.github.omeg4dev.fmhy.SectionNavKey
 import io.github.omeg4dev.fmhy.data.DatasetStore
 import io.github.omeg4dev.fmhy.data.OpenLinksWith
 import io.github.omeg4dev.fmhy.data.SettingsRepository
+import io.github.omeg4dev.fmhy.data.doc.DocFetcher
 import io.github.omeg4dev.fmhy.data.link.CrossLinks
 import io.github.omeg4dev.fmhy.data.link.LinkTarget
 import io.github.omeg4dev.fmhy.data.link.PasteLinks
 import io.github.omeg4dev.fmhy.data.link.PasteResolver
+import io.github.omeg4dev.fmhy.data.user.UserStore
 import io.github.omeg4dev.fmhy.di.AppContainer
 import io.github.omeg4dev.fmhy.nav.LocalAppNav
 import kotlinx.coroutines.CoroutineScope
@@ -37,6 +40,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.io.File
+
+data class PendingNote(
+    val path: String,
+    val originalUrl: String,
+    val title: String,
+)
 
 class LinkOpener(
     private val context: Context,
@@ -47,6 +56,8 @@ class LinkOpener(
     private val crossLinks: StateFlow<CrossLinks?>? = null,
     private val onOpenInternal: (LinkTarget) -> Unit = {},
     private val pasteResolver: PasteResolver? = null,
+    private val userStore: UserStore? = null,
+    val docFetcher: DocFetcher? = null,
 ) {
     /** Links decoded from a pastebin page that hides several; the chooser dialog shows them. */
     var pendingPasteChoices by mutableStateOf<List<String>?>(null)
@@ -56,11 +67,30 @@ class LinkOpener(
         private set
     var pendingUnsafeReason by mutableStateOf<String?>(null)
         private set
+    private var pendingUnsafeEntryId: String? = null
 
-    fun openUrl(url: String) {
+    var pendingNote by mutableStateOf<PendingNote?>(null)
+        private set
+
+    fun dismissNote() {
+        pendingNote = null
+    }
+
+    fun openNoteDirectly(url: String) {
+        pendingNote = null
+        openUrlDirectly(url)
+    }
+
+    fun openUrl(url: String, entryId: String? = null) {
         val target = crossLinks?.value?.resolve(url)
         if (target != null) {
             onOpenInternal(target)
+            return
+        }
+        val noteInfo = extractNoteInfo(url)
+        if (noteInfo != null && docFetcher != null) {
+            val (path, title) = noteInfo
+            pendingNote = PendingNote(path = path, originalUrl = url, title = title)
             return
         }
         if (pasteResolver != null && PasteLinks.rawUrl(url) != null) {
@@ -68,53 +98,91 @@ class LinkOpener(
                 onShowSnackbar("Decoding hidden link…")
                 val urls = pasteResolver.resolve(url)
                 when {
-                    urls == null -> openChecked(url)       // not decodable: show the paste itself
-                    urls.size == 1 -> openChecked(urls[0])
+                    urls == null -> openChecked(url, entryId)       // not decodable: show the paste itself
+                    urls.size == 1 -> openChecked(urls[0], entryId)
                     else -> pendingPasteChoices = urls
                 }
             }
             return
         }
-        openChecked(url)
+        openChecked(url, entryId)
     }
 
     fun choosePasteLink(url: String?) {
         pendingPasteChoices = null
-        if (url != null) openChecked(url)
+        if (url != null) openChecked(url, null)
     }
 
-    private fun openChecked(url: String) {
+    private fun openChecked(url: String, entryId: String? = null) {
         coroutineScope.launch {
             val unsafeWarning = settingsRepository.protectionPrefs.first().unsafeWarning
             val reason = if (unsafeWarning && store.isAvailable) store.unsafeReason(url) else null
             if (reason != null) {
                 pendingUnsafeReason = reason
                 pendingUnsafeUrl = url
+                pendingUnsafeEntryId = entryId
             } else {
-                openUrlDirectly(url)
+                openUrlDirectly(url, entryId)
             }
         }
     }
 
     fun confirmOpenUnsafe() {
         val url = pendingUnsafeUrl
+        val entryId = pendingUnsafeEntryId
         pendingUnsafeUrl = null
         pendingUnsafeReason = null
+        pendingUnsafeEntryId = null
         if (url != null) {
-            openUrlDirectly(url)
+            openUrlDirectly(url, entryId)
         }
     }
 
     fun cancelOpenUnsafe() {
         pendingUnsafeUrl = null
         pendingUnsafeReason = null
+        pendingUnsafeEntryId = null
     }
 
-    private fun openUrlDirectly(url: String) {
+    private fun openUrlDirectly(url: String, entryId: String? = null) {
         coroutineScope.launch {
+            if (userStore != null) {
+                try {
+                    if (settingsRepository.dataPrefs.first().keepHistory) {
+                        val host = try { url.toUri().host?.removePrefix("www.").orEmpty().ifEmpty { url } } catch (_: Exception) { url }
+                        val matching = if (store.isAvailable) {
+                            try {
+                                store.entriesMatchingHost(host).firstOrNull {
+                                    it.url.trimEnd('/') == url.trimEnd('/') ||
+                                    it.originalUrl?.trimEnd('/') == url.trimEnd('/')
+                                }
+                            } catch (_: Exception) { null }
+                        } else null
+                        userStore.addHistory(url, matching?.id, matching?.name ?: host)
+                    }
+                } catch (_: Exception) {}
+            }
+
             val openWith = settingsRepository.browserPrefs.first().openLinksWith
             val uri = url.toUri()
             when (openWith) {
+                OpenLinksWith.IN_APP -> {
+                    try {
+                        val intent = BrowserActivity.intent(context, url, entryId).apply {
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        context.startActivity(intent)
+                    } catch (_: Exception) {
+                        try {
+                            val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            context.startActivity(intent)
+                        } catch (_: Exception) {
+                            onShowSnackbar("No browser found to open link")
+                        }
+                    }
+                }
                 OpenLinksWith.EXTERNAL -> {
                     try {
                         val intent = Intent(Intent.ACTION_VIEW, uri).apply {
@@ -125,9 +193,7 @@ class LinkOpener(
                         onShowSnackbar("No browser found to open link")
                     }
                 }
-                OpenLinksWith.CUSTOM_TAB,
-                OpenLinksWith.IN_APP -> {
-                    // IN_APP: BrowserActivity (0.5 wave 2)
+                OpenLinksWith.CUSTOM_TAB -> {
                     try {
                         val customTabsIntent = CustomTabsIntent.Builder()
                             .setShowTitle(true)
@@ -155,6 +221,10 @@ class LinkOpener(
 @Composable
 fun UnsafeWarningDialog(opener: LinkOpener) {
     PasteChoiceDialog(opener)
+    val fetcher = opener.docFetcher
+    if (fetcher != null) {
+        NoteSheet(opener, fetcher)
+    }
     val reason = opener.pendingUnsafeReason ?: return
     AlertDialog(
         onDismissRequest = { opener.cancelOpenUnsafe() },
@@ -231,7 +301,27 @@ fun rememberLinkOpener(
                 nav.push(SectionNavKey(target.sectionId, anchor = target.headingId))
             },
             pasteResolver = pasteResolverFor(container),
+            userStore = container.userStore,
+            docFetcher = container.docFetcher,
         )
     }
+}
+
+fun extractNoteInfo(url: String): Pair<String, String>? {
+    val regex = Regex("""(?:\.vitepress/notes/|docs/\.vitepress/notes/)([^/?#]+\.md)""", RegexOption.IGNORE_CASE)
+    val match = regex.find(url.trim()) ?: return null
+    val fileName = match.groupValues[1]
+    val path = ".vitepress/notes/$fileName"
+    val title = formatNoteTitle(fileName)
+    return path to title
+}
+
+fun formatNoteTitle(fileName: String): String {
+    val base = fileName.substringAfterLast('/').removeSuffix(".md")
+    return base.split('-', '_', ' ')
+        .filter { it.isNotBlank() }
+        .joinToString(" ") { word ->
+            word.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+        }
 }
 

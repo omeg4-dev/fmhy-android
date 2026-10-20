@@ -20,6 +20,7 @@ import io.github.omeg4dev.fmhy.data.SettingsRepository
 import io.github.omeg4dev.fmhy.data.ThemeMode
 import io.github.omeg4dev.fmhy.data.sync.SyncResult
 import io.github.omeg4dev.fmhy.data.sync.SyncState
+import io.github.omeg4dev.fmhy.data.user.ImportResult
 import io.github.omeg4dev.fmhy.di.AppContainer
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -275,4 +276,22 @@ class SettingsViewModel(
     }
 
     private fun ago(n: Long, unit: String) = if (n == 1L) "1 $unit ago" else "$n ${unit}s ago"
+
+    suspend fun exportBackup(includeHistory: Boolean): String {
+        return container.userStore.exportJson(includeHistory)
+    }
+
+    suspend fun importBackup(json: String): ImportResult {
+        return container.userStore.importJson(json)
+    }
+
+    suspend fun clearHistory() {
+        container.userStore.clearHistory()
+    }
+
+    fun setOnboardingVersion(v: Int) {
+        viewModelScope.launch {
+            settingsRepository.setOnboardingVersion(v)
+        }
+    }
 }

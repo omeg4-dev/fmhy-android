@@ -5,6 +5,7 @@ import android.util.Log
 import io.github.omeg4dev.fmhy.BuildConfig
 import io.github.omeg4dev.fmhy.data.DatasetStore
 import io.github.omeg4dev.fmhy.data.SettingsRepository
+import io.github.omeg4dev.fmhy.data.doc.DocFetcher
 import io.github.omeg4dev.fmhy.data.search.SearchEngine
 import io.github.omeg4dev.fmhy.data.sync.FmhySync
 import io.github.omeg4dev.fmhy.data.sync.SyncResult
@@ -12,8 +13,17 @@ import io.github.omeg4dev.fmhy.data.tracker.TrackerSync
 import io.github.omeg4dev.fmhy.data.BookmarksRepository
 import io.github.omeg4dev.fmhy.data.bookmarksDataStore
 import io.github.omeg4dev.fmhy.data.link.CrossLinks
+import io.github.omeg4dev.fmhy.data.safety.SafeGuard
 import io.github.omeg4dev.fmhy.data.user.UserStore
 import androidx.navigation3.runtime.NavKey
+import io.github.omeg4dev.fmhy.browser.BrowserHooks
+import io.github.omeg4dev.fmhy.browser.DefaultBrowserHooks
+import io.github.omeg4dev.fmhy.browser.TabManager
+import io.github.omeg4dev.fmhy.browser.adblock.AdblockService
+import io.github.omeg4dev.fmhy.browser.adblock.DefaultAdblockUpdater
+import io.github.omeg4dev.fmhy.browser.adblock.ScriptletLibrary
+import io.github.omeg4dev.fmhy.data.adblock.FilterListUpdater
+import io.github.omeg4dev.fmhy.data.adblock.OkHttpListFetcher
 import java.io.File
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineScope
@@ -42,7 +52,11 @@ sealed interface SyncStatus {
     data class Finished(val result: SyncResult) : SyncStatus
 }
 
-interface AppContainer {
+interface OnboardingActions {
+    fun startFilterDownload() {}
+}
+
+interface AppContainer : OnboardingActions {
     val context: Context
     val appScope: CoroutineScope
     val okHttpClient: OkHttpClient
@@ -57,13 +71,18 @@ interface AppContainer {
     val searchEngine: SearchEngine
     val settingsRepository: SettingsRepository
     val bookmarks: BookmarksRepository
+    val docFetcher: DocFetcher
     val crossLinks: StateFlow<CrossLinks?>
+    val safeGuard: SafeGuard
     val isInitialized: StateFlow<Boolean>
     val syncStatus: StateFlow<SyncStatus>
     val snackbarEvents: SharedFlow<String>
     val navigationEvents: SharedFlow<NavKey>
         get() = kotlinx.coroutines.flow.MutableSharedFlow()
     val isSyncBannerConsumed: Boolean
+    val adblockService: AdblockService get() = error("Not supported")
+    val tabManager: TabManager get() = error("Not supported")
+    val browserHooks: BrowserHooks get() = error("Not supported")
 
     fun markSyncBannerConsumed()
     fun showSnackbar(message: String)
@@ -94,6 +113,57 @@ class DefaultAppContainer(override val context: Context) : AppContainer {
         )
     }
 
+    override val browserHooks: BrowserHooks by lazy {
+        DefaultBrowserHooks()
+    }
+
+    private val adblockDir by lazy {
+        File(context.filesDir, "filters")
+    }
+
+    private val filterListUpdater by lazy {
+        FilterListUpdater(
+            dir = adblockDir,
+            fetcher = OkHttpListFetcher(okHttpClient),
+            clock = { System.currentTimeMillis() },
+            log = { msg -> Log.d("FmhyAdblock", msg) }
+        )
+    }
+
+    private val scriptletLibrary by lazy {
+        ScriptletLibrary(context)
+    }
+
+    override val adblockService: AdblockService by lazy {
+        AdblockService(
+            settingsRepository = settingsRepository,
+            updater = DefaultAdblockUpdater(filterListUpdater),
+            scriptletLibrary = scriptletLibrary,
+            coroutineScope = appScope,
+        )
+    }
+
+    override val tabManager: TabManager by lazy {
+        TabManager(
+            appContext = context.applicationContext,
+            settingsRepository = settingsRepository,
+            userStore = userStore,
+            adblockService = adblockService,
+            scriptletLibrary = scriptletLibrary,
+            browserHooks = browserHooks,
+            appScope = appScope,
+        )
+    }
+
+    private val docsDir by lazy { File(context.filesDir, "docs").apply { mkdirs() } }
+
+    override val docFetcher: DocFetcher by lazy {
+        DocFetcher(
+            docsDir = docsDir,
+            client = okHttpClient,
+        )
+    }
+
     override val crossLinks: StateFlow<CrossLinks?> by lazy {
         datasetStore.changes
             .map { if (datasetStore.isAvailable) CrossLinks(datasetStore.allHeadings()) else null }
@@ -116,6 +186,10 @@ class DefaultAppContainer(override val context: Context) : AppContainer {
 
     override val datasetStore: DatasetStore by lazy {
         DatasetStore(dbFile)
+    }
+
+    override val safeGuard: SafeGuard by lazy {
+        SafeGuard(datasetStore)
     }
 
     override val fmhySync: FmhySync by lazy {
@@ -215,6 +289,13 @@ class DefaultAppContainer(override val context: Context) : AppContainer {
         _navigationEvents.tryEmit(key)
     }
 
+    override fun startFilterDownload() {
+        appScope.launch(Dispatchers.IO) {
+            runCatching { adblockService.updateNow() }
+                .onFailure { Log.w("FmhyAdblock", "Filter list download failed", it) }
+        }
+    }
+
     override fun initialize() {
         appScope.launch(Dispatchers.IO) {
             try {
@@ -223,6 +304,7 @@ class DefaultAppContainer(override val context: Context) : AppContainer {
                     datasetStore.close()
                     installSnapshotIfAvailable()
                 }
+                adblockService.initialize()
             } catch (e: Exception) {
                 Log.e("FmhySync", "Initialization error: ${e.message}", e)
             } finally {

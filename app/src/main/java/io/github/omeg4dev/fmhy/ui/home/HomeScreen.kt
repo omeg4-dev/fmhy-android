@@ -34,6 +34,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material.icons.outlined.Casino
 import androidx.compose.material.icons.outlined.NewReleases
 import androidx.compose.material3.Button
@@ -92,6 +93,9 @@ fun HomeScreen(
     onNavigateToSearch: () -> Unit,
     onNavigateToSection: (String) -> Unit,
     onNavigateToSettings: () -> Unit,
+    onNavigateToCheckLink: () -> Unit = {},
+    onNavigateToReader: (String, String) -> Unit = { _, _ -> },
+    onNavigateToPosts: () -> Unit = {},
     onShowSnackbar: (String) -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -123,6 +127,9 @@ fun HomeScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = onNavigateToCheckLink) {
+                        Icon(Icons.Default.VerifiedUser, contentDescription = "Check a link")
+                    }
                     IconButton(onClick = onNavigateToSettings) {
                         Icon(Icons.Default.Settings, contentDescription = "Settings")
                     }
@@ -455,6 +462,10 @@ fun HomeScreen(
                                                 when (section.id) {
                                                     "audio-tools" -> linkOpener.openUrl("https://fmhy.net/audio#audio-tools")
                                                     "educational-tools" -> linkOpener.openUrl("https://fmhy.net/educational#educational-tools")
+                                                    "beginners-guide" -> onNavigateToReader("beginners-guide.md", "Beginner's guide")
+                                                    "faq" -> onNavigateToReader("other/FAQ.md", "FAQ")
+                                                    "backups" -> onNavigateToReader("other/backups.md", "Backups & mirrors")
+                                                    "news-and-posts" -> onNavigateToPosts()
                                                     else -> onNavigateToSection(section.id)
                                                 }
                                             }
