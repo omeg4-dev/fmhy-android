@@ -109,6 +109,7 @@ dependencies {
   implementation(libs.androidx.lifecycle.process)
   implementation(libs.androidx.datastore.preferences)
   implementation(libs.androidx.browser)
+  implementation(libs.androidx.webkit)
   implementation(libs.androidx.work.runtime)
   implementation(libs.androidx.profileinstaller)
   implementation(libs.kotlinx.collections.immutable)

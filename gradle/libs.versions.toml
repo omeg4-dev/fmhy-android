@@ -11,6 +11,7 @@ androidxTestEspresso = "3.7.0"
 androidxSqlite = "2.7.1"
 androidxDatastore = "1.2.1"
 androidxBrowser = "1.10.0"
+androidxWebkit = "1.17.1"
 androidxWork = "2.12.0"
 androidxProfileinstaller = "1.4.1"
 collectionsImmutable = "0.5.2"
@@ -49,6 +50,7 @@ androidx-sqlite = { module = "androidx.sqlite:sqlite", version.ref = "androidxSq
 androidx-sqlite-bundled = { module = "androidx.sqlite:sqlite-bundled", version.ref = "androidxSqlite" }
 androidx-datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "androidxDatastore" }
 androidx-browser = { module = "androidx.browser:browser", version.ref = "androidxBrowser" }
+androidx-webkit = { module = "androidx.webkit:webkit", version.ref = "androidxWebkit" }
 androidx-work-runtime = { module = "androidx.work:work-runtime-ktx", version.ref = "androidxWork" }
 androidx-profileinstaller = { module = "androidx.profileinstaller:profileinstaller", version.ref = "androidxProfileinstaller" }
 kotlinx-collections-immutable = { module = "org.jetbrains.kotlinx:kotlinx-collections-immutable", version.ref = "collectionsImmutable" }
