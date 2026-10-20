@@ -6,6 +6,7 @@ import io.github.omeg4dev.fmhy.data.adblock.FilterListCatalog
 // defaults for new installs; DataStore keys live in DefaultSettingsRepository.
 
 enum class OpenLinksWith { IN_APP, CUSTOM_TAB, EXTERNAL }
+enum class ToolbarPosition { TOP, BOTTOM }
 enum class AppIcon { DEFAULT, UWU, MONOCHROME }
 enum class UpdateInterval(val hours: Long) { H12(12), DAILY(24), WEEKLY(168) }
 
@@ -30,6 +31,7 @@ data class BrowserPrefs(
     val maxTabs: Int = 10,
     val restoreTabs: Boolean = false,
     val searchEngine: SearchEngine = SearchEngine.DUCKDUCKGO,
+    val toolbarPosition: ToolbarPosition = ToolbarPosition.TOP,
     // Page
     val javascript: Boolean = true,
     /** Darken pages when the app is in dark theme. */

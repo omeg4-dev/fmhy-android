@@ -105,6 +105,7 @@ class DefaultSettingsRepository(
         private val KEY_BROWSER_MAX_TABS = intPreferencesKey("browser_max_tabs")
         private val KEY_BROWSER_RESTORE_TABS = booleanPreferencesKey("browser_restore_tabs")
         private val KEY_BROWSER_SEARCH_ENGINE = stringPreferencesKey("browser_search_engine")
+        private val KEY_BROWSER_TOOLBAR_POSITION = stringPreferencesKey("browser_toolbar_position")
         private val KEY_BROWSER_JAVASCRIPT = booleanPreferencesKey("browser_javascript")
         private val KEY_BROWSER_FORCE_DARK = booleanPreferencesKey("browser_force_dark")
         private val KEY_BROWSER_DESKTOP_BY_DEFAULT = booleanPreferencesKey("browser_desktop_by_default")
@@ -369,6 +370,9 @@ class DefaultSettingsRepository(
         val searchEngine = prefs[KEY_BROWSER_SEARCH_ENGINE]?.let { name ->
             try { SearchEngine.valueOf(name) } catch (_: IllegalArgumentException) { default.searchEngine }
         } ?: default.searchEngine
+        val toolbarPosition = prefs[KEY_BROWSER_TOOLBAR_POSITION]?.let { name ->
+            try { ToolbarPosition.valueOf(name) } catch (_: IllegalArgumentException) { default.toolbarPosition }
+        } ?: default.toolbarPosition
 
         return BrowserPrefs(
             openLinksWith = openLinksWith,
@@ -377,6 +381,7 @@ class DefaultSettingsRepository(
             maxTabs = prefs[KEY_BROWSER_MAX_TABS] ?: default.maxTabs,
             restoreTabs = prefs[KEY_BROWSER_RESTORE_TABS] ?: default.restoreTabs,
             searchEngine = searchEngine,
+            toolbarPosition = toolbarPosition,
             javascript = prefs[KEY_BROWSER_JAVASCRIPT] ?: default.javascript,
             forceDark = prefs[KEY_BROWSER_FORCE_DARK] ?: default.forceDark,
             desktopByDefault = prefs[KEY_BROWSER_DESKTOP_BY_DEFAULT] ?: default.desktopByDefault,
@@ -394,6 +399,7 @@ class DefaultSettingsRepository(
         prefs[KEY_BROWSER_MAX_TABS] = p.maxTabs
         prefs[KEY_BROWSER_RESTORE_TABS] = p.restoreTabs
         prefs[KEY_BROWSER_SEARCH_ENGINE] = p.searchEngine.name
+        prefs[KEY_BROWSER_TOOLBAR_POSITION] = p.toolbarPosition.name
         prefs[KEY_BROWSER_JAVASCRIPT] = p.javascript
         prefs[KEY_BROWSER_FORCE_DARK] = p.forceDark
         prefs[KEY_BROWSER_DESKTOP_BY_DEFAULT] = p.desktopByDefault
