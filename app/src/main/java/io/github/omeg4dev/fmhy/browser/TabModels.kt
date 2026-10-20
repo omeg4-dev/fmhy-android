@@ -39,6 +39,12 @@ data class TabState(
     val siteBarState: SiteBarState? = null,
     val interstitialState: InterstitialState? = null,
     val isVideoPlaying: Boolean = false,
+    /** width / height of the video last seen on the page, or null when unknown. */
+    val videoAspect: Float? = null,
+    /** The page has a <video> or <audio> element. */
+    val hasMedia: Boolean = false,
+    /** Current playback speed applied to the page's media (1 when untouched). */
+    val playbackSpeed: Float = 1f,
     val crashed: Boolean = false,
     val lastActiveTime: Long = 0L,
 )

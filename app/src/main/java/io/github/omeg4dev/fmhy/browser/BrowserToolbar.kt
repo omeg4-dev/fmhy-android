@@ -55,11 +55,14 @@ import androidx.compose.material.icons.filled.RemoveModerator
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -127,6 +130,7 @@ fun BrowserToolbar(
     onFindPrevious: () -> Unit = {},
     onFindClose: () -> Unit = {},
     onToggleDesktop: () -> Unit = {},
+    onSetPlaybackSpeed: (Float) -> Unit = {},
     onToggleBookmark: () -> Unit = {},
     onSelectTab: (Long) -> Unit = {},
     onCopyLink: () -> Unit = {},
@@ -308,6 +312,10 @@ fun BrowserToolbar(
             onToggleDesktop = {
                 showMenuSheet = false
                 onToggleDesktop()
+            },
+            onSetPlaybackSpeed = { speed ->
+                showMenuSheet = false
+                onSetPlaybackSpeed(speed)
             },
             onCopyLink = {
                 showMenuSheet = false
@@ -676,6 +684,7 @@ fun BrowserMenuSheet(
     onNewPrivateTab: () -> Unit,
     onFindInPage: () -> Unit,
     onToggleDesktop: () -> Unit,
+    onSetPlaybackSpeed: (Float) -> Unit,
     onCopyLink: () -> Unit,
     onOpenInBrowser: () -> Unit,
     onSiteSettings: () -> Unit,
@@ -830,6 +839,16 @@ fun BrowserMenuSheet(
                 )
             }
 
+            if (tab?.hasMedia == true) {
+                PlaybackSpeedRow(
+                    current = tab.playbackSpeed,
+                    onSelect = { speed ->
+                        haptics.tick()
+                        onSetPlaybackSpeed(speed)
+                    },
+                )
+            }
+
             MenuActionRow(
                 icon = Icons.Default.ContentCopy,
                 title = "Copy link",
@@ -893,6 +912,61 @@ private fun MenuIconButton(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
+    }
+}
+
+@Composable
+private fun PlaybackSpeedRow(
+    current: Float,
+    onSelect: (Float) -> Unit,
+) {
+    var open by remember { mutableStateOf(false) }
+    Box(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+                .clickable { open = true }
+                .padding(horizontal = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Speed,
+                    contentDescription = null,
+                    modifier = Modifier.size(24.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(modifier = Modifier.width(16.dp))
+                Text(
+                    text = "Playback speed",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            }
+            Text(
+                text = speedLabel(current),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            PLAYBACK_SPEEDS.forEach { speed ->
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = speedLabel(speed),
+                            color = if (speed == current) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                        )
+                    },
+                    onClick = {
+                        open = false
+                        onSelect(speed)
+                    },
+                )
+            }
+        }
     }
 }
 

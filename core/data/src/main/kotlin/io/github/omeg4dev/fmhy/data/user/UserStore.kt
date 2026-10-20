@@ -757,6 +757,22 @@ open class UserStore(
         bumpChanges()
     }
 
+    /** Deletes every key/value row whose key starts with [prefix]. Returns the number removed. */
+    suspend fun deleteKvPrefix(prefix: String): Int = withConnection { conn ->
+        val n = conn.prepare("SELECT COUNT(*) FROM kv WHERE substr(key, 1, ?) = ?").use { stmt ->
+            stmt.bindLong(1, prefix.length.toLong())
+            stmt.bindText(2, prefix)
+            if (stmt.step()) stmt.getLong(0).toInt() else 0
+        }
+        conn.prepare("DELETE FROM kv WHERE substr(key, 1, ?) = ?").use { stmt ->
+            stmt.bindLong(1, prefix.length.toLong())
+            stmt.bindText(2, prefix)
+            stmt.step()
+        }
+        if (n > 0) bumpChanges()
+        n
+    }
+
     // --- Backup & Restore ---
 
     suspend fun exportJson(includeHistory: Boolean): String {

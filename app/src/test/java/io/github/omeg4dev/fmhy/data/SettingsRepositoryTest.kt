@@ -53,12 +53,43 @@ class SettingsRepositoryTest {
             forceDark = false,
             desktopByDefault = true,
             textZoomFollowsApp = false,
-            videoAutoRotate = false,
+            fullscreenOrientation = FullscreenOrientation.LANDSCAPE,
             pictureInPicture = false,
+            autoPip = false,
             keepScreenOn = false,
+            doubleTapSeek = false,
+            defaultSpeed = 1.5f,
+            autoplay = AutoplayMode.BLOCK,
         )
         repo.updateBrowser { expected }
         assertEquals(expected, repo.browserPrefs.first())
+    }
+
+    @Test
+    fun fullscreenOrientationMigratesFromLegacyBoolean() = runTest {
+        val legacy = booleanPreferencesKey("browser_video_auto_rotate")
+        val (repoOn, storeOn) = createRepository(this)
+        storeOn.edit { it[legacy] = true }
+        assertEquals(FullscreenOrientation.AUTO, repoOn.browserPrefs.first().fullscreenOrientation)
+
+        val (repoOff, storeOff) = createRepository(this)
+        storeOff.edit { it[legacy] = false }
+        assertEquals(FullscreenOrientation.FOLLOW_PHONE, repoOff.browserPrefs.first().fullscreenOrientation)
+
+        val (repoNone, _) = createRepository(this)
+        assertEquals(FullscreenOrientation.AUTO, repoNone.browserPrefs.first().fullscreenOrientation)
+    }
+
+    @Test
+    fun newFullscreenOrientationKeyWinsOverLegacyBoolean() {
+        assertEquals(
+            FullscreenOrientation.LANDSCAPE,
+            resolveFullscreenOrientation("LANDSCAPE", legacyRotate = false),
+        )
+        assertEquals(
+            FullscreenOrientation.AUTO,
+            resolveFullscreenOrientation("garbage", legacyRotate = true),
+        )
     }
 
     @Test

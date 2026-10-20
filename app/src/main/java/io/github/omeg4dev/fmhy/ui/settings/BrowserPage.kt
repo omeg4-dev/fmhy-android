@@ -246,35 +246,14 @@ fun BrowserPage(
                             )
                         }
 
-                        // Video
-                        SettingsSection(title = "Video") {
-                            SwitchRow(
-                                title = "Rotate for fullscreen video",
-                                checked = browserPrefs.videoAutoRotate,
-                                onChange = { checked ->
-                                    viewModel.updateBrowser { it.copy(videoAutoRotate = checked) }
-                                },
-                            )
-                            SettingsDivider()
-                            SwitchRow(
-                                title = "Picture-in-picture",
-                                checked = browserPrefs.pictureInPicture,
-                                onChange = { checked ->
-                                    viewModel.updateBrowser { it.copy(pictureInPicture = checked) }
-                                },
-                            )
-                            SettingsDivider()
-                            SwitchRow(
-                                title = "Keep screen on while playing",
-                                checked = browserPrefs.keepScreenOn,
-                                onChange = { checked ->
-                                    viewModel.updateBrowser { it.copy(keepScreenOn = checked) }
-                                },
-                            )
-                        }
-
                         // More / NavRows
                         SettingsSection {
+                            NavRow(
+                                title = "Video",
+                                summary = "Fullscreen, picture-in-picture, speed",
+                                onClick = { onNavigateToPage(SettingsPage.VIDEO) },
+                            )
+                            SettingsDivider()
                             NavRow(
                                 title = "Ad blocking & protection",
                                 summary = adblockStr,

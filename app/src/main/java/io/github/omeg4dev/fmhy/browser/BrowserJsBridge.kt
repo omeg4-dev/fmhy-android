@@ -89,6 +89,29 @@ class BrowserJsBridge(
         }
     }
 
+    /** "muted" when unmuted media may not start without a user gesture, otherwise "any". */
+    @JavascriptInterface
+    fun autoplayMode(): String = autoplayScriptMode(tabManager.currentBrowserPrefs.autoplay)
+
+    @JavascriptInterface
+    fun hasMedia(found: Boolean) {
+        if (!found) return
+        tabManager.postToMain {
+            tabManager.setHasMedia(tabId)
+        }
+    }
+
+    /** Speed the page's media should play at; 0 when the app has no opinion. */
+    @JavascriptInterface
+    fun desiredRate(): Float = tabManager.getTabRecord(tabId)?.desiredRate ?: 0f
+
+    @JavascriptInterface
+    fun videoSize(w: Int, h: Int) {
+        tabManager.postToMain {
+            tabManager.setVideoSize(tabId, w, h)
+        }
+    }
+
     @JavascriptInterface
     fun mediaEvent(type: String) {
         tabManager.postToMain {

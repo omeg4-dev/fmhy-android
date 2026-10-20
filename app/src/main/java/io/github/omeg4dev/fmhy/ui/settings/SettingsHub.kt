@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.OndemandVideo
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bookmarks
 import androidx.compose.material.icons.filled.Home
@@ -158,6 +159,13 @@ fun SettingsHub(
                         summary = browserStr,
                         icon = Icons.Default.Public,
                         onClick = { onNavigateToPage(SettingsPage.BROWSER) },
+                    )
+                    SettingsDivider(hasIcon = true)
+                    NavRow(
+                        title = "Video",
+                        summary = "Fullscreen, picture-in-picture, speed",
+                        icon = Icons.Outlined.OndemandVideo,
+                        onClick = { onNavigateToPage(SettingsPage.VIDEO) },
                     )
                     SettingsDivider(hasIcon = true)
                     NavRow(

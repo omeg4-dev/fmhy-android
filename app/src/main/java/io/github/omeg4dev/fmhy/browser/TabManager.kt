@@ -15,6 +15,7 @@ import androidx.core.view.drawToBitmap
 import io.github.omeg4dev.fmhy.browser.adblock.AdblockService
 import io.github.omeg4dev.fmhy.browser.adblock.ScriptletLibrary
 import io.github.omeg4dev.fmhy.data.Appearance
+import io.github.omeg4dev.fmhy.data.AutoplayMode
 import io.github.omeg4dev.fmhy.data.BrowserPrefs
 import io.github.omeg4dev.fmhy.data.DataPrefs
 import io.github.omeg4dev.fmhy.data.PrivacyPrefs
@@ -56,6 +57,11 @@ class TabRecord(
     var siteBarState: SiteBarState? = null,
     var interstitialState: InterstitialState? = null,
     var isVideoPlaying: Boolean = false,
+    @Volatile var videoWidth: Int = 0,
+    @Volatile var videoHeight: Int = 0,
+    @Volatile var hasMedia: Boolean = false,
+    /** Playback speed to apply to this page's media; 0 = leave the page alone. */
+    @Volatile var desiredRate: Float = 0f,
     var hasStartedFirstLoad: Boolean = false,
     var entryHost: String? = null,
     var lastLoadedHost: String? = null,
@@ -92,6 +98,9 @@ class TabRecord(
         siteBarState = siteBarState,
         interstitialState = interstitialState,
         isVideoPlaying = isVideoPlaying,
+        hasMedia = hasMedia,
+        playbackSpeed = if (desiredRate > 0f) desiredRate else 1f,
+        videoAspect = if (videoWidth > 0 && videoHeight > 0) videoWidth.toFloat() / videoHeight else null,
         crashed = crashed,
         lastActiveTime = lastActiveTime,
     )
@@ -221,6 +230,8 @@ class TabManager(
     var onPickerCancelCallback: ((tabId: Long) -> Unit)? = null
     var onExternalAppCallback: ((intent: android.content.Intent, appName: String) -> Unit)? = null
     var onVideoPlayingChanged: ((Boolean) -> Unit)? = null
+    /** Fired (main thread) when something picture-in-picture depends on changed for the current tab. */
+    var onPipStateChanged: (() -> Unit)? = null
 
     private val thumbnails = java.util.concurrent.ConcurrentHashMap<Long, Bitmap>()
     private val lastThumbnailCapture = java.util.concurrent.ConcurrentHashMap<Long, Long>()
@@ -290,7 +301,12 @@ class TabManager(
     init {
         (browserHooks as? DefaultBrowserHooks)?.attachTabManager(this)
         appScope.launch {
-            settingsRepository.browserPrefs.collect { currentBrowserPrefs = it }
+            var lastAutoplay: AutoplayMode? = null
+            settingsRepository.browserPrefs.collect {
+                currentBrowserPrefs = it
+                if (lastAutoplay != null && lastAutoplay != it.autoplay) applyAutoplayToWebViews(it.autoplay)
+                lastAutoplay = it.autoplay
+            }
         }
         appScope.launch {
             try {
@@ -659,9 +675,21 @@ class TabManager(
         } catch (_: Throwable) {}
     }
 
-    fun onActivityPause() {
+    /**
+     * The activity is going away from the foreground. With [keepPlaying] the active tab keeps running
+     * (its WebView is not paused and timers keep ticking) so its media goes on in the background;
+     * every other tab is paused individually.
+     */
+    fun onActivityPause(keepPlaying: Boolean = false) {
         isActivityResumed = false
         val active = getActiveTabRecord()
+        if (keepPlaying && active != null) {
+            keepAliveTabId = active.id
+            val others = synchronized(records) { records.filter { it.id != active.id } }
+            others.forEach { pauseTab(it) }
+            return
+        }
+        keepAliveTabId = null
         if (active != null && active.id != keepAliveTabId) {
             pauseTab(active)
         }
@@ -673,6 +701,7 @@ class TabManager(
 
     fun onActivityResume() {
         isActivityResumed = true
+        keepAliveTabId = null
         val active = getActiveTabRecord()
         try {
             val wv = active?.webView ?: synchronized(records) { records.firstNotNullOfOrNull { it.webView } }
@@ -899,7 +928,131 @@ class TabManager(
         updateTabsFlow()
         if (_currentTabId.value == tabId) {
             onVideoPlayingChanged?.invoke(isPlaying)
+            onPipStateChanged?.invoke()
         }
+    }
+
+    /** Applies the autoplay setting to every live WebView straight away. */
+    private fun applyAutoplayToWebViews(mode: AutoplayMode) {
+        val views = synchronized(records) { records.mapNotNull { it.webView } }
+        val js = VideoJs.setAutoplayCall(autoplayScriptMode(mode))
+        postToMain {
+            views.forEach { wv ->
+                try {
+                    wv.settings.mediaPlaybackRequiresUserGesture = autoplayNeedsGesture(mode)
+                    wv.evaluateJavascript(js, null)
+                } catch (_: Throwable) {}
+            }
+        }
+    }
+
+    /** Pauses or resumes the media of [tabId]; used by the background playback notification. */
+    fun controlMedia(tabId: Long, play: Boolean) {
+        val record = getTabRecord(tabId) ?: return
+        postToMain {
+            val wv = record.webView ?: return@postToMain
+            try {
+                if (play) {
+                    // A programmatic play() has no user gesture; allow it for this call only.
+                    val strict = wv.settings.mediaPlaybackRequiresUserGesture
+                    if (strict) wv.settings.mediaPlaybackRequiresUserGesture = false
+                    wv.evaluateJavascript(VideoJs.RESUME_MEDIA, null)
+                    if (strict) mainHandler?.postDelayed({
+                        try { wv.settings.mediaPlaybackRequiresUserGesture = currentBrowserPrefs.autoplay == AutoplayMode.BLOCK } catch (_: Throwable) {}
+                    }, 1500L)
+                } else {
+                    wv.evaluateJavascript(VideoJs.PAUSE_MEDIA, null)
+                }
+            } catch (_: Throwable) {}
+        }
+    }
+
+    /** Background playback is over (closed, idle too long): stop the media and pause the tab like normal. */
+    fun endBackgroundPlayback() {
+        val id = keepAliveTabId
+        keepAliveTabId = null
+        if (id == null) return
+        val record = getTabRecord(id)
+        postToMain {
+            val wv = record?.webView
+            if (wv != null) {
+                try { wv.evaluateJavascript(VideoJs.PAUSE_MEDIA, null) } catch (_: Throwable) {}
+            }
+            if (!isActivityResumed) {
+                if (record != null) pauseTab(record)
+                // Timers are global: the kept tab's WebView was the one left running.
+                try {
+                    val any = wv ?: synchronized(records) { records.firstNotNullOfOrNull { it.webView } }
+                    any?.pauseTimers()
+                } catch (_: Throwable) {}
+            }
+        }
+    }
+
+    /** Skips the active tab's video by [seconds] (negative = back). */
+    fun seekActiveVideo(seconds: Int) {
+        val record = getActiveTabRecord() ?: return
+        val js = VideoJs.seekCall(seconds)
+        postToMain {
+            try { record.webView?.evaluateJavascript(js, null) } catch (_: Throwable) {}
+        }
+    }
+
+    fun setHasMedia(tabId: Long) {
+        val record = getTabRecord(tabId) ?: return
+        if (record.hasMedia) return
+        record.hasMedia = true
+        updateTabsFlow()
+    }
+
+    /** Called when a page starts loading: forgets the last page's media and looks up its remembered speed. */
+    fun onPlaybackPageStarted(tabId: Long, url: String) {
+        val record = getTabRecord(tabId) ?: return
+        record.hasMedia = false
+        record.desiredRate = 0f
+        record.videoWidth = 0
+        record.videoHeight = 0
+        val host = try { Uri.parse(url).host } catch (_: Exception) { null }
+        appScope.launch {
+            val stored = if (host.isNullOrEmpty()) null else try {
+                parseStoredSpeed(userStore.get(videoSpeedKey(host)))
+            } catch (_: Exception) { null }
+            val rate = stored ?: currentBrowserPrefs.defaultSpeed.takeIf { it != 1f } ?: 0f
+            record.desiredRate = rate
+            if (rate > 0f) pushPlaybackRate(record)
+            updateTabsFlow()
+        }
+    }
+
+    /** Sets the playback speed for the tab's media and remembers it for the site (not in private tabs). */
+    fun setPlaybackSpeed(tabId: Long, speed: Float) {
+        val record = getTabRecord(tabId) ?: return
+        record.desiredRate = speed
+        pushPlaybackRate(record)
+        updateTabsFlow(immediate = true)
+        val host = try { Uri.parse(record.url).host } catch (_: Exception) { null }
+        if (!record.isPrivate && !host.isNullOrEmpty()) {
+            appScope.launch {
+                try { userStore.put(videoSpeedKey(host), formatStoredSpeed(speed)) } catch (_: Exception) {}
+            }
+        }
+    }
+
+    private fun pushPlaybackRate(record: TabRecord) {
+        val js = VideoJs.setRateCall(record.desiredRate)
+        postToMain {
+            try { record.webView?.evaluateJavascript(js, null) } catch (_: Throwable) {}
+        }
+    }
+
+    fun setVideoSize(tabId: Long, width: Int, height: Int) {
+        val record = getTabRecord(tabId) ?: return
+        if (width <= 0 || height <= 0) return
+        if (record.videoWidth == width && record.videoHeight == height) return
+        record.videoWidth = width
+        record.videoHeight = height
+        updateTabsFlow()
+        if (_currentTabId.value == tabId) onPipStateChanged?.invoke()
     }
 
     fun isVideoPlaying(): Boolean {

@@ -16,6 +16,7 @@ import androidx.webkit.WebViewFeature
 import io.github.omeg4dev.fmhy.browser.adblock.AdblockService
 import io.github.omeg4dev.fmhy.browser.adblock.ScriptletLibrary
 import io.github.omeg4dev.fmhy.data.Appearance
+import io.github.omeg4dev.fmhy.data.AutoplayMode
 import io.github.omeg4dev.fmhy.data.BrowserPrefs
 import io.github.omeg4dev.fmhy.data.ProtectionPrefs
 import io.github.omeg4dev.fmhy.data.user.SitePrefs
@@ -52,7 +53,7 @@ class BrowserWebViewFactory(
         settings.databaseEnabled = true
 
         // Media
-        settings.mediaPlaybackRequiresUserGesture = true
+        settings.mediaPlaybackRequiresUserGesture = browserPrefs.autoplay == AutoplayMode.BLOCK
 
         // Windows
         settings.setSupportMultipleWindows(true)
@@ -117,9 +118,11 @@ class BrowserWebViewFactory(
         webView.addJavascriptInterface(bridge, bridgeName)
 
         val cosmeticsJs = BrowserJsBridge.buildCosmeticsScript(bridgeName, sendGpc = tabManager.currentPrivacyPrefs.sendGpc)
+        val videoJs = VideoJs.script(bridgeName)
         val hasDocumentStartScript = WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)
         if (hasDocumentStartScript) {
             WebViewCompat.addDocumentStartJavaScript(webView, cosmeticsJs, setOf("*"))
+            WebViewCompat.addDocumentStartJavaScript(webView, videoJs, setOf("*"))
         }
 
         // Setup Clients
@@ -137,12 +140,14 @@ class BrowserWebViewFactory(
                 record.url = url
                 record.hasStartedFirstLoad = true
                 record.rescueState = null
+                tabManager.onPlaybackPageStarted(record.id, url)
                 tabManager.notifyTabChanged(record.id)
                 tabManager.updateTabUrlAndTitle(record.id, url, record.title)
                 (browserHooks as? DefaultBrowserHooks)?.onPageStarted(record, url)
 
                 if (!hasDocumentStartScript) {
                     view.evaluateJavascript(cosmeticsJs, null)
+                    view.evaluateJavascript(videoJs, null)
                 }
             }
 
@@ -236,6 +241,7 @@ class BrowserWebViewFactory(
     ) {
         val settings = webView.settings
         val defaultUa = settings.userAgentString
+        settings.mediaPlaybackRequiresUserGesture = browserPrefs.autoplay == AutoplayMode.BLOCK
 
         val jsAllowed = record.sitePrefs?.javascript ?: browserPrefs.javascript
         settings.javaScriptEnabled = jsAllowed

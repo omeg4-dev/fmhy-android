@@ -122,7 +122,6 @@ import io.github.omeg4dev.fmhy.ui.settings.DataPage
 import io.github.omeg4dev.fmhy.ui.settings.HomeListsPage
 import io.github.omeg4dev.fmhy.ui.settings.NavRow
 import io.github.omeg4dev.fmhy.ui.settings.NotificationsPage
-import io.github.omeg4dev.fmhy.ui.settings.PagesPage
 import io.github.omeg4dev.fmhy.ui.settings.PrivacyPage
 import io.github.omeg4dev.fmhy.ui.settings.ProtectionPage
 import io.github.omeg4dev.fmhy.ui.settings.SavedPage
@@ -492,13 +491,18 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                     onBack = { if (!nav.back()) activity?.finish() },
                     onNavigateToLegend = { nav.push(LegendNavKey) },
                 )
-                SettingsPage.BROWSER,
-                SettingsPage.PAGE,
-                SettingsPage.VIDEO -> BrowserPage(
+                SettingsPage.BROWSER -> BrowserPage(
                     viewModel = settingsViewModel,
                     onBack = { if (!nav.back()) activity?.finish() },
                     onNavigateToPage = { page -> nav.push(SettingsPageNavKey(page)) },
                     onNavigateToSiteSettings = { nav.push(SiteSettingsNavKey) },
+                )
+                SettingsPage.VIDEO -> VideoPage(
+                    viewModel = settingsViewModel,
+                    onBack = { if (!nav.back()) activity?.finish() },
+                    onShowSnackbar = { msg ->
+                        scope.launch { snackbarHostState.showSnackbar(msg) }
+                    },
                 )
                 SettingsPage.BLOCKING,
                 SettingsPage.PROTECTION -> BlockingPage(

@@ -31,7 +31,6 @@ enum class SettingsPage {
     BLOCKING,
     PROTECTION,
     PRIVACY,
-    PAGE,
     VIDEO,
     NOTIFICATIONS,
     DATA,

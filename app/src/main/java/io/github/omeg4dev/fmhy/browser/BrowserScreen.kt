@@ -536,6 +536,9 @@ fun BrowserScreen(
                                 onToggleDesktop = {
                                     currentTab?.let { tabManager.toggleDesktopSite(it.id) }
                                 },
+                                onSetPlaybackSpeed = { speed ->
+                                    currentTab?.let { tabManager.setPlaybackSpeed(it.id, speed) }
+                                },
                                 onToggleBookmark = {
                                     val tab = currentTab
                                     val entryId = tab?.entryId
@@ -638,10 +641,15 @@ fun BrowserScreen(
             // Full-screen video (WebChromeClient custom view)
             if (customView != null) {
                 AndroidView(
-                    factory = {
+                    factory = { ctx ->
                         (customView.parent as? ViewGroup)?.removeView(customView)
-                        customView
+                        DoubleTapSeekLayout(ctx) { seconds ->
+                            haptics.tick()
+                            tabManager.seekActiveVideo(seconds)
+                        }.also { it.setContent(customView) }
                     },
+                    update = { it.seekEnabled = browserPrefs.doubleTapSeek },
+                    onRelease = { it.removeAllViews() },
                     modifier = Modifier.fillMaxSize().background(Color.Black).zIndex(20f),
                 )
             }
