@@ -43,6 +43,9 @@ object ChangeClassifier {
      * Classifies changes between two entry markdown lines.
      * Name changes (including capitalisation-only changes) are classified as RENAMED.
      */
+    /** `detail` of an EDITED row: the old and the new raw line, separated by a newline (lines never contain one). */
+    fun editedDetail(oldLine: String, newLine: String): String = "$oldLine\n$newLine"
+
     fun classify(oldLine: String, newLine: String): LineDiff {
         val oldParsed = parseLinkLine(oldLine)
         val newParsed = parseLinkLine(newLine)

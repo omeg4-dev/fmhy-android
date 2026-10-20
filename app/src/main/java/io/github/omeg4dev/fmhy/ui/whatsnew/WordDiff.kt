@@ -23,6 +23,13 @@ object WordDiff {
      * - turns remaining `[label](url)` into `label`
      * - collapses whitespace
      */
+    /** The whole line as plain text: bullet, stars and bold removed, every [label](url) reduced to its label. */
+    fun plainLine(line: String): String {
+        var s = line.trim().trimStart('*', '-', ' ').replace("⭐", "").replace("🌟", "").replace("**", "")
+        s = LINK_REGEX.replace(s) { it.groupValues[1] }
+        return s.replace(Regex("\\s+"), " ").trim()
+    }
+
     fun descriptionOf(line: String): String {
         if (line.isBlank()) return ""
         var s = line.trim()

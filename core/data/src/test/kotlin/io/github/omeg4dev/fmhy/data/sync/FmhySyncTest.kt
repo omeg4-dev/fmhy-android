@@ -788,7 +788,8 @@ class FmhySyncTest {
         assertEquals("Edit Site", editChange!!.name)
         assertEquals("https://edit.com", editChange.url)
         assertEquals("audio", editChange.sectionId)
-        assertEquals("* [Edit Site](https://edit.com) - Old description", editChange.detail)
+        // detail = old line + "\n" + new line
+        assertEquals("* [Edit Site](https://edit.com) - Old description\n* [Edit Site](https://edit.com) - New description", editChange.detail)
 
         // Verify that move and url_change are not also in added or removed
         val addedUrls = changes.filter { it.kind == "added" }.map { it.url }

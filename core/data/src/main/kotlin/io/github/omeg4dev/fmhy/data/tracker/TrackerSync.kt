@@ -372,7 +372,7 @@ class TrackerSync(
                         val detail = when (k) {
                             ChangeKind.RENAMED -> diff.oldName ?: pair.rem.linkInfo.name
                             ChangeKind.URL_CHANGED -> diff.oldUrl ?: pair.rem.linkInfo.url
-                            ChangeKind.EDITED -> pair.rem.item.link
+                            ChangeKind.EDITED -> ChangeClassifier.editedDetail(pair.rem.item.link, pair.new.item.link)
                             else -> ""
                         }
                         changesToInsert.add(
@@ -398,7 +398,7 @@ class TrackerSync(
                         val detail = when (k) {
                             ChangeKind.RENAMED -> diff.oldName ?: pair.rem.linkInfo.name
                             ChangeKind.URL_CHANGED -> diff.oldUrl ?: pair.rem.linkInfo.url
-                            ChangeKind.EDITED -> pair.rem.item.link
+                            ChangeKind.EDITED -> ChangeClassifier.editedDetail(pair.rem.item.link, pair.new.item.link)
                             else -> ""
                         }
                         changesToInsert.add(
@@ -444,7 +444,7 @@ class TrackerSync(
                 val detail = when (k) {
                     ChangeKind.RENAMED -> diff.oldName ?: ""
                     ChangeKind.URL_CHANGED -> diff.oldUrl ?: ""
-                    ChangeKind.EDITED -> related
+                    ChangeKind.EDITED -> ChangeClassifier.editedDetail(related, upd.item.link)
                     else -> ""
                 }
                 changesToInsert.add(
@@ -513,7 +513,7 @@ class TrackerSync(
 
     companion object {
         /** Bump when the classification of tracker items changes, so stored rows get rebuilt. */
-        const val RULES_VERSION = 4
+        const val RULES_VERSION = 5
 
         internal fun parseLinkLine(line: String): ParsedLink? =
             ChangeClassifier.parseLinkLine(line)

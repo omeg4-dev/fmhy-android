@@ -113,4 +113,10 @@ class WordDiffTest {
         val compacted = WordDiff.compactDiff(diff, context = 4)
         assertEquals(diff, compacted)
     }
+
+    @Test
+    fun plainLineKeepsAllNamesAndDropsMarkup() {
+        val line = "* ⭐ **[Alfred](https://www.alfredapp.com/)**, [Raycast](https://www.raycast.com/) / [FMHY Search](https://x.y/z) - Keystroke Launchers"
+        assertEquals("Alfred, Raycast / FMHY Search - Keystroke Launchers", WordDiff.plainLine(line))
+    }
 }

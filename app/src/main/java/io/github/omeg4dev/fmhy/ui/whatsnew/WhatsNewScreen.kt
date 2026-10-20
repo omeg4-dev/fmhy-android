@@ -204,6 +204,10 @@ fun WhatsNewScreen(
                         haptics.tick()
                         viewModel.clearTypes()
                     },
+                    onSetTypes = {
+                        haptics.tick()
+                        viewModel.setTypes(it)
+                    },
                     onSetScope = {
                         haptics.tick()
                         viewModel.setScope(it)
@@ -221,7 +225,7 @@ fun WhatsNewScreen(
                     onSelectKind = { kind ->
                         haptics.tick()
                         if (state.types == setOf(kind)) {
-                            viewModel.clearTypes()
+                            viewModel.setTypes(WhatsNewGrouping.DEFAULT_TYPES)
                         } else {
                             viewModel.setTypes(setOf(kind))
                         }
@@ -407,6 +411,7 @@ private fun FilterBar(
     onSetPeriod: (WhatsNewPeriod) -> Unit,
     onToggleType: (ChangeKind) -> Unit,
     onClearTypes: () -> Unit,
+    onSetTypes: (Set<ChangeKind>) -> Unit,
     onSetScope: (WhatsNewScope) -> Unit,
     onOpenSectionsSheet: () -> Unit,
 ) {
@@ -451,13 +456,14 @@ private fun FilterBar(
         // 2. Type Pill
         val typeLabel = when {
             state.types.isEmpty() -> "All types"
+            state.types == WhatsNewGrouping.DEFAULT_TYPES -> "All but edits"
             state.types.size == 1 -> state.types.first().label()
             else -> "${state.types.size} types"
         }
         Box {
             FilterDropdownPill(
                 label = typeLabel,
-                active = state.types.isNotEmpty(),
+                active = state.types.isNotEmpty() && state.types != WhatsNewGrouping.DEFAULT_TYPES,
                 onClick = { typeMenuExpanded = true },
             )
             DropdownMenu(
@@ -471,6 +477,15 @@ private fun FilterBar(
                     } else null,
                     onClick = {
                         onClearTypes()
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text("All but edits") },
+                    trailingIcon = if (state.types == WhatsNewGrouping.DEFAULT_TYPES) {
+                        { Icon(Icons.Outlined.Check, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                    } else null,
+                    onClick = {
+                        onSetTypes(WhatsNewGrouping.DEFAULT_TYPES)
                     },
                 )
                 HorizontalDivider()
@@ -909,7 +924,9 @@ private fun ChangeCardRow(
                     )
                 }
                 ChangeKind.EDITED -> {
-                    if (card.oldLine.isNullOrBlank()) {
+                    // detail = "old line\nnew line"; older rows hold only the old line and get no diff.
+                    val lines = card.oldLine?.split('\n')
+                    if (lines == null || lines.size != 2) {
                         Text(
                             text = "Updated on FMHY",
                             style = MaterialTheme.typography.bodyMedium,
@@ -917,8 +934,8 @@ private fun ChangeCardRow(
                         )
                     } else {
                         EditedWordDiffView(
-                            oldLine = card.oldLine,
-                            newLine = card.entry?.description.orEmpty(),
+                            oldLine = lines[0],
+                            newLine = lines[1],
                             primaryLook = primaryLook,
                         )
                     }
@@ -966,8 +983,8 @@ private fun EditedWordDiffView(
     var isExpanded by remember { mutableStateOf(false) }
     val colorScheme = MaterialTheme.colorScheme
 
-    val oldDesc = remember(oldLine) { WordDiff.descriptionOf(oldLine) }
-    val newDesc = remember(newLine) { WordDiff.descriptionOf(newLine) }
+    val oldDesc = remember(oldLine) { WordDiff.plainLine(oldLine) }
+    val newDesc = remember(newLine) { WordDiff.plainLine(newLine) }
     val segments = remember(oldDesc, newDesc) {
         val diff = WordDiff.wordDiff(oldDesc, newDesc)
         WordDiff.compactDiff(diff, context = 4)

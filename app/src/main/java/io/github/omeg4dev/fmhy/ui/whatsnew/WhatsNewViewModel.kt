@@ -27,7 +27,7 @@ import kotlinx.coroutines.withContext
 @Immutable
 data class WhatsNewUiState(
     val period: WhatsNewPeriod = WhatsNewPeriod.WEEK,
-    val types: Set<ChangeKind> = emptySet(),
+    val types: Set<ChangeKind> = WhatsNewGrouping.DEFAULT_TYPES,
     val scope: WhatsNewScope = WhatsNewScope.All,
     val counts: Map<ChangeKind, Int> = emptyMap(),
     val totalCards: Int = 0,
@@ -48,7 +48,7 @@ class WhatsNewViewModel(
     private val userStore: UserStore = container.userStore
 
     private val period = MutableStateFlow(WhatsNewPeriod.WEEK)
-    private val types = MutableStateFlow<Set<ChangeKind>>(emptySet())
+    private val types = MutableStateFlow(WhatsNewGrouping.DEFAULT_TYPES)
     private val scope = MutableStateFlow<WhatsNewScope>(
         when (initialFilter) {
             "following" -> WhatsNewScope.Following

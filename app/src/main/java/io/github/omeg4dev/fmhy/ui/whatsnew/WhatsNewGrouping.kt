@@ -45,6 +45,9 @@ sealed interface WhatsNewScope {
 
 object WhatsNewGrouping {
 
+    /** Small text edits outnumber everything else, so the feed starts without them (one tap in the type menu). */
+    val DEFAULT_TYPES: Set<ChangeKind> = ChangeKind.entries.toSet() - ChangeKind.EDITED
+
     /** Priority order: REMOVED > ADDED > MOVED > RENAMED > URL_CHANGED > STARRED > UNSTARRED > EDITED */
     val PRIMARY_KIND_PRIORITY: List<ChangeKind> = listOf(
         ChangeKind.REMOVED,

@@ -1011,7 +1011,7 @@ open class FmhySync(
                                 val detail = when (k) {
                                     ChangeKind.RENAMED -> lineDiff.oldName ?: old.name
                                     ChangeKind.URL_CHANGED -> lineDiff.oldUrl ?: old.url
-                                    ChangeKind.EDITED -> oldLine
+                                    ChangeKind.EDITED -> ChangeClassifier.editedDetail(oldLine, newLine)
                                     else -> ""
                                 }
                                 changesToRecord.add(
