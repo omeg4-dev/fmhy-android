@@ -97,7 +97,7 @@ class DefaultAppContainer(override val context: Context) : AppContainer {
     }
 
     override val browserHooks: BrowserHooks by lazy {
-        DefaultBrowserHooks()
+        DefaultBrowserHooks(datasetStore = datasetStore)
     }
 
     private val adblockDir by lazy {

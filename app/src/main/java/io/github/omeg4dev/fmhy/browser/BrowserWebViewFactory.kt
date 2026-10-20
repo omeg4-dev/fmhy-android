@@ -88,6 +88,19 @@ class BrowserWebViewFactory(
             WebSettingsCompat.setSafeBrowsingEnabled(settings, safeBrowsing)
         }
 
+        // Third-party cookies
+        android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(webView, !tabManager.currentPrivacyPrefs.blockThirdPartyCookies)
+
+        // Multi-profile private tabs
+        if (record.isPrivate) {
+            if (WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) {
+                try {
+                    androidx.webkit.ProfileStore.getInstance().getOrCreateProfile("private")
+                    WebViewCompat.setProfile(webView, "private")
+                } catch (_: Exception) {}
+            }
+        }
+
         // Register JS bridge
         val bridge = BrowserJsBridge(
             tabId = record.id,
@@ -99,7 +112,7 @@ class BrowserWebViewFactory(
         )
         webView.addJavascriptInterface(bridge, bridgeName)
 
-        val cosmeticsJs = BrowserJsBridge.buildCosmeticsScript(bridgeName)
+        val cosmeticsJs = BrowserJsBridge.buildCosmeticsScript(bridgeName, sendGpc = tabManager.currentPrivacyPrefs.sendGpc)
         val hasDocumentStartScript = WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)
         if (hasDocumentStartScript) {
             WebViewCompat.addDocumentStartJavaScript(webView, cosmeticsJs, setOf("*"))
@@ -118,7 +131,11 @@ class BrowserWebViewFactory(
                 super.onPageStarted(view, url, favicon)
                 record.sourceUrl = url
                 record.url = url
+                record.hasStartedFirstLoad = true
+                record.rescueState = null
+                tabManager.notifyTabChanged(record.id)
                 tabManager.updateTabUrlAndTitle(record.id, url, record.title)
+                (browserHooks as? DefaultBrowserHooks)?.onPageStarted(record, url)
 
                 if (!hasDocumentStartScript) {
                     view.evaluateJavascript(cosmeticsJs, null)
@@ -144,9 +161,24 @@ class BrowserWebViewFactory(
                 )
             }
 
+            override fun onReceivedError(view: WebView, request: WebResourceRequest, error: android.webkit.WebResourceError) {
+                super.onReceivedError(view, request, error)
+                if (request.isForMainFrame) {
+                    browserHooks.onMainFrameError(record.toState(), error.errorCode, error.description?.toString().orEmpty(), request.url.toString())
+                }
+            }
+
+            @Suppress("DEPRECATION")
             override fun onReceivedError(view: WebView, errorCode: Int, description: String, failingUrl: String) {
                 super.onReceivedError(view, errorCode, description, failingUrl)
                 browserHooks.onMainFrameError(record.toState(), errorCode, description, failingUrl)
+            }
+
+            override fun onReceivedHttpError(view: WebView, request: WebResourceRequest, errorResponse: WebResourceResponse) {
+                super.onReceivedHttpError(view, request, errorResponse)
+                if (request.isForMainFrame) {
+                    browserHooks.onMainFrameHttpError(record.toState(), errorResponse.statusCode, request.url.toString())
+                }
             }
         }
 
@@ -202,6 +234,8 @@ class BrowserWebViewFactory(
     ) {
         val settings = webView.settings
         val defaultUa = settings.userAgentString
+
+        android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(webView, !tabManager.currentPrivacyPrefs.blockThirdPartyCookies)
 
         val jsAllowed = record.sitePrefs?.javascript ?: browserPrefs.javascript
         settings.javaScriptEnabled = jsAllowed

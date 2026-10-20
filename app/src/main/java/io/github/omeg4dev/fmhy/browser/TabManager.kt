@@ -13,6 +13,7 @@ import io.github.omeg4dev.fmhy.browser.adblock.ScriptletLibrary
 import io.github.omeg4dev.fmhy.data.Appearance
 import io.github.omeg4dev.fmhy.data.BrowserPrefs
 import io.github.omeg4dev.fmhy.data.DataPrefs
+import io.github.omeg4dev.fmhy.data.PrivacyPrefs
 import io.github.omeg4dev.fmhy.data.ProtectionPrefs
 import io.github.omeg4dev.fmhy.data.SettingsRepository
 import io.github.omeg4dev.fmhy.data.ThemeMode
@@ -47,8 +48,16 @@ class TabRecord(
     var desktopSite: Boolean = false,
     var darkPage: Boolean = false,
     var sitePrefs: SitePrefs? = null,
+    var rescueState: RescueState? = null,
+    var siteBarState: SiteBarState? = null,
+    var interstitialState: InterstitialState? = null,
+    var isVideoPlaying: Boolean = false,
+    var hasStartedFirstLoad: Boolean = false,
+    var entryHost: String? = null,
     var lastActiveTime: Long = System.currentTimeMillis(),
     val allowedOnceUrls: MutableSet<String> = mutableSetOf(),
+    val allowedHosts: MutableSet<String> = mutableSetOf(),
+    val dismissedSiteBarHosts: MutableSet<String> = mutableSetOf(),
     @Volatile var sourceUrl: String = url,
     var webView: WebView? = null,
     var mutableContext: MutableContextWrapper? = null,
@@ -68,6 +77,10 @@ class TabRecord(
         desktopSite = desktopSite,
         darkPage = darkPage,
         sitePrefs = sitePrefs,
+        rescueState = rescueState,
+        siteBarState = siteBarState,
+        interstitialState = interstitialState,
+        isVideoPlaying = isVideoPlaying,
     )
 }
 
@@ -102,24 +115,33 @@ class TabManager(
         bridgeName = bridgeName,
     )
 
+    val adblockService: AdblockService get() = _adblockService
+    private val _adblockService = adblockService
+
     // Callbacks for UI events
     var onPickerResultCallback: ((tabId: Long, selector: String) -> Unit)? = null
     var onPickerCancelCallback: ((tabId: Long) -> Unit)? = null
     var onExternalAppCallback: ((intent: android.content.Intent, appName: String) -> Unit)? = null
+    var onVideoPlayingChanged: ((Boolean) -> Unit)? = null
 
     // Cache of prefs to configure WebViews synchronously
     @Volatile var currentBrowserPrefs = BrowserPrefs()
     @Volatile var currentProtectionPrefs = ProtectionPrefs()
+    @Volatile var currentPrivacyPrefs = PrivacyPrefs()
     @Volatile var currentDataPrefs = DataPrefs()
     @Volatile var currentAppearance = Appearance()
     @Volatile var isAppDark = false
 
     init {
+        (browserHooks as? DefaultBrowserHooks)?.attachTabManager(this)
         appScope.launch {
             settingsRepository.browserPrefs.collect { currentBrowserPrefs = it }
         }
         appScope.launch {
             settingsRepository.protectionPrefs.collect { currentProtectionPrefs = it }
+        }
+        appScope.launch {
+            settingsRepository.privacyPrefs.collect { currentPrivacyPrefs = it }
         }
         appScope.launch {
             settingsRepository.dataPrefs.collect { currentDataPrefs = it }
@@ -222,12 +244,15 @@ class TabManager(
         select: Boolean = true
     ): Long {
         val id = nextId.getAndIncrement()
+        val actualPrivate = isPrivate || (url == "about:blank" && currentPrivacyPrefs.privateTabsByDefault)
+        val initialHost = try { Uri.parse(url).host } catch (_: Exception) { null }
         val record = TabRecord(
             id = id,
             url = url,
             title = if (title.isNotEmpty()) title else if (url == "about:blank" || url.isEmpty()) "New tab" else url,
-            isPrivate = isPrivate,
+            isPrivate = actualPrivate,
             entryId = entryId,
+            entryHost = initialHost,
             desktopSite = currentBrowserPrefs.desktopByDefault,
         )
 
@@ -236,7 +261,7 @@ class TabManager(
         }
 
         // Fetch site prefs for this host
-        val host = try { Uri.parse(url).host } catch (_: Exception) { null }
+        val host = initialHost
         if (!host.isNullOrEmpty()) {
             appScope.launch {
                 val sp = userStore.sitePrefs(host)
@@ -276,6 +301,25 @@ class TabManager(
             removed.webView = null
             removed.mutableContext = null
 
+            val remainingPrivate = records.any { it.isPrivate }
+            if (!remainingPrivate) {
+                if (androidx.webkit.WebViewFeature.isFeatureSupported(androidx.webkit.WebViewFeature.MULTI_PROFILE)) {
+                    try {
+                        androidx.webkit.ProfileStore.getInstance().deleteProfile("private")
+                    } catch (_: Exception) {}
+                } else {
+                    // Fallback limitation: On devices without WebView multi-profile support, private tabs share
+                    // cookie and storage space with standard tabs. Cookies and WebStorage are cleared when
+                    // the last private tab closes.
+                    android.webkit.CookieManager.getInstance().removeAllCookies(null)
+                    android.webkit.WebStorage.getInstance().deleteAllData()
+                }
+            }
+
+            if (records.isEmpty() && currentPrivacyPrefs.clearDataOnExit) {
+                clearAllBrowsingData()
+            }
+
             if (_currentTabId.value == tabId) {
                 val nextTab = if (records.isNotEmpty()) {
                     if (index < records.size) records[index] else records.last()
@@ -298,6 +342,14 @@ class TabManager(
             }
             records.clear()
             _currentTabId.value = null
+        }
+        if (androidx.webkit.WebViewFeature.isFeatureSupported(androidx.webkit.WebViewFeature.MULTI_PROFILE)) {
+            try {
+                androidx.webkit.ProfileStore.getInstance().deleteProfile("private")
+            } catch (_: Exception) {}
+        }
+        if (currentPrivacyPrefs.clearDataOnExit) {
+            clearAllBrowsingData()
         }
         updateTabsFlow()
     }
@@ -373,13 +425,19 @@ class TabManager(
         record.url = url
         record.sourceUrl = url
         ensureWebView(record)
-        record.webView?.loadUrl(url)
+        if (currentPrivacyPrefs.sendGpc) {
+            record.webView?.loadUrl(url, mapOf("Sec-GPC" to "1", "DNT" to "1"))
+        } else {
+            record.webView?.loadUrl(url)
+        }
         updateTabsFlow()
     }
 
     fun updateTabUrlAndTitle(tabId: Long, url: String, title: String) {
         val record = getTabRecord(tabId) ?: return
         record.url = url
+        record.hasStartedFirstLoad = true
+        record.rescueState = null
         if (title.isNotEmpty()) record.title = title
         val host = try { Uri.parse(url).host } catch (_: Exception) { null }
         if (!host.isNullOrEmpty()) {
@@ -390,6 +448,69 @@ class TabManager(
             }
         }
         updateTabsFlow()
+    }
+
+    fun setRescueState(tabId: Long, rescueState: RescueState?) {
+        val record = getTabRecord(tabId) ?: return
+        record.rescueState = rescueState
+        updateTabsFlow()
+    }
+
+    fun setSiteBarState(tabId: Long, siteBarState: SiteBarState?) {
+        val record = getTabRecord(tabId) ?: return
+        record.siteBarState = siteBarState
+        updateTabsFlow()
+    }
+
+    fun setInterstitialState(tabId: Long, interstitialState: InterstitialState?) {
+        val record = getTabRecord(tabId) ?: return
+        record.interstitialState = interstitialState
+        updateTabsFlow()
+    }
+
+    fun allowHost(tabId: Long, host: String) {
+        val record = getTabRecord(tabId) ?: return
+        record.allowedHosts.add(host)
+        record.interstitialState = null
+        updateTabsFlow()
+    }
+
+    fun dismissSiteBar(tabId: Long, host: String) {
+        val record = getTabRecord(tabId) ?: return
+        record.dismissedSiteBarHosts.add(host)
+        record.siteBarState = null
+        updateTabsFlow()
+    }
+
+    fun setVideoPlaying(tabId: Long, isPlaying: Boolean) {
+        val record = getTabRecord(tabId) ?: return
+        record.isVideoPlaying = isPlaying
+        updateTabsFlow()
+        if (_currentTabId.value == tabId) {
+            onVideoPlayingChanged?.invoke(isPlaying)
+        }
+    }
+
+    fun isVideoPlaying(): Boolean {
+        val id = _currentTabId.value ?: return false
+        return getTabRecord(id)?.isVideoPlaying == true
+    }
+
+    fun getActiveTabRecord(): TabRecord? {
+        val id = _currentTabId.value ?: return null
+        return getTabRecord(id)
+    }
+
+    fun clearAllBrowsingData() {
+        postToMain {
+            try {
+                android.webkit.CookieManager.getInstance().removeAllCookies(null)
+                android.webkit.CookieManager.getInstance().flush()
+                android.webkit.WebStorage.getInstance().deleteAllData()
+                android.webkit.WebView(appContext).clearCache(true)
+                android.webkit.WebViewDatabase.getInstance(appContext).clearFormData()
+            } catch (_: Exception) {}
+        }
     }
 
     fun updateTabTitle(tabId: Long, title: String) {
