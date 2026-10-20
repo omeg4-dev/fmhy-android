@@ -194,11 +194,12 @@ internal fun SwipeActionRow(
                             spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
                         )
                     } finally {
+                        // In finally so a row scrolled out of composition mid-spring still commits its swipe.
                         settling = false
                         pastThreshold = false
+                        frozen = null
+                        if (decided != SwipeAction.NONE) currentCommit(decided)
                     }
-                    frozen = null
-                    if (decided != SwipeAction.NONE) currentCommit(decided)
                 }
             }
         }
