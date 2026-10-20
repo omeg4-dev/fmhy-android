@@ -18,7 +18,7 @@ class WhatsNewGroupingTest {
         kind: ChangeKind,
         entryId: String,
         name: String,
-        url: String = "https://example.com/app",
+        url: String = "https://example.com/$entryId",
         sectionId: String = "video",
         detail: String = "",
     ): ChangeItem {
@@ -64,9 +64,24 @@ class WhatsNewGroupingTest {
         assertEquals(1, cards.size)
         val card = cards.first()
         assertEquals(ChangeKind.EDITED, card.primaryKind)
-        assertTrue(ChangeKind.ADDED in card.kinds)
-        assertTrue(ChangeKind.REMOVED in card.kinds)
-        assertTrue(ChangeKind.EDITED in card.kinds)
+        assertEquals(setOf(ChangeKind.EDITED), card.kinds)
+    }
+
+    @Test
+    fun testRemovedAndAddedInOtherSectionIsOneMove() {
+        val ts = nowSec - 2000
+        val url = "https://www.joypixels.com/"
+        val removed = makeChange(1, ts, ChangeKind.REMOVED, "image-tools/joypixels", "JoyPixels", url = url, sectionId = "image-tools")
+        val added = makeChange(2, ts + 5, ChangeKind.ADDED, "text-tools/joypixels", "JoyPixels", url = url, sectionId = "text-tools")
+
+        val cards = WhatsNewGrouping.collapseChanges(listOf(removed, added), zoneId = utcZone)
+
+        assertEquals(1, cards.size)
+        val card = cards.first()
+        assertEquals(ChangeKind.MOVED, card.primaryKind)
+        assertEquals(setOf(ChangeKind.MOVED), card.kinds)
+        assertEquals("image-tools", card.oldSectionId)
+        assertEquals("text-tools", card.sectionId)
     }
 
     @Test

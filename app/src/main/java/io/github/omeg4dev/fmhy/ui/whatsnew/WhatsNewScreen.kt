@@ -911,7 +911,7 @@ private fun ChangeCardRow(
                 ChangeKind.EDITED -> {
                     if (card.oldLine.isNullOrBlank()) {
                         Text(
-                            text = "Description changed",
+                            text = "Updated on FMHY",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

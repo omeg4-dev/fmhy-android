@@ -58,11 +58,9 @@ object WhatsNewGrouping {
     )
 
     fun cardKey(item: ChangeItem, zoneId: ZoneId = ZoneId.systemDefault()): String {
-        val baseKey = if (item.entryId.isBlank() || item.entryId.startsWith("tracker:")) {
-            DatasetStore.normalizeEntryUrl(item.url).ifEmpty { item.name }
-        } else {
-            item.entryId
-        }
+        // The address identifies a site across producers and sections (entry ids differ per section),
+        // so a remove in one section and an add in another land in the same card.
+        val baseKey = DatasetStore.normalizeEntryUrl(item.url).ifEmpty { item.entryId.ifBlank { item.name } }
         val localDay = Instant.ofEpochSecond(item.ts).atZone(zoneId).toLocalDate().toEpochDay()
         return "$baseKey:$localDay"
     }
@@ -98,7 +96,7 @@ object WhatsNewGrouping {
 
             val oldName = items.firstOrNull { it.kind == ChangeKind.RENAMED }?.detail?.takeIf { it.isNotBlank() }
             val oldUrl = items.firstOrNull { it.kind == ChangeKind.URL_CHANGED }?.detail?.takeIf { it.isNotBlank() }
-            val oldSectionId = items.firstOrNull { it.kind == ChangeKind.MOVED }?.detail?.takeIf { it.isNotBlank() }
+            var oldSectionId = items.firstOrNull { it.kind == ChangeKind.MOVED }?.detail?.takeIf { it.isNotBlank() }
             val oldLine = items.firstOrNull { it.kind == ChangeKind.EDITED }?.detail?.takeIf { it.isNotBlank() }
 
             val hasAdded = ChangeKind.ADDED in rawKinds
@@ -111,7 +109,14 @@ object WhatsNewGrouping {
                     (addedItem.url.isNotEmpty() && DatasetStore.normalizeEntryUrl(addedItem.url) == DatasetStore.normalizeEntryUrl(removedItem.url)))
 
             val (primaryKind, kinds) = if (isReAdded) {
-                ChangeKind.EDITED to (rawKinds + ChangeKind.EDITED)
+                val rest = rawKinds - ChangeKind.ADDED - ChangeKind.REMOVED
+                if (addedItem!!.sectionId != removedItem!!.sectionId) {
+                    // Removed from one section and added to another: a move.
+                    oldSectionId = oldSectionId ?: removedItem.sectionId
+                    ChangeKind.MOVED to (rest + ChangeKind.MOVED)
+                } else {
+                    ChangeKind.EDITED to (rest + ChangeKind.EDITED)
+                }
             } else {
                 val primary = PRIMARY_KIND_PRIORITY.firstOrNull { it in rawKinds } ?: latest.kind
                 primary to rawKinds

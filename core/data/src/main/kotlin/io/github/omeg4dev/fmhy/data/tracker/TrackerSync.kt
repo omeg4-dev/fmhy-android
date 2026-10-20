@@ -150,9 +150,12 @@ class TrackerSync(
 
     val lastUnknownSources = mutableSetOf<String>()
 
-    /** Only the tracker ever wrote EDITED rows (the bundled history has none), so they can all go. */
+    /** Only the tracker ever wrote EDITED rows (the bundled history has none), so they can all go; the
+     * tracker month re-inserts them with the current rules. */
     private suspend fun dropOutdatedRows() = store.withTransaction { conn ->
         conn.prepare("DELETE FROM changes WHERE kind = 'edited'").use { it.step() }
+        // 0.5.0's own sync wrote rows without a commit id (a link swap or move became remove + add).
+        conn.prepare("DELETE FROM changes WHERE commit_sha = ''").use { it.step() }
     }
 
     internal suspend fun applyCommits(commits: List<TrackerCommit>): Int = store.withTransaction { conn ->
@@ -510,7 +513,7 @@ class TrackerSync(
 
     companion object {
         /** Bump when the classification of tracker items changes, so stored rows get rebuilt. */
-        const val RULES_VERSION = 3
+        const val RULES_VERSION = 4
 
         internal fun parseLinkLine(line: String): ParsedLink? =
             ChangeClassifier.parseLinkLine(line)
