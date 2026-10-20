@@ -447,23 +447,26 @@ fun CategoryChipRail(
             )
             val border = if (isSelected) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
 
+            val chipModifier = if (onLongClickChip != null) {
+                Modifier
+                    .height(32.dp)
+                    .clip(CircleShape)
+                    .combinedClickable(
+                        onClick = { onSelectChip(index) },
+                        onLongClick = { onLongClickChip(index) },
+                    )
+            } else {
+                Modifier
+                    .height(32.dp)
+                    .clip(CircleShape)
+                    .clickable { onSelectChip(index) }
+            }
+
             Surface(
                 shape = CircleShape,
                 color = containerColor,
                 border = border,
-                modifier = Modifier
-                    .height(32.dp)
-                    .clip(CircleShape)
-                    .then(
-                        if (onLongClickChip != null) {
-                            Modifier.combinedClickable(
-                                onClick = { onSelectChip(index) },
-                                onLongClick = { onLongClickChip(index) },
-                            )
-                        } else {
-                            Modifier.clickable { onSelectChip(index) }
-                        }
-                    ),
+                modifier = chipModifier,
             ) {
                 Box(
                     modifier = Modifier.padding(horizontal = 14.dp),

@@ -32,6 +32,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import io.github.omeg4dev.fmhy.data.HomePrefs
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -95,6 +96,10 @@ fun CategoryScreen(
     val isFilterActive = state.starredOnly || !state.showIndexes
 
     val isOverview = key.categoryHeadingId == "__overview"
+    val homePrefs by container.settingsRepository.homePrefs.collectAsStateWithLifecycle(initialValue = HomePrefs())
+    val userChanges by container.userStore.changes.collectAsStateWithLifecycle()
+    var isCategoryPinned by remember { mutableStateOf(false) }
+
     val category = remember(state.structure.categories, key.categoryHeadingId) {
         if (isOverview) null else state.structure.categories.firstOrNull { it.heading.id == key.categoryHeadingId }
     }
@@ -261,7 +266,13 @@ fun CategoryScreen(
                         IconButton(onClick = { showJumpBottomSheet = true }) {
                             Icon(Icons.AutoMirrored.Outlined.List, contentDescription = "Outline")
                         }
-                        if (!isOverview && category != null) {
+                        val canFollowCat = !isOverview && category != null
+                        if (canFollowCat || homePrefs.personalHome) {
+                            val catHeadingId = if (isOverview) "__overview" else (category?.heading?.id ?: key.categoryHeadingId)
+                            LaunchedEffect(userChanges, key.sectionId, catHeadingId) {
+                                val pins = container.userStore.pins()
+                                isCategoryPinned = pins.any { it.sectionId == key.sectionId && it.headingId == catHeadingId }
+                            }
                             Box {
                                 IconButton(onClick = { showOverflowMenu = true }) {
                                     Icon(Icons.Default.MoreVert, contentDescription = "More options")
@@ -270,22 +281,49 @@ fun CategoryScreen(
                                     expanded = showOverflowMenu,
                                     onDismissRequest = { showOverflowMenu = false },
                                 ) {
-                                    val fullCatTitle = "$currentSectionTitle › $categoryTitle"
-                                    DropdownMenuItem(
-                                        text = { Text(if (isCategoryFollowed) "Unfollow this category" else "Follow this category") },
-                                        onClick = {
-                                            showOverflowMenu = false
-                                            scope.launch {
-                                                if (isCategoryFollowed) {
-                                                    container.userStore.unfollow(currentSectionId, category.heading.id)
-                                                    onShowSnackbar("Unfollowed $fullCatTitle")
-                                                } else {
-                                                    container.userStore.follow(currentSectionId, category.heading.id, fullCatTitle)
-                                                    onShowSnackbar("Following $fullCatTitle")
+                                    if (canFollowCat) {
+                                        val fullCatTitle = "$currentSectionTitle › $categoryTitle"
+                                        DropdownMenuItem(
+                                            text = { Text(if (isCategoryFollowed) "Unfollow this category" else "Follow this category") },
+                                            onClick = {
+                                                showOverflowMenu = false
+                                                scope.launch {
+                                                    if (isCategoryFollowed) {
+                                                        container.userStore.unfollow(currentSectionId, category.heading.id)
+                                                        onShowSnackbar("Unfollowed $fullCatTitle")
+                                                    } else {
+                                                        container.userStore.follow(currentSectionId, category.heading.id, fullCatTitle)
+                                                        onShowSnackbar("Following $fullCatTitle")
+                                                    }
                                                 }
-                                            }
-                                        },
-                                    )
+                                            },
+                                        )
+                                    }
+                                    if (homePrefs.personalHome) {
+                                        if (isCategoryPinned) {
+                                            DropdownMenuItem(
+                                                text = { Text("Unpin") },
+                                                onClick = {
+                                                    showOverflowMenu = false
+                                                    scope.launch {
+                                                        container.userStore.unpin(key.sectionId, catHeadingId)
+                                                        onShowSnackbar("Unpinned from Home")
+                                                    }
+                                                },
+                                            )
+                                        } else {
+                                            DropdownMenuItem(
+                                                text = { Text("Pin to Home") },
+                                                onClick = {
+                                                    showOverflowMenu = false
+                                                    scope.launch {
+                                                        container.userStore.pin(key.sectionId, catHeadingId, categoryTitle)
+                                                        onShowSnackbar("Pinned to Home")
+                                                    }
+                                                },
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }

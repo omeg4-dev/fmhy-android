@@ -10,6 +10,8 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import io.github.omeg4dev.fmhy.di.AppContainer
 import io.github.omeg4dev.fmhy.di.DefaultAppContainer
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 class FmhyApp : Application() {
@@ -50,6 +52,17 @@ class FmhyApp : Application() {
                 }
             } catch (e: Exception) {
                 Log.e("FmhyApp", "Failed to schedule updates: ${e.message}", e)
+            }
+        }
+
+        ProcessLifecycleOwner.get().lifecycleScope.launch {
+            try {
+                container.settingsRepository.appearance
+                    .map { it.appIcon }
+                    .distinctUntilChanged()
+                    .collect { icon -> io.github.omeg4dev.fmhy.shortcuts.AppIconSwitcher.apply(this@FmhyApp, icon) }
+            } catch (e: Exception) {
+                Log.e("FmhyApp", "Failed to apply app icon: ${e.message}", e)
             }
         }
 

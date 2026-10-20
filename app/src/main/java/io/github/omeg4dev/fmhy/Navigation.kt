@@ -83,6 +83,13 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
 import io.github.omeg4dev.fmhy.nav.AppNavState
+import io.github.omeg4dev.fmhy.shortcuts.EXTRA_ENTRY_ID
+import io.github.omeg4dev.fmhy.shortcuts.EXTRA_FILTER
+import io.github.omeg4dev.fmhy.shortcuts.EXTRA_HEADING_ID
+import io.github.omeg4dev.fmhy.shortcuts.EXTRA_OPEN
+import io.github.omeg4dev.fmhy.shortcuts.EXTRA_SECTION_ID
+import io.github.omeg4dev.fmhy.shortcuts.ShortcutDestination
+import io.github.omeg4dev.fmhy.shortcuts.shortcutDestination
 import io.github.omeg4dev.fmhy.nav.LocalAppNav
 import io.github.omeg4dev.fmhy.nav.LocalAppNavOrNull
 import io.github.omeg4dev.fmhy.nav.LocalBottomBarPadding
@@ -183,6 +190,53 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                 if (!checkLink.isNullOrEmpty()) {
                     nav.select(Tab.BROWSE)
                     nav.push(CheckLinkNavKey(checkLink))
+                    return@collect
+                }
+
+                val shortcut = shortcutDestination(
+                    open = incomingIntent.getStringExtra(EXTRA_OPEN),
+                    filter = incomingIntent.getStringExtra(EXTRA_FILTER),
+                    entryId = incomingIntent.getStringExtra(EXTRA_ENTRY_ID),
+                    sectionId = incomingIntent.getStringExtra(EXTRA_SECTION_ID),
+                    headingId = incomingIntent.getStringExtra(EXTRA_HEADING_ID),
+                )
+                if (shortcut != null) {
+                    // Handle each intent once: a replayed intent (rotation, re-collect) must not re-navigate.
+                    incomingIntent.removeExtra(EXTRA_OPEN)
+                    when (shortcut) {
+                        ShortcutDestination.Search -> {
+                            nav.select(Tab.SEARCH)
+                            nav.requestSearchFocus()
+                        }
+                        ShortcutDestination.Saved -> nav.select(Tab.SAVED)
+                        is ShortcutDestination.WhatsNew -> {
+                            nav.select(Tab.BROWSE)
+                            nav.push(WhatsNewNavKey(shortcut.filter))
+                        }
+                        ShortcutDestination.CheckLink -> {
+                            nav.select(Tab.BROWSE)
+                            nav.push(CheckLinkNavKey())
+                        }
+                        is ShortcutDestination.Random -> {
+                            val store = container.datasetStore
+                            val entry = runCatching {
+                                shortcut.entryId?.let { store.entry(it) } ?: store.randomTopPick()
+                            }.getOrNull()
+                            if (entry != null) {
+                                val anchor = runCatching {
+                                    entry.headingId?.let { hid ->
+                                        store.headings(entry.sectionId).firstOrNull { it.id == hid }?.anchor
+                                    }
+                                }.getOrNull()
+                                nav.select(Tab.BROWSE)
+                                nav.push(SectionNavKey(entry.sectionId, anchor = anchor, focusEntryId = entry.id))
+                            }
+                        }
+                        is ShortcutDestination.Pin -> {
+                            nav.select(Tab.BROWSE)
+                            nav.push(SectionNavKey(shortcut.sectionId, shortcut.headingId.ifEmpty { null }))
+                        }
+                    }
                     return@collect
                 }
 
@@ -339,7 +393,7 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                     nav.select(Tab.SEARCH)
                     nav.requestSearchFocus()
                 },
-                onNavigateToSection = { sectionId -> nav.push(SectionNavKey(sectionId)) },
+                onNavigateToSection = { sectionId, anchor -> nav.push(SectionNavKey(sectionId, anchor)) },
                 onNavigateToSettings = { nav.push(SettingsNavKey) },
                 onNavigateToCheckLink = { nav.push(CheckLinkNavKey()) },
                 onNavigateToReader = { path, title -> nav.push(ReaderNavKey(path, title)) },

@@ -446,6 +446,12 @@ fun AppearancePage(
                     selected = appearance.appIcon,
                     onSelect = { viewModel.setAppIcon(it) },
                 )
+                Text(
+                    text = "The launcher may take a moment to update.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
             }
 
             extraRows()

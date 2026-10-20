@@ -82,9 +82,7 @@ class MainActivity : ComponentActivity() {
         if (BuildConfig.DEBUG && intent.hasExtra("debug_tracker_url")) {
             container.debugTrackerUrl = intent.getStringExtra("debug_tracker_url")
         }
-        if (intent.getStringExtra("open") == "whats_new") {
-            val filter = intent.getStringExtra("filter") ?: "all"
-            container.pushNavigation(WhatsNewNavKey(filter))
-        }
+        // `open` extras (launcher shortcuts, widget taps) are routed in MainNavigation's intentFlow collector,
+        // which is replayed on cold start; see shortcutDestination().
     }
 }

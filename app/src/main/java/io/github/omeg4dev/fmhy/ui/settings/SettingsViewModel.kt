@@ -20,12 +20,16 @@ import io.github.omeg4dev.fmhy.data.SettingsRepository
 import io.github.omeg4dev.fmhy.data.ThemeMode
 import io.github.omeg4dev.fmhy.data.sync.SyncResult
 import io.github.omeg4dev.fmhy.data.sync.SyncState
+import io.github.omeg4dev.fmhy.data.model.Section
 import io.github.omeg4dev.fmhy.data.user.ImportResult
+import io.github.omeg4dev.fmhy.data.user.Pin
 import io.github.omeg4dev.fmhy.di.AppContainer
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -91,6 +95,59 @@ class SettingsViewModel(
         SharingStarted.WhileSubscribed(5000),
         HomePrefs()
     )
+
+    val pins: StateFlow<List<Pin>> = container.userStore.changes
+        .map {
+            try { container.userStore.pins() } catch (_: Exception) { emptyList() }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val hiddenSections: StateFlow<Set<String>> = container.userStore.changes
+        .map {
+            try { container.userStore.hiddenSections() } catch (_: Exception) { emptySet() }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
+    val allSections: StateFlow<List<Section>> = flow {
+        val list = try { store.sections(SectionOrder.WEBSITE) } catch (_: Exception) { emptyList() }
+        emit(list)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun movePinUp(index: Int) {
+        val current = pins.value.toMutableList()
+        if (index > 0 && index < current.size) {
+            val temp = current[index]
+            current[index] = current[index - 1]
+            current[index - 1] = temp
+            viewModelScope.launch {
+                container.userStore.reorderPins(current.map { it.sectionId to it.headingId })
+            }
+        }
+    }
+
+    fun movePinDown(index: Int) {
+        val current = pins.value.toMutableList()
+        if (index >= 0 && index < current.size - 1) {
+            val temp = current[index]
+            current[index] = current[index + 1]
+            current[index + 1] = temp
+            viewModelScope.launch {
+                container.userStore.reorderPins(current.map { it.sectionId to it.headingId })
+            }
+        }
+    }
+
+    fun removePin(sectionId: String, headingId: String) {
+        viewModelScope.launch {
+            container.userStore.unpin(sectionId, headingId)
+        }
+    }
+
+    fun setSectionHidden(sectionId: String, hidden: Boolean) {
+        viewModelScope.launch {
+            container.userStore.setSectionHidden(sectionId, hidden)
+        }
+    }
 
     val browserPrefs: StateFlow<BrowserPrefs> = settingsRepository.browserPrefs.stateIn(
         viewModelScope,

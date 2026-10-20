@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/widget_description"
+    android:initialLayout="@layout/widget_fmhy_small"
+    android:minWidth="250dp"
+    android:minHeight="70dp"
+    android:minResizeHeight="70dp"
+    android:maxResizeHeight="180dp"
+    android:previewLayout="@layout/widget_fmhy_large"
+    android:resizeMode="horizontal|vertical"
+    android:targetCellWidth="4"
+    android:targetCellHeight="1"
+    android:maxResizeWidth="400dp"
+    android:updatePeriodMillis="86400000"
+    android:widgetCategory="home_screen" />

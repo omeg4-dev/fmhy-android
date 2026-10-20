@@ -1,4 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="splash_background">#141218</color>
+
+    <!-- Widget colors (dark) -->
+    <color name="widget_bg">#FF1C1B1F</color>
+    <color name="widget_surface_pill">#FF2B2930</color>
+    <color name="widget_accent">#FF7C5CFF</color>
+    <color name="widget_text">#FFE6E1E5</color>
+    <color name="widget_text_secondary">#FFCAC4D0</color>
 </resources>
