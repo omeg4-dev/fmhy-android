@@ -70,6 +70,9 @@ tasks.register<JavaExec>("buildSnapshot") {
     "--rentry", ".cache/rentry-FMHYB64.html",
     "--unsafe", ".cache/filterlist-domains.txt",
     "--reasons", ".cache/filterlists-reasons.json",
+    "--sitelist", ".cache/sitelist.txt",
+    "--sitelist-plus", ".cache/sitelist-plus.txt",
+    "--fmhy-sites", ".cache/fmhy-sites.txt",
     "--out", "app/src/main/assets/dataset"
   )
 }

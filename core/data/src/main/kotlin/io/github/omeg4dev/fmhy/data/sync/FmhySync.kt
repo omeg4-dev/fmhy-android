@@ -13,6 +13,7 @@ import io.github.omeg4dev.fmhy.data.parse.FmhyParser
 import io.github.omeg4dev.fmhy.data.parse.ParsedSection
 import io.github.omeg4dev.fmhy.data.parse.SectionInfo
 import io.github.omeg4dev.fmhy.data.parse.Sections
+import io.github.omeg4dev.fmhy.data.parse.SiteLists
 import io.github.omeg4dev.fmhy.data.parse.UnsafeList
 import java.io.File
 import java.io.IOException
@@ -39,6 +40,9 @@ data class Sources(
     val rentry: String = "https://rentry.co/FMHYB64",
     val unsafeDomains: String = "https://raw.githubusercontent.com/fmhy/FMHYFilterlist/main/filterlist-domains.txt",
     val unsafeReasons: String = "https://raw.githubusercontent.com/fmhy/FMHYFilterlist/main/filterlists-reasons.json",
+    val siteList: String = "https://raw.githubusercontent.com/fmhy/FMHYFilterlist/main/sitelist.txt",
+    val siteListPlus: String = "https://raw.githubusercontent.com/fmhy/FMHYFilterlist/main/sitelist-plus.txt",
+    val fmhySites: String = "https://raw.githubusercontent.com/fmhy/FMHY-SafeGuard/main/fmhy-filterlist.txt",
 )
 
 open class FmhySync(
@@ -189,12 +193,15 @@ open class FmhySync(
             val rentryPath = "rentry"
             val unsafeDomainsPath = "filterlist-domains.txt"
             val unsafeReasonsPath = "filterlists-reasons.json"
+            val siteListPath = "sitelist.txt"
+            val siteListPlusPath = "sitelist-plus.txt"
+            val fmhySitesPath = "fmhy-filterlist.txt"
 
-            // 2. Fetch constants.ts, rentry, and both unsafe files in parallel
+            // 2. Fetch constants.ts, rentry, unsafe files, and SafeGuard lists in parallel
             val constantsPrimaryUrl = "${sources.primary.trimEnd('/')}/$constantsPath"
             val constantsFallbackUrl = "${sources.fallback.trimEnd('/')}/$constantsPath"
 
-            val (constantsRes, rentryRes, unsafeDomainsRes, unsafeReasonsRes) = coroutineScope {
+            val fetchResults = coroutineScope {
                 val dConst = async {
                     fetchFile(
                         path = constantsPath,
@@ -236,8 +243,54 @@ open class FmhySync(
                         fallbackCount = fallbackSuccessCount,
                     )
                 }
-                listOf(dConst.await(), dRentry.await(), dUnsafeDomains.await(), dUnsafeReasons.await())
+                val dSiteList = async {
+                    fetchFile(
+                        path = siteListPath,
+                        urlPrimary = sources.siteList,
+                        urlFallback = null,
+                        etag = state.files[siteListPath]?.etag,
+                        primaryCount = primarySuccessCount,
+                        fallbackCount = fallbackSuccessCount,
+                    )
+                }
+                val dSiteListPlus = async {
+                    fetchFile(
+                        path = siteListPlusPath,
+                        urlPrimary = sources.siteListPlus,
+                        urlFallback = null,
+                        etag = state.files[siteListPlusPath]?.etag,
+                        primaryCount = primarySuccessCount,
+                        fallbackCount = fallbackSuccessCount,
+                    )
+                }
+                val dFmhySites = async {
+                    fetchFile(
+                        path = fmhySitesPath,
+                        urlPrimary = sources.fmhySites,
+                        urlFallback = null,
+                        etag = state.files[fmhySitesPath]?.etag,
+                        primaryCount = primarySuccessCount,
+                        fallbackCount = fallbackSuccessCount,
+                    )
+                }
+                listOf(
+                    dConst.await(),
+                    dRentry.await(),
+                    dUnsafeDomains.await(),
+                    dUnsafeReasons.await(),
+                    dSiteList.await(),
+                    dSiteListPlus.await(),
+                    dFmhySites.await()
+                )
             }
+
+            val constantsRes = fetchResults[0]
+            val rentryRes = fetchResults[1]
+            val unsafeDomainsRes = fetchResults[2]
+            val unsafeReasonsRes = fetchResults[3]
+            val siteListRes = fetchResults[4]
+            val siteListPlusRes = fetchResults[5]
+            val fmhySitesRes = fetchResults[6]
 
             if (constantsRes is FetchResult.Error) {
                 val took = System.currentTimeMillis() - startMs
@@ -258,6 +311,17 @@ open class FmhySync(
                 val took = System.currentTimeMillis() - startMs
                 log("FmhySync: failed: unsafe reasons error - ${unsafeReasonsRes.message}")
                 return@withContext SyncResult.Failed(unsafeReasonsRes.message, took)
+            }
+
+            // Fail-soft logging for SafeGuard lists
+            if (siteListRes is FetchResult.Error) {
+                log("FmhySync: fail-soft error on $siteListPath: ${siteListRes.message}")
+            }
+            if (siteListPlusRes is FetchResult.Error) {
+                log("FmhySync: fail-soft error on $siteListPlusPath: ${siteListPlusRes.message}")
+            }
+            if (fmhySitesRes is FetchResult.Error) {
+                log("FmhySync: fail-soft error on $fmhySitesPath: ${fmhySitesRes.message}")
             }
 
             val constantsText = when (constantsRes) {
@@ -320,6 +384,51 @@ open class FmhySync(
                 else -> null
             }
 
+            val siteListText = when (siteListRes) {
+                is FetchResult.Content -> siteListRes.body
+                is FetchResult.NotModified -> File(rawDir, sanitizePath(siteListPath)).takeIf { it.exists() }?.readText() ?: ""
+                else -> ""
+            }
+            val siteListSha = when (siteListRes) {
+                is FetchResult.Content -> siteListRes.sha256
+                else -> state.files[siteListPath]?.sha256 ?: sha256(siteListText)
+            }
+            val siteListEtag = when (siteListRes) {
+                is FetchResult.Content -> siteListRes.etag
+                is FetchResult.NotModified -> siteListRes.etag
+                else -> state.files[siteListPath]?.etag
+            }
+
+            val siteListPlusText = when (siteListPlusRes) {
+                is FetchResult.Content -> siteListPlusRes.body
+                is FetchResult.NotModified -> File(rawDir, sanitizePath(siteListPlusPath)).takeIf { it.exists() }?.readText() ?: ""
+                else -> ""
+            }
+            val siteListPlusSha = when (siteListPlusRes) {
+                is FetchResult.Content -> siteListPlusRes.sha256
+                else -> state.files[siteListPlusPath]?.sha256 ?: sha256(siteListPlusText)
+            }
+            val siteListPlusEtag = when (siteListPlusRes) {
+                is FetchResult.Content -> siteListPlusRes.etag
+                is FetchResult.NotModified -> siteListPlusRes.etag
+                else -> state.files[siteListPlusPath]?.etag
+            }
+
+            val fmhySitesText = when (fmhySitesRes) {
+                is FetchResult.Content -> fmhySitesRes.body
+                is FetchResult.NotModified -> File(rawDir, sanitizePath(fmhySitesPath)).takeIf { it.exists() }?.readText() ?: ""
+                else -> ""
+            }
+            val fmhySitesSha = when (fmhySitesRes) {
+                is FetchResult.Content -> fmhySitesRes.sha256
+                else -> state.files[fmhySitesPath]?.sha256 ?: sha256(fmhySitesText)
+            }
+            val fmhySitesEtag = when (fmhySitesRes) {
+                is FetchResult.Content -> fmhySitesRes.etag
+                is FetchResult.NotModified -> fmhySitesRes.etag
+                else -> state.files[fmhySitesPath]?.etag
+            }
+
             val rentryChanged = (rentryRes is FetchResult.Content) &&
                 (rentrySha != state.files[rentryPath]?.sha256)
 
@@ -327,6 +436,14 @@ open class FmhySync(
                 (unsafeDomainsSha != state.files[unsafeDomainsPath]?.sha256)) ||
                 ((unsafeReasonsRes is FetchResult.Content) &&
                 (unsafeReasonsSha != state.files[unsafeReasonsPath]?.sha256))
+
+            val siteListChanged = (siteListRes is FetchResult.Content) &&
+                (siteListSha != state.files[siteListPath]?.sha256)
+            val siteListPlusChanged = (siteListPlusRes is FetchResult.Content) &&
+                (siteListPlusSha != state.files[siteListPlusPath]?.sha256)
+            val fmhySitesChanged = (fmhySitesRes is FetchResult.Content) &&
+                (fmhySitesSha != state.files[fmhySitesPath]?.sha256)
+            val siteListsChanged = siteListChanged || siteListPlusChanged || fmhySitesChanged
 
             // 3. Section list = Sections.parse(constants)
             val sectionCandidates = Sections.parse(constantsText)
@@ -387,6 +504,24 @@ open class FmhySync(
             updatedFileStates[rentryPath] = FileState(rentryEtag, rentrySha)
             updatedFileStates[unsafeDomainsPath] = FileState(unsafeDomainsEtag, unsafeDomainsSha)
             updatedFileStates[unsafeReasonsPath] = FileState(unsafeReasonsEtag, unsafeReasonsSha)
+
+            if (siteListRes !is FetchResult.Error && siteListRes !is FetchResult.NotFound) {
+                updatedFileStates[siteListPath] = FileState(siteListEtag, siteListSha)
+            } else if (state.files.containsKey(siteListPath)) {
+                updatedFileStates[siteListPath] = state.files[siteListPath]!!
+            }
+
+            if (siteListPlusRes !is FetchResult.Error && siteListPlusRes !is FetchResult.NotFound) {
+                updatedFileStates[siteListPlusPath] = FileState(siteListPlusEtag, siteListPlusSha)
+            } else if (state.files.containsKey(siteListPlusPath)) {
+                updatedFileStates[siteListPlusPath] = state.files[siteListPlusPath]!!
+            }
+
+            if (fmhySitesRes !is FetchResult.Error && fmhySitesRes !is FetchResult.NotFound) {
+                updatedFileStates[fmhySitesPath] = FileState(fmhySitesEtag, fmhySitesSha)
+            } else if (state.files.containsKey(fmhySitesPath)) {
+                updatedFileStates[fmhySitesPath] = state.files[fmhySitesPath]!!
+            }
 
             for ((sec, res) in validSections) {
                 val path = "docs/${sec.file}"
@@ -532,6 +667,7 @@ open class FmhySync(
             val hasStructuralChanges = parsedSections.isNotEmpty() ||
                 absentSections.isNotEmpty() ||
                 unsafeChanged ||
+                siteListsChanged ||
                 totalAdded > 0 ||
                 totalRemoved > 0 ||
                 totalUpdated > 0
@@ -545,7 +681,7 @@ open class FmhySync(
                     for (absent in absentSections) {
                         val absentEntries = absentSectionEntries[absent] ?: emptyList()
                         for (e in absentEntries) {
-                            conn.prepare("INSERT INTO changes (ts, kind, entry_id, section_id, name, url, detail, commit_sha) VALUES (?, 'removed', ?, ?, ?, ?, '', '')").use { stmt ->
+                            conn.prepare("INSERT OR IGNORE INTO changes (ts, kind, entry_id, section_id, name, url, detail, commit_sha) VALUES (?, 'removed', ?, ?, ?, ?, '', '')").use { stmt ->
                                 stmt.bindLong(1, now)
                                 stmt.bindText(2, e.id)
                                 stmt.bindText(3, e.sectionId)
@@ -618,7 +754,7 @@ open class FmhySync(
 
                         // Vanished entries: delete and record 'removed' in changes
                         conn.prepare("DELETE FROM entries WHERE id = ?").use { delStmt ->
-                            conn.prepare("INSERT INTO changes (ts, kind, entry_id, section_id, name, url, detail, commit_sha) VALUES (?, 'removed', ?, ?, ?, ?, '', '')").use { chStmt ->
+                            conn.prepare("INSERT OR IGNORE INTO changes (ts, kind, entry_id, section_id, name, url, detail, commit_sha) VALUES (?, 'removed', ?, ?, ?, ?, '', '')").use { chStmt ->
                                 for (v in diff.vanished) {
                                     delStmt.bindText(1, v.id)
                                     delStmt.step()
@@ -644,7 +780,7 @@ open class FmhySync(
                             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """.trimIndent()
                         conn.prepare(sqlInsertEntry).use { insStmt ->
-                            conn.prepare("INSERT INTO changes (ts, kind, entry_id, section_id, name, url, detail, commit_sha) VALUES (?, 'added', ?, ?, ?, ?, '', '')").use { chStmt ->
+                            conn.prepare("INSERT OR IGNORE INTO changes (ts, kind, entry_id, section_id, name, url, detail, commit_sha) VALUES (?, 'added', ?, ?, ?, ?, '', '')").use { chStmt ->
                                 for (ins in diff.inserted) {
                                     val num = ++nextNum
                                     val starredAt = if (ins.tier >= 1) now else null
@@ -694,7 +830,7 @@ open class FmhySync(
                             WHERE id = ?
                         """.trimIndent()
                         conn.prepare(sqlUpdateEntry).use { upStmt ->
-                            conn.prepare("INSERT INTO changes (ts, kind, entry_id, section_id, name, url, detail, commit_sha) VALUES (?, 'starred', ?, ?, ?, ?, '', '')").use { chStmt ->
+                            conn.prepare("INSERT OR IGNORE INTO changes (ts, kind, entry_id, section_id, name, url, detail, commit_sha) VALUES (?, 'starred', ?, ?, ?, ?, '', '')").use { chStmt ->
                                 for ((old, row) in diff.updated) {
                                     val starredAt = if (old.tier.value == 0 && row.tier >= 1) {
                                         now
@@ -784,6 +920,61 @@ open class FmhySync(
                                 stmt.bindText(2, reason)
                                 stmt.step()
                                 stmt.reset()
+                            }
+                        }
+                    }
+
+                    // D2. Replace site_lists if those files changed
+                    if (siteListsChanged) {
+                        val reasonsMap = SiteLists.parseReasons(unsafeReasonsText)
+
+                        if (siteListChanged) {
+                            conn.execSQL("DELETE FROM site_lists WHERE list = 'unsafe';")
+                            val unsafeKeys = mutableSetOf<String>()
+                            conn.prepare("INSERT OR REPLACE INTO site_lists (key, list, reason) VALUES (?, 'unsafe', ?)").use { stmt ->
+                                for (k in SiteLists.parseList(siteListText)) {
+                                    unsafeKeys.add(k)
+                                    val host = k.substringBefore('/')
+                                    val r = reasonsMap[k] ?: reasonsMap[host] ?: reasonsMap["www.$host"] ?: ""
+                                    stmt.bindText(1, k)
+                                    stmt.bindText(2, r)
+                                    stmt.step()
+                                    stmt.reset()
+                                }
+                                for ((k, r) in reasonsMap) {
+                                    val norm = SiteLists.normalizeListKey(k) ?: continue
+                                    if (k.contains('/')) {
+                                        stmt.bindText(1, norm)
+                                        stmt.bindText(2, r)
+                                        stmt.step()
+                                        stmt.reset()
+                                    }
+                                }
+                            }
+                        }
+
+                        if (siteListPlusChanged) {
+                            conn.execSQL("DELETE FROM site_lists WHERE list = 'potentially_unsafe';")
+                            conn.prepare("INSERT OR REPLACE INTO site_lists (key, list, reason) VALUES (?, 'potentially_unsafe', ?)").use { stmt ->
+                                for (k in SiteLists.parseList(siteListPlusText)) {
+                                    val host = k.substringBefore('/')
+                                    val r = reasonsMap[k] ?: reasonsMap[host] ?: reasonsMap["www.$host"] ?: ""
+                                    stmt.bindText(1, k)
+                                    stmt.bindText(2, r)
+                                    stmt.step()
+                                    stmt.reset()
+                                }
+                            }
+                        }
+
+                        if (fmhySitesChanged) {
+                            conn.execSQL("DELETE FROM site_lists WHERE list = 'fmhy';")
+                            conn.prepare("INSERT OR REPLACE INTO site_lists (key, list, reason) VALUES (?, 'fmhy', '')").use { stmt ->
+                                for (k in SiteLists.parseList(fmhySitesText)) {
+                                    stmt.bindText(1, k)
+                                    stmt.step()
+                                    stmt.reset()
+                                }
                             }
                         }
                     }

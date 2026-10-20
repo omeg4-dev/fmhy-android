@@ -7,6 +7,7 @@ import io.github.omeg4dev.fmhy.data.DatasetStore
 import io.github.omeg4dev.fmhy.data.parse.Base64Map
 import io.github.omeg4dev.fmhy.data.parse.FmhyParser
 import io.github.omeg4dev.fmhy.data.parse.Sections
+import io.github.omeg4dev.fmhy.data.parse.SiteLists
 import io.github.omeg4dev.fmhy.data.parse.UnsafeList
 import io.github.omeg4dev.fmhy.data.sync.FileState
 import io.github.omeg4dev.fmhy.data.sync.SyncState
@@ -31,6 +32,9 @@ object SnapshotBuilder {
         var rentryFile: File? = null
         var unsafeFile: File? = null
         var reasonsFile: File? = null
+        var sitelistFile: File? = null
+        var sitelistPlusFile: File? = null
+        var fmhySitesFile: File? = null
         var outDir: File? = null
 
         var i = 0
@@ -40,6 +44,9 @@ object SnapshotBuilder {
                 "--rentry" -> rentryFile = File(args[++i])
                 "--unsafe" -> unsafeFile = File(args[++i])
                 "--reasons" -> reasonsFile = File(args[++i])
+                "--sitelist" -> sitelistFile = File(args[++i])
+                "--sitelist-plus" -> sitelistPlusFile = File(args[++i])
+                "--fmhy-sites" -> fmhySitesFile = File(args[++i])
                 "--out" -> outDir = File(args[++i])
                 else -> error("Unknown argument: ${args[i]}")
             }
@@ -53,7 +60,16 @@ object SnapshotBuilder {
         checkNotNull(outDir) { "Missing --out argument" }
 
         val startNano = System.nanoTime()
-        build(docsDir, rentryFile, unsafeFile, reasonsFile, outDir)
+        build(
+            docsDir = docsDir,
+            rentryFile = rentryFile,
+            unsafeFile = unsafeFile,
+            reasonsFile = reasonsFile,
+            outDir = outDir,
+            sitelistFile = sitelistFile,
+            sitelistPlusFile = sitelistPlusFile,
+            fmhySitesFile = fmhySitesFile,
+        )
         val elapsedSec = (System.nanoTime() - startNano) / 1_000_000_000.0
         println("Completed in %.2f s".format(elapsedSec))
     }
@@ -64,6 +80,9 @@ object SnapshotBuilder {
         unsafeFile: File,
         reasonsFile: File,
         outDir: File,
+        sitelistFile: File? = null,
+        sitelistPlusFile: File? = null,
+        fmhySitesFile: File? = null,
     ) {
         val constantsFile = File(docsDir, ".vitepress/transformer/constants.ts")
         check(constantsFile.exists()) { "constants.ts not found at: ${constantsFile.absolutePath}" }
@@ -204,6 +223,67 @@ object SnapshotBuilder {
                 }
             }
 
+            // 5b. Insert site_lists if provided
+            if (sitelistFile != null || sitelistPlusFile != null || fmhySitesFile != null) {
+                val reasonsMap = try {
+                    json.decodeFromString<Map<String, String>>(unsafeReasonsText)
+                } catch (_: Exception) {
+                    emptyMap()
+                }
+
+                val sqlSiteLists = "INSERT OR REPLACE INTO site_lists (key, list, reason) VALUES (?, ?, ?)"
+                conn.prepare(sqlSiteLists).use { stmt ->
+                    val unsafeKeys = mutableSetOf<String>()
+                    if (sitelistFile != null && sitelistFile.exists()) {
+                        for (line in sitelistFile.readLines(Charsets.UTF_8)) {
+                            val k = normalizeListKey(line) ?: continue
+                            unsafeKeys.add(k)
+                            val host = k.substringBefore('/')
+                            val r = reasonsMap[k] ?: reasonsMap[host] ?: reasonsMap["www.$host"] ?: ""
+                            stmt.bindText(1, k)
+                            stmt.bindText(2, "unsafe")
+                            stmt.bindText(3, r)
+                            stmt.step()
+                            stmt.reset()
+                        }
+                    }
+                    for ((k, r) in reasonsMap) {
+                        val norm = normalizeListKey(k) ?: continue
+                        if (k.contains('/')) {
+                            stmt.bindText(1, norm)
+                            stmt.bindText(2, "unsafe")
+                            stmt.bindText(3, r)
+                            stmt.step()
+                            stmt.reset()
+                        }
+                    }
+
+                    if (sitelistPlusFile != null && sitelistPlusFile.exists()) {
+                        for (line in sitelistPlusFile.readLines(Charsets.UTF_8)) {
+                            val k = normalizeListKey(line) ?: continue
+                            val host = k.substringBefore('/')
+                            val r = reasonsMap[k] ?: reasonsMap[host] ?: reasonsMap["www.$host"] ?: ""
+                            stmt.bindText(1, k)
+                            stmt.bindText(2, "potentially_unsafe")
+                            stmt.bindText(3, r)
+                            stmt.step()
+                            stmt.reset()
+                        }
+                    }
+
+                    if (fmhySitesFile != null && fmhySitesFile.exists()) {
+                        for (line in fmhySitesFile.readLines(Charsets.UTF_8)) {
+                            val k = normalizeListKey(line) ?: continue
+                            stmt.bindText(1, k)
+                            stmt.bindText(2, "fmhy")
+                            stmt.bindText(3, "")
+                            stmt.step()
+                            stmt.reset()
+                        }
+                    }
+                }
+            }
+
             // 6. Insert meta
             val sqlMeta = "INSERT INTO meta (key, value) VALUES (?, ?)"
             conn.prepare(sqlMeta).use { stmt ->
@@ -254,6 +334,15 @@ object SnapshotBuilder {
         fileStates["rentry"] = FileState(etag = null, sha256 = sha256(rentryFile))
         fileStates["filterlist-domains.txt"] = FileState(etag = null, sha256 = sha256(unsafeFile))
         fileStates["filterlists-reasons.json"] = FileState(etag = null, sha256 = sha256(reasonsFile))
+        if (sitelistFile != null && sitelistFile.exists()) {
+            fileStates["sitelist.txt"] = FileState(etag = null, sha256 = sha256(sitelistFile))
+        }
+        if (sitelistPlusFile != null && sitelistPlusFile.exists()) {
+            fileStates["sitelist-plus.txt"] = FileState(etag = null, sha256 = sha256(sitelistPlusFile))
+        }
+        if (fmhySitesFile != null && fmhySitesFile.exists()) {
+            fileStates["fmhy-filterlist.txt"] = FileState(etag = null, sha256 = sha256(fmhySitesFile))
+        }
 
         for (s in sections) {
             val f = File(docsDir, s.file)
@@ -294,5 +383,25 @@ object SnapshotBuilder {
             }
         }
         return md.digest().joinToString("") { "%02x".format(it) }
+    }
+
+    fun normalizeListKey(line: String): String? {
+        val trimmed = line.trim()
+        if (trimmed.isEmpty() || trimmed.startsWith("!")) return null
+        var clean = trimmed
+        if (clean.contains("://")) {
+            clean = clean.substringAfter("://")
+        }
+        clean = clean.substringBefore("#").substringBefore("?").trimEnd('/')
+        if (clean.isEmpty()) return null
+
+        val slashIdx = clean.indexOf('/')
+        val hostPart = if (slashIdx != -1) clean.substring(0, slashIdx) else clean
+        val pathPart = if (slashIdx != -1) clean.substring(slashIdx) else ""
+
+        val normalizedHost = hostPart.lowercase().removePrefix("www.")
+        if (normalizedHost.isEmpty()) return null
+        val normalizedPath = pathPart.lowercase().trimEnd('/')
+        return if (normalizedPath.isEmpty()) normalizedHost else "$normalizedHost$normalizedPath"
     }
 }
