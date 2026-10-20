@@ -1,9 +1,13 @@
 package io.github.omeg4dev.fmhy.ui.common
 
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import io.github.omeg4dev.fmhy.data.model.Entry
 import io.github.omeg4dev.fmhy.data.user.Folder
+import kotlinx.coroutines.launch
 
 data class SavedInfo(
     val folderId: Long? = null,
@@ -23,3 +27,67 @@ class BookmarksState(
 
 val LocalBookmarks = compositionLocalOf { BookmarksState() }
 val LocalSnackbarHost = compositionLocalOf<SnackbarHostState?> { null }
+
+interface SaveActions {
+    fun save(entry: Entry)
+    fun unsave(entry: Entry)
+    fun toggle(entry: Entry)
+    fun isSaved(entry: Entry): Boolean = isSaved(entry.id)
+    fun isSaved(entryId: String): Boolean = false
+}
+
+@Composable
+fun rememberSaveActions(
+    onShowSnackbar: (String) -> Unit = {},
+): SaveActions {
+    val bookmarksState = LocalBookmarks.current
+    val userStore = LocalUserStore.current
+    val snackbarHost = LocalSnackbarHost.current
+    val haptics = rememberHaptics()
+    val scope = rememberCoroutineScope()
+
+    return remember(bookmarksState, userStore, snackbarHost, haptics, scope, onShowSnackbar) {
+        object : SaveActions {
+            override fun isSaved(entryId: String): Boolean =
+                entryId in bookmarksState.savedIds
+
+            override fun save(entry: Entry) {
+                haptics.confirm()
+                bookmarksState.toggle(entry)
+                val host = snackbarHost
+                if (host != null) {
+                    scope.launch { host.showSnackbar("Saved") }
+                } else {
+                    onShowSnackbar("Saved")
+                }
+            }
+
+            override fun unsave(entry: Entry) {
+                haptics.click()
+                scope.launch {
+                    val snapshot = userStore?.removeBookmarkWithSnapshot(entry.id)
+                    if (snapshot == null) {
+                        bookmarksState.toggle(entry)
+                    }
+                    val host = snackbarHost
+                    if (host != null) {
+                        if (host.showUndo("Removed from Saved")) {
+                            if (snapshot != null) userStore.restoreBookmark(snapshot)
+                            else bookmarksState.toggle(entry)
+                        }
+                    } else {
+                        onShowSnackbar("Removed from Saved")
+                    }
+                }
+            }
+
+            override fun toggle(entry: Entry) {
+                if (isSaved(entry)) {
+                    unsave(entry)
+                } else {
+                    save(entry)
+                }
+            }
+        }
+    }
+}

@@ -156,6 +156,7 @@ fun EntryRow(
     val datasetStore = LocalDatasetStore.current
     val userStore = LocalUserStore.current
     val snackbarHost = LocalSnackbarHost.current
+    val saveActions = rememberSaveActions(onShowSnackbar = onShowSnackbar)
 
     var loadedHistory by remember(entry.id, history) { mutableStateOf<List<ChangeItem>?>(history) }
     LaunchedEffect(showBottomSheet, history, entry.id) {
@@ -475,22 +476,7 @@ fun EntryRow(
                                 if (alternatives.isNotEmpty()) {
                                     showBottomSheet = true
                                 } else {
-                                    haptics.click()
-                                    scope.launch {
-                                        val snapshot = userStore?.removeBookmarkWithSnapshot(entry.id)
-                                        if (snapshot == null) {
-                                            bookmarksState.toggle(entry)
-                                        }
-                                        val host = snackbarHost
-                                        if (host != null) {
-                                            if (host.showUndo("Removed from Saved")) {
-                                                if (snapshot != null) userStore.restoreBookmark(snapshot)
-                                                else bookmarksState.toggle(entry)
-                                            }
-                                        } else {
-                                            onShowSnackbar("Removed from Saved")
-                                        }
-                                    }
+                                    saveActions.unsave(entry)
                                 }
                             },
                     )
@@ -639,8 +625,7 @@ fun EntryDetailBottomSheet(
     val bookmarksState = LocalBookmarks.current
     val haptics = rememberHaptics()
     val scope = rememberCoroutineScope()
-    val userStore = LocalUserStore.current
-    val snackbarHost = LocalSnackbarHost.current
+    val saveActions = rememberSaveActions(onShowSnackbar = onShowSnackbar)
     val isSaved = entry.id in bookmarksState.savedIds || savedInfo != null
     val currentSavedInfo = savedInfo ?: bookmarksState.savedInfo(entry.id) ?: (if (isSaved) SavedInfo() else null)
     val editNoteAction = onEditNote ?: { note: String -> bookmarksState.setNote(entry.id, note) }
@@ -780,31 +765,9 @@ fun EntryDetailBottomSheet(
                         FilledTonalIconButton(
                             onClick = {
                                 if (isSaved) {
-                                    haptics.click()
-                                    scope.launch {
-                                        val snapshot = userStore?.removeBookmarkWithSnapshot(entry.id)
-                                        if (snapshot == null) {
-                                            bookmarksState.toggle(entry)
-                                        }
-                                        val host = snackbarHost
-                                        if (host != null) {
-                                            if (host.showUndo("Removed from Saved")) {
-                                                if (snapshot != null) userStore.restoreBookmark(snapshot)
-                                                else bookmarksState.toggle(entry)
-                                            }
-                                        } else {
-                                            onShowSnackbar("Removed from Saved")
-                                        }
-                                    }
+                                    saveActions.unsave(entry)
                                 } else {
-                                    haptics.confirm()
-                                    bookmarksState.toggle(entry)
-                                    val host = snackbarHost
-                                    if (host != null) {
-                                        scope.launch { host.showSnackbar("Saved") }
-                                    } else {
-                                        onShowSnackbar("Saved")
-                                    }
+                                    saveActions.save(entry)
                                 }
                                 onDismiss()
                             },
@@ -1021,31 +984,9 @@ fun EntryDetailBottomSheet(
                             IconButton(
                                 onClick = {
                                     if (isSiteSaved) {
-                                        haptics.click()
-                                        scope.launch {
-                                            val snapshot = userStore?.removeBookmarkWithSnapshot(site.id)
-                                            if (snapshot == null) {
-                                                bookmarksState.toggle(site)
-                                            }
-                                            val host = snackbarHost
-                                            if (host != null) {
-                                                if (host.showUndo("Removed from Saved")) {
-                                                    if (snapshot != null) userStore.restoreBookmark(snapshot)
-                                                    else bookmarksState.toggle(site)
-                                                }
-                                            } else {
-                                                onShowSnackbar("Removed from Saved")
-                                            }
-                                        }
+                                        saveActions.unsave(site)
                                     } else {
-                                        haptics.confirm()
-                                        bookmarksState.toggle(site)
-                                        val host = snackbarHost
-                                        if (host != null) {
-                                            scope.launch { host.showSnackbar("Saved") }
-                                        } else {
-                                            onShowSnackbar("Saved")
-                                        }
+                                        saveActions.save(site)
                                     }
                                 },
                                 modifier = Modifier
@@ -1163,31 +1104,9 @@ fun EntryDetailBottomSheet(
                                 FilledTonalIconButton(
                                     onClick = {
                                         if (isSiteSaved) {
-                                            haptics.click()
-                                            scope.launch {
-                                                val snapshot = userStore?.removeBookmarkWithSnapshot(site.id)
-                                                if (snapshot == null) {
-                                                    bookmarksState.toggle(site)
-                                                }
-                                                val host = snackbarHost
-                                                if (host != null) {
-                                                    if (host.showUndo("Removed from Saved")) {
-                                                        if (snapshot != null) userStore.restoreBookmark(snapshot)
-                                                        else bookmarksState.toggle(site)
-                                                    }
-                                                } else {
-                                                    onShowSnackbar("Removed from Saved")
-                                                }
-                                            }
+                                            saveActions.unsave(site)
                                         } else {
-                                            haptics.confirm()
-                                            bookmarksState.toggle(site)
-                                            val host = snackbarHost
-                                            if (host != null) {
-                                                scope.launch { host.showSnackbar("Saved") }
-                                            } else {
-                                                onShowSnackbar("Saved")
-                                            }
+                                            saveActions.save(site)
                                         }
                                     },
                                     modifier = Modifier.size(48.dp),
