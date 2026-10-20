@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import io.github.omeg4dev.fmhy.data.DatasetStore
 import io.github.omeg4dev.fmhy.data.SettingsRepository
 import io.github.omeg4dev.fmhy.data.model.Section
+import io.github.omeg4dev.fmhy.data.search.CategoryHit
 import io.github.omeg4dev.fmhy.data.search.SearchEngine
 import io.github.omeg4dev.fmhy.data.search.SearchGroup
 import io.github.omeg4dev.fmhy.data.search.SearchResults
@@ -41,6 +42,7 @@ data class SearchUiState(
     val selectedSectionFilters: Set<String> = emptySet(),
     val availableSections: ImmutableList<Section> = persistentListOf(),
     val groups: ImmutableList<SearchGroup> = persistentListOf(),
+    val categories: ImmutableList<CategoryHit> = persistentListOf(),
     val total: Int = 0,
     val tookMs: Long = 0L,
     val recentSearches: ImmutableList<String> = persistentListOf(),
@@ -152,6 +154,7 @@ class SearchViewModel(
             selectedSectionFilters = filters,
             availableSections = sections,
             groups = groups,
+            categories = (results?.categories ?: emptyList()).toImmutableList(),
             total = results?.total ?: 0,
             tookMs = results?.tookMs ?: 0L,
             recentSearches = recentsAndPrefs.recents.toImmutableList(),

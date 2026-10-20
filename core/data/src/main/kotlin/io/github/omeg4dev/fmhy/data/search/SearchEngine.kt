@@ -3,9 +3,11 @@ package io.github.omeg4dev.fmhy.data.search
 import io.github.omeg4dev.fmhy.data.DatasetStore
 import io.github.omeg4dev.fmhy.data.model.Entry
 import io.github.omeg4dev.fmhy.data.model.EntryKind
+import io.github.omeg4dev.fmhy.data.model.Heading
 import io.github.omeg4dev.fmhy.data.model.Link
 import io.github.omeg4dev.fmhy.data.model.Section
 import io.github.omeg4dev.fmhy.data.model.Tier
+import java.text.Normalizer
 import kotlinx.serialization.json.Json
 
 open class SearchEngine(private val store: DatasetStore) {
@@ -80,9 +82,92 @@ open class SearchEngine(private val store: DatasetStore) {
             SearchGroup(sec, hits)
         }
 
+        val categories = if (query.words.isNotEmpty()) searchCategories(query) else emptyList()
+
         val tookMs = System.currentTimeMillis() - startTime
-        return SearchResults(groups, allHits.size, tookMs)
+        return SearchResults(groups, allHits.size, tookMs, categories)
     }
+
+    private class CategoryIndexEntry(
+        val hit: CategoryHit,
+        val normTitle: String,
+        val titleWords: List<String>,
+        val level: Int,
+        val sectionOrd: Int,
+        val headingOrd: Int,
+    )
+
+    private var categoryIndexVersion: Long? = null
+    private var categoryIndex: List<CategoryIndexEntry> = emptyList()
+
+    private suspend fun categoryIndexFor(): List<CategoryIndexEntry> {
+        val version = store.version()
+        synchronized(this) {
+            if (categoryIndexVersion == version) return categoryIndex
+        }
+        val sections = store.sections()
+        val headings = store.allHeadings()
+        val sectionsById = sections.associateBy { it.id }
+        val headingsById = headings.associateBy { it.id }
+        val built = ArrayList<CategoryIndexEntry>(sections.size + headings.size)
+        for (sec in sections) {
+            if (sec.title.isBlank()) continue
+            val n = normalizeForSearch(sec.title)
+            built.add(CategoryIndexEntry(CategoryHit(sec, null, emptyList()), n, n.splitWords(), 0, sec.ord, 0))
+        }
+        for (h in headings) {
+            if (h.title.isBlank()) continue
+            val sec = sectionsById[h.sectionId] ?: continue
+            val ancestors = ArrayList<String>()
+            var parent = h.parentId?.let { headingsById[it] }
+            var guard = 0
+            while (parent != null && guard++ < 8) {
+                ancestors.add(0, parent.title)
+                parent = parent.parentId?.let { headingsById[it] }
+            }
+            val n = normalizeForSearch(h.title)
+            built.add(
+                CategoryIndexEntry(
+                    CategoryHit(sec, h, listOf(sec.title) + ancestors),
+                    n, n.splitWords(), h.level, sec.ord, h.ord,
+                )
+            )
+        }
+        synchronized(this) {
+            categoryIndex = built
+            categoryIndexVersion = version
+        }
+        return built
+    }
+
+    /** Sections and headings whose title matches the plain words of [query] (operators are ignored). */
+    open suspend fun searchCategories(query: Query, limit: Int = 6): List<CategoryHit> {
+        val words = query.words.map { normalizeForSearch(it) }.filter { it.isNotEmpty() }
+        if (words.isEmpty()) return emptyList()
+        val q = words.joinToString(" ")
+        val ranked = ArrayList<Pair<Int, CategoryIndexEntry>>()
+        for (e in categoryIndexFor()) {
+            val rank = when {
+                e.normTitle == q -> 0
+                e.normTitle.startsWith(q) -> 1
+                words.all { w -> e.titleWords.any { it.startsWith(w) } } -> 2
+                e.normTitle.contains(q) -> 3
+                else -> continue
+            }
+            ranked.add(rank to e)
+        }
+        return ranked
+            .sortedWith(
+                compareBy<Pair<Int, CategoryIndexEntry>>({ it.first }, { it.second.level }, { it.second.sectionOrd }, { it.second.headingOrd })
+            )
+            .take(limit)
+            .map { it.second.hit }
+    }
+
+    private fun String.splitWords(): List<String> = split(Regex("[^\\p{L}\\p{N}]+")).filter { it.isNotEmpty() }
+
+    private fun normalizeForSearch(s: String): String =
+        Normalizer.normalize(s, Normalizer.Form.NFD).replace(Regex("\\p{Mn}+"), "").lowercase().trim()
 
     private suspend fun searchFts(
         query: Query,

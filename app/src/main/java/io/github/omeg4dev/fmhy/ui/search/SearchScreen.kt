@@ -31,6 +31,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.History
@@ -82,6 +83,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.omeg4dev.fmhy.data.BrowserPrefs
 import io.github.omeg4dev.fmhy.data.link.CrossLinks
 import io.github.omeg4dev.fmhy.SectionNavKey
+import io.github.omeg4dev.fmhy.data.search.CategoryHit
 import io.github.omeg4dev.fmhy.di.AppContainer
 import io.github.omeg4dev.fmhy.nav.LocalAppNav
 import io.github.omeg4dev.fmhy.nav.LocalBottomBarPadding
@@ -94,6 +96,8 @@ import io.github.omeg4dev.fmhy.ui.common.SkeletonRows
 import io.github.omeg4dev.fmhy.ui.common.SwipeToSave
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
 import io.github.omeg4dev.fmhy.ui.common.enterStagger
+import io.github.omeg4dev.fmhy.ui.common.parseHighlight
+import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
 import io.github.omeg4dev.fmhy.ui.common.sectionIcon
 import io.github.omeg4dev.fmhy.ui.check.VerdictCard
@@ -126,6 +130,7 @@ fun SearchScreen(
     var showFiltersSheet by remember { mutableStateOf(false) }
 
     val linkOpener = rememberLinkOpener(container, onShowSnackbar)
+    val haptics = rememberHaptics()
 
     val browserPrefs by container.settingsRepository.browserPrefs.collectAsStateWithLifecycle(initialValue = BrowserPrefs())
     val encodedQuery = remember(state.query) {
@@ -143,7 +148,7 @@ fun SearchScreen(
     val contentMode = when {
         !state.hasSearched -> SearchContentMode.RECENT
         state.isSearching -> SearchContentMode.SEARCHING
-        state.total == 0 && state.verdict == null -> SearchContentMode.EMPTY
+        state.total == 0 && state.verdict == null && state.categories.isEmpty() -> SearchContentMode.EMPTY
         else -> SearchContentMode.RESULTS
     }
 
@@ -449,6 +454,37 @@ fun SearchScreen(
                                     }
                                 }
 
+                                if (state.categories.isNotEmpty()) {
+                                    stickyHeader(key = "hdr_categories") {
+                                        Surface(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            color = MaterialTheme.colorScheme.surface,
+                                        ) {
+                                            Text(
+                                                text = "Categories",
+                                                style = MaterialTheme.typography.labelLarge,
+                                                color = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 6.dp),
+                                            )
+                                        }
+                                    }
+                                    itemsIndexed(
+                                        state.categories,
+                                        key = { _, c -> "cat_${c.heading?.id ?: c.section.id}" },
+                                    ) { _, cat ->
+                                        CategoryRow(
+                                            hit = cat,
+                                            query = state.query,
+                                            onClick = {
+                                                haptics.click()
+                                                nav.select(Tab.BROWSE)
+                                                nav.push(SectionNavKey(cat.section.id, anchor = cat.heading?.anchor))
+                                            },
+                                            modifier = Modifier.animateItem(),
+                                        )
+                                    }
+                                }
+
                                 state.groups.forEach { group ->
                                     stickyHeader(key = "hdr_${group.section.id}") {
                                         Surface(
@@ -624,4 +660,71 @@ fun SearchScreen(
     }
 
     UnsafeWarningDialog(linkOpener)
+}
+
+/** Plain search words of [query]: operators (`in:`, `is:`, `site:`), excludes and quotes dropped. */
+private fun plainQueryWords(query: String): List<String> =
+    query.split(Regex("\\s+")).filter { it.isNotBlank() && !it.contains(':') && !it.startsWith("-") && !it.contains('"') }
+
+/** [title] with the first occurrence of each query word wrapped in the highlight markers parseHighlight reads. */
+private fun categoryHighlight(title: String, words: List<String>): String {
+    val marked = BooleanArray(title.length)
+    for (w in words) {
+        val i = title.indexOf(w, ignoreCase = true)
+        if (i >= 0) for (k in i until i + w.length) marked[k] = true
+    }
+    return buildString {
+        var open = false
+        for ((idx, ch) in title.withIndex()) {
+            if (marked[idx] && !open) { append('\u0002'); open = true }
+            if (!marked[idx] && open) { append('\u0003'); open = false }
+            append(ch)
+        }
+        if (open) append('\u0003')
+    }
+}
+
+@Composable
+private fun CategoryRow(
+    hit: CategoryHit,
+    query: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val title = hit.heading?.title ?: hit.section.title
+    val primary = MaterialTheme.colorScheme.primary
+    val words = remember(query) { plainQueryWords(query) }
+    val styled = remember(title, words, primary) { parseHighlight(categoryHighlight(title, words), primary) }
+    ListItem(
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        leadingContent = {
+            Icon(
+                imageVector = sectionIcon(hit.section.id),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        },
+        headlineContent = {
+            Text(text = styled, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        },
+        supportingContent = if (hit.path.isNotEmpty()) {
+            {
+                Text(
+                    text = hit.path.joinToString(" › "),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        } else null,
+        trailingContent = {
+            Icon(
+                imageVector = Icons.Filled.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        },
+        modifier = modifier.clickable(onClick = onClick),
+    )
 }
