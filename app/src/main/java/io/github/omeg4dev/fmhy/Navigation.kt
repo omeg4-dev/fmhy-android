@@ -154,7 +154,6 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
     val app = context.applicationContext as FmhyApp
     val container = app.container
     val activity = context as? Activity
-    val haptics = rememberHaptics()
 
     val browseStack = rememberNavBackStack(HomeNavKey)
     val searchStack = rememberNavBackStack(SearchNavKey())
@@ -708,7 +707,6 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                         NavigationBarItem(
                             selected = nav.current == Tab.BROWSE,
                             onClick = {
-                                haptics.tick()
                                 nav.select(Tab.BROWSE)
                             },
                             icon = {
@@ -723,7 +721,6 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                         NavigationBarItem(
                             selected = nav.current == Tab.SEARCH,
                             onClick = {
-                                haptics.tick()
                                 nav.select(Tab.SEARCH)
                             },
                             icon = {
@@ -738,7 +735,6 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                         NavigationBarItem(
                             selected = nav.current == Tab.SAVED,
                             onClick = {
-                                haptics.tick()
                                 nav.select(Tab.SAVED)
                             },
                             icon = {

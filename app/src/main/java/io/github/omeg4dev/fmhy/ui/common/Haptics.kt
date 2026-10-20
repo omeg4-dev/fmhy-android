@@ -36,12 +36,6 @@ interface AppHaptics {
 
     /** An action was blocked or failed. */
     fun error()
-
-    @Deprecated("Plain taps get no haptic; pick a semantic method or drop the call.")
-    fun click() {}
-
-    @Deprecated("Use success()", ReplaceWith("success()"))
-    fun confirm() = success()
 }
 
 enum class HapticKind { TICK, TOGGLE_ON, TOGGLE_OFF, SUCCESS, REMOVE, LONG_PRESS, ERROR }
