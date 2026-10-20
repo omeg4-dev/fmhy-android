@@ -117,6 +117,7 @@ class SettingsRepositoryTest {
             enabled = true,
             notifyFollowed = false,
             watchSaved = false,
+            notifyNewPosts = false,
             interval = UpdateInterval.WEEKLY,
             wifiOnly = true,
         )

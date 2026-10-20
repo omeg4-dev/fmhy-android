@@ -18,6 +18,7 @@ class ShortcutIntentTest {
 
     @Test fun checkLink() {
         assertEquals(ShortcutDestination.CheckLink, shortcutDestination("check"))
+        assertEquals(ShortcutDestination.Posts, shortcutDestination("posts"))
     }
 
     @Test fun randomKeepsTheShownEntry() {

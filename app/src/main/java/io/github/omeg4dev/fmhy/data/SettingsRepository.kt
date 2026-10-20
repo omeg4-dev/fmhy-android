@@ -146,6 +146,7 @@ class DefaultSettingsRepository(
         private val KEY_NOTIFICATIONS_ENABLED = booleanPreferencesKey("notifications_enabled")
         private val KEY_NOTIFICATIONS_NOTIFY_FOLLOWED = booleanPreferencesKey("notifications_notify_followed")
         private val KEY_NOTIFICATIONS_WATCH_SAVED = booleanPreferencesKey("notifications_watch_saved")
+        private val KEY_NOTIFICATIONS_NOTIFY_NEW_POSTS = booleanPreferencesKey("notifications_notify_new_posts")
         private val KEY_NOTIFICATIONS_INTERVAL = stringPreferencesKey("notifications_interval")
         private val KEY_NOTIFICATIONS_WIFI_ONLY = booleanPreferencesKey("notifications_wifi_only")
 
@@ -555,6 +556,7 @@ class DefaultSettingsRepository(
             enabled = prefs[KEY_NOTIFICATIONS_ENABLED] ?: default.enabled,
             notifyFollowed = prefs[KEY_NOTIFICATIONS_NOTIFY_FOLLOWED] ?: default.notifyFollowed,
             watchSaved = prefs[KEY_NOTIFICATIONS_WATCH_SAVED] ?: default.watchSaved,
+            notifyNewPosts = prefs[KEY_NOTIFICATIONS_NOTIFY_NEW_POSTS] ?: default.notifyNewPosts,
             interval = interval,
             wifiOnly = prefs[KEY_NOTIFICATIONS_WIFI_ONLY] ?: default.wifiOnly,
         )
@@ -565,6 +567,7 @@ class DefaultSettingsRepository(
         prefs[KEY_NOTIFICATIONS_ENABLED] = p.enabled
         prefs[KEY_NOTIFICATIONS_NOTIFY_FOLLOWED] = p.notifyFollowed
         prefs[KEY_NOTIFICATIONS_WATCH_SAVED] = p.watchSaved
+        prefs[KEY_NOTIFICATIONS_NOTIFY_NEW_POSTS] = p.notifyNewPosts
         prefs[KEY_NOTIFICATIONS_INTERVAL] = p.interval.name
         prefs[KEY_NOTIFICATIONS_WIFI_ONLY] = p.wifiOnly
     }

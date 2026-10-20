@@ -13,6 +13,7 @@ sealed interface ShortcutDestination {
     data object Saved : ShortcutDestination
     data class WhatsNew(val filter: String) : ShortcutDestination
     data object CheckLink : ShortcutDestination
+    data object Posts : ShortcutDestination
 
     /** The widget's random pick; [entryId] is the one the widget showed, null = choose a new one. */
     data class Random(val entryId: String?) : ShortcutDestination
@@ -32,6 +33,7 @@ fun shortcutDestination(
     "saved" -> ShortcutDestination.Saved
     "whats_new" -> ShortcutDestination.WhatsNew(filter?.takeIf { it.isNotEmpty() } ?: "all")
     "check" -> ShortcutDestination.CheckLink
+    "posts" -> ShortcutDestination.Posts
     "random" -> ShortcutDestination.Random(entryId?.takeIf { it.isNotEmpty() })
     "pin" -> sectionId?.takeIf { it.isNotEmpty() }?.let { ShortcutDestination.Pin(it, headingId.orEmpty()) }
     else -> null
