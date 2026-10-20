@@ -12,6 +12,9 @@ import io.github.omeg4dev.fmhy.data.model.Section
 import io.github.omeg4dev.fmhy.data.search.SearchEngine
 import io.github.omeg4dev.fmhy.data.search.SearchGroup
 import io.github.omeg4dev.fmhy.data.search.SearchResults
+import io.github.omeg4dev.fmhy.data.safety.SafeGuard
+import io.github.omeg4dev.fmhy.data.safety.Verdict
+import io.github.omeg4dev.fmhy.ui.check.looksLikeUrl
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
@@ -42,6 +45,7 @@ data class SearchUiState(
     val recentSearches: ImmutableList<String> = persistentListOf(),
     val isSearching: Boolean = false,
     val hasSearched: Boolean = false,
+    val verdict: Verdict? = null,
 )
 
 @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
@@ -50,6 +54,7 @@ class SearchViewModel(
     private val store: DatasetStore,
     private val searchEngine: SearchEngine,
     private val settingsRepository: SettingsRepository,
+    private val safeGuard: SafeGuard = SafeGuard(store),
 ) : ViewModel() {
 
     val query = MutableStateFlow(initialQuery)
@@ -76,9 +81,21 @@ class SearchViewModel(
     }.debounce(40L)
      .distinctUntilChanged()
 
+    private data class SearchEngineAndVerdict(
+        val results: SearchResults?,
+        val verdict: Verdict?,
+    )
+
     private val searchResults = searchParams.mapLatest { params ->
+        val trimmedQuery = params.query.trim()
+        val verdict = if (looksLikeUrl(trimmedQuery) && store.isAvailable) {
+            safeGuard.check(trimmedQuery)
+        } else {
+            null
+        }
+
         val effectiveQuery = buildString {
-            append(params.query.trim())
+            append(trimmedQuery)
             if (params.starredOnly) {
                 if (isNotEmpty()) append(" ")
                 append("is:starred")
@@ -89,7 +106,7 @@ class SearchViewModel(
             }
         }
 
-        if ((effectiveQuery.isBlank() && params.filters.isEmpty()) || !store.isAvailable) {
+        val results = if ((effectiveQuery.isBlank() && params.filters.isEmpty()) || !store.isAvailable) {
             null
         } else {
             searchEngine.search(
@@ -98,6 +115,7 @@ class SearchViewModel(
                 limit = 200
             )
         }
+        SearchEngineAndVerdict(results, verdict)
     }.flowOn(Dispatchers.IO)
 
     val uiState: StateFlow<SearchUiState> = combine(
@@ -106,7 +124,8 @@ class SearchViewModel(
         allSections,
         settingsRepository.recentSearches,
         searchResults,
-    ) { (q, starred, b64), filters, sections, recents, results ->
+    ) { (q, starred, b64), filters, sections, recents, engineAndVerdict ->
+        val results = engineAndVerdict.results
         SearchUiState(
             query = q,
             starredOnly = starred,
@@ -118,7 +137,8 @@ class SearchViewModel(
             tookMs = results?.tookMs ?: 0L,
             recentSearches = recents.toImmutableList(),
             isSearching = false,
-            hasSearched = results != null,
+            hasSearched = results != null || engineAndVerdict.verdict != null,
+            verdict = engineAndVerdict.verdict,
         )
     }.stateIn(
         viewModelScope,

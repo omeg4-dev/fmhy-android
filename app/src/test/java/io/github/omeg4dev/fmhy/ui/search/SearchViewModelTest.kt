@@ -210,4 +210,22 @@ class SearchViewModelTest {
         // Ensure visible query in state remains what user typed
         assertEquals("stremio", viewModel.uiState.value.query)
     }
+
+    @Test
+    fun testUrlQueryTriggersSafeGuard() = runTest {
+        val store = FakeDatasetStore()
+        val fakeSettings = FakeSettingsRepository()
+        val searchEngine = FakeSearchEngine(store)
+        val viewModel = SearchViewModel(
+            initialQuery = "",
+            store = store,
+            searchEngine = searchEngine,
+            settingsRepository = fakeSettings,
+        )
+
+        viewModel.onQueryChange("google.com")
+        val state = viewModel.uiState.filter { it.query == "google.com" && it.verdict != null }.first()
+        org.junit.Assert.assertNotNull(state.verdict)
+        assertEquals(io.github.omeg4dev.fmhy.data.safety.SafetyStatus.SEARCH_ENGINE, state.verdict?.status)
+    }
 }

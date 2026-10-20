@@ -80,6 +80,7 @@ import io.github.omeg4dev.fmhy.ui.common.EntryRow
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
 import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
 import io.github.omeg4dev.fmhy.ui.common.sectionIcon
+import io.github.omeg4dev.fmhy.ui.check.VerdictCard
 import kotlinx.coroutines.flow.filter
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
@@ -330,7 +331,7 @@ fun SearchScreen(
                         }
                     }
                 }
-            } else if (state.total == 0) {
+            } else if (state.total == 0 && state.verdict == null) {
                 // No-results state
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -368,18 +369,48 @@ fun SearchScreen(
                 }
             } else {
                 // Results count line (drop the ms)
-                Text(
-                    text = if (state.total >= 200) "200+ results" else "${"%,d".format(state.total)} results",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.outline,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                )
+                if (state.total > 0) {
+                    Text(
+                        text = if (state.total >= 200) "200+ results" else "${"%,d".format(state.total)} results",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.outline,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    )
+                }
 
                 LazyColumn(
                     state = resultsListState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(bottom = 24.dp + LocalBottomBarPadding.current),
                 ) {
+                    if (state.verdict != null) {
+                        item(key = "hdr_verdict_card") {
+                            VerdictCard(
+                                verdict = state.verdict!!,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                                onOpenUrl = { linkOpener.openUrl(it) },
+                                onShowSnackbar = onShowSnackbar,
+                            )
+                        }
+                    }
+
+                    if (state.total == 0 && state.verdict != null) {
+                        item(key = "no_search_results_under_verdict") {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 24.dp, horizontal = 16.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    text = "No matching entries in search results",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+
                     state.groups.forEach { group ->
                         stickyHeader(key = "hdr_${group.section.id}") {
                             Surface(

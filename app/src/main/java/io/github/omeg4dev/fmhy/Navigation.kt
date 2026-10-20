@@ -81,6 +81,7 @@ import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import io.github.omeg4dev.fmhy.ui.section.SectionScreen
 import io.github.omeg4dev.fmhy.ui.section.SectionViewModel
 import io.github.omeg4dev.fmhy.ui.legend.LegendScreen
+import io.github.omeg4dev.fmhy.ui.check.CheckLinkScreen
 import io.github.omeg4dev.fmhy.ui.settings.AboutPage
 import io.github.omeg4dev.fmhy.ui.settings.AppearancePage
 import io.github.omeg4dev.fmhy.ui.settings.BlockingPage
@@ -95,6 +96,13 @@ import io.github.omeg4dev.fmhy.ui.settings.SavedPage
 import io.github.omeg4dev.fmhy.ui.settings.SettingsHub
 import io.github.omeg4dev.fmhy.ui.settings.SettingsViewModel
 import io.github.omeg4dev.fmhy.ui.settings.VideoPage
+import android.content.Intent
+import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
+import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
+import io.github.omeg4dev.fmhy.nav.resolveFmhyUri
+import io.github.omeg4dev.fmhy.nav.FmhyLinkDestination
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 fun interface BottomBarController {
@@ -104,7 +112,7 @@ fun interface BottomBarController {
 val LocalBottomBarController = staticCompositionLocalOf { BottomBarController {} }
 
 @Composable
-fun MainNavigation() {
+fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
     val context = LocalContext.current
     val app = context.applicationContext as FmhyApp
     val container = app.container
@@ -135,6 +143,50 @@ fun MainNavigation() {
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val linkOpener = rememberLinkOpener(container, onShowSnackbar = { msg ->
+        scope.launch { snackbarHostState.showSnackbar(msg) }
+    })
+
+    if (intentFlow != null) {
+        LaunchedEffect(intentFlow) {
+            intentFlow.collect { incomingIntent ->
+                val checkLink = incomingIntent.getStringExtra(EXTRA_CHECK_LINK_INITIAL)
+                if (!checkLink.isNullOrEmpty()) {
+                    nav.select(Tab.BROWSE)
+                    nav.push(CheckLinkNavKey(checkLink))
+                    return@collect
+                }
+
+                if (incomingIntent.action == Intent.ACTION_VIEW) {
+                    val data = incomingIntent.dataString
+                    if (!data.isNullOrEmpty()) {
+                        val cross = if (container.datasetStore.isAvailable) {
+                            container.crossLinks.first { it != null }
+                        } else null
+
+                        when (val dest = resolveFmhyUri(data, cross)) {
+                            is FmhyLinkDestination.Navigate -> {
+                                nav.select(Tab.BROWSE)
+                                if (dest.navKey is HomeNavKey) {
+                                    if (browseStack.lastOrNull() != HomeNavKey) {
+                                        nav.push(HomeNavKey)
+                                    }
+                                } else {
+                                    nav.push(dest.navKey)
+                                }
+                            }
+                            is FmhyLinkDestination.OpenBrowser -> {
+                                linkOpener.openUrl(dest.url)
+                            }
+                            null -> {
+                                linkOpener.openUrl(data)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     val crossLinks by container.crossLinks.collectAsStateWithLifecycle()
     val savedIds by container.bookmarks.savedIds.collectAsStateWithLifecycle(initialValue = emptySet())
@@ -221,6 +273,7 @@ fun MainNavigation() {
                 },
                 onNavigateToSection = { sectionId -> nav.push(SectionNavKey(sectionId)) },
                 onNavigateToSettings = { nav.push(SettingsNavKey) },
+                onNavigateToCheckLink = { nav.push(CheckLinkNavKey()) },
                 onShowSnackbar = { msg ->
                     scope.launch { snackbarHostState.showSnackbar(msg) }
                 }
@@ -263,6 +316,7 @@ fun MainNavigation() {
                     container.datasetStore,
                     container.searchEngine,
                     container.settingsRepository,
+                    container.safeGuard,
                 )
             }
             SearchScreen(
@@ -375,6 +429,17 @@ fun MainNavigation() {
             SavedScreen(
                 viewModel = savedViewModel,
                 container = container,
+                onShowSnackbar = { msg ->
+                    scope.launch { snackbarHostState.showSnackbar(msg) }
+                }
+            )
+        }
+
+        entry<CheckLinkNavKey> { key ->
+            CheckLinkScreen(
+                initialQuery = key.initial,
+                container = container,
+                onBack = { if (!nav.back()) activity?.finish() },
                 onShowSnackbar = { msg ->
                     scope.launch { snackbarHostState.showSnackbar(msg) }
                 }
@@ -502,5 +567,6 @@ fun MainNavigation() {
                 }
             }
         }
+        UnsafeWarningDialog(linkOpener)
     }
 }

@@ -10,6 +10,7 @@ import io.github.omeg4dev.fmhy.data.sync.SyncResult
 import io.github.omeg4dev.fmhy.data.BookmarksRepository
 import io.github.omeg4dev.fmhy.data.bookmarksDataStore
 import io.github.omeg4dev.fmhy.data.link.CrossLinks
+import io.github.omeg4dev.fmhy.data.safety.SafeGuard
 import io.github.omeg4dev.fmhy.data.user.UserStore
 import java.io.File
 import java.util.concurrent.TimeUnit
@@ -50,6 +51,7 @@ interface AppContainer {
     val settingsRepository: SettingsRepository
     val bookmarks: BookmarksRepository
     val crossLinks: StateFlow<CrossLinks?>
+    val safeGuard: SafeGuard
     val isInitialized: StateFlow<Boolean>
     val syncStatus: StateFlow<SyncStatus>
     val snackbarEvents: SharedFlow<String>
@@ -105,6 +107,10 @@ class DefaultAppContainer(override val context: Context) : AppContainer {
 
     override val datasetStore: DatasetStore by lazy {
         DatasetStore(dbFile)
+    }
+
+    override val safeGuard: SafeGuard by lazy {
+        SafeGuard(datasetStore)
     }
 
     override val fmhySync: FmhySync by lazy {
