@@ -455,7 +455,7 @@ private fun FilterBar(
 
         // 2. Type Pill
         val typeLabel = when {
-            state.types.isEmpty() -> "All types"
+            state.types.isEmpty() || state.types.size == ChangeKind.entries.size -> "All types"
             state.types == WhatsNewGrouping.DEFAULT_TYPES -> "All but edits"
             state.types.size == 1 -> state.types.first().label()
             else -> "${state.types.size} types"
