@@ -56,6 +56,19 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.outlined.School
 import androidx.compose.ui.text.style.TextAlign
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import androidx.compose.runtime.rememberCoroutineScope
+import io.github.omeg4dev.fmhy.data.DatasetStore
+import io.github.omeg4dev.fmhy.data.model.Entry
+import io.github.omeg4dev.fmhy.ui.common.EntryDetailBottomSheet
+import io.github.omeg4dev.fmhy.ui.posts.PostBody
+import io.github.omeg4dev.fmhy.ui.posts.PostHeader
+import io.github.omeg4dev.fmhy.ui.posts.PostSiteRow
+import io.github.omeg4dev.fmhy.ui.posts.PostsListing
+import io.github.omeg4dev.fmhy.ui.posts.PostsReadState
+import kotlinx.coroutines.launch
 
 fun readerStyleForPath(path: String): ReaderStyle {
     val clean = path.trim().removePrefix("/").removePrefix("docs/").trimStart('/')
@@ -93,6 +106,15 @@ fun ReaderScreen(
     var isLoading by remember(path) { mutableStateOf(true) }
     var reloadTrigger by remember { mutableStateOf(0) }
     var showMenu by remember { mutableStateOf(false) }
+
+    val scope = rememberCoroutineScope()
+    var sheetEntry by remember(path) { mutableStateOf<Entry?>(null) }
+
+    LaunchedEffect(path) {
+        if (style == ReaderStyle.POST) {
+            try { PostsReadState.markRead(container.userStore, path) } catch (_: Exception) {}
+        }
+    }
 
     LaunchedEffect(path, reloadTrigger) {
         isLoading = true
@@ -316,13 +338,34 @@ fun ReaderScreen(
                                     }
                                 }
 
-                                MarkdownBlocks(
-                                    markdown = success.text,
-                                    onOpenUrl = { url ->
-                                        linkOpener.openUrl(url)
-                                    },
-                                    readerStyle = style,
-                                )
+                                if (style == ReaderStyle.POST) {
+                                    val baseName = path.substringAfterLast('/').removeSuffix(".md")
+                                    val fmDate = success.frontMatter["date"]
+                                    val monthLabel = PostsListing.formatDateText(
+                                        baseName, fmDate, PostsListing.parseDate(baseName, fmDate),
+                                    )
+                                    PostHeader(title = title, monthLabel = monthLabel)
+                                    PostBody(
+                                        markdown = success.text,
+                                        onOpenUrl = { url -> linkOpener.openUrl(url) },
+                                        onSiteTap = { row: PostSiteRow ->
+                                            scope.launch {
+                                                val match = try {
+                                                    findEntryForUrl(container.datasetStore, row.url)
+                                                } catch (_: Exception) { null }
+                                                if (match != null) sheetEntry = match else linkOpener.openUrl(row.url)
+                                            }
+                                        },
+                                    )
+                                } else {
+                                    MarkdownBlocks(
+                                        markdown = success.text,
+                                        onOpenUrl = { url ->
+                                            linkOpener.openUrl(url)
+                                        },
+                                        readerStyle = style,
+                                    )
+                                }
                             }
                         }
                     }
@@ -331,5 +374,40 @@ fun ReaderScreen(
         }
     }
 
+    sheetEntry?.let { entry ->
+        EntryDetailBottomSheet(
+            entry = entry,
+            onDismiss = { sheetEntry = null },
+            onOpenUrl = { linkOpener.openUrl(it) },
+            onCopyLink = { url ->
+                sheetEntry = null
+                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                clipboard.setPrimaryClip(ClipData.newPlainText("URL", url))
+                onShowSnackbar("Link copied to clipboard")
+            },
+            onShareLink = { url ->
+                sheetEntry = null
+                val intent = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_TEXT, url)
+                }
+                context.startActivity(Intent.createChooser(intent, "Share ${entry.name}"))
+            },
+            onShowSnackbar = onShowSnackbar,
+        )
+    }
+
     UnsafeWarningDialog(linkOpener)
+}
+
+/** Finds the FMHY entry whose URL matches [url] (normalised), or null. */
+private suspend fun findEntryForUrl(store: DatasetStore, url: String): Entry? {
+    if (!store.isAvailable) return null
+    val host = url.substringAfter("://").substringBefore('/').substringBefore('?').lowercase().removePrefix("www.")
+    if (host.isBlank()) return null
+    val target = DatasetStore.normalizeEntryUrl(url)
+    return store.entriesMatchingHost(host).firstOrNull {
+        DatasetStore.normalizeEntryUrl(it.url) == target ||
+            it.originalUrl?.let { o -> DatasetStore.normalizeEntryUrl(o) == target } == true
+    }
 }
