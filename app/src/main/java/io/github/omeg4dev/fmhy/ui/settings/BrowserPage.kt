@@ -32,6 +32,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.omeg4dev.fmhy.SettingsPage
 import io.github.omeg4dev.fmhy.data.OpenLinksWith
 import io.github.omeg4dev.fmhy.data.SearchEngine
+import io.github.omeg4dev.fmhy.data.BrowserButtonStyle
 import io.github.omeg4dev.fmhy.data.ToolbarPosition
 import io.github.omeg4dev.fmhy.data.adblock.FilterListCatalog
 import io.github.omeg4dev.fmhy.ui.common.Motion
@@ -140,6 +141,36 @@ fun BrowserPage(
                                 viewModel.updateBrowser { it.copy(toolbarPosition = pos) }
                             },
                         )
+                        SettingsDivider()
+                        ChoiceRow(
+                            title = "Browser button",
+                            options = listOf(
+                                BrowserButtonStyle.FLOATING to "Floating",
+                                BrowserButtonStyle.TOP_BAR to "In top bar",
+                            ),
+                            selected = browserPrefs.browserButton,
+                            onSelect = { style ->
+                                viewModel.updateBrowser { it.copy(browserButton = style) }
+                            },
+                        )
+                        if (browserPrefs.browserBubbleHidden) {
+                            androidx.compose.foundation.layout.Row(
+                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp),
+                            ) {
+                                Text(
+                                    text = "Hidden from the hold menu",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                androidx.compose.material3.TextButton(onClick = {
+                                    viewModel.updateBrowser { it.copy(browserBubbleHidden = false) }
+                                }) { Text("Show again") }
+                            }
+                        }
                     }
                 }
             }

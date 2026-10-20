@@ -91,6 +91,8 @@ import io.github.omeg4dev.fmhy.shortcuts.EXTRA_SECTION_ID
 import io.github.omeg4dev.fmhy.shortcuts.ShortcutDestination
 import io.github.omeg4dev.fmhy.shortcuts.shortcutDestination
 import io.github.omeg4dev.fmhy.nav.LocalAppNav
+import io.github.omeg4dev.fmhy.browser.BrowserBubble
+import io.github.omeg4dev.fmhy.browser.LocalBrowserButtonStyle
 import io.github.omeg4dev.fmhy.nav.LocalAppNavOrNull
 import io.github.omeg4dev.fmhy.nav.LocalBottomBarPadding
 import io.github.omeg4dev.fmhy.nav.Tab
@@ -625,6 +627,9 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
         }
     }
 
+    val browserButtonStyle = container.settingsRepository.browserPrefs
+        .collectAsStateWithLifecycle(initialValue = container.tabManager.currentBrowserPrefs).value.browserButton
+
     CompositionLocalProvider(
         LocalAppNav provides nav,
         LocalAppNavOrNull provides nav,
@@ -635,6 +640,7 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
         LocalBookmarks provides bookmarksState,
         LocalDatasetStore provides container.datasetStore,
         LocalUserStore provides container.userStore,
+        LocalBrowserButtonStyle provides browserButtonStyle,
     ) {
         Scaffold(
             snackbarHost = {
@@ -746,6 +752,13 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                         )
                     }
                 }
+
+                // Floating browser bubble (above content and the bottom bar, below onboarding)
+                BrowserBubble(
+                    tabManager = container.tabManager,
+                    settingsRepository = container.settingsRepository,
+                    enabled = !showOnboarding,
+                )
 
                 // Onboarding full screen overlay
                 if (showOnboarding) {

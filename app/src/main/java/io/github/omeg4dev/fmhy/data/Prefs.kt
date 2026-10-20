@@ -8,6 +8,11 @@ import io.github.omeg4dev.fmhy.data.adblock.FilterListCatalog
 enum class OpenLinksWith { IN_APP, CUSTOM_TAB, EXTERNAL }
 enum class ToolbarPosition { TOP, BOTTOM }
 
+/** Where FMHY shows the switch to the browser: a draggable bubble, or the chip in the Home/Saved top bars. */
+enum class BrowserButtonStyle { FLOATING, TOP_BAR }
+
+enum class BubbleSide { LEFT, RIGHT }
+
 enum class AutoplayMode(val label: String) {
     BLOCK("Never"),
     ALLOW_MUTED("Muted only"),
@@ -68,6 +73,12 @@ data class BrowserPrefs(
     val restoreTabs: Boolean = false,
     val searchEngine: SearchEngine = SearchEngine.DUCKDUCKGO,
     val toolbarPosition: ToolbarPosition = ToolbarPosition.TOP,
+    val browserButton: BrowserButtonStyle = BrowserButtonStyle.FLOATING,
+    /** Set from the bubble's hold menu; Settings -> Browsing -> Browser button shows it again. */
+    val browserBubbleHidden: Boolean = false,
+    val bubbleSide: BubbleSide = BubbleSide.RIGHT,
+    /** 0..1 position inside the allowed vertical range. */
+    val bubbleY: Float = 0.75f,
     // Page
     val javascript: Boolean = true,
     /** Darken pages when the app is in dark theme. */

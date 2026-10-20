@@ -660,6 +660,18 @@ class TabManager(
         updateTabsFlow(immediate = true)
     }
 
+    /**
+     * Closes every live tab AND forgets tabs that exist only in the restore store (browser not started this
+     * session), so the FMHY bubble/chip count drops to 0. Used by the bubble's "Close all tabs".
+     */
+    fun closeAllTabsIncludingRestorable() {
+        closeAllTabs()
+        _browserTabCount.value = 0
+        appScope.launch {
+            try { userStore.put("browser_tabs", "[]") } catch (_: Exception) {}
+        }
+    }
+
     fun pauseTab(record: TabRecord) {
         val wv = record.webView ?: return
         try {

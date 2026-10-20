@@ -69,6 +69,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
@@ -81,6 +82,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
@@ -170,7 +174,6 @@ fun BrowserToolbar(
                 // Back button (48 dp target, disabled when !canGoBack)
                 IconButton(
                     onClick = {
-                        haptics.tick()
                         onBackClick()
                     },
                     enabled = tab?.canGoBack == true,
@@ -182,20 +185,35 @@ fun BrowserToolbar(
                     )
                 }
 
-                // Back to FMHY (40 dp, immediately left of the address pill)
+                // Back to FMHY pill, immediately left of the address pill
                 val context = LocalContext.current
-                IconButton(
-                    onClick = {
-                        haptics.click()
-                        bringFmhyToFront(context)
-                    },
-                    modifier = Modifier.size(40.dp),
+                Surface(
+                    onClick = { bringFmhyToFront(context) },
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier
+                        .padding(horizontal = 4.dp)
+                        .minimumInteractiveComponentSize()
+                        .height(32.dp)
+                        .semantics { contentDescription = "Back to FMHY" },
                 ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Home,
-                        contentDescription = "Back to FMHY",
-                        modifier = Modifier.size(22.dp),
-                    )
+                    Row(
+                        modifier = Modifier.padding(start = 6.dp, end = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                        )
+                        Text(
+                            text = "FMHY",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                        )
+                    }
                 }
 
                 // Address pill (weight 1, swipe tabs, progress line)
@@ -216,7 +234,6 @@ fun BrowserToolbar(
                     modifier = Modifier
                         .size(48.dp)
                         .clickable(onClick = {
-                            haptics.tick()
                             onTabsClick()
                         }),
                     contentAlignment = Alignment.Center,
@@ -242,7 +259,6 @@ fun BrowserToolbar(
                 // Menu button (48 dp target)
                 IconButton(
                     onClick = {
-                        haptics.tick()
                         showMenuSheet = true
                     },
                     modifier = Modifier.size(48.dp),
@@ -392,10 +408,8 @@ private fun AddressPill(
                             val threshold = pillWidthPx * 0.3f
                             val current = dragOffset.value
                             if (current > threshold && prevTab != null) {
-                                haptics.tick()
                                 onSelectTab(prevTab.id)
                             } else if (current < -threshold && nextTab != null) {
-                                haptics.tick()
                                 onSelectTab(nextTab.id)
                             }
                             dragOffset.animateTo(0f, Motion.standard())
@@ -525,7 +539,6 @@ private fun AddressPill(
                 modifier = Modifier
                     .minimumInteractiveComponentSize()
                     .clickable(onClick = {
-                        haptics.tick()
                         onShieldClick()
                     }),
                 contentAlignment = Alignment.Center,
@@ -714,7 +727,6 @@ fun BrowserMenuSheet(
                     label = "Back",
                     enabled = tab?.canGoBack == true,
                     onClick = {
-                        haptics.tick()
                         onBack()
                     },
                 )
@@ -725,7 +737,6 @@ fun BrowserMenuSheet(
                     label = "Forward",
                     enabled = tab?.canGoForward == true,
                     onClick = {
-                        haptics.tick()
                         onForward()
                     },
                 )
@@ -736,7 +747,6 @@ fun BrowserMenuSheet(
                         icon = Icons.Default.Close,
                         label = "Stop",
                         onClick = {
-                            haptics.tick()
                             onStop()
                         },
                     )
@@ -745,7 +755,6 @@ fun BrowserMenuSheet(
                         icon = Icons.Default.Refresh,
                         label = "Reload",
                         onClick = {
-                            haptics.tick()
                             onReload()
                         },
                     )
@@ -756,7 +765,6 @@ fun BrowserMenuSheet(
                     icon = Icons.Default.Share,
                     label = "Share",
                     onClick = {
-                        haptics.tick()
                         onShare()
                     },
                 )
@@ -767,7 +775,7 @@ fun BrowserMenuSheet(
                     label = if (isSaved) "Saved" else "Save",
                     tint = if (isSaved) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                     onClick = {
-                        haptics.tick()
+                        if (isSaved) haptics.remove() else haptics.success()
                         onSave()
                     },
                 )
@@ -780,7 +788,6 @@ fun BrowserMenuSheet(
                 icon = Icons.Default.Add,
                 title = "New tab",
                 onClick = {
-                    haptics.tick()
                     onNewTab()
                 },
             )
@@ -789,7 +796,6 @@ fun BrowserMenuSheet(
                 icon = Icons.Default.Security,
                 title = "New private tab",
                 onClick = {
-                    haptics.tick()
                     onNewPrivateTab()
                 },
             )
@@ -798,7 +804,6 @@ fun BrowserMenuSheet(
                 icon = Icons.Default.Search,
                 title = "Find in page",
                 onClick = {
-                    haptics.tick()
                     onFindInPage()
                 },
             )
@@ -808,7 +813,7 @@ fun BrowserMenuSheet(
                     .fillMaxWidth()
                     .height(48.dp)
                     .clickable {
-                        haptics.tick()
+                        haptics.toggle(tab?.desktopSite != true)
                         onToggleDesktop()
                     }
                     .padding(horizontal = 12.dp),
@@ -833,7 +838,7 @@ fun BrowserMenuSheet(
                 Switch(
                     checked = tab?.desktopSite == true,
                     onCheckedChange = {
-                        haptics.tick()
+                        haptics.toggle(!it)
                         onToggleDesktop()
                     },
                 )
@@ -843,7 +848,6 @@ fun BrowserMenuSheet(
                 PlaybackSpeedRow(
                     current = tab.playbackSpeed,
                     onSelect = { speed ->
-                        haptics.tick()
                         onSetPlaybackSpeed(speed)
                     },
                 )
@@ -853,7 +857,6 @@ fun BrowserMenuSheet(
                 icon = Icons.Default.ContentCopy,
                 title = "Copy link",
                 onClick = {
-                    haptics.tick()
                     onCopyLink()
                 },
             )
@@ -862,7 +865,6 @@ fun BrowserMenuSheet(
                 icon = Icons.Default.OpenInBrowser,
                 title = "Open in another browser",
                 onClick = {
-                    haptics.tick()
                     onOpenInBrowser()
                 },
             )
@@ -871,7 +873,6 @@ fun BrowserMenuSheet(
                 icon = Icons.Default.Shield,
                 title = "Site settings",
                 onClick = {
-                    haptics.tick()
                     onSiteSettings()
                 },
             )

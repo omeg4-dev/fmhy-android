@@ -20,6 +20,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -634,35 +635,38 @@ class DefaultBrowserHooks(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .height(28.dp)
                             .padding(start = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(
                             imageVector = icon,
                             contentDescription = null,
-                            modifier = Modifier.size(16.dp),
+                            modifier = Modifier.size(14.dp),
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = state.text,
-                            style = MaterialTheme.typography.labelMedium,
+                            style = MaterialTheme.typography.labelSmall,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f),
                         )
-                        IconButton(
-                            onClick = {
-                                val host = try { Uri.parse(tab.url).host } catch (_: Exception) { null }
-                                if (host != null) {
-                                    tabManager?.dismissSiteBar(tab.id, host)
-                                }
-                            },
-                            modifier = Modifier.size(48.dp),
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clickable(onClickLabel = "Dismiss", role = androidx.compose.ui.semantics.Role.Button) {
+                                    val host = try { Uri.parse(tab.url).host } catch (_: Exception) { null }
+                                    if (host != null) {
+                                        tabManager?.dismissSiteBar(tab.id, host)
+                                    }
+                                },
+                            contentAlignment = Alignment.Center,
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.Close,
                                 contentDescription = "Dismiss",
-                                modifier = Modifier.size(16.dp),
+                                modifier = Modifier.size(14.dp),
                             )
                         }
                     }
