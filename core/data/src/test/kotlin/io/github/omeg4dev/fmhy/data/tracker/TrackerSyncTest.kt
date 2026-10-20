@@ -234,6 +234,117 @@ class TrackerSyncTest {
     }
 
     @Test
+    fun testPureStarChangeProducesExactlyOneStarredRow() = runTest {
+        val dbFile = tempFolder.newFile("test_pure_star.db")
+        val store = DatasetStoreTest.createSampleDb(dbFile)
+        setupTestDatabase(store)
+
+        val tracker = TrackerSync(
+            store = store,
+            dir = tempFolder.newFolder(),
+            client = client,
+            clock = { 1000L },
+            log = {},
+        )
+
+        val commit = TrackerCommit(
+            sha = "sha-star",
+            date = "2026-03-01T10:00:00Z",
+            message = "Star Streamo",
+            added = listOf(
+                TrackerLink(
+                    link = "* ⭐ **[Streamo](https://streamo.pro/)** - Movies / TV / Anime",
+                    source = "video",
+                    type = "updated",
+                    relatedLink = "* [Streamo](https://streamo.pro/) - Movies / TV / Anime",
+                )
+            ),
+        )
+
+        val inserted = tracker.applyCommits(listOf(commit))
+        assertEquals(1, inserted)
+
+        store.withConnection { conn ->
+            val rows = mutableListOf<Pair<String, String>>()
+            conn.prepare("SELECT kind, detail FROM changes WHERE url = 'https://streamo.pro/'").use { stmt ->
+                while (stmt.step()) {
+                    rows.add(stmt.getText(0) to stmt.getText(1))
+                }
+            }
+            assertEquals(1, rows.size)
+            assertEquals("starred", rows[0].first)
+            assertEquals("", rows[0].second)
+        }
+    }
+
+    @Test
+    fun testMoveProducesOneMovedRowAndDeletesEarlierAddedRemoved() = runTest {
+        val dbFile = tempFolder.newFile("test_move.db")
+        val store = DatasetStoreTest.createSampleDb(dbFile)
+        setupTestDatabase(store)
+
+        val tracker = TrackerSync(
+            store = store,
+            dir = tempFolder.newFolder(),
+            client = client,
+            clock = { 1000L },
+            log = {},
+        )
+
+        val commit1 = TrackerCommit(
+            sha = "sha-rem",
+            date = "2026-03-01T10:00:00Z",
+            message = "Remove from reading",
+            removed = listOf(
+                TrackerLink(
+                    link = "* [BookFinder](https://bookfinder.example.com/) - Book search",
+                    source = "reading",
+                    type = "removed",
+                )
+            ),
+        )
+
+        val commit2 = TrackerCommit(
+            sha = "sha-add",
+            date = "2026-03-01T12:00:00Z",
+            message = "Add to video",
+            added = listOf(
+                TrackerLink(
+                    link = "* [BookFinder](https://bookfinder.example.com/) - Book search",
+                    source = "video",
+                    type = "new",
+                )
+            ),
+        )
+
+        // Earlier sync only saw commit1: inserts 'removed' row
+        val ins1 = tracker.applyCommits(listOf(commit1))
+        assertEquals(1, ins1)
+        store.withConnection { conn ->
+            conn.prepare("SELECT kind FROM changes WHERE url = 'https://bookfinder.example.com/'").use { stmt ->
+                assertTrue(stmt.step())
+                assertEquals("removed", stmt.getText(0))
+            }
+        }
+
+        // Later sync sees both commit1 and commit2: recognizes move, deletes 'removed' and emits 'moved'
+        tracker.applyCommits(listOf(commit1, commit2))
+
+        store.withConnection { conn ->
+            val rows = mutableListOf<Triple<String, String, String>>()
+            conn.prepare("SELECT kind, section_id, detail FROM changes WHERE url = 'https://bookfinder.example.com/'").use { stmt ->
+                while (stmt.step()) {
+                    rows.add(Triple(stmt.getText(0), stmt.getText(1), stmt.getText(2)))
+                }
+            }
+            assertEquals(1, rows.size)
+            assertEquals("moved", rows[0].first)
+            assertEquals("video", rows[0].second)
+            assertEquals("reading", rows[0].third)
+        }
+    }
+
+    @Test
     fun testRealMonthlyCommitsData() = runTest {
         val realJsonFile = sequenceOf(
             File(".cache/ref/tracker/monthly_commits.json"),

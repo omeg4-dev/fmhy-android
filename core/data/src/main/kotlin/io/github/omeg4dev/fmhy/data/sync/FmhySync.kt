@@ -6,6 +6,7 @@ import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import androidx.sqlite.execSQL
 import io.github.omeg4dev.fmhy.data.DATASET_SCHEMA
 import io.github.omeg4dev.fmhy.data.DatasetStore
+import io.github.omeg4dev.fmhy.data.model.ChangeKind
 import io.github.omeg4dev.fmhy.data.model.Entry
 import io.github.omeg4dev.fmhy.data.parse.Base64Map
 import io.github.omeg4dev.fmhy.data.parse.EntryRow
@@ -15,6 +16,7 @@ import io.github.omeg4dev.fmhy.data.parse.SectionInfo
 import io.github.omeg4dev.fmhy.data.parse.Sections
 import io.github.omeg4dev.fmhy.data.parse.SiteLists
 import io.github.omeg4dev.fmhy.data.parse.UnsafeList
+import io.github.omeg4dev.fmhy.data.tracker.ChangeClassifier
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
@@ -677,19 +679,10 @@ open class FmhySync(
 
             if (hasStructuralChanges) {
                 store.withTransaction { conn ->
+                    val commitSha = "sync:$now"
+
                     // A. Absent sections: delete their rows
                     for (absent in absentSections) {
-                        val absentEntries = absentSectionEntries[absent] ?: emptyList()
-                        for (e in absentEntries) {
-                            conn.prepare("INSERT OR IGNORE INTO changes (ts, kind, entry_id, section_id, name, url, detail, commit_sha) VALUES (?, 'removed', ?, ?, ?, ?, '', '')").use { stmt ->
-                                stmt.bindLong(1, now)
-                                stmt.bindText(2, e.id)
-                                stmt.bindText(3, e.sectionId)
-                                stmt.bindText(4, e.name)
-                                stmt.bindText(5, e.url)
-                                stmt.step()
-                            }
-                        }
                         conn.prepare("DELETE FROM entries WHERE section_id = ?").use { stmt ->
                             stmt.bindText(1, absent.id)
                             stmt.step()
@@ -752,26 +745,16 @@ open class FmhySync(
                             }
                         }
 
-                        // Vanished entries: delete and record 'removed' in changes
+                        // Vanished entries: delete from entries table
                         conn.prepare("DELETE FROM entries WHERE id = ?").use { delStmt ->
-                            conn.prepare("INSERT OR IGNORE INTO changes (ts, kind, entry_id, section_id, name, url, detail, commit_sha) VALUES (?, 'removed', ?, ?, ?, ?, '', '')").use { chStmt ->
-                                for (v in diff.vanished) {
-                                    delStmt.bindText(1, v.id)
-                                    delStmt.step()
-                                    delStmt.reset()
-
-                                    chStmt.bindLong(1, now)
-                                    chStmt.bindText(2, v.id)
-                                    chStmt.bindText(3, v.sectionId)
-                                    chStmt.bindText(4, v.name)
-                                    chStmt.bindText(5, v.url)
-                                    chStmt.step()
-                                    chStmt.reset()
-                                }
+                            for (v in diff.vanished) {
+                                delStmt.bindText(1, v.id)
+                                delStmt.step()
+                                delStmt.reset()
                             }
                         }
 
-                        // Inserted entries: insert and record 'added' in changes
+                        // Inserted entries: insert into entries table
                         val sqlInsertEntry = """
                             INSERT INTO entries (
                                 num, id, section_id, heading_id, ord, name, url, original_url,
@@ -780,47 +763,37 @@ open class FmhySync(
                             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """.trimIndent()
                         conn.prepare(sqlInsertEntry).use { insStmt ->
-                            conn.prepare("INSERT OR IGNORE INTO changes (ts, kind, entry_id, section_id, name, url, detail, commit_sha) VALUES (?, 'added', ?, ?, ?, ?, '', '')").use { chStmt ->
-                                for (ins in diff.inserted) {
-                                    val num = ++nextNum
-                                    val starredAt = if (ins.tier >= 1) now else null
+                            for (ins in diff.inserted) {
+                                val num = ++nextNum
+                                val starredAt = if (ins.tier >= 1) now else null
 
-                                    insStmt.bindLong(1, num)
-                                    insStmt.bindText(2, ins.id)
-                                    insStmt.bindText(3, ins.sectionId)
-                                    if (ins.headingId != null) insStmt.bindText(4, ins.headingId) else insStmt.bindNull(4)
-                                    insStmt.bindLong(5, ins.ord.toLong())
-                                    insStmt.bindText(6, ins.name)
-                                    insStmt.bindText(7, ins.url)
-                                    if (ins.originalUrl != null) insStmt.bindText(8, ins.originalUrl) else insStmt.bindNull(8)
-                                    insStmt.bindText(9, ins.description)
-                                    insStmt.bindText(10, ins.tags)
-                                    insStmt.bindText(11, ins.headingPath)
-                                    insStmt.bindLong(12, ins.tier.toLong())
-                                    insStmt.bindLong(13, ins.kind.toLong())
-                                    insStmt.bindLong(14, ins.line.toLong())
-                                    insStmt.bindLong(15, if (ins.isInlineMore) 1L else 0L)
-                                    insStmt.bindLong(16, if (ins.isBase64) 1L else 0L)
-                                    insStmt.bindText(17, json.encodeToString(ins.mirrors))
-                                    insStmt.bindText(18, json.encodeToString(ins.extraLinks))
-                                    insStmt.bindLong(19, now)
-                                    insStmt.bindLong(20, now)
-                                    if (starredAt != null) insStmt.bindLong(21, starredAt) else insStmt.bindNull(21)
-                                    insStmt.step()
-                                    insStmt.reset()
-
-                                    chStmt.bindLong(1, now)
-                                    chStmt.bindText(2, ins.id)
-                                    chStmt.bindText(3, ins.sectionId)
-                                    chStmt.bindText(4, ins.name)
-                                    chStmt.bindText(5, ins.url)
-                                    chStmt.step()
-                                    chStmt.reset()
-                                }
+                                insStmt.bindLong(1, num)
+                                insStmt.bindText(2, ins.id)
+                                insStmt.bindText(3, ins.sectionId)
+                                if (ins.headingId != null) insStmt.bindText(4, ins.headingId) else insStmt.bindNull(4)
+                                insStmt.bindLong(5, ins.ord.toLong())
+                                insStmt.bindText(6, ins.name)
+                                insStmt.bindText(7, ins.url)
+                                if (ins.originalUrl != null) insStmt.bindText(8, ins.originalUrl) else insStmt.bindNull(8)
+                                insStmt.bindText(9, ins.description)
+                                insStmt.bindText(10, ins.tags)
+                                insStmt.bindText(11, ins.headingPath)
+                                insStmt.bindLong(12, ins.tier.toLong())
+                                insStmt.bindLong(13, ins.kind.toLong())
+                                insStmt.bindLong(14, ins.line.toLong())
+                                insStmt.bindLong(15, if (ins.isInlineMore) 1L else 0L)
+                                insStmt.bindLong(16, if (ins.isBase64) 1L else 0L)
+                                insStmt.bindText(17, json.encodeToString(ins.mirrors))
+                                insStmt.bindText(18, json.encodeToString(ins.extraLinks))
+                                insStmt.bindLong(19, now)
+                                insStmt.bindLong(20, now)
+                                if (starredAt != null) insStmt.bindLong(21, starredAt) else insStmt.bindNull(21)
+                                insStmt.step()
+                                insStmt.reset()
                             }
                         }
 
-                        // Updated entries: update fields and record 'starred' if tier 0 -> >= 1
+                        // Updated entries: update fields in entries table
                         val sqlUpdateEntry = """
                             UPDATE entries SET
                                 section_id = ?, heading_id = ?, ord = ?, name = ?, url = ?,
@@ -830,48 +803,36 @@ open class FmhySync(
                             WHERE id = ?
                         """.trimIndent()
                         conn.prepare(sqlUpdateEntry).use { upStmt ->
-                            conn.prepare("INSERT OR IGNORE INTO changes (ts, kind, entry_id, section_id, name, url, detail, commit_sha) VALUES (?, 'starred', ?, ?, ?, ?, '', '')").use { chStmt ->
-                                for ((old, row) in diff.updated) {
-                                    val starredAt = if (old.tier.value == 0 && row.tier >= 1) {
-                                        now
-                                    } else if (row.tier == 0) {
-                                        null
-                                    } else {
-                                        old.starredAt ?: now
-                                    }
-
-                                    upStmt.bindText(1, row.sectionId)
-                                    if (row.headingId != null) upStmt.bindText(2, row.headingId) else upStmt.bindNull(2)
-                                    upStmt.bindLong(3, row.ord.toLong())
-                                    upStmt.bindText(4, row.name)
-                                    upStmt.bindText(5, row.url)
-                                    if (row.originalUrl != null) upStmt.bindText(6, row.originalUrl) else upStmt.bindNull(6)
-                                    upStmt.bindText(7, row.description)
-                                    upStmt.bindText(8, row.tags)
-                                    upStmt.bindText(9, row.headingPath)
-                                    upStmt.bindLong(10, row.tier.toLong())
-                                    upStmt.bindLong(11, row.kind.toLong())
-                                    upStmt.bindLong(12, row.line.toLong())
-                                    upStmt.bindLong(13, if (row.isInlineMore) 1L else 0L)
-                                    upStmt.bindLong(14, if (row.isBase64) 1L else 0L)
-                                    upStmt.bindText(15, json.encodeToString(row.mirrors))
-                                    upStmt.bindText(16, json.encodeToString(row.extraLinks))
-                                    upStmt.bindLong(17, now)
-                                    if (starredAt != null) upStmt.bindLong(18, starredAt) else upStmt.bindNull(18)
-                                    upStmt.bindText(19, row.id)
-                                    upStmt.step()
-                                    upStmt.reset()
-
-                                    if (old.tier.value == 0 && row.tier >= 1) {
-                                        chStmt.bindLong(1, now)
-                                        chStmt.bindText(2, row.id)
-                                        chStmt.bindText(3, row.sectionId)
-                                        chStmt.bindText(4, row.name)
-                                        chStmt.bindText(5, row.url)
-                                        chStmt.step()
-                                        chStmt.reset()
-                                    }
+                            for ((old, row) in diff.updated) {
+                                val starredAt = if (old.tier.value == 0 && row.tier >= 1) {
+                                    now
+                                } else if (row.tier == 0) {
+                                    null
+                                } else {
+                                    old.starredAt ?: now
                                 }
+
+                                upStmt.bindText(1, row.sectionId)
+                                if (row.headingId != null) upStmt.bindText(2, row.headingId) else upStmt.bindNull(2)
+                                upStmt.bindLong(3, row.ord.toLong())
+                                upStmt.bindText(4, row.name)
+                                upStmt.bindText(5, row.url)
+                                if (row.originalUrl != null) upStmt.bindText(6, row.originalUrl) else upStmt.bindNull(6)
+                                upStmt.bindText(7, row.description)
+                                upStmt.bindText(8, row.tags)
+                                upStmt.bindText(9, row.headingPath)
+                                upStmt.bindLong(10, row.tier.toLong())
+                                upStmt.bindLong(11, row.kind.toLong())
+                                upStmt.bindLong(12, row.line.toLong())
+                                upStmt.bindLong(13, if (row.isInlineMore) 1L else 0L)
+                                upStmt.bindLong(14, if (row.isBase64) 1L else 0L)
+                                upStmt.bindText(15, json.encodeToString(row.mirrors))
+                                upStmt.bindText(16, json.encodeToString(row.extraLinks))
+                                upStmt.bindLong(17, now)
+                                if (starredAt != null) upStmt.bindLong(18, starredAt) else upStmt.bindNull(18)
+                                upStmt.bindText(19, row.id)
+                                upStmt.step()
+                                upStmt.reset()
                             }
                         }
 
@@ -885,6 +846,201 @@ open class FmhySync(
                                     stmt.reset()
                                 }
                             }
+                        }
+                    }
+
+                    // C. Record changes into `changes` table per §3 & §4.3
+                    data class SyncChange(
+                        val kind: String,
+                        val entryId: String,
+                        val sectionId: String,
+                        val name: String,
+                        val url: String,
+                        val detail: String,
+                    )
+
+                    val allRemoved = mutableListOf<Entry>()
+                    for (absent in absentSections) {
+                        allRemoved.addAll(absentSectionEntries[absent] ?: emptyList())
+                    }
+                    for (diff in sectionDiffs) {
+                        allRemoved.addAll(diff.vanished)
+                    }
+
+                    val allInserted = mutableListOf<EntryRow>()
+                    for (diff in sectionDiffs) {
+                        allInserted.addAll(diff.inserted)
+                    }
+
+                    val processedRemoved = mutableSetOf<String>()
+                    val processedInserted = mutableSetOf<String>()
+                    val changesToRecord = mutableListOf<SyncChange>()
+
+                    // 1. Moves: removed from section A and added in section B with same normalised URL -> one moved row (detail = A)
+                    for (rem in allRemoved) {
+                        if (rem.id in processedRemoved) continue
+                        val normRemUrl = DatasetStore.normalizeEntryUrl(rem.url)
+                        val ins = allInserted.firstOrNull {
+                            it.id !in processedInserted &&
+                            it.sectionId != rem.sectionId &&
+                            DatasetStore.normalizeEntryUrl(it.url) == normRemUrl
+                        }
+                        if (ins != null) {
+                            processedRemoved.add(rem.id)
+                            processedInserted.add(ins.id)
+                            changesToRecord.add(
+                                SyncChange(
+                                    kind = ChangeKind.MOVED.value,
+                                    entryId = ins.id,
+                                    sectionId = ins.sectionId,
+                                    name = ins.name,
+                                    url = ins.url,
+                                    detail = rem.sectionId,
+                                )
+                            )
+                        }
+                    }
+
+                    // 2. Renamed/url-changed entries:
+                    // pair a removed and an added entry in the same section and heading with:
+                    // same lower-cased name -> url_changed
+                    for (rem in allRemoved) {
+                        if (rem.id in processedRemoved) continue
+                        val normRemUrl = DatasetStore.normalizeEntryUrl(rem.url)
+                        val ins = allInserted.firstOrNull {
+                            it.id !in processedInserted &&
+                            it.sectionId == rem.sectionId &&
+                            it.headingId == rem.headingId &&
+                            it.name.trim().lowercase() == rem.name.trim().lowercase() &&
+                            DatasetStore.normalizeEntryUrl(it.url) != normRemUrl
+                        }
+                        if (ins != null) {
+                            processedRemoved.add(rem.id)
+                            processedInserted.add(ins.id)
+                            changesToRecord.add(
+                                SyncChange(
+                                    kind = ChangeKind.URL_CHANGED.value,
+                                    entryId = ins.id,
+                                    sectionId = ins.sectionId,
+                                    name = ins.name,
+                                    url = ins.url,
+                                    detail = rem.url,
+                                )
+                            )
+                        }
+                    }
+
+                    // same normalised URL and different name -> renamed
+                    for (rem in allRemoved) {
+                        if (rem.id in processedRemoved) continue
+                        val normRemUrl = DatasetStore.normalizeEntryUrl(rem.url)
+                        val ins = allInserted.firstOrNull {
+                            it.id !in processedInserted &&
+                            it.sectionId == rem.sectionId &&
+                            it.headingId == rem.headingId &&
+                            DatasetStore.normalizeEntryUrl(it.url) == normRemUrl &&
+                            it.name.trim() != rem.name.trim()
+                        }
+                        if (ins != null) {
+                            processedRemoved.add(rem.id)
+                            processedInserted.add(ins.id)
+                            changesToRecord.add(
+                                SyncChange(
+                                    kind = ChangeKind.RENAMED.value,
+                                    entryId = ins.id,
+                                    sectionId = ins.sectionId,
+                                    name = ins.name,
+                                    url = ins.url,
+                                    detail = rem.name,
+                                )
+                            )
+                        }
+                    }
+
+                    // 3. Unpaired removed stay removed
+                    for (rem in allRemoved) {
+                        if (rem.id !in processedRemoved) {
+                            changesToRecord.add(
+                                SyncChange(
+                                    kind = ChangeKind.REMOVED.value,
+                                    entryId = rem.id,
+                                    sectionId = rem.sectionId,
+                                    name = rem.name,
+                                    url = rem.url,
+                                    detail = "",
+                                )
+                            )
+                        }
+                    }
+
+                    // 4. Unpaired inserted stay added
+                    for (ins in allInserted) {
+                        if (ins.id !in processedInserted) {
+                            changesToRecord.add(
+                                SyncChange(
+                                    kind = ChangeKind.ADDED.value,
+                                    entryId = ins.id,
+                                    sectionId = ins.sectionId,
+                                    name = ins.name,
+                                    url = ins.url,
+                                    detail = "",
+                                )
+                            )
+                        }
+                    }
+
+                    // 5. Updated entries present in both (diff.updated)
+                    for (diff in sectionDiffs) {
+                        for ((old, row) in diff.updated) {
+                            val oldLine = ChangeClassifier.buildComparableLine(
+                                old.name,
+                                old.url,
+                                old.description,
+                                old.tier.value,
+                                old.extraLinks.map { it.label to it.url }
+                            )
+                            val newLine = ChangeClassifier.buildComparableLine(
+                                row.name,
+                                row.url,
+                                row.description,
+                                row.tier,
+                                row.extraLinks.map { it.label to it.url }
+                            )
+                            val lineDiff = ChangeClassifier.classify(oldLine, newLine)
+                            for (k in lineDiff.kinds) {
+                                val detail = when (k) {
+                                    ChangeKind.RENAMED -> lineDiff.oldName ?: old.name
+                                    ChangeKind.URL_CHANGED -> lineDiff.oldUrl ?: old.url
+                                    ChangeKind.EDITED -> oldLine
+                                    else -> ""
+                                }
+                                changesToRecord.add(
+                                    SyncChange(
+                                        kind = k.value,
+                                        entryId = row.id,
+                                        sectionId = row.sectionId,
+                                        name = row.name,
+                                        url = row.url,
+                                        detail = detail,
+                                    )
+                                )
+                            }
+                        }
+                    }
+
+                    val sqlInsertChange = "INSERT OR IGNORE INTO changes (ts, kind, entry_id, section_id, name, url, detail, commit_sha) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+                    conn.prepare(sqlInsertChange).use { chStmt ->
+                        for (ch in changesToRecord) {
+                            chStmt.bindLong(1, now)
+                            chStmt.bindText(2, ch.kind)
+                            chStmt.bindText(3, ch.entryId)
+                            chStmt.bindText(4, ch.sectionId)
+                            chStmt.bindText(5, ch.name)
+                            chStmt.bindText(6, ch.url)
+                            chStmt.bindText(7, ch.detail)
+                            chStmt.bindText(8, commitSha)
+                            chStmt.step()
+                            chStmt.reset()
                         }
                     }
 
