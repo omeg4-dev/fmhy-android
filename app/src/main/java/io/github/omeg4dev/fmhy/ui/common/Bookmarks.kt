@@ -62,7 +62,8 @@ fun rememberSaveActions(
                 entryId in bookmarksState.savedIds
 
             override fun save(entry: Entry) {
-                haptics.confirm()
+                if (isSaved(entry)) return
+                haptics.success()
                 bookmarksState.toggle(entry)
                 val host = snackbarHost
                 if (host != null) {
@@ -73,7 +74,8 @@ fun rememberSaveActions(
             }
 
             override fun unsave(entry: Entry) {
-                haptics.click()
+                if (!isSaved(entry)) return
+                haptics.remove()
                 scope.launch {
                     val snapshot = userStore?.removeBookmarkWithSnapshot(entry.id)
                     if (snapshot == null) {

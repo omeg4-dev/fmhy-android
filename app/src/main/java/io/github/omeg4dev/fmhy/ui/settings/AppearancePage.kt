@@ -386,7 +386,6 @@ fun AppearancePage(
                                         selected = isCustomSelected,
                                         role = Role.RadioButton,
                                         onClick = {
-                                            haptics.tick()
                                             showCustomDialog = true
                                         }
                                     )
@@ -648,7 +647,7 @@ fun AppearancePage(
                                 }
                                 Button(
                                     onClick = {
-                                        haptics.confirm()
+                                        haptics.success()
                                         viewModel.setAppIcon(selectedIcon)
                                     },
                                 ) {

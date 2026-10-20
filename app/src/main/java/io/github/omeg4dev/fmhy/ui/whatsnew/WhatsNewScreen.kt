@@ -156,7 +156,6 @@ fun WhatsNewScreen(
                 actions = {
                     IconButton(
                         onClick = {
-                            haptics.tick()
                             showLegendSheet = true
                         }
                     ) {
@@ -167,7 +166,6 @@ fun WhatsNewScreen(
                     }
                     IconButton(
                         onClick = {
-                            haptics.click()
                             viewModel.refresh()
                         }
                     ) {
@@ -202,7 +200,7 @@ fun WhatsNewScreen(
                         viewModel.toggleType(it)
                     },
                     onClearTypes = {
-                        haptics.tick()
+                        haptics.remove()
                         viewModel.clearTypes()
                     },
                     onSetTypes = {
@@ -214,7 +212,6 @@ fun WhatsNewScreen(
                         viewModel.setScope(it)
                     },
                     onOpenSectionsSheet = {
-                        haptics.tick()
                         showSectionsSheet = true
                     },
                 )
@@ -256,7 +253,6 @@ fun WhatsNewScreen(
                                     body = "Try a longer period or all types.",
                                     actionLabel = "Show everything",
                                     onAction = {
-                                        haptics.click()
                                         viewModel.resetFilters()
                                     },
                                 )
@@ -336,7 +332,7 @@ fun WhatsNewScreen(
             selectedSections = selectedSectionIds,
             countsBySection = countsBySection,
             onToggleSection = { sectionId ->
-                haptics.tick()
+                haptics.toggle(sectionId !in selectedSectionIds)
                 viewModel.toggleSectionScope(sectionId)
             },
             onDismiss = { showSectionsSheet = false },

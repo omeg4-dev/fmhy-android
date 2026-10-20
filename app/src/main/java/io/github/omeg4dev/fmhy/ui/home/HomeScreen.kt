@@ -323,7 +323,6 @@ fun HomeScreen(
                                             .then(
                                                 if (setup is AdblockSetupUiState.Failed) {
                                                     Modifier.clickable {
-                                                        haptics.click()
                                                         viewModel.startFilterDownload()
                                                     }
                                                 } else Modifier
@@ -404,7 +403,6 @@ fun HomeScreen(
                         item(key = "new-since-last-visit") {
                             Surface(
                                 onClick = {
-                                    haptics.click()
                                     nav.push(WhatsNewNavKey(filter = "all"))
                                 },
                                 shape = MaterialTheme.shapes.large,
@@ -450,7 +448,6 @@ fun HomeScreen(
                                     .clip(MaterialTheme.shapes.large)
                                     .combinedClickable(
                                         onClick = {
-                                            haptics.click()
                                             linkOpener.openUrl(pick.url)
                                         },
                                         onLongClick = {
@@ -483,7 +480,6 @@ fun HomeScreen(
                                         )
                                         IconButton(
                                             onClick = {
-                                                haptics.click()
                                                 viewModel.refreshRandomPick()
                                             },
                                             modifier = Modifier.minimumInteractiveComponentSize(),
@@ -531,7 +527,6 @@ fun HomeScreen(
                                             modifier = Modifier
                                                 .clip(MaterialTheme.shapes.small)
                                                 .clickable {
-                                                    haptics.click()
                                                     scope.launch {
                                                         val anchor = try {
                                                             pick.headingId?.let { hid ->
@@ -622,7 +617,6 @@ fun HomeScreen(
                                         state.pins.forEach { pin ->
                                             AssistChip(
                                                 onClick = {
-                                                    haptics.click()
                                                     onNavigateToSection(pin.sectionId, pin.anchor)
                                                 },
                                                 leadingIcon = {
@@ -640,7 +634,7 @@ fun HomeScreen(
                                                             .minimumInteractiveComponentSize()
                                                             .size(16.dp)
                                                             .clickable {
-                                                                haptics.click()
+                                                                haptics.remove()
                                                                 scope.launch {
                                                                     val snapshot = pin.pin ?: Pin(pin.sectionId, pin.headingId, pin.label, 0)
                                                                     container.userStore.unpin(pin.sectionId, pin.headingId)
@@ -712,7 +706,6 @@ fun HomeScreen(
                                             .fillMaxWidth()
                                             .heightIn(min = 64.dp)
                                             .clickable {
-                                                haptics.click()
                                                 when (section.id) {
                                                     "audio-tools" -> linkOpener.openUrl("https://fmhy.net/audio#audio-tools")
                                                     "educational-tools" -> linkOpener.openUrl("https://fmhy.net/educational#educational-tools")
@@ -801,7 +794,6 @@ fun HomeScreen(
                             }
                             Surface(
                                 onClick = {
-                                    haptics.click()
                                     viewModel.toggleShowHiddenSections()
                                 },
                                 color = Color.Transparent,

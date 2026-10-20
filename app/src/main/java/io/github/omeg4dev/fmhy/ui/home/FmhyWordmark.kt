@@ -101,7 +101,7 @@ fun FmhyWordmark(modifier: Modifier = Modifier) {
             .pointerInput(Unit) {
                 detectTapGestures(
                     onTap = {
-                        haptics.click()
+                        haptics.tick()
                         playSweep(expanded)
                     },
                     onLongPress = {

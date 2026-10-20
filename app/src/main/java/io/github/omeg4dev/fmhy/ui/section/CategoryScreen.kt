@@ -309,7 +309,7 @@ fun CategoryScreen(
                                                     if (isCategoryFollowed) {
                                                         val snapshot = follows.firstOrNull { it.sectionId == currentSectionId && it.headingId == category.heading.id } ?: io.github.omeg4dev.fmhy.data.user.Follow(currentSectionId, category.heading.id, fullCatTitle, System.currentTimeMillis())
                                                         container.userStore.unfollow(currentSectionId, category.heading.id)
-                                                        haptics.click()
+                                                        haptics.remove()
                                                         val undone = snackbarHostState.showUndo("Unfollowed $fullCatTitle")
                                                         if (undone) {
                                                             container.userStore.restoreFollow(snapshot)
@@ -331,7 +331,7 @@ fun CategoryScreen(
                                                     scope.launch {
                                                         val snapshot = container.userStore.pins().firstOrNull { it.sectionId == key.sectionId && it.headingId == catHeadingId } ?: io.github.omeg4dev.fmhy.data.user.Pin(key.sectionId, catHeadingId, categoryTitle, 0)
                                                         container.userStore.unpin(key.sectionId, catHeadingId)
-                                                        haptics.click()
+                                                        haptics.remove()
                                                         val undone = snackbarHostState.showUndo("Unpinned $categoryTitle")
                                                         if (undone) {
                                                             container.userStore.restorePin(snapshot)
@@ -401,7 +401,7 @@ fun CategoryScreen(
                             scope.launch {
                                 if (subFollow != null) {
                                     container.userStore.unfollow(currentSectionId, sub.id)
-                                    haptics.click()
+                                    haptics.remove()
                                     val undone = snackbarHostState.showUndo("Unfollowed $fullTitle")
                                     if (undone) {
                                         container.userStore.restoreFollow(subFollow)

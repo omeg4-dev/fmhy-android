@@ -46,7 +46,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.omeg4dev.fmhy.di.AppContainer
 import io.github.omeg4dev.fmhy.nav.LocalBottomBarPadding
-import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import java.time.LocalDate
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -59,7 +58,6 @@ fun PostsScreen(
     viewModel: PostsViewModel = viewModel { PostsViewModel(container) },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val haptics = rememberHaptics()
     val bottomBarPadding = LocalBottomBarPadding.current
 
     val groupedByYear = remember(state.posts) {
@@ -92,7 +90,6 @@ fun PostsScreen(
                 },
                 actions = {
                     IconButton(onClick = {
-                        haptics.click()
                         viewModel.refresh()
                     }) {
                         Icon(
@@ -224,7 +221,6 @@ fun PostsScreen(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clickable {
-                                            haptics.click()
                                             viewModel.markRead(post.path)
                                             onNavigateToReader(post.path, post.title)
                                         },

@@ -202,7 +202,7 @@ fun EntryRow(
                         val snapshot = followsList.firstOrNull {
                             it.sectionId == entry.sectionId && (it.headingId == targetHeadingId || it.headingId == "")
                         }
-                        haptics.click()
+                        haptics.remove()
                         userStore.unfollow(entry.sectionId, targetHeadingId)
                         val host = snackbarHost
                         if (host != null) {
@@ -344,7 +344,6 @@ fun EntryRow(
             // Tap shows the details (all sites on the line, mirrors, links); hold opens the site directly.
             .combinedClickable(
                 onClick = {
-                    haptics.click()
                     showBottomSheet = true
                 },
                 onLongClick = {
@@ -401,7 +400,6 @@ fun EntryRow(
                         modifier = Modifier
                             .semantics { contentDescription = "${alternatives.size} more on this line" }
                             .clickable {
-                                haptics.click()
                                 showBottomSheet = true
                             },
                     ) {
@@ -710,7 +708,6 @@ fun EntryDetailBottomSheet(
                     ) {
                         FilledTonalIconButton(
                             onClick = {
-                                haptics.click()
                                 onOpenUrl(entry.url)
                             },
                             modifier = Modifier.size(56.dp),
@@ -728,7 +725,7 @@ fun EntryDetailBottomSheet(
                     ) {
                         FilledTonalIconButton(
                             onClick = {
-                                haptics.confirm()
+                                haptics.success()
                                 onCopyLink(entry.url)
                             },
                             modifier = Modifier.size(56.dp),
@@ -746,7 +743,6 @@ fun EntryDetailBottomSheet(
                     ) {
                         FilledTonalIconButton(
                             onClick = {
-                                haptics.click()
                                 onShareLink(entry.url)
                             },
                             modifier = Modifier.size(56.dp),
@@ -950,7 +946,6 @@ fun EntryDetailBottomSheet(
                             }
                             IconButton(
                                 onClick = {
-                                    haptics.click()
                                     onOpenUrl(site.url)
                                 },
                                 modifier = Modifier
@@ -961,7 +956,7 @@ fun EntryDetailBottomSheet(
                             }
                             IconButton(
                                 onClick = {
-                                    haptics.confirm()
+                                    haptics.success()
                                     onCopyLink(site.url)
                                 },
                                 modifier = Modifier
@@ -972,7 +967,6 @@ fun EntryDetailBottomSheet(
                             }
                             IconButton(
                                 onClick = {
-                                    haptics.click()
                                     onShareLink(site.url)
                                 },
                                 modifier = Modifier
@@ -1049,7 +1043,6 @@ fun EntryDetailBottomSheet(
                             ) {
                                 FilledTonalIconButton(
                                     onClick = {
-                                        haptics.click()
                                         onOpenUrl(site.url)
                                     },
                                     modifier = Modifier.size(48.dp),
@@ -1067,7 +1060,7 @@ fun EntryDetailBottomSheet(
                             ) {
                                 FilledTonalIconButton(
                                     onClick = {
-                                        haptics.confirm()
+                                        haptics.success()
                                         onCopyLink(site.url)
                                     },
                                     modifier = Modifier.size(48.dp),
@@ -1085,7 +1078,6 @@ fun EntryDetailBottomSheet(
                             ) {
                                 FilledTonalIconButton(
                                     onClick = {
-                                        haptics.click()
                                         onShareLink(site.url)
                                     },
                                     modifier = Modifier.size(48.dp),

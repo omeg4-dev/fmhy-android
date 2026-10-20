@@ -166,9 +166,9 @@ fun CheckLinkScreen(
                 SafetyStatus.FMHY_SITE,
                 SafetyStatus.STARRED,
                 SafetyStatus.LISTED,
-                SafetyStatus.DOMAIN_LISTED -> haptics.confirm()
+                SafetyStatus.DOMAIN_LISTED -> haptics.success()
                 SafetyStatus.UNSAFE,
-                SafetyStatus.POTENTIALLY_UNSAFE -> haptics.longPress()
+                SafetyStatus.POTENTIALLY_UNSAFE -> haptics.error()
                 else -> haptics.tick()
             }
         }

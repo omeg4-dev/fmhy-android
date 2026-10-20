@@ -120,7 +120,6 @@ fun PostBody(
                                             .fillMaxWidth()
                                             .combinedClickable(
                                                 onClick = {
-                                                    haptics.click()
                                                     onSiteTap(row)
                                                 },
                                                 onLongClick = {

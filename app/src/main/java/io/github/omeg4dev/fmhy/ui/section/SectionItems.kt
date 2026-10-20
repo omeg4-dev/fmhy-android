@@ -450,7 +450,6 @@ fun CategoryChipRail(
                     if (onLongClickChip != null) {
                         Modifier.combinedClickable(
                             onClick = {
-                                haptics.tick()
                                 onSelectChip(index)
                             },
                             onLongClick = {
@@ -460,7 +459,6 @@ fun CategoryChipRail(
                         )
                     } else {
                         Modifier.clickable {
-                            haptics.tick()
                             onSelectChip(index)
                         }
                     }
