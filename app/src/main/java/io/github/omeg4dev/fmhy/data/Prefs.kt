@@ -7,7 +7,16 @@ import io.github.omeg4dev.fmhy.data.adblock.FilterListCatalog
 
 enum class OpenLinksWith { IN_APP, CUSTOM_TAB, EXTERNAL }
 enum class ToolbarPosition { TOP, BOTTOM }
-enum class AppIcon { DEFAULT, UWU, MONOCHROME }
+enum class AppIcon(val label: String) {
+    DEFAULT("Default"),
+    UWU("UwU"),
+    MONOCHROME("Purple"),
+    LIGHT("Light"),
+    BLUE("Blue"),
+    GREEN("Green"),
+    RED("Red"),
+    BLACK("Black"),
+}
 enum class UpdateInterval(val hours: Long) { H12(12), DAILY(24), WEEKLY(168) }
 
 enum class SearchEngine(val label: String, val queryUrl: String) {
