@@ -1,0 +1,11 @@
+PASS short swipe (200 px): during-drag-unchanged=True changes-after-release=0 vibrations=0 release->db=2007ms
+PASS left->right swipe: during-drag-unchanged=True changes-after-release=0 vibrations=0 release->db=2008ms
+PASS past threshold then back: during-drag-unchanged=True changes-after-release=0 vibrations=2 release->db=2006ms
+       duration:   104ms Primitive=LOW_TICK(scale=0.50, pause=0ms) | original: null
+       duration:   103ms Primitive=LOW_TICK(scale=0.50, pause=0ms) | original: null
+PASS right->left past threshold: during-drag-unchanged=True changes-after-release=1 vibrations=2 release->db=27ms
+       duration:   104ms Primitive=LOW_TICK(scale=0.50, pause=0ms) | original: null
+       duration:   106ms Primitive=THUD(scale=0.80, pause=0ms) | original: null
+PASS right->left again (undo direction): during-drag-unchanged=True changes-after-release=1 vibrations=2 release->db=12ms
+       duration:   105ms Primitive=LOW_TICK(scale=0.50, pause=0ms) | original: null
+       duration:   262ms [Primitive=CLICK(scale=0.50, pause=0ms),Primitive=CLICK(scale=1.00, pause=60ms)] | original: null

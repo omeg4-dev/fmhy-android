@@ -75,6 +75,7 @@ class HomeViewModelTest {
         private val sectionsList: List<Section> = emptyList(),
         private val topPick: Entry? = null,
         private val versionVal: Long = 10L,
+        private val pickSequence: List<Entry> = emptyList(),
     ) : DatasetStore(File("fake_nonexistent.db")) {
         override val isAvailable = true
         override val changes = MutableStateFlow(versionVal)
@@ -87,8 +88,10 @@ class HomeViewModelTest {
         var randomTopPickCallCount: Int = 0
         override suspend fun randomTopPick(): Entry? {
             randomTopPickCallCount++
+            if (pickSequence.isNotEmpty()) return pickSequence[(randomTopPickCallCount - 1) % pickSequence.size]
             return topPick
         }
+        override suspend fun entry(id: String): Entry? = (pickSequence + listOfNotNull(topPick)).firstOrNull { it.id == id }
         override suspend fun countAddedSince(ts: Long): Int = 5
         override suspend fun sectionItems(sectionId: String): List<SectionItem> = emptyList()
         override suspend fun meta(): Map<String, String> = mapOf(
@@ -246,162 +249,34 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun testFastSyncDoesNotFlickerSyncingPill() = runTest(testDispatcher) {
-        val store = FakeDatasetStore()
-        val fakeSettings = FakeSettingsRepository()
-        val fakeContainer = FakeContainer(store, fakeSettings)
-        val viewModel = HomeViewModel(store, fakeSettings, fakeContainer)
-        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect() }
-        testDispatcher.scheduler.runCurrent()
-
-        // Sync starts
-        fakeContainer.mutableSyncStatus.value = SyncStatus.Syncing
-        testDispatcher.scheduler.advanceTimeBy(200)
-        testDispatcher.scheduler.runCurrent()
-        // At 200 ms (< 600 ms), no syncing pill is shown
-        assertNull(viewModel.uiState.value.syncBanner)
-
-        // Sync completes with UpToDate in 200ms
-        fakeContainer.mutableSyncStatus.value = SyncStatus.Finished(SyncResult.UpToDate(200))
-        testDispatcher.scheduler.runCurrent()
-
-        val banner = viewModel.uiState.value.syncBanner
-        assertNotNull(banner)
-        assertEquals("Synced in background · up to date", banner?.text)
-        assertFalse(banner!!.isLoading)
-        assertFalse(banner.isError)
-    }
-
-    @Test
-    fun testSlowSyncShowsSyncingPillAfter600ms() = runTest(testDispatcher) {
-        val store = FakeDatasetStore()
-        val fakeSettings = FakeSettingsRepository()
-        val fakeContainer = FakeContainer(store, fakeSettings)
-        val viewModel = HomeViewModel(store, fakeSettings, fakeContainer)
-        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect() }
-        testDispatcher.scheduler.runCurrent()
-
-        fakeContainer.mutableSyncStatus.value = SyncStatus.Syncing
-        testDispatcher.scheduler.advanceTimeBy(590)
-        testDispatcher.scheduler.runCurrent()
-        assertNull(viewModel.uiState.value.syncBanner)
-
-        testDispatcher.scheduler.advanceTimeBy(20) // reached 610 ms
-        testDispatcher.scheduler.runCurrent()
-        val syncingBanner = viewModel.uiState.value.syncBanner
-        assertNotNull(syncingBanner)
-        assertEquals("Syncing…", syncingBanner?.text)
-        assertTrue(syncingBanner!!.isLoading)
-
-        // Now sync finishes with Updated
-        fakeContainer.mutableSyncStatus.value = SyncStatus.Finished(
-            SyncResult.Updated(added = 12, removed = 3, changedSections = 1, tookMs = 1200)
+    fun testRandomPickStaysPutUntilRefresh() = runTest(testDispatcher) {
+        fun e(id: String) = Entry(
+            num = 1, id = id, sectionId = "video", headingId = null, ord = 1, name = id,
+            url = "https://$id.org", originalUrl = null, description = "", tags = emptyList(),
+            headingPath = "Video", tier = Tier.TOP, isInlineMore = false, isBase64 = false,
+            mirrors = emptyList(), extraLinks = emptyList(), firstSeen = 1, lastChanged = 1, starredAt = 1,
         )
-        testDispatcher.scheduler.runCurrent()
-
-        val updatedBanner = viewModel.uiState.value.syncBanner
-        assertNotNull(updatedBanner)
-        assertEquals("Synced in background · 12 new · 3 removed", updatedBanner?.text)
-        assertFalse(updatedBanner!!.isLoading)
-    }
-
-    @Test
-    fun testBannerAutoHidesAfter4Seconds() = runTest(testDispatcher) {
-        val store = FakeDatasetStore()
+        val store = FakeDatasetStore(pickSequence = listOf(e("a"), e("b"), e("c")))
         val fakeSettings = FakeSettingsRepository()
-        val fakeContainer = FakeContainer(store, fakeSettings)
-        val viewModel = HomeViewModel(store, fakeSettings, fakeContainer)
+        val viewModel = HomeViewModel(store, fakeSettings, FakeContainer(store, fakeSettings))
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect() }
         testDispatcher.scheduler.runCurrent()
 
-        fakeContainer.mutableSyncStatus.value = SyncStatus.Finished(SyncResult.UpToDate(30))
+        val first = viewModel.uiState.value.randomPick?.id
+        assertEquals("a", first)
+        repeat(5) { i ->
+            fakeSettings.setTextScale(1f + (i + 1) / 10f)
+            fakeSettings.updateHome { it.copy(personalHome = !it.personalHome) }
+            store.changes.value = 11L + i
+            testDispatcher.scheduler.runCurrent()
+            assertEquals(first, viewModel.uiState.value.randomPick?.id)
+        }
+        assertEquals(1, store.randomTopPickCallCount)
+
+        viewModel.refreshRandomPick()
         testDispatcher.scheduler.runCurrent()
-
-        assertNotNull(viewModel.uiState.value.syncBanner)
-        assertFalse(fakeContainer.isSyncBannerConsumed)
-
-        // Advance 3900 ms -> still visible
-        testDispatcher.scheduler.advanceTimeBy(3900)
-        testDispatcher.scheduler.runCurrent()
-        assertNotNull(viewModel.uiState.value.syncBanner)
-
-        // Advance another 200 ms (total > 4000 ms) -> dismissed
-        testDispatcher.scheduler.advanceTimeBy(200)
-        testDispatcher.scheduler.runCurrent()
-        assertNull(viewModel.uiState.value.syncBanner)
-        assertTrue(fakeContainer.isSyncBannerConsumed)
-    }
-
-    @Test
-    fun testBannerTapToDismissImmediately() = runTest(testDispatcher) {
-        val store = FakeDatasetStore()
-        val fakeSettings = FakeSettingsRepository()
-        val fakeContainer = FakeContainer(store, fakeSettings)
-        val viewModel = HomeViewModel(store, fakeSettings, fakeContainer)
-        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect() }
-        testDispatcher.scheduler.runCurrent()
-
-        fakeContainer.mutableSyncStatus.value = SyncStatus.Finished(SyncResult.UpToDate(30))
-        testDispatcher.scheduler.runCurrent()
-        assertNotNull(viewModel.uiState.value.syncBanner)
-
-        viewModel.dismissBanner()
-        testDispatcher.scheduler.runCurrent()
-
-        assertNull(viewModel.uiState.value.syncBanner)
-        assertTrue(fakeContainer.isSyncBannerConsumed)
-    }
-
-    @Test
-    fun testBannerShownOncePerLaunchSync() = runTest(testDispatcher) {
-        val store = FakeDatasetStore()
-        val fakeSettings = FakeSettingsRepository()
-        val fakeContainer = FakeContainer(store, fakeSettings)
-        // Mark as already consumed
-        fakeContainer.isSyncBannerConsumed = true
-        fakeContainer.mutableSyncStatus.value = SyncStatus.Finished(SyncResult.UpToDate(30))
-
-        // New ViewModel (simulating navigating back to home or recreation)
-        val viewModel = HomeViewModel(store, fakeSettings, fakeContainer)
-        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect() }
-        testDispatcher.scheduler.runCurrent()
-
-        // Should NOT show banner
-        assertNull(viewModel.uiState.value.syncBanner)
-    }
-
-    @Test
-    fun testBannerFailedShowsOfflineSavedData() = runTest(testDispatcher) {
-        val store = FakeDatasetStore()
-        val fakeSettings = FakeSettingsRepository()
-        val fakeContainer = FakeContainer(store, fakeSettings)
-        val viewModel = HomeViewModel(store, fakeSettings, fakeContainer)
-        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect() }
-        testDispatcher.scheduler.runCurrent()
-
-        fakeContainer.mutableSyncStatus.value = SyncStatus.Finished(SyncResult.Failed("Connect timeout", 50))
-        testDispatcher.scheduler.runCurrent()
-
-        val banner = viewModel.uiState.value.syncBanner
-        assertNotNull(banner)
-        assertEquals("Offline — showing saved data", banner?.text)
-        assertTrue(banner!!.isError)
-        assertFalse(banner.isLoading)
-    }
-
-    @Test
-    fun testBannerSkippedShowsNothing() = runTest(testDispatcher) {
-        val store = FakeDatasetStore()
-        val fakeSettings = FakeSettingsRepository()
-        val fakeContainer = FakeContainer(store, fakeSettings)
-        val viewModel = HomeViewModel(store, fakeSettings, fakeContainer)
-        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect() }
-        testDispatcher.scheduler.runCurrent()
-
-        fakeContainer.mutableSyncStatus.value = SyncStatus.Finished(SyncResult.Skipped)
-        testDispatcher.scheduler.runCurrent()
-
-        assertNull(viewModel.uiState.value.syncBanner)
+        assertEquals(2, store.randomTopPickCallCount)
+        assertEquals("b", viewModel.uiState.first { it.randomPick?.id != first }.randomPick?.id)
     }
 
     @Test
@@ -522,20 +397,4 @@ class HomeViewModelTest {
         assertEquals(7, counted["educational-tools"])
     }
 
-    @Test
-    fun testAdblockSetupInitialStateNull() = runTest(testDispatcher) {
-        val fakeStore = FakeDatasetStore()
-        val settings = FakeSettingsRepository()
-        val container = FakeContainer(datasetStore = fakeStore, settingsRepository = settings)
-        val vm = HomeViewModel(fakeStore, settings, container)
-
-        val job = launch(UnconfinedTestDispatcher(testScheduler)) {
-            vm.uiState.collect()
-        }
-
-        assertNull(vm.uiState.value.adblockSetup)
-        vm.startFilterDownload()
-
-        job.cancel()
-    }
 }

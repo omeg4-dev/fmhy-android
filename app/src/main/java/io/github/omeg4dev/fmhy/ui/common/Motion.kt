@@ -70,19 +70,69 @@ object Motion {
 }
 
 /**
- * Fades and slides the element up into place the first time it is composed. [index] staggers
- * siblings (capped), [key] restarts the entrance when it changes (e.g. a new pager page).
+ * Delay in ms for an item of a list's entrance stagger, or null when it must not animate: only the first
+ * [Motion.STAGGER_MAX_ITEMS] items that compose within [STAGGER_WINDOW_MS] of the list's first item take part;
+ * everything composed later (scrolling into view) appears at once instead of fading in over blank space.
+ */
+fun staggerDelayOrNull(index: Int, msSinceListStart: Long): Int? {
+    if (index >= Motion.STAGGER_MAX_ITEMS || msSinceListStart > STAGGER_WINDOW_MS) return null
+    return index.coerceAtLeast(0) * Motion.STAGGER_STEP
+}
+
+internal const val STAGGER_WINDOW_MS = 300L
+private const val STAGGER_FADE_MS = 300
+
+/**
+ * Remembers when the items of each list (by `enterStagger` key) first composed, so [Modifier.enterStagger]
+ * can tell a list's entrance from items scrolling into the lazy window. A key not seen for [gapMs] starts
+ * a new entrance (screen opened again). Small LRU; thread-safe.
+ */
+internal class EntranceTracker(
+    private val now: () -> Long,
+    private val gapMs: Long = 1500L,
+    private val capacity: Int = 32,
+) {
+    private class Mark(val start: Long, var last: Long)
+
+    private val marks = object : LinkedHashMap<Any?, Mark>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Any?, Mark>?) = size > capacity
+    }
+
+    /** Milliseconds since the first item of the entrance for [key] composed (0 for the first). */
+    @Synchronized
+    fun msSinceListStart(key: Any?): Long {
+        val t = now()
+        val m = marks[key]
+        if (m == null || t - m.last >= gapMs) {
+            marks[key] = Mark(t, t)
+            return 0L
+        }
+        m.last = t
+        return t - m.start
+    }
+}
+
+private val entranceTracker = EntranceTracker(now = { android.os.SystemClock.uptimeMillis() })
+
+/**
+ * Fades and slides the element up into place when its list opens. [index] staggers siblings (capped),
+ * [key] identifies the list and restarts the entrance when it changes (e.g. a new pager page). Items that
+ * compose later than the entrance (scrolling) are shown immediately.
  */
 fun Modifier.enterStagger(index: Int = 0, key: Any? = Unit, offset: Dp = 24.dp): Modifier = composed {
-    val progress = remember(key) { Animatable(0f) }
-    val offsetPx = with(LocalDensity.current) { offset.toPx() }
-    LaunchedEffect(key) {
-        val delay = index.coerceIn(0, Motion.STAGGER_MAX_ITEMS) * Motion.STAGGER_STEP
-        progress.animateTo(1f, Motion.enter(Motion.LONG, delay))
-    }
-    graphicsLayer {
-        alpha = progress.value
-        translationY = (1f - progress.value) * offsetPx
+    val delayMs = remember(key) { staggerDelayOrNull(index, entranceTracker.msSinceListStart(key)) }
+    if (delayMs == null) {
+        Modifier
+    } else {
+        val progress = remember(key) { Animatable(0f) }
+        val offsetPx = with(LocalDensity.current) { offset.toPx() }
+        LaunchedEffect(key) {
+            progress.animateTo(1f, Motion.enter(STAGGER_FADE_MS, delayMs))
+        }
+        Modifier.graphicsLayer {
+            alpha = progress.value
+            translationY = (1f - progress.value) * offsetPx
+        }
     }
 }
 

@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.items
@@ -30,6 +31,11 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.TextButton
+import io.github.omeg4dev.fmhy.ui.shell.BrowserBarItem
+import io.github.omeg4dev.fmhy.ui.shell.BrowserMenuSheet
+import io.github.omeg4dev.fmhy.ui.shell.StatusNoticeOverlay
+import io.github.omeg4dev.fmhy.browser.bringBrowserToFront
+import io.github.omeg4dev.fmhy.browser.openBrowserNewTab
 import io.github.omeg4dev.fmhy.browser.formatRelativeTime
 import io.github.omeg4dev.fmhy.data.adblock.FilterListCatalog
 import io.github.omeg4dev.fmhy.ui.settings.InfoRow
@@ -70,6 +76,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
@@ -82,7 +89,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
+import io.github.omeg4dev.fmhy.browser.bringBrowserToFront
+import io.github.omeg4dev.fmhy.browser.openBrowserNewTab
 import io.github.omeg4dev.fmhy.nav.AppNavState
+import io.github.omeg4dev.fmhy.ui.shell.BrowserBarItem
+import io.github.omeg4dev.fmhy.ui.shell.BrowserMenuSheet
 import io.github.omeg4dev.fmhy.shortcuts.EXTRA_ENTRY_ID
 import io.github.omeg4dev.fmhy.shortcuts.EXTRA_FILTER
 import io.github.omeg4dev.fmhy.shortcuts.EXTRA_HEADING_ID
@@ -91,8 +102,6 @@ import io.github.omeg4dev.fmhy.shortcuts.EXTRA_SECTION_ID
 import io.github.omeg4dev.fmhy.shortcuts.ShortcutDestination
 import io.github.omeg4dev.fmhy.shortcuts.shortcutDestination
 import io.github.omeg4dev.fmhy.nav.LocalAppNav
-import io.github.omeg4dev.fmhy.browser.BrowserBubble
-import io.github.omeg4dev.fmhy.browser.LocalBrowserButtonStyle
 import io.github.omeg4dev.fmhy.nav.LocalAppNavOrNull
 import io.github.omeg4dev.fmhy.nav.LocalBottomBarPadding
 import io.github.omeg4dev.fmhy.nav.Tab
@@ -379,6 +388,10 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
     val onboardingVersion by container.settingsRepository.onboardingVersion.collectAsStateWithLifecycle(initialValue = -1)
     val showOnboarding = onboardingVersion in 0 until ONBOARDING_VERSION
 
+    val barHaptics = rememberHaptics()
+    val browserTabCount by container.tabManager.browserTabCount.collectAsStateWithLifecycle()
+    var showBrowserMenu by rememberSaveable { mutableStateOf(false) }
+
     val shouldShowBar = isBarVisible && !showOnboarding && currentTopKey !is SettingsNavKey && currentTopKey !is SettingsPageNavKey && currentTopKey !is LegendNavKey && currentTopKey !is SiteSettingsNavKey && currentTopKey !is ReaderNavKey
 
     BackHandler(enabled = nav.current != Tab.BROWSE && nav.currentStack.size == 1) {
@@ -626,9 +639,6 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
         }
     }
 
-    val browserButtonStyle = container.settingsRepository.browserPrefs
-        .collectAsStateWithLifecycle(initialValue = container.tabManager.currentBrowserPrefs).value.browserButton
-
     CompositionLocalProvider(
         LocalAppNav provides nav,
         LocalAppNavOrNull provides nav,
@@ -639,7 +649,6 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
         LocalBookmarks provides bookmarksState,
         LocalDatasetStore provides container.datasetStore,
         LocalUserStore provides container.userStore,
-        LocalBrowserButtonStyle provides browserButtonStyle,
     ) {
         Scaffold(
             snackbarHost = {
@@ -732,6 +741,16 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                             label = { Text("Search") },
                             alwaysShowLabel = true,
                         )
+                        BrowserBarItem(
+                            tabCount = browserTabCount,
+                            onClick = {
+                                if (browserTabCount > 0) bringBrowserToFront(context) else openBrowserNewTab(context)
+                            },
+                            onLongClick = {
+                                barHaptics.longPress()
+                                showBrowserMenu = true
+                            },
+                        )
                         NavigationBarItem(
                             selected = nav.current == Tab.SAVED,
                             onClick = {
@@ -749,12 +768,27 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                     }
                 }
 
-                // Floating browser bubble (above content and the bottom bar, below onboarding)
-                BrowserBubble(
-                    tabManager = container.tabManager,
-                    settingsRepository = container.settingsRepository,
-                    enabled = !showOnboarding,
-                )
+                // Sync / ad-block pills: an overlay at the top, takes no layout space
+                if (!showOnboarding) {
+                    StatusNoticeOverlay(
+                        notices = remember(container) { container.statusNotices },
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .zIndex(2f)
+                            .statusBarsPadding()
+                            .padding(top = 8.dp),
+                    )
+                }
+
+                if (showBrowserMenu && !showOnboarding) {
+                    val menuTabs by container.tabManager.tabs.collectAsStateWithLifecycle()
+                    BrowserMenuSheet(
+                        tabManager = container.tabManager,
+                        tabs = menuTabs,
+                        count = browserTabCount,
+                        onDismiss = { showBrowserMenu = false },
+                    )
+                }
 
                 // Onboarding full screen overlay
                 if (showOnboarding) {

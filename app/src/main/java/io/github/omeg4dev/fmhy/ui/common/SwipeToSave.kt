@@ -105,8 +105,8 @@ fun SwipeToSave(
 
 /**
  * Shared end-to-start swipe row. [actionAtDragStart] is read once per gesture (SAVE or REMOVE) and the
- * background shows only that action for the whole gesture. [onCommit] runs once, after release past the
- * threshold and after the row has sprung back.
+ * background shows only that action for the whole gesture. [onCommit] runs once, right on release past the
+ * threshold (the row springs back in parallel).
  */
 @Composable
 internal fun SwipeActionRow(
@@ -187,18 +187,19 @@ internal fun SwipeActionRow(
                     SwipeAction.NONE
                 }
                 settling = true
+                // Commit on finger-up: the save / remove must not wait for the spring back. It happens
+                // here, once, so a row scrolled out of composition mid-spring cannot lose or repeat it.
+                if (decided != SwipeAction.NONE) currentCommit(decided)
                 scope.launch {
                     try {
                         offset.animateTo(
                             0f,
-                            spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
+                            spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium),
                         )
                     } finally {
-                        // In finally so a row scrolled out of composition mid-spring still commits its swipe.
                         settling = false
                         pastThreshold = false
                         frozen = null
-                        if (decided != SwipeAction.NONE) currentCommit(decided)
                     }
                 }
             }

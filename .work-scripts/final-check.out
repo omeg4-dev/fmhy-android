@@ -1,0 +1,24 @@
+Install command complete in 181 ms
+tapped 'Adblocking / Privacy' at 437,1088
+== fling
+frame  0 t=    0ms blank-rows=42.8%
+frame  1 t=  291ms blank-rows=59.7%
+frame  2 t=  556ms blank-rows=59.7%
+frame  3 t=  780ms blank-rows=59.7%
+frame  4 t=  999ms blank-rows=59.7%
+frame  5 t= 1227ms blank-rows=59.7%
+frame  6 t=    0ms blank-rows=59.7%
+frame  7 t=  247ms blank-rows=52.1%
+frame  8 t=  457ms blank-rows=52.1%
+frame  9 t=  665ms blank-rows=52.1%
+frame 10 t=  868ms blank-rows=52.1%
+frame 11 t= 1079ms blank-rows=52.1%
+frame 12 t=    0ms blank-rows=52.1%
+frame 13 t=  264ms blank-rows=51.4%
+frame 14 t=  524ms blank-rows=51.4%
+frame 15 t=  750ms blank-rows=51.4%
+frame 16 t=  973ms blank-rows=51.4%
+frame 17 t= 1186ms blank-rows=51.4%
+worst blank share 59.7%  -> /home/omega/Projects/fmhy-android-p9-shell/.work-scripts/shots/n5-section-strip.png
+== swipe save
+row '^Report Issues$' not on screen

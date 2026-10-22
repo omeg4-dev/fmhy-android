@@ -24,6 +24,9 @@ import io.github.omeg4dev.fmhy.browser.adblock.DefaultAdblockUpdater
 import io.github.omeg4dev.fmhy.browser.adblock.ScriptletLibrary
 import io.github.omeg4dev.fmhy.data.adblock.FilterListUpdater
 import io.github.omeg4dev.fmhy.data.adblock.OkHttpListFetcher
+import io.github.omeg4dev.fmhy.data.OpenLinksWith
+import io.github.omeg4dev.fmhy.ui.shell.StatusNotices
+import kotlinx.coroutines.flow.combine
 import java.io.File
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineScope
@@ -83,6 +86,7 @@ interface AppContainer : OnboardingActions {
     val adblockService: AdblockService get() = error("Not supported")
     val tabManager: TabManager get() = error("Not supported")
     val browserHooks: BrowserHooks get() = error("Not supported")
+    val statusNotices: StatusNotices get() = error("Not supported")
 
     fun markSyncBannerConsumed()
     fun showSnackbar(message: String)
@@ -239,6 +243,23 @@ class DefaultAppContainer(override val context: Context) : AppContainer {
 
     override fun markSyncBannerConsumed() {
         _isSyncBannerConsumed = true
+    }
+
+    override val statusNotices: StatusNotices by lazy {
+        StatusNotices(
+            scope = appScope,
+            syncStatus = syncStatus,
+            adblockInputs = combine(
+                settingsRepository.browserPrefs,
+                settingsRepository.blockingPrefs,
+                adblockService.status,
+            ) { browser, blocking, status ->
+                (browser.openLinksWith == OpenLinksWith.IN_APP && blocking.adblock) to status
+            },
+            isSyncBannerConsumed = { isSyncBannerConsumed },
+            markSyncBannerConsumed = ::markSyncBannerConsumed,
+            startFilterDownload = ::startFilterDownload,
+        )
     }
 
     private val syncMutex = Mutex()
