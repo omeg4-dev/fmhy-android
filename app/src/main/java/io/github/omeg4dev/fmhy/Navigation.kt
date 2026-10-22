@@ -92,7 +92,6 @@ import androidx.navigation3.ui.NavDisplay
 import io.github.omeg4dev.fmhy.browser.bringBrowserToFront
 import io.github.omeg4dev.fmhy.browser.openBrowserNewTab
 import io.github.omeg4dev.fmhy.nav.AppNavState
-import io.github.omeg4dev.fmhy.ui.shell.BrowserBarItem
 import io.github.omeg4dev.fmhy.ui.shell.BrowserMenuSheet
 import io.github.omeg4dev.fmhy.shortcuts.EXTRA_ENTRY_ID
 import io.github.omeg4dev.fmhy.shortcuts.EXTRA_FILTER

@@ -47,7 +47,6 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DesktopWindows
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.Refresh
@@ -335,7 +334,6 @@ private fun AddressPill(
     val haptics = rememberHaptics()
     val scope = rememberCoroutineScope()
     val url = tab?.url.orEmpty()
-    val isSecure = url.startsWith("https://", ignoreCase = true)
     val isHttp = url.startsWith("http://", ignoreCase = true)
 
     val host = try {
@@ -422,7 +420,8 @@ private fun AddressPill(
                     modifier = Modifier.size(20.dp),
                     tint = MaterialTheme.colorScheme.primary,
                 )
-            } else {
+            } else if (tab?.siteBarState == null) {
+                // Placeholder only when there's no status icon, so the pill stays uncluttered
                 Icon(
                     imageVector = Icons.Outlined.Public,
                     contentDescription = null,
@@ -431,24 +430,15 @@ private fun AddressPill(
                 )
             }
 
-            // Lock or warning icon
-            if (url.isNotEmpty() && url != "about:blank") {
+            // Only flag insecure pages; HTTPS is the normal case and needs no lock
+            if (isHttp && url.isNotEmpty() && url != "about:blank") {
                 Spacer(modifier = Modifier.width(6.dp))
-                if (isHttp) {
-                    Icon(
-                        imageVector = Icons.Default.Warning,
-                        contentDescription = "Not secure",
-                        modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.error,
-                    )
-                } else if (isSecure) {
-                    Icon(
-                        imageVector = Icons.Default.Lock,
-                        contentDescription = "Secure",
-                        modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                Icon(
+                    imageVector = Icons.Default.Warning,
+                    contentDescription = "Not secure",
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.error,
+                )
             }
 
             Spacer(modifier = Modifier.width(8.dp))
