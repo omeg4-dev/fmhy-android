@@ -1,5 +1,16 @@
 package io.github.omeg4dev.fmhy.ui.whatsnew
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.platform.LocalDensity
+import io.github.omeg4dev.fmhy.ui.common.Motion
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -202,6 +213,30 @@ fun WhatsNewScreen(
                 .fillMaxSize()
                 .padding(innerPadding),
         ) {
+            // Hide the feed's filters after 48 dp of scrolling down, show them again after 32 dp up.
+            var filtersVisible by rememberSaveable { mutableStateOf(true) }
+            val density = LocalDensity.current
+            val filterBarScroll = remember(density) {
+                val hidePx = with(density) { 48.dp.toPx() }
+                val showPx = with(density) { 32.dp.toPx() }
+                object : NestedScrollConnection {
+                    var acc = 0f
+                    override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                        val dy = available.y
+                        if (dy == 0f) return Offset.Zero
+                        if ((acc < 0f) != (dy < 0f)) acc = 0f
+                        acc += dy
+                        if (acc <= -hidePx && filtersVisible) {
+                            filtersVisible = false
+                            acc = 0f
+                        } else if (acc >= showPx && !filtersVisible) {
+                            filtersVisible = true
+                            acc = 0f
+                        }
+                        return Offset.Zero
+                    }
+                }
+            }
             // One search field for hub and feed, so typing keeps its focus when the hub turns into the feed.
             Column(modifier = Modifier.fillMaxSize()) {
             WhatsNewSearchField(
@@ -237,7 +272,14 @@ fun WhatsNewScreen(
                     },
                 )
             } else
-            Column(modifier = Modifier.fillMaxSize()) {
+            Column(modifier = Modifier.fillMaxSize().nestedScroll(filterBarScroll)) {
+                // Filters + summary slide away while scrolling down the feed; the search field stays.
+                AnimatedVisibility(
+                    visible = filtersVisible || state.dayGroups.isEmpty(),
+                    enter = expandVertically(Motion.enter()) + fadeIn(Motion.enter()),
+                    exit = shrinkVertically(Motion.exit()) + fadeOut(Motion.exit()),
+                ) {
+                Column {
                 // Filter dropdown pills row
                 FilterBar(
                     state = state,
@@ -280,6 +322,8 @@ fun WhatsNewScreen(
                         }
                     },
                 )
+                }
+                }
 
                 HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
 
