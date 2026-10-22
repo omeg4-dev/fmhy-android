@@ -212,7 +212,9 @@ fun SearchScreen(
 
     // The query can change from outside the field (filter sheet, recent search, Try rows, Clear).
     LaunchedEffect(raw) {
-        if (QueryEdit.split(raw).free != field.free) field = fieldValueFor(QueryEdit.split(raw).free)
+        // Read the live query, not the keyed one: keystrokes may already have moved on (stale effect resets the caret/text).
+        val current = QueryEdit.split(viewModel.queryText).free
+        if (current != field.free) field = fieldValueFor(current)
     }
     LaunchedEffect(field.text, field.selection) {
         viewModel.onCaretChange(field.free, field.freeCursor)
@@ -414,7 +416,7 @@ fun SearchScreen(
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 EmptyState(
                                     icon = Icons.Outlined.SearchOff,
-                                    title = "No sites match “${state.query}”",
+                                    title = "No sites match “${state.query.trim()}”",
                                     body = "Try fewer words or another spelling.",
                                     actionLabel = "Search the web",
                                     onAction = { linkOpener.openUrl(searchUrl) },
@@ -466,7 +468,7 @@ fun SearchScreen(
                                     item(key = "no_search_results_under_verdict") {
                                         EmptyState(
                                             icon = Icons.Outlined.SearchOff,
-                                            title = "No sites match “${state.query}”",
+                                            title = "No sites match “${state.query.trim()}”",
                                             body = "Try fewer words or another spelling.",
                                             actionLabel = "Search the web",
                                             onAction = { linkOpener.openUrl(searchUrl) },

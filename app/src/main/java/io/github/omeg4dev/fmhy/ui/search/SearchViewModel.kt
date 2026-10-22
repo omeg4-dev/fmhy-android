@@ -93,6 +93,7 @@ class SearchViewModel(
                         allSections.value = store.sections().toImmutableList()
                     } catch (_: Exception) {
                     }
+                    launch { searchEngine.warmUp() }
                     whatsNewWeek.value = try {
                         val since = System.currentTimeMillis() / 1000 - 7 * 86400L
                         val cards = WhatsNewGrouping.collapseChanges(store.recentChanges(since, emptySet(), limit = 5000))

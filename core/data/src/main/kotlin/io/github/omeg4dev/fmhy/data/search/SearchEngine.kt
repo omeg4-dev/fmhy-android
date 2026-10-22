@@ -241,6 +241,15 @@ open class SearchEngine(private val store: DatasetStore) {
         return prev[m]
     }
 
+    /** Builds the typo vocabulary and the host index ahead of the first search that needs them. */
+    open suspend fun warmUp() {
+        try {
+            vocabularyFor()
+            hostIndexFor()
+        } catch (_: Exception) {
+        }
+    }
+
     private var hostIndexVersion: Long? = null
     private var hostIndex: List<Pair<String, Int>> = emptyList()
 
