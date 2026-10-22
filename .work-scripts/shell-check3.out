@@ -1,18 +1,4 @@
 == tap Browser (0 tabs -> new tab)
-
-Exception occurred while executing 'tap':
-java.lang.IllegalArgumentException: Argument expected after "tap"
-	at com.android.modules.utils.BasicShellCommandHandler.getNextArgRequired(BasicShellCommandHandler.java:295)
-	at com.android.server.input.InputShellCommand.runTap(InputShellCommand.java:484)
-	at com.android.server.input.InputShellCommand.onCommand(InputShellCommand.java:294)
-	at com.android.modules.utils.BasicShellCommandHandler.exec(BasicShellCommandHandler.java:97)
-	at android.os.ShellCommand.exec(ShellCommand.java:38)
-	at com.android.server.input.InputManagerService.onShellCommand(InputManagerService.java:3887)
-	at android.os.Binder.shellCommand(Binder.java:1151)
-	at android.os.Binder.onTransact(Binder.java:953)
-	at android.hardware.input.IInputManager$Stub.onTransact(IInputManager.java:1576)
-	at android.os.Binder.execTransactInternal(Binder.java:1426)
-	at android.os.Binder.execTransact(Binder.java:1365)
 Warning: Activity not started, intent has been delivered to currently running top-most instance.
 no match for '^Search$'
 tapped 'Search 21,799 sites' at 368,389
@@ -25,6 +11,131 @@ tapped 'Search 21,799 sites' at 368,389
   211,  769  'site:github.com'
   471,  769  'pdf'
   677,  769  'emulator'
-  172, 2274  'Browse'
-  539, 2274  'Search'
-  907, 2274  'Saved'
+  127, 2274  'Browse'
+  402, 2274  'Search'
+  678, 2226  'Browser, 1 tab'
+tapped 'Open' at 166,1279
+Warning: Activity not started, intent has been delivered to currently running top-most instance.
+no match for '^Search$'
+no match for 'Search'
+  540, 1388  'Invidious - An open source alternative front-end to YouTube'
+  243,  460  'Invidious'
+  243,  459  'Invidious'
+  885,  460  'Toggle mode'
+  993,  460  'GitHub'
+ 1059,  458  'GitHub'
+  542, 1030  'Invidious logo'
+  542, 1381  'Invidious'
+  542, 1559  'Invidious is an open source alternative front-end to YouTube.'
+  540, 1742  'Use Invidious'
+  540, 1887  'Host Invidious'
+  270, 2022  'Invidious is '
+no match for '^Open$'
+Warning: Activity not started, intent has been delivered to currently running top-most instance.
+/home/omega/Projects/fmhy-android-p9-shell/.work-scripts/shots/n1-bar-badge.png
+  880,  216  '2'
+== live menu
+
+Exception occurred while executing 'swipe':
+java.lang.IllegalArgumentException: Argument expected after "900"
+	at com.android.modules.utils.BasicShellCommandHandler.getNextArgRequired(BasicShellCommandHandler.java:295)
+	at com.android.server.input.InputShellCommand.sendSwipe(InputShellCommand.java:508)
+	at com.android.server.input.InputShellCommand.runSwipe(InputShellCommand.java:502)
+	at com.android.server.input.InputShellCommand.onCommand(InputShellCommand.java:296)
+	at com.android.modules.utils.BasicShellCommandHandler.exec(BasicShellCommandHandler.java:97)
+	at android.os.ShellCommand.exec(ShellCommand.java:38)
+	at com.android.server.input.InputManagerService.onShellCommand(InputManagerService.java:3887)
+	at android.os.Binder.shellCommand(Binder.java:1151)
+	at android.os.Binder.onTransact(Binder.java:953)
+	at android.hardware.input.IInputManager$Stub.onTransact(IInputManager.java:1576)
+	at android.os.Binder.execTransactInternal(Binder.java:1426)
+	at android.os.Binder.execTransact(Binder.java:1365)
+/home/omega/Projects/fmhy-android-p9-shell/.work-scripts/shots/n1-menu-live.png
+  540, 1388  'Invidious - An open source alternative front-end to YouTube'
+  243,  460  'Invidious'
+  243,  459  'Invidious'
+  885,  460  'Toggle mode'
+  993,  460  'GitHub'
+ 1059,  458  'GitHub'
+  542, 1030  'Invidious logo'
+  542, 1381  'Invidious'
+  542, 1559  'Invidious is an open source alternative front-end to YouTube.'
+  540, 1742  'Use Invidious'
+  540, 1887  'Host Invidious'
+  270, 2022  'Invidious is '
+  553, 2054  'Free (Libre) and Open Source software'
+  553, 2054  'Free (Libre) and Open Source software'
+  530, 2085  ' licensed under the '
+  797, 2085  'AGPL-3.0'
+  797, 2085  'AGPL-3.0'
+  892, 2085  '.'
+  542, 2192  'Chat with us:'
+  309, 2298  'Matrix'
+  309, 2299  'Matrix'
+  459, 2295  ' '
+  690, 2298  'Libera.chat (IRC)'
+  690, 2299  'Libera.chat (IRC)'
+  913, 2295  '\n'
+  540, 2361  'Fediverse: @invidious@social.tchncs.de'
+  540, 2362  'Fediverse: @invidious@social.tchncs.de'
+  842, 2358  '\n'
+  540, 2397  '\n'
+    0,    0  'Visual illustration from undraw'
+    0,    0  'Privacy focused'
+    0,    0  "Invidious protects you from the prying eyes of Google. It won't track you either!"
+    0,    0  'Visual illustration from undraw'
+    0,    0  'Ethically designed'
+    0,    0  'Invidious helps you regain focus through a humane-design — no more shall your day be wasted away!'
+    0,    0  'Visual illustration from undraw'
+    0,    0  'Accounts'
+    0,    0  'Invidious allows you to subscribe to channels and create playlists, without needing a YouTube account.'
+    0,    0  '\n'
+    0,    0  '\n'
+    0,    0  'Visual illustration from undraw'
+    0,    0  'Multilingual'
+    0,    0  'Thanks to our '
+    0,    0  'translators'
+    0,    0  'translators'
+    0,    0  ', Invidious is available in many different languages.'
+    0,    0  'Visual illustration from undraw'
+    0,    0  'No Ads'
+    0,    0  'Invidious allows you to watch videos without being disturbed by annoying ads. Also 100% supported by '
+    0,    0  'Sponsorblock'
+    0,    0  'Sponsorblock'
+    0,    0  'Visual illustration from undraw'
+    0,    0  'Developer API'
+    0,    0  'Invidious has a '
+    0,    0  'fully featured and documented REST API'
+    0,    0  'fully featured and documented REST API'
+    0,    0  ' for developers.'
+    0,    0  'Based on '
+    0,    0  'Doks'
+    0,    0  'Doks'
+    0,    0  '. Illustrations by '
+    0,    0  'unDraw'
+    0,    0  'unDraw'
+    0,    0  '.'
+    0,    0  'Website Source Code'
+    0,    0  'Website Source Code'
+   74,  216  'Back'
+  240,  216  'Back to FMHY'
+  256,  216  'FMHY'
+  466,  216  'Secure'
+  588,  216  'invidious.io'
+  732,  216  'Shield'
+  880,  216  '2'
+ 1006,  216  'Menu'
+  535,  340  'Starred on FMHY · Social Media Tools › YouTube Tools › Players / Frontends'
+ 1043,  340  'Dismiss'
+no match for '^Close all tabs$'
+/home/omega/Projects/fmhy-android-p9-shell/.work-scripts/shots/n1-close-all-dialog.png
+no match for '^Cancel$'
+== notice overlay
+Warning: Activity not started, intent has been delivered to currently running top-most instance.
+tapped 'Browse' at 127,2274
+  368,  389  'Search 21,799 sites'
+/home/omega/Projects/fmhy-android-p9-shell/.work-scripts/shots/n4-notice-a.png
+  368,  389  'Search 21,799 sites'
+/home/omega/Projects/fmhy-android-p9-shell/.work-scripts/shots/n4-notice-b.png
+  368,  389  'Search 21,799 sites'
+== crash log
