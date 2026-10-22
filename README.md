@@ -114,3 +114,9 @@ wiki go to [fmhy.net](https://fmhy.net/other/contributing), problems with the ap
 [issue tracker](https://github.com/omeg4-dev/fmhy-android/issues).
 
 License: GPL-3.0-or-later.
+
+## Made with AI
+
+This app was built with the help of AI coding assistants. I decide what it
+does and review the changes, but a large part of the code was written by AI.
+If you find a bug or something odd, please open an issue.
