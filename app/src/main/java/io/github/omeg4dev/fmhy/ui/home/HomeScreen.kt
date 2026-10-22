@@ -93,14 +93,10 @@ import io.github.omeg4dev.fmhy.nav.Tab
 import io.github.omeg4dev.fmhy.ui.common.CrossfadeContent
 import io.github.omeg4dev.fmhy.ui.common.LocalPasteResolver
 import io.github.omeg4dev.fmhy.ui.common.LocalSnackbarHost
-import io.github.omeg4dev.fmhy.ui.common.SyncBanner
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
 import io.github.omeg4dev.fmhy.ui.common.enterStagger
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
-import io.github.omeg4dev.fmhy.browser.BrowserSwitchChip
-import io.github.omeg4dev.fmhy.browser.ContinueBrowsingCard
-import io.github.omeg4dev.fmhy.browser.continueBrowsingRows
 import io.github.omeg4dev.fmhy.ui.common.sectionIcon
 import io.github.omeg4dev.fmhy.ui.common.showUndo
 import kotlinx.coroutines.flow.filter
@@ -119,8 +115,6 @@ fun HomeScreen(
     onShowSnackbar: (String) -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val browserTabCount by container.tabManager.browserTabCount.collectAsStateWithLifecycle()
-    val openTabs by container.tabManager.tabs.collectAsStateWithLifecycle()
     val linkOpener = rememberLinkOpener(container, onShowSnackbar)
     val listState = rememberLazyListState()
     val nav = LocalAppNav.current
@@ -157,7 +151,6 @@ fun HomeScreen(
                     }
                 },
                 actions = {
-                    BrowserSwitchChip(tabCount = browserTabCount)
                     IconButton(onClick = onNavigateToCheckLink) {
                         Icon(Icons.Default.VerifiedUser, contentDescription = "Check a link")
                     }
@@ -232,31 +225,6 @@ fun HomeScreen(
                     ),
                     modifier = Modifier.fillMaxSize(),
                 ) {
-                    // Sync banner item
-                    item(key = "sync-banner") {
-                        AnimatedVisibility(
-                            visible = state.syncBanner != null,
-                            enter = fadeIn() + expandVertically(),
-                            exit = fadeOut() + shrinkVertically(),
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 4.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                state.syncBanner?.let { banner ->
-                                    SyncBanner(
-                                        text = banner.text,
-                                        isLoading = banner.isLoading,
-                                        isError = banner.isError,
-                                        onDismiss = { viewModel.dismissBanner() },
-                                    )
-                                }
-                            }
-                        }
-                    }
-
                     // Search pill (16dp horizontal margin, 8dp bottom)
                     item(key = "search-pill") {
                         Surface(
@@ -288,114 +256,6 @@ fun HomeScreen(
                             }
                         }
                         Spacer(Modifier.height(8.dp))
-                    }
-
-                    // Setup pill (ad-block download progress / ready / failed)
-                    item(key = "adblock-setup-pill") {
-                        AnimatedVisibility(
-                            visible = state.adblockSetup != null,
-                            enter = expandVertically() + fadeIn(),
-                            exit = shrinkVertically() + fadeOut(),
-                        ) {
-                            val setup = state.adblockSetup
-                            if (setup != null) {
-                                val containerColor = when (setup) {
-                                    is AdblockSetupUiState.Failed -> MaterialTheme.colorScheme.errorContainer
-                                    else -> MaterialTheme.colorScheme.secondaryContainer
-                                }
-                                val contentColor = when (setup) {
-                                    is AdblockSetupUiState.Failed -> MaterialTheme.colorScheme.onErrorContainer
-                                    else -> MaterialTheme.colorScheme.onSecondaryContainer
-                                }
-
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 16.dp)
-                                        .padding(bottom = 8.dp),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    Surface(
-                                        shape = CircleShape,
-                                        color = containerColor,
-                                        modifier = Modifier
-                                            .height(40.dp)
-                                            .then(
-                                                if (setup is AdblockSetupUiState.Failed) {
-                                                    Modifier.clickable {
-                                                        viewModel.startFilterDownload()
-                                                    }
-                                                } else Modifier
-                                            ),
-                                    ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                            modifier = Modifier.padding(horizontal = 16.dp),
-                                        ) {
-                                            when (setup) {
-                                                is AdblockSetupUiState.Downloading -> {
-                                                    CircularProgressIndicator(
-                                                        strokeWidth = 2.dp,
-                                                        modifier = Modifier.size(16.dp),
-                                                        color = contentColor,
-                                                    )
-                                                    val text = if (setup.progress != null) {
-                                                        "Downloading ad-block lists · ${(setup.progress * 100).toInt()}%"
-                                                    } else {
-                                                        "Downloading ad-block lists…"
-                                                    }
-                                                    Text(
-                                                        text = text,
-                                                        style = MaterialTheme.typography.labelMedium,
-                                                        color = contentColor,
-                                                    )
-                                                }
-                                                is AdblockSetupUiState.Ready -> {
-                                                    Icon(
-                                                        imageVector = Icons.Default.Check,
-                                                        contentDescription = null,
-                                                        modifier = Modifier.size(16.dp),
-                                                        tint = contentColor,
-                                                    )
-                                                    Text(
-                                                        text = "Ad blocking ready",
-                                                        style = MaterialTheme.typography.labelMedium,
-                                                        color = contentColor,
-                                                    )
-                                                }
-                                                is AdblockSetupUiState.Failed -> {
-                                                    Icon(
-                                                        imageVector = Icons.Default.Refresh,
-                                                        contentDescription = "Retry",
-                                                        modifier = Modifier.size(16.dp),
-                                                        tint = contentColor,
-                                                    )
-                                                    Text(
-                                                        text = "Ad-block lists failed to download · Retry",
-                                                        style = MaterialTheme.typography.labelMedium,
-                                                        color = contentColor,
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Continue browsing (open browser tabs, most recent first)
-                    item(key = "continue-browsing") {
-                        val rows = continueBrowsingRows(openTabs)
-                        AnimatedVisibility(
-                            visible = rows.isNotEmpty(),
-                            enter = expandVertically() + fadeIn(),
-                            exit = shrinkVertically() + fadeOut(),
-                            modifier = Modifier.animateItem(),
-                        ) {
-                            ContinueBrowsingCard(tabs = openTabs, totalTabs = openTabs.size)
-                        }
                     }
 
                     // "New since last visit: N" card (when > 0)
