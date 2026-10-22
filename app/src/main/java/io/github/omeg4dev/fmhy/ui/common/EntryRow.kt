@@ -106,7 +106,8 @@ import androidx.compose.ui.unit.em
 import io.github.omeg4dev.fmhy.data.model.Entry
 import io.github.omeg4dev.fmhy.data.model.Tier
 
-fun parseHighlight(text: String, highlightColor: Color): AnnotatedString {
+/** Turns FTS highlight markers (\u0002 ... \u0003) into styled spans: [highlightColor] text on a [background] tint. */
+fun parseHighlight(text: String, highlightColor: Color, background: Color = Color.Unspecified): AnnotatedString {
     return buildAnnotatedString {
         var i = 0
         val len = text.length
@@ -122,7 +123,7 @@ fun parseHighlight(text: String, highlightColor: Color): AnnotatedString {
                 append(text.substring(startHl + 1))
                 break
             }
-            withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = highlightColor)) {
+            withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, color = highlightColor, background = background)) {
                 append(text.substring(startHl + 1, endHl))
             }
             i = endHl + 1
@@ -223,11 +224,13 @@ fun EntryRow(
     }
 
     val primaryColor = MaterialTheme.colorScheme.primary
+    val hlColor = MaterialTheme.colorScheme.onSurface
+    val hlBackground = MaterialTheme.colorScheme.primary.copy(alpha = 0.28f)
     val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
 
-    val displayName = remember(nameHl, entry.name, primaryColor) {
+    val displayName = remember(nameHl, entry.name, hlColor, hlBackground) {
         if (!nameHl.isNullOrEmpty() && nameHl.contains('\u0002')) {
-            parseHighlight(nameHl, primaryColor)
+            parseHighlight(nameHl, hlColor, hlBackground)
         } else {
             AnnotatedString(entry.name)
         }
@@ -239,10 +242,12 @@ fun EntryRow(
         entry.extraLinks,
         descHl,
         primaryColor,
+        hlColor,
+        hlBackground,
         onSurfaceVariant,
     ) {
         val baseDesc = if (!descHl.isNullOrEmpty() && descHl.contains('\u0002')) {
-            parseHighlight(descHl, primaryColor)
+            parseHighlight(descHl, hlColor, hlBackground)
         } else {
             AnnotatedString(entry.description)
         }
@@ -387,7 +392,7 @@ fun EntryRow(
                             text = "NEW",
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
                         )
                     }

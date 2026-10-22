@@ -38,6 +38,37 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.SearchOff
 import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material.icons.outlined.AutoFixHigh
+import androidx.compose.material.icons.outlined.FormatQuote
+import androidx.compose.material.icons.outlined.NewReleases
+import androidx.compose.material.icons.outlined.Language
+import androidx.compose.material.icons.outlined.VisibilityOff
+import androidx.compose.material.icons.outlined.WorkspacePremium
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.Tune as TuneIcon
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.shape.RoundedCornerShape
+import io.github.omeg4dev.fmhy.WhatsNewNavKey
+import io.github.omeg4dev.fmhy.data.search.QueryAssist
+import io.github.omeg4dev.fmhy.data.search.QueryEdit
+import io.github.omeg4dev.fmhy.data.search.QuerySuggestion
+import io.github.omeg4dev.fmhy.data.search.SuggestionKind
+import io.github.omeg4dev.fmhy.data.search.SearchHit
+import io.github.omeg4dev.fmhy.ui.common.Motion
+import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -70,6 +101,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -106,6 +139,9 @@ import io.github.omeg4dev.fmhy.ui.check.VerdictCard
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 
+/** Categories shown before "View all". */
+private const val CATEGORY_PREVIEW = 3
+
 private enum class SearchContentMode {
     RECENT,
     SEARCHING,
@@ -130,16 +166,18 @@ fun SearchScreen(
     val resultsListState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     var showFiltersSheet by remember { mutableStateOf(false) }
+    var categoriesExpanded by rememberSaveable(state.query) { mutableStateOf(false) }
 
     val linkOpener = rememberLinkOpener(container, onShowSnackbar)
 
     val browserPrefs by container.settingsRepository.browserPrefs.collectAsStateWithLifecycle(initialValue = BrowserPrefs())
     val liveQuery = viewModel.queryText
     val encodedQuery = remember(liveQuery) {
+        val plain = QueryEdit.split(liveQuery).free.trim()
         try {
-            java.net.URLEncoder.encode(liveQuery, "UTF-8")
+            java.net.URLEncoder.encode(plain, "UTF-8")
         } catch (_: Exception) {
-            liveQuery
+            plain
         }
     }
     val searchUrl = "${browserPrefs.searchEngine.queryUrl}$encodedQuery"
@@ -156,18 +194,45 @@ fun SearchScreen(
 
     val trySuggestions = remember {
         listOf(
-            "stremio",
-            "in:video anime",
-            "is:starred adblock",
-            "site:github.com",
-            "pdf",
-            "emulator",
+            "stremio" to "Just a name: matches title, description and link",
+            "in:video anime" to "Search inside one section",
+            "is:starred adblock" to "Only FMHY's starred picks",
+            "site:github.com" to "Only links on one website",
+            "\"free movies\"" to "An exact phrase",
+            "player -android" to "Leave out results with a word",
         )
     }
 
-    val activeFilterCount = (if (state.starredOnly) 1 else 0) +
-        (if (state.b64Only) 1 else 0) +
-        state.selectedSectionFilters.size
+    val haptics = rememberHaptics()
+    val raw = viewModel.queryText
+    val split = remember(raw) { QueryEdit.split(raw) }
+    var field by remember { mutableStateOf(fieldValueFor(split.free)) }
+    var fieldFocused by remember { mutableStateOf(false) }
+    val suggestions by viewModel.suggestions.collectAsStateWithLifecycle()
+
+    // The query can change from outside the field (filter sheet, recent search, Try rows, Clear).
+    LaunchedEffect(raw) {
+        // Read the live query, not the keyed one: keystrokes may already have moved on (stale effect resets the caret/text).
+        val current = QueryEdit.split(viewModel.queryText).free
+        if (current != field.free) field = fieldValueFor(current)
+    }
+    LaunchedEffect(field.text, field.selection) {
+        viewModel.onCaretChange(field.free, field.freeCursor)
+    }
+
+    fun onFieldChange(new: TextFieldValue) {
+        val edit = applyFieldEdit(QueryEdit.split(viewModel.queryText).pills, field, new)
+        field = edit.value
+        if (edit.raw != viewModel.queryText) viewModel.onQueryChange(edit.raw)
+    }
+
+    fun pickSuggestion(sug: QuerySuggestion) {
+        val partial = QueryAssist.partialAt(field.free, field.freeCursor) ?: return
+        val (text, caret) = QueryAssist.apply(field.free, partial, sug)
+        onFieldChange(TextFieldValue(SENTINEL + text, TextRange(caret + 1)))
+    }
+
+    val activeFilterCount = state.filterCount
 
     LaunchedEffect(nav) {
         nav.searchFocusRequests.collect {
@@ -198,54 +263,30 @@ fun SearchScreen(
             Column(modifier = Modifier.fillMaxSize()) {
             // Top area: Surface 52dp tall, 16dp horizontal margin, 8dp top with status-bar inset
             Surface(
-                shape = CircleShape,
+                shape = RoundedCornerShape(26.dp),
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
                 modifier = Modifier
                     .statusBarsPadding()
                     .padding(start = 16.dp, end = 16.dp, top = 8.dp)
                     .fillMaxWidth()
-                    .height(52.dp),
+                    .heightIn(min = 52.dp),
             ) {
-                TextField(
-                    value = viewModel.queryText,
-                    onValueChange = { viewModel.onQueryChange(it) },
-                    placeholder = { Text("Search FMHY...") },
-                    leadingIcon = {
-                        if (showBack) {
-                            IconButton(onClick = onBack) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                            }
-                        } else {
-                            Icon(Icons.Default.Search, contentDescription = null)
-                        }
+                SearchBarField(
+                    value = field,
+                    onValueChange = ::onFieldChange,
+                    pills = split.pills,
+                    sections = state.availableSections,
+                    onRemovePill = { viewModel.removePill(it.text) },
+                    onClear = { viewModel.onQueryChange("") },
+                    onSearch = {
+                        viewModel.onSearchSubmitted(viewModel.queryText)
+                        keyboardController?.hide()
+                        focusManager.clearFocus()
                     },
-                    trailingIcon = {
-                        if (viewModel.queryText.isNotEmpty()) {
-                            IconButton(onClick = { viewModel.onQueryChange("") }) {
-                                Icon(Icons.Default.Clear, contentDescription = "Clear search")
-                            }
-                        }
-                    },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    keyboardActions = KeyboardActions(
-                        onSearch = {
-                            viewModel.onSearchSubmitted(viewModel.queryText)
-                            keyboardController?.hide()
-                            focusManager.clearFocus()
-                        }
-                    ),
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = Color.Transparent,
-                        unfocusedContainerColor = Color.Transparent,
-                        disabledContainerColor = Color.Transparent,
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent,
-                        disabledIndicatorColor = Color.Transparent,
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(focusRequester),
+                    showBack = showBack,
+                    onBack = onBack,
+                    onFocusChange = { fieldFocused = it },
+                    focusRequester = focusRequester,
                 )
             }
 
@@ -266,69 +307,31 @@ fun SearchScreen(
                     label = { Text(if (activeFilterCount > 0) "Filters · $activeFilterCount" else "Filters") },
                 )
 
-                if (state.starredOnly) {
-                    InputChip(
-                        selected = true,
-                        onClick = { viewModel.toggleStarredOnly() },
-                        label = { Text("Starred") },
-                        trailingIcon = {
-                            Icon(
-                                Icons.Default.Close,
-                                contentDescription = "Remove Starred filter",
-                                modifier = Modifier
-                                    .minimumInteractiveComponentSize()
-                                    .size(16.dp)
-                                    .clickable { viewModel.toggleStarredOnly() },
-                            )
-                        },
-                    )
-                }
-
-                if (state.b64Only) {
-                    InputChip(
-                        selected = true,
-                        onClick = { viewModel.toggleB64Only() },
-                        label = { Text("Hidden links") },
-                        trailingIcon = {
-                            Icon(
-                                Icons.Default.Close,
-                                contentDescription = "Remove Hidden links filter",
-                                modifier = Modifier
-                                    .minimumInteractiveComponentSize()
-                                    .size(16.dp)
-                                    .clickable { viewModel.toggleB64Only() },
-                            )
-                        },
-                    )
-                }
-
-                state.selectedSectionFilters.forEach { secId ->
-                    val title = state.availableSections.find { it.id == secId }?.title ?: secId
-                    InputChip(
-                        selected = true,
-                        onClick = { viewModel.toggleSectionFilter(secId) },
-                        label = { Text(title) },
-                        trailingIcon = {
-                            Icon(
-                                Icons.Default.Close,
-                                contentDescription = "Remove $title filter",
-                                modifier = Modifier
-                                    .minimumInteractiveComponentSize()
-                                    .size(16.dp)
-                                    .clickable { viewModel.toggleSectionFilter(secId) },
-                            )
-                        },
-                    )
-                }
+                FilterChip(
+                    selected = state.exact,
+                    onClick = {
+                        haptics.toggle(!state.exact)
+                        viewModel.setExact(!state.exact)
+                    },
+                    leadingIcon = {
+                        Icon(
+                            if (state.exact) Icons.Outlined.FormatQuote else Icons.Outlined.AutoFixHigh,
+                            contentDescription = null,
+                        )
+                    },
+                    label = { Text(if (state.exact) "Exact" else "Fuzzy") },
+                    modifier = Modifier.semantics {
+                        contentDescription = if (state.exact) "Exact match, tap for fuzzy" else "Fuzzy match, tap for exact"
+                    },
+                )
             }
 
             HorizontalDivider(thickness = 0.5.dp)
 
+            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
             CrossfadeContent(
                 targetState = contentMode,
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
+                modifier = Modifier.fillMaxSize(),
             ) { mode ->
                 when (mode) {
                     SearchContentMode.RECENT -> {
@@ -382,21 +385,23 @@ fun SearchScreen(
                                 )
                             }
 
-                            item(key = "try_chips") {
-                                FlowRow(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 16.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                                ) {
-                                    trySuggestions.forEach { suggestion ->
-                                        SuggestionChip(
-                                            onClick = { viewModel.onQueryChange(suggestion) },
-                                            label = { Text(suggestion) },
-                                        )
-                                    }
-                                }
+                            items(trySuggestions, key = { "try_${it.first}" }) { (example, meaning) ->
+                                TryRow(
+                                    example = example,
+                                    meaning = meaning,
+                                    onClick = { viewModel.setQuery(example) },
+                                )
+                            }
+
+                            item(key = "whats_new") {
+                                WhatsNewCard(
+                                    count = state.whatsNewWeekCount,
+                                    onClick = {
+                                        nav.select(Tab.BROWSE)
+                                        nav.push(WhatsNewNavKey())
+                                    },
+                                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 24.dp + bottomBarPadding),
+                                )
                             }
                         }
                     }
@@ -411,14 +416,14 @@ fun SearchScreen(
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 EmptyState(
                                     icon = Icons.Outlined.SearchOff,
-                                    title = "No sites match “${state.query}”",
+                                    title = "No sites match “${state.query.trim()}”",
                                     body = "Try fewer words or another spelling.",
                                     actionLabel = "Search the web",
                                     onAction = { linkOpener.openUrl(searchUrl) },
                                 )
                                 state.suggestion?.let { suggestion ->
                                     TextButton(onClick = {
-                                        viewModel.onQueryChange(suggestion)
+                                        viewModel.setQuery(suggestion)
                                     }) {
                                         Text(
                                             text = buildAnnotatedString {
@@ -463,7 +468,7 @@ fun SearchScreen(
                                     item(key = "no_search_results_under_verdict") {
                                         EmptyState(
                                             icon = Icons.Outlined.SearchOff,
-                                            title = "No sites match “${state.query}”",
+                                            title = "No sites match “${state.query.trim()}”",
                                             body = "Try fewer words or another spelling.",
                                             actionLabel = "Search the web",
                                             onAction = { linkOpener.openUrl(searchUrl) },
@@ -485,8 +490,9 @@ fun SearchScreen(
                                             )
                                         }
                                     }
+                                    val shownCategories = if (categoriesExpanded) state.categories else state.categories.take(CATEGORY_PREVIEW)
                                     itemsIndexed(
-                                        state.categories,
+                                        shownCategories,
                                         key = { _, c -> "cat_${c.heading?.id ?: c.section.id}" },
                                     ) { _, cat ->
                                         CategoryRow(
@@ -498,6 +504,26 @@ fun SearchScreen(
                                             },
                                             modifier = Modifier.animateItem(),
                                         )
+                                    }
+                                    if (state.categories.size > CATEGORY_PREVIEW) {
+                                        item(key = "cat_toggle") {
+                                            val n = state.categories.size
+                                            TextButton(
+                                                onClick = { categoriesExpanded = !categoriesExpanded },
+                                                modifier = Modifier.padding(start = 8.dp).animateItem(),
+                                            ) {
+                                                Icon(
+                                                    if (categoriesExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(18.dp),
+                                                )
+                                                Spacer(Modifier.width(6.dp))
+                                                Text(
+                                                    if (categoriesExpanded) "Show fewer categories"
+                                                    else "View all ${if (n >= 50) "50+" else n.toString()} categories",
+                                                )
+                                            }
+                                        }
                                     }
                                 }
 
@@ -565,6 +591,8 @@ fun SearchScreen(
                                                 )
                                             }
 
+                                            MatchLine(hit)
+
                                             HorizontalDivider(
                                                 modifier = Modifier.padding(start = 16.dp),
                                                 thickness = 0.5.dp,
@@ -577,6 +605,12 @@ fun SearchScreen(
                         }
                     }
                 }
+            }
+            SuggestionPanel(
+                suggestions = if (fieldFocused) suggestions else emptyList(),
+                onPick = { pickSuggestion(it) },
+                modifier = Modifier.align(Alignment.TopCenter),
+            )
             }
         }
     }
@@ -708,9 +742,10 @@ private fun CategoryRow(
     modifier: Modifier = Modifier,
 ) {
     val title = hit.heading?.title ?: hit.section.title
-    val primary = MaterialTheme.colorScheme.primary
     val words = remember(query) { plainQueryWords(query) }
-    val styled = remember(title, words, primary) { parseHighlight(categoryHighlight(title, words), primary) }
+    val hlColor = MaterialTheme.colorScheme.onSurface
+    val hlBackground = MaterialTheme.colorScheme.primary.copy(alpha = 0.28f)
+    val styled = remember(title, words, hlColor, hlBackground) { parseHighlight(categoryHighlight(title, words), hlColor, hlBackground) }
     ListItem(
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
         leadingContent = {
@@ -742,5 +777,166 @@ private fun CategoryRow(
             )
         },
         modifier = modifier.clickable(onClick = onClick),
+    )
+}
+
+/** One example of the search syntax in the RECENT mode: the query, and what it does. */
+@Composable
+private fun TryRow(example: String, meaning: String, onClick: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+    ) {
+        Surface(
+            shape = RoundedCornerShape(8.dp),
+            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f),
+            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        ) {
+            Text(
+                text = example,
+                style = MaterialTheme.typography.labelLarge.copy(fontFamily = FontFamily.Monospace),
+                maxLines = 1,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        Text(
+            text = meaning,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+@Composable
+private fun WhatsNewCard(count: Int?, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+        ) {
+            Icon(
+                Icons.Outlined.NewReleases,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp),
+            )
+            Spacer(Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text("What's new on FMHY", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    text = when (count) {
+                        null -> "See what was added, starred or moved"
+                        0 -> "No changes this week"
+                        1 -> "1 change this week"
+                        else -> "${"%,d".format(count)} changes this week"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Icon(
+                Icons.Filled.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+/** Dropdown under the search bar with what can complete the `in:` / `is:` / `site:` being typed. */
+@Composable
+private fun SuggestionPanel(
+    suggestions: List<QuerySuggestion>,
+    onPick: (QuerySuggestion) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    // Keep the last non-empty list around while the panel animates out.
+    var shown by remember { mutableStateOf(suggestions) }
+    if (suggestions.isNotEmpty()) shown = suggestions
+    AnimatedVisibility(
+        visible = suggestions.isNotEmpty(),
+        enter = fadeIn(Motion.enter(Motion.SHORT)) + expandVertically(Motion.enter(Motion.MEDIUM)),
+        exit = fadeOut(Motion.exit()) + shrinkVertically(Motion.exit()),
+        modifier = modifier,
+    ) {
+        Surface(
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            shape = RoundedCornerShape(bottomStart = 20.dp, bottomEnd = 20.dp),
+            shadowElevation = 3.dp,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(
+                modifier = Modifier
+                    .heightIn(max = 312.dp)
+                    .verticalScroll(rememberScrollState())
+                    .padding(vertical = 4.dp),
+            ) {
+                shown.forEach { sug ->
+                    ListItem(
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                        leadingContent = { Icon(suggestionIcon(sug), contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                        headlineContent = {
+                            Text(
+                                text = sug.label,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                style = if (sug.kind == SuggestionKind.OPERATOR || sug.kind == SuggestionKind.SITE)
+                                    MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace)
+                                else MaterialTheme.typography.bodyLarge,
+                            )
+                        },
+                        supportingContent = sug.detail?.let { d ->
+                            { Text(d, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                        },
+                        modifier = Modifier.clickable { onPick(sug) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun suggestionIcon(s: QuerySuggestion) = when (s.kind) {
+    SuggestionKind.SECTION -> sectionIcon(s.sectionId ?: "")
+    SuggestionKind.SITE -> Icons.Outlined.Language
+    SuggestionKind.OPERATOR -> Icons.Outlined.TuneIcon
+    SuggestionKind.IS -> when {
+        s.insert.endsWith("starred") -> Icons.Filled.Star
+        s.insert.endsWith("top") -> Icons.Outlined.WorkspacePremium
+        else -> Icons.Outlined.VisibilityOff
+    }
+}
+
+/** "in link: github.com/..." under a result whose match is in a column the row does not show. */
+@Composable
+private fun MatchLine(hit: SearchHit) {
+    val label = hit.extraLabel ?: return
+    val hl = hit.extraHl ?: return
+    val hlColor = MaterialTheme.colorScheme.onSurface
+    val hlBackground = MaterialTheme.colorScheme.primary.copy(alpha = 0.28f)
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    val text = remember(label, hl, hlColor, hlBackground, muted) {
+        buildAnnotatedString {
+            withStyle(SpanStyle(color = muted, fontWeight = FontWeight.Medium)) { append("in $label: ") }
+            append(parseHighlight(hl, hlColor, hlBackground))
+        }
+    }
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodySmall,
+        color = muted,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
     )
 }

@@ -8,6 +8,10 @@ data class SearchHit(
     val entry: Entry,
     val nameHl: String,
     val descriptionHl: String,
+    /** Set when the match sits in a column the row does not show: "link", "category" or "tags". */
+    val extraLabel: String? = null,
+    /** [extraLabel]'s text with the matched terms wrapped in \u0002 / \u0003. */
+    val extraHl: String? = null,
 )
 
 data class SearchGroup(
