@@ -57,9 +57,9 @@ private val HUB_KINDS: List<ChangeKind> = listOf(
 )
 
 private fun periodShort(p: WhatsNewPeriod): String = when (p) {
+    WhatsNewPeriod.DAY -> "Day"
     WhatsNewPeriod.WEEK -> "Week"
     WhatsNewPeriod.MONTH -> "Month"
-    WhatsNewPeriod.QUARTER -> "Quarter"
 }
 
 @Composable

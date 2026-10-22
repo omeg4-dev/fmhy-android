@@ -31,9 +31,9 @@ data class DayGroup(
 )
 
 enum class WhatsNewPeriod(val days: Int, val label: String) {
+    DAY(1, "Last 24 hours"),
     WEEK(7, "Last 7 days"),
     MONTH(30, "Last 30 days"),
-    QUARTER(90, "Last 90 days"),
 }
 
 sealed interface WhatsNewScope {

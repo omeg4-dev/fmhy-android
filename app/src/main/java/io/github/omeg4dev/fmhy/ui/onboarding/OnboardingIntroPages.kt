@@ -1,5 +1,8 @@
 package io.github.omeg4dev.fmhy.ui.onboarding
 
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
+import io.github.omeg4dev.fmhy.R
 import android.os.Build
 import android.provider.Settings
 import androidx.compose.animation.AnimatedContent
@@ -111,7 +114,7 @@ fun WelcomePageContent(modifier: Modifier = Modifier) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            // Hero: wordmark over a soft logo-colour glow (index 0)
+            // Hero: the FMHY logo over a soft logo-colour glow, name below (index 0)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -120,8 +123,19 @@ fun WelcomePageContent(modifier: Modifier = Modifier) {
                 contentAlignment = Alignment.Center,
             ) {
                 WelcomeGlow(modifier = Modifier.fillMaxSize())
-                AnimatedFmhyWordmark(textStyle = MaterialTheme.typography.displayLarge)
+                Image(
+                    painter = painterResource(R.drawable.fmhy_logo_hero),
+                    contentDescription = "FMHY logo",
+                    modifier = Modifier.size(120.dp),
+                )
             }
+            Text(
+                text = "FreeMediaHeckYeah",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.enterStagger(index = 0, key = key),
+            )
+            Spacer(modifier = Modifier.height(20.dp))
 
             // Headline + one-liner (index 1)
             Column(
@@ -419,7 +433,6 @@ fun HelloPageContent(
                 val selectedName = swatches.firstOrNull { it.selected }?.name ?: ""
                 val caption = when (selectedName) {
                     "Material You" -> "Material You · follows your wallpaper"
-                    "Violet" -> "Violet · recommended"
                     else -> selectedName
                 }
                 AnimatedContent(
