@@ -12,18 +12,25 @@ import kotlinx.serialization.json.Json
 
 open class SearchEngine(private val store: DatasetStore) {
 
+    private companion object {
+        /** Categories computed per search; the UI shows the best few and expands the rest on demand. */
+        const val CATEGORY_LIMIT = 50
+    }
+
     private val json = Json { ignoreUnknownKeys = true }
 
     open suspend fun search(
         query: String,
         sectionFilter: Set<String> = emptySet(),
         limit: Int = 200,
-    ): SearchResults = search(QueryParser.parse(query), sectionFilter, limit)
+        mode: MatchMode = MatchMode.FUZZY,
+    ): SearchResults = search(QueryParser.parse(query), sectionFilter, limit, mode)
 
     open suspend fun search(
         query: Query,
         sectionFilter: Set<String> = emptySet(),
         limit: Int = 200,
+        mode: MatchMode = MatchMode.FUZZY,
     ): SearchResults {
         val startTime = System.currentTimeMillis()
 
@@ -33,16 +40,7 @@ open class SearchEngine(private val store: DatasetStore) {
         // Resolve in:<prefix> from query against section id and title
         val querySectionIds = if (query.inSections.isNotEmpty()) {
             val matched = mutableSetOf<String>()
-            for (pattern in query.inSections) {
-                for (sec in allSections) {
-                    if (sec.id.equals(pattern, ignoreCase = true) ||
-                        sec.id.startsWith(pattern, ignoreCase = true) ||
-                        sec.title.startsWith(pattern, ignoreCase = true)
-                    ) {
-                        matched.add(sec.id)
-                    }
-                }
-            }
+            for (pattern in query.inSections) matched.addAll(QueryEdit.resolveSections(pattern, allSections))
             matched
         } else {
             emptySet()
@@ -67,7 +65,7 @@ open class SearchEngine(private val store: DatasetStore) {
         }
 
         val allHits = if (hasPositiveTerms) {
-            searchFts(query, effectiveSections, limit)
+            searchFts(query, effectiveSections, limit, mode)
         } else {
             searchPlain(query, effectiveSections, limit)
         }
@@ -82,7 +80,7 @@ open class SearchEngine(private val store: DatasetStore) {
             SearchGroup(sec, hits)
         }
 
-        val categories = if (query.words.isNotEmpty()) searchCategories(query) else emptyList()
+        val categories = if (query.words.isNotEmpty()) searchCategories(query, CATEGORY_LIMIT) else emptyList()
 
         val tookMs = System.currentTimeMillis() - startTime
         return SearchResults(groups, allHits.size, tookMs, categories)
@@ -166,6 +164,7 @@ open class SearchEngine(private val store: DatasetStore) {
 
     private var vocabularyVersion: Long? = null
     private var vocabulary: Map<String, Int> = emptyMap()
+    private var vocabularySorted: Array<String> = emptyArray()
 
     private suspend fun vocabularyFor(): Map<String, Int> {
         val version = store.version()
@@ -186,6 +185,7 @@ open class SearchEngine(private val store: DatasetStore) {
         for (h in store.allHeadings()) addTokens(h.title)
         synchronized(this) {
             vocabulary = counts
+            vocabularySorted = counts.keys.sorted().toTypedArray()
             vocabularyVersion = version
         }
         return counts
@@ -241,29 +241,135 @@ open class SearchEngine(private val store: DatasetStore) {
         return prev[m]
     }
 
+    private var hostIndexVersion: Long? = null
+    private var hostIndex: List<Pair<String, Int>> = emptyList()
+
+    private suspend fun hostIndexFor(): List<Pair<String, Int>> {
+        val version = store.version()
+        synchronized(this) {
+            if (hostIndexVersion == version) return hostIndex
+        }
+        val counts = HashMap<String, Int>()
+        store.withConnection { conn ->
+            conn.prepare("SELECT url FROM entries").use { stmt ->
+                while (stmt.step()) {
+                    val host = hostOf(stmt.getText(0)) ?: continue
+                    counts[host] = (counts[host] ?: 0) + 1
+                }
+            }
+        }
+        val built = counts.entries.sortedWith(compareBy({ -it.value }, { it.key })).map { it.key to it.value }
+        synchronized(this) {
+            hostIndex = built
+            hostIndexVersion = version
+        }
+        return built
+    }
+
+    private fun hostOf(url: String): String? {
+        val rest = url.substringAfter("://", "")
+        if (rest.isEmpty()) return null
+        val host = rest.takeWhile { it != '/' && it != '?' && it != '#' && it != ':' }.lowercase().removePrefix("www.")
+        return host.takeIf { it.contains('.') && !it.contains('@') }
+    }
+
+    /** Hosts of the dataset's links that start with (or, failing that, contain) [prefix], most used first. */
+    open suspend fun suggestHosts(prefix: String, limit: Int = 8): List<String> {
+        val p = prefix.trim().lowercase().removePrefix("www.")
+        val all = try { hostIndexFor() } catch (_: Exception) { return emptyList() }
+        if (p.isEmpty()) return all.take(limit).map { it.first }
+        val starts = all.filter { it.first.startsWith(p) }
+        val rest = if (starts.size < limit) all.filter { !it.first.startsWith(p) && it.first.contains(p) } else emptyList()
+        return (starts + rest).take(limit).map { it.first }
+    }
+
     private fun String.splitWords(): List<String> = split(Regex("[^\\p{L}\\p{N}]+")).filter { it.isNotEmpty() }
 
     private fun normalizeForSearch(s: String): String =
         Normalizer.normalize(s, Normalizer.Form.NFD).replace(Regex("\\p{Mn}+"), "").lowercase().trim()
 
+    private fun ftsPhrase(s: String) = "\"${s.replace("\"", "\"\"")}\""
+
+    /** Words of 4+ letters that are neither a vocabulary prefix nor a known word get up to three close terms
+     *  (Damerau-Levenshtein, 1 edit up to 5 letters, 2 beyond). Keys are the lower-cased typed words. */
+    private suspend fun typoCorrections(query: Query): Map<String, List<String>> {
+        val candidates = query.words.filter { w -> w.length >= 4 && w.all { it.isLetterOrDigit() } }
+            .map { it.lowercase() }.distinct()
+        if (candidates.isEmpty()) return emptyMap()
+        val vocab = vocabularyFor()
+        val sorted = synchronized(this) { vocabularySorted }
+        val out = LinkedHashMap<String, List<String>>()
+        for (word in candidates) {
+            var idx = java.util.Arrays.binarySearch(sorted, word)
+            if (idx < 0) idx = -idx - 1
+            if (idx < sorted.size && sorted[idx].startsWith(word)) continue // a real prefix: nothing to fix
+            val maxDist = if (word.length <= 5) 1 else 2
+            val found = ArrayList<Triple<Int, Int, String>>()
+            for ((term, freq) in vocab) {
+                if (kotlin.math.abs(term.length - word.length) > maxDist) continue
+                val d = editDistance(word, term, maxDist)
+                if (d <= maxDist) found.add(Triple(d, freq, term))
+            }
+            if (found.isNotEmpty()) {
+                out[word] = found.sortedWith(compareBy<Triple<Int, Int, String>>({ it.first }, { -it.second })).take(3).map { it.third }
+            }
+        }
+        return out
+    }
+
     private suspend fun searchFts(
         query: Query,
         effectiveSections: Set<String>,
         limit: Int,
+        mode: MatchMode,
     ): List<SearchHit> {
-        val wordTerms = query.words.map { "\"${it.replace("\"", "\"\"")}\"*" }
-        val phraseTerms = query.phrases.map { "\"${it.replace("\"", "\"\"")}\"" }
-        val positiveTerms = wordTerms + phraseTerms
-        val excludeTerms = query.excludes.map { "\"${it.replace("\"", "\"\"")}\"*" }
-
-        val matchExpr = if (excludeTerms.isNotEmpty()) {
-            positiveTerms.joinToString(" ") + " NOT " + excludeTerms.joinToString(" NOT ")
-        } else {
-            positiveTerms.joinToString(" ")
+        val exact = mode == MatchMode.EXACT
+        val primaryTerm = query.words.firstOrNull() ?: query.phrases.firstOrNull() ?: ""
+        val hits = ArrayList<SearchHit>()
+        val seen = HashSet<String>()
+        fun addAll(list: List<SearchHit>) {
+            for (h in list) if (hits.size < limit && seen.add(h.entry.id)) hits.add(h)
         }
 
-        val primaryTerm = query.words.firstOrNull() ?: query.phrases.firstOrNull() ?: ""
+        fun wordTerm(w: String) = if (exact) ftsPhrase(w) else ftsPhrase(w) + "*"
+        val phraseTerms = query.phrases.map { ftsPhrase(it) }
+        val excludeTerms = query.excludes.map { wordTerm(it) }
+        fun expr(wordTerms: List<String>): String {
+            val positive = wordTerms + phraseTerms
+            return if (excludeTerms.isNotEmpty()) positive.joinToString(" ") + " NOT " + excludeTerms.joinToString(" NOT ")
+            else positive.joinToString(" ")
+        }
 
+        // 1. Words (prefix matches unless exact) and phrases.
+        addAll(runFts(query, effectiveSections, limit, expr(query.words.map { wordTerm(it) }), primaryTerm))
+        if (exact) return hits
+
+        // 2. Typo corrections, ranked after the direct hits.
+        val fixes = typoCorrections(query)
+        if (fixes.isNotEmpty() && hits.size < limit) {
+            val terms = query.words.map { w ->
+                val alts = fixes[w.lowercase()]
+                if (alts == null) wordTerm(w) else alts.joinToString(" OR ", "(", ")") { wordTerm(it) }
+            }
+            addAll(runFts(query, effectiveSections, limit - hits.size, expr(terms), primaryTerm))
+        }
+
+        // 3. Substring (trigram) matches of the longest word, after the word hits.
+        val allWords = query.words + query.phrases.flatMap { it.split("\\s+".toRegex()) }
+        val longestWord = allWords.maxByOrNull { it.length } ?: ""
+        if (longestWord.length >= 3 && hits.size < limit) {
+            addAll(searchTrigram(longestWord, allWords - longestWord, query, effectiveSections, limit - hits.size))
+        }
+        return hits
+    }
+
+    private suspend fun runFts(
+        query: Query,
+        effectiveSections: Set<String>,
+        limit: Int,
+        matchExpr: String,
+        primaryTerm: String,
+    ): List<SearchHit> {
         val conditions = mutableListOf<String>()
         val params = mutableListOf<Any>()
 
@@ -287,6 +393,7 @@ open class SearchEngine(private val store: DatasetStore) {
         }
 
         val whereClause = "WHERE " + conditions.joinToString(" AND ")
+        // fts_words columns: name 0, tags 1, description 2, heading_path 3, url 4.
         val sql = """
             SELECT
                 e.num, e.id, e.section_id, e.heading_id, e.ord, e.name, e.url, e.original_url,
@@ -294,6 +401,9 @@ open class SearchEngine(private val store: DatasetStore) {
                 e.mirrors, e.extra_links, e.first_seen, e.last_changed, e.starred_at,
                 highlight(fts_words, 0, char(2), char(3)) AS name_hl,
                 highlight(fts_words, 2, char(2), char(3)) AS desc_hl,
+                highlight(fts_words, 4, char(2), char(3)) AS url_hl,
+                highlight(fts_words, 3, char(2), char(3)) AS path_hl,
+                highlight(fts_words, 1, char(2), char(3)) AS tags_hl,
                 (bm25(fts_words, 10.0, 4.0, 3.0, 2.0, 1.0)
                   - (CASE WHEN e.tier = 2 THEN 3.0 WHEN e.tier = 1 THEN 1.5 ELSE 0.0 END)
                   - (CASE WHEN lower(e.name) = lower(?) THEN 5.0 WHEN lower(e.name) LIKE lower(?) || '%' THEN 2.0 ELSE 0.0 END)
@@ -322,33 +432,66 @@ open class SearchEngine(private val store: DatasetStore) {
 
                 while (stmt.step()) {
                     val entry = readEntry(stmt)
-                    val nameHl = stmt.getText(20)
-                    val descHl = stmt.getText(21)
-                    hits.add(SearchHit(entry, nameHl, descHl))
+                    val nameHl = stmt.getText(21)
+                    val descHl = stmt.getText(22)
+                    val extra = extraMatch(nameHl, descHl, stmt.getText(23), stmt.getText(24), stmt.getText(25))
+                    hits.add(SearchHit(entry, nameHl, descHl, extra?.first, extra?.second))
                 }
             }
         }
-
-        // Trigram fallback check
-        if (hits.size < 5) {
-            val allWords = query.words + query.phrases.flatMap { it.split("\\s+".toRegex()) }
-            val longestWord = allWords.maxByOrNull { it.length } ?: ""
-            if (longestWord.length >= 3) {
-                val triHits = searchTrigram(longestWord, query, effectiveSections, limit - hits.size)
-                val existingIds = hits.map { it.entry.id }.toSet()
-                for (th in triHits) {
-                    if (th.entry.id !in existingIds) {
-                        hits.add(th)
-                    }
-                }
-            }
-        }
-
         return hits
+    }
+
+    /** Where a match sits when neither the name nor the description (the visible columns) contains it. */
+    private fun extraMatch(nameHl: String, descHl: String, urlHl: String, pathHl: String, tagsHl: String): Pair<String, String>? {
+        fun marked(s: String) = s.indexOf('\u0002') >= 0
+        if (marked(nameHl) || marked(descHl)) return null
+        return when {
+            marked(urlHl) -> "link" to snippet(urlHl.replace(Regex("^https?://(www\\.)?"), ""))
+            marked(pathHl) -> "category" to pathHl.replace(Regex("\\s*>\\s*"), " \u203A ")
+            marked(tagsHl) -> "tags" to tagsHl.replace("|", ", ")
+            else -> null
+        }
+    }
+
+    /** Trims [hl] to about [max] characters around its first match, keeping the markers intact. */
+    private fun snippet(hl: String, max: Int = 64): String {
+        if (hl.length <= max) return hl
+        val first = hl.indexOf('\u0002').coerceAtLeast(0)
+        var start = (first - max / 4).coerceAtLeast(0)
+        val end = (start + max).coerceAtMost(hl.length)
+        start = (end - max).coerceAtLeast(0)
+        var out = hl.substring(start, end)
+        if (out.count { it == '\u0002' } > out.count { it == '\u0003' }) out += "\u0003"
+        if (out.count { it == '\u0003' } > out.count { it == '\u0002' }) out = "\u0002$out"
+        return (if (start > 0) "\u2026" else "") + out + (if (end < hl.length) "\u2026" else "")
+    }
+
+    /** Wraps every case-insensitive occurrence of [words] in [text] with the highlight markers. */
+    internal fun markWords(text: String, words: List<String>): String {
+        val marked = BooleanArray(text.length)
+        for (w in words) {
+            if (w.isEmpty()) continue
+            var i = text.indexOf(w, 0, ignoreCase = true)
+            while (i >= 0) {
+                for (k in i until minOf(text.length, i + w.length)) marked[k] = true
+                i = text.indexOf(w, i + w.length, ignoreCase = true)
+            }
+        }
+        return buildString {
+            var open = false
+            for ((idx, ch) in text.withIndex()) {
+                if (marked[idx] && !open) { append('\u0002'); open = true }
+                if (!marked[idx] && open) { append('\u0003'); open = false }
+                append(ch)
+            }
+            if (open) append('\u0003')
+        }
     }
 
     private suspend fun searchTrigram(
         target: String,
+        otherWords: List<String>,
         query: Query,
         effectiveSections: Set<String>,
         limit: Int,
@@ -374,6 +517,11 @@ open class SearchEngine(private val store: DatasetStore) {
             val placeholders = effectiveSections.joinToString(",") { "?" }
             conditions.add("e.section_id IN ($placeholders)")
             effectiveSections.forEach { params.add(it) }
+        }
+        // The other words must appear somewhere in the entry too (as substrings).
+        for (w in otherWords) {
+            conditions.add("(e.name || ' ' || e.description || ' ' || e.tags || ' ' || e.heading_path || ' ' || e.url) LIKE '%' || ? || '%'")
+            params.add(w)
         }
         // Same excludes the FTS path applies with NOT, matched as case-insensitive substrings.
         for (ex in query.excludes) {
@@ -411,7 +559,8 @@ open class SearchEngine(private val store: DatasetStore) {
 
                 while (stmt.step()) {
                     val entry = readEntry(stmt)
-                    results.add(SearchHit(entry, entry.name, entry.description))
+                    val words = listOf(target) + otherWords
+                    results.add(SearchHit(entry, markWords(entry.name, words), markWords(entry.description, words)))
                 }
             }
         }
