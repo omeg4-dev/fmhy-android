@@ -179,6 +179,7 @@ fun OptionCard(
 @Composable
 fun AnimatedFmhyWordmark(
     modifier: Modifier = Modifier,
+    textStyle: androidx.compose.ui.text.TextStyle = MaterialTheme.typography.headlineLarge,
 ) {
     val words = remember {
         listOf(
@@ -211,7 +212,7 @@ fun AnimatedFmhyWordmark(
 
             Text(
                 text = letter,
-                style = MaterialTheme.typography.headlineLarge.copy(
+                style = textStyle.copy(
                     fontWeight = FontWeight.Bold,
                     color = color,
                 ),

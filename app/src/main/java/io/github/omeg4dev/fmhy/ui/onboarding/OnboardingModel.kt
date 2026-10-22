@@ -25,6 +25,7 @@ import kotlinx.coroutines.launch
 const val ONBOARDING_VERSION = 1
 
 enum class OnboardingPage {
+    WELCOME,
     HELLO,
     BROWSING,
     FOLLOW,
@@ -97,7 +98,7 @@ class OnboardingModel(
     private val _state = MutableStateFlow(initialState ?: OnboardingState())
     val state: StateFlow<OnboardingState> = _state.asStateFlow()
 
-    private val _visitedPages = mutableSetOf(OnboardingPage.HELLO)
+    private val _visitedPages = mutableSetOf(OnboardingPage.WELCOME)
     val visitedPages: Set<OnboardingPage> get() = _visitedPages
 
     init {
@@ -214,6 +215,7 @@ class OnboardingModel(
     suspend fun persistPage(page: OnboardingPage) {
         val s = _state.value
         when (page) {
+            OnboardingPage.WELCOME -> Unit
             OnboardingPage.HELLO -> {
                 settingsRepository.setThemeMode(s.themeMode)
                 settingsRepository.setColorSource(s.colorSource)
