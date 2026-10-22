@@ -45,7 +45,11 @@ data class SettingsPageNavKey(val page: SettingsPage) : NavKey
 data object SavedNavKey : NavKey
 
 @Serializable
-data class WhatsNewNavKey(val filter: String = "all") : NavKey
+/**
+ * [filter] "all" / "following" / "saved". With filter "all" and no [type] it opens the hub;
+ * [type] is a ChangeKind name (or "ALL") and opens the feed on that kind.
+ */
+data class WhatsNewNavKey(val filter: String = "all", val type: String? = null) : NavKey
 
 @Serializable
 data object LegendNavKey : NavKey

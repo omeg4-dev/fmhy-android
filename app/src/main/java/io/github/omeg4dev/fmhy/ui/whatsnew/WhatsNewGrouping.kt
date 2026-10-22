@@ -198,6 +198,29 @@ object WhatsNewGrouping {
     }
 
     /**
+     * Free-text filter for the What's new search: every whitespace-separated word must occur
+     * (case-insensitive) in the name, old name, host of the url / old url, or the section title.
+     */
+    fun filterByText(
+        cards: List<ChangeCard>,
+        query: String,
+        sectionTitles: Map<String, String> = emptyMap(),
+    ): List<ChangeCard> {
+        val words = query.trim().lowercase().split(Regex("\\s+")).filter { it.isNotEmpty() }
+        if (words.isEmpty()) return cards
+        return cards.filter { card ->
+            val hay = buildString {
+                append(card.name).append(' ')
+                card.oldName?.let { append(it).append(' ') }
+                append(extractHost(card.url)).append(' ')
+                card.oldUrl?.let { append(extractHost(it)).append(' ') }
+                append(sectionTitles[card.sectionId] ?: card.sectionId)
+            }.lowercase()
+            words.all { it in hay }
+        }
+    }
+
+    /**
      * Counts per kind computed after scope filter, before type filter.
      */
     fun countsPerKind(cards: List<ChangeCard>): Map<ChangeKind, Int> {
