@@ -224,8 +224,8 @@ fun EntryRow(
     }
 
     val primaryColor = MaterialTheme.colorScheme.primary
-    val hlColor = MaterialTheme.colorScheme.onPrimaryContainer
-    val hlBackground = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+    val hlColor = MaterialTheme.colorScheme.onSurface
+    val hlBackground = MaterialTheme.colorScheme.primary.copy(alpha = 0.28f)
     val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
 
     val displayName = remember(nameHl, entry.name, hlColor, hlBackground) {
@@ -392,7 +392,7 @@ fun EntryRow(
                             text = "NEW",
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
                         )
                     }

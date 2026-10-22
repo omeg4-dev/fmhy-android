@@ -1,6 +1,8 @@
 package io.github.omeg4dev.fmhy.ui.search
 
-import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -71,6 +73,7 @@ internal val SearchKeyboardOptions = KeyboardOptions(
  * [value] is the field's text ([SENTINEL] + free text, see [applyFieldEdit]); [pills] are the committed
  * parameters of the query. Tapping a pill removes it.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun SearchBarField(
     value: TextFieldValue,
@@ -87,7 +90,7 @@ internal fun SearchBarField(
     modifier: Modifier = Modifier,
 ) {
     val scroll = rememberScrollState()
-    LaunchedEffect(pills.size, value.text) { scroll.animateScrollTo(scroll.maxValue) }
+    LaunchedEffect(pills.size, value.text) { scroll.scrollTo(scroll.maxValue) }
     val hasContent = pills.isNotEmpty() || value.free.isNotEmpty()
 
     Row(modifier = modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -116,31 +119,35 @@ internal fun SearchBarField(
                 .focusRequester(focusRequester)
                 .onFocusChanged { onFocusChange(it.isFocused) },
             decorationBox = { inner ->
-                Row(
-                    modifier = Modifier.fillMaxWidth().horizontalScroll(scroll),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    pills.forEach { t ->
-                        ParamPill(
-                            label = pillLabel(t, sections),
-                            icon = pillIcon(t, sections),
-                            onRemove = { onRemovePill(t) },
-                        )
-                    }
-                    Box(
-                        modifier = Modifier.widthIn(min = 120.dp),
-                        contentAlignment = Alignment.CenterStart,
+                // Pills and text wrap; the field grows to three lines, then scrolls vertically.
+                Box(modifier = Modifier.fillMaxWidth().heightIn(max = 120.dp).verticalScroll(scroll)) {
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                        itemVerticalAlignment = Alignment.CenterVertically,
                     ) {
-                        if (!hasContent) {
-                            Text(
-                                "Search FMHY...",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
+                        pills.forEach { t ->
+                            ParamPill(
+                                label = pillLabel(t, sections),
+                                icon = pillIcon(t, sections),
+                                onRemove = { onRemovePill(t) },
                             )
                         }
-                        inner()
+                        Box(
+                            modifier = Modifier.widthIn(min = 120.dp).heightIn(min = 28.dp),
+                            contentAlignment = Alignment.CenterStart,
+                        ) {
+                            if (!hasContent) {
+                                Text(
+                                    "Search FMHY...",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                )
+                            }
+                            inner()
+                        }
                     }
                 }
             },

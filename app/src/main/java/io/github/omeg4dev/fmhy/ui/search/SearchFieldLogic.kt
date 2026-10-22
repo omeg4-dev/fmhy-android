@@ -60,7 +60,8 @@ internal fun pillLabel(token: Token, sections: List<Section>): String = when {
     token.kind == TokenKind.EXCLUDE -> "not " + token.value.trim('"')
     token.key == "in" -> {
         val ids = QueryEdit.resolveSections(token.value, sections)
-        val title = if (ids.size == 1) sections.first { it.id in ids }.title else token.value
+        // Last path segment only ("Movies / TV / Anime" -> "Anime") keeps pills short.
+        val title = if (ids.size == 1) sections.first { it.id in ids }.title.substringAfterLast(" / ").trim() else token.value
         "in $title"
     }
     token.key == "is" -> when (token.value) {

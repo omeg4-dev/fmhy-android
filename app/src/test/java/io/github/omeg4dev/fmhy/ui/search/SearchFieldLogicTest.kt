@@ -9,7 +9,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class SearchFieldLogicTest {
-    private val sections = listOf(Section("video", "Video", "", 1, 3), Section("tools", "Tools", "", 2, 3))
+    private val sections = listOf(Section("video", "Video", "", 1, 3), Section("tools", "Tools", "", 2, 3), Section("anime", "Movies / TV / Anime", "", 3, 3))
 
     private fun typed(pillsRaw: String, free: String, newText: String, caret: Int = newText.length): FieldEdit {
         val pills = QueryEdit.split(pillsRaw).pills
@@ -67,6 +67,7 @@ class SearchFieldLogicTest {
         assertEquals("in Video", l("in:video"))
         assertEquals("in Tools", l("in:TOOLS"))
         assertEquals("in nope", l("in:nope"))
+        assertEquals("in Anime", l("in:anime"))
         assertEquals("Starred", l("is:starred"))
         assertEquals("Top picks", l("is:top"))
         assertEquals("Hidden links", l("is:b64"))

@@ -263,13 +263,13 @@ fun SearchScreen(
             Column(modifier = Modifier.fillMaxSize()) {
             // Top area: Surface 52dp tall, 16dp horizontal margin, 8dp top with status-bar inset
             Surface(
-                shape = CircleShape,
+                shape = RoundedCornerShape(26.dp),
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
                 modifier = Modifier
                     .statusBarsPadding()
                     .padding(start = 16.dp, end = 16.dp, top = 8.dp)
                     .fillMaxWidth()
-                    .height(52.dp),
+                    .heightIn(min = 52.dp),
             ) {
                 SearchBarField(
                     value = field,
@@ -743,8 +743,8 @@ private fun CategoryRow(
 ) {
     val title = hit.heading?.title ?: hit.section.title
     val words = remember(query) { plainQueryWords(query) }
-    val hlColor = MaterialTheme.colorScheme.onPrimaryContainer
-    val hlBackground = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+    val hlColor = MaterialTheme.colorScheme.onSurface
+    val hlBackground = MaterialTheme.colorScheme.primary.copy(alpha = 0.28f)
     val styled = remember(title, words, hlColor, hlBackground) { parseHighlight(categoryHighlight(title, words), hlColor, hlBackground) }
     ListItem(
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
@@ -922,8 +922,8 @@ private fun suggestionIcon(s: QuerySuggestion) = when (s.kind) {
 private fun MatchLine(hit: SearchHit) {
     val label = hit.extraLabel ?: return
     val hl = hit.extraHl ?: return
-    val hlColor = MaterialTheme.colorScheme.onPrimaryContainer
-    val hlBackground = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+    val hlColor = MaterialTheme.colorScheme.onSurface
+    val hlBackground = MaterialTheme.colorScheme.primary.copy(alpha = 0.28f)
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     val text = remember(label, hl, hlColor, hlBackground, muted) {
         buildAnnotatedString {
