@@ -75,6 +75,7 @@ class HomeViewModelTest {
         private val sectionsList: List<Section> = emptyList(),
         private val topPick: Entry? = null,
         private val versionVal: Long = 10L,
+        private val pickSequence: List<Entry> = emptyList(),
     ) : DatasetStore(File("fake_nonexistent.db")) {
         override val isAvailable = true
         override val changes = MutableStateFlow(versionVal)
@@ -87,8 +88,10 @@ class HomeViewModelTest {
         var randomTopPickCallCount: Int = 0
         override suspend fun randomTopPick(): Entry? {
             randomTopPickCallCount++
+            if (pickSequence.isNotEmpty()) return pickSequence[(randomTopPickCallCount - 1) % pickSequence.size]
             return topPick
         }
+        override suspend fun entry(id: String): Entry? = (pickSequence + listOfNotNull(topPick)).firstOrNull { it.id == id }
         override suspend fun countAddedSince(ts: Long): Int = 5
         override suspend fun sectionItems(sectionId: String): List<SectionItem> = emptyList()
         override suspend fun meta(): Map<String, String> = mapOf(
@@ -243,6 +246,37 @@ class HomeViewModelTest {
         assertEquals("e1", readyState.randomPick?.id)
         assertEquals(5, readyState.newSinceLastVisitCount)
         assertFalse(readyState.isEmptyState)
+    }
+
+    @Test
+    fun testRandomPickStaysPutUntilRefresh() = runTest(testDispatcher) {
+        fun e(id: String) = Entry(
+            num = 1, id = id, sectionId = "video", headingId = null, ord = 1, name = id,
+            url = "https://$id.org", originalUrl = null, description = "", tags = emptyList(),
+            headingPath = "Video", tier = Tier.TOP, isInlineMore = false, isBase64 = false,
+            mirrors = emptyList(), extraLinks = emptyList(), firstSeen = 1, lastChanged = 1, starredAt = 1,
+        )
+        val store = FakeDatasetStore(pickSequence = listOf(e("a"), e("b"), e("c")))
+        val fakeSettings = FakeSettingsRepository()
+        val viewModel = HomeViewModel(store, fakeSettings, FakeContainer(store, fakeSettings))
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect() }
+        testDispatcher.scheduler.runCurrent()
+
+        val first = viewModel.uiState.value.randomPick?.id
+        assertEquals("a", first)
+        repeat(5) { i ->
+            fakeSettings.setTextScale(1f + (i + 1) / 10f)
+            fakeSettings.updateHome { it.copy(personalHome = !it.personalHome) }
+            store.changes.value = 11L + i
+            testDispatcher.scheduler.runCurrent()
+            assertEquals(first, viewModel.uiState.value.randomPick?.id)
+        }
+        assertEquals(1, store.randomTopPickCallCount)
+
+        viewModel.refreshRandomPick()
+        testDispatcher.scheduler.runCurrent()
+        assertEquals(2, store.randomTopPickCallCount)
+        assertEquals("b", viewModel.uiState.first { it.randomPick?.id != first }.randomPick?.id)
     }
 
     @Test

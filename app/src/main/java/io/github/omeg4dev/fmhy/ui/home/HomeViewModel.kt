@@ -252,6 +252,33 @@ class HomeViewModel(
     private var syncingJob: Job? = null
     private var autoHideJob: Job? = null
 
+    private var currentPick: Entry? = null
+    private var currentPickVersion = -1L
+
+    /**
+     * The random pick is chosen once per process and only changes via [refreshRandomPick]; unrelated
+     * upstream emissions (prefs, user data) must not re-roll it. After a dataset change it is re-rolled
+     * only if its entry is gone.
+     */
+    private suspend fun stablePick(explicit: Entry?, version: Long): Entry? {
+        if (explicit != null) {
+            currentPick = explicit
+            currentPickVersion = version
+            return explicit
+        }
+        val cur = currentPick
+        if (cur != null) {
+            if (version == currentPickVersion || store.entry(cur.id) != null) {
+                currentPickVersion = version
+                return cur
+            }
+        }
+        return store.randomTopPick().also {
+            currentPick = it
+            currentPickVersion = version
+        }
+    }
+
     /** Site counts for the Home rows that point at a category inside another section (Audio Tools, …). */
     private suspend fun anchorCounts(): Map<String, Int> = ANCHOR_TARGETS.mapValues { (_, target) ->
         val (sectionId, title) = target
@@ -450,7 +477,7 @@ class HomeViewModel(
             val visibleSections = filterSections(allSections, personalHome, hiddenSections, showHidden).toImmutableList()
 
             val newCount = if (lastVisitTs > 0L) store.countAddedSince(lastVisitTs) else 0
-            val pick = if (appearance.showRandomPick) (randomPick ?: store.randomTopPick()) else null
+            val pick = if (appearance.showRandomPick) stablePick(randomPick, version) else null
             val isEmpty = visibleSections.isEmpty() && version == 0L
             val unreadPosts = try {
                 PostsReadState.unreadCountFromCache(userStore, container.context.filesDir)
