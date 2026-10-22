@@ -187,8 +187,9 @@ fun OnboardingScreen(
                 .fillMaxSize()
                 .padding(innerPadding),
         ) { pageIndex ->
-            val page = visiblePages.getOrElse(pageIndex) { OnboardingPage.HELLO }
+            val page = visiblePages.getOrElse(pageIndex) { OnboardingPage.WELCOME }
             when (page) {
+                OnboardingPage.WELCOME -> WelcomePageContent()
                 OnboardingPage.HELLO -> HelloPageContent(
                     state = state,
                     model = viewModel,
@@ -212,7 +213,7 @@ fun OnboardingScreen(
 }
 
 /**
- * Top bar: 4-segment progress bar (4 dp tall, 4 dp gaps, rounded, 16 dp side padding)
+ * Top bar: 5-segment progress bar (4 dp tall, 4 dp gaps, rounded, 16 dp side padding)
  * with animated fill as you move.
  * "Skip" text button at top-right on pages 1-3.
  */
@@ -285,7 +286,7 @@ private fun OnboardingTopBar(
 /**
  * Bottom bar: One full-width primary Button (56 dp tall, 16 dp margins)
  * whose label changes per page with AnimatedContent (slide up + fade):
- * "Let's go" -> "Next" -> "Next" -> "Start using FMHY".
+ * "Get started" -> "Next" -> "Next" -> "Start using FMHY".
  * A small "Back" text button to its left on pages 2-3 (indices 1 & 2).
  */
 @Composable
@@ -297,7 +298,7 @@ private fun OnboardingBottomBar(
     modifier: Modifier = Modifier,
 ) {
     val buttonLabel = when (currentPage) {
-        0 -> "Let's go"
+        0 -> "Get started"
         pageCount - 1 -> "Start using FMHY"
         else -> "Next"
     }
@@ -352,267 +353,6 @@ private fun OnboardingBottomBar(
                 }
             }
         }
-    }
-}
-
-// ==========================================
-// 1. HELLO PAGE (Merges WELCOME + LOOK)
-// ==========================================
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun HelloPageContent(
-    state: OnboardingState,
-    model: OnboardingModel,
-    modifier: Modifier = Modifier,
-) {
-    val haptics = rememberHaptics()
-    val isMaterialYouAvailable = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = 20.dp)
-            .verticalScroll(rememberScrollState()),
-    ) {
-        // Animated Wordmark (index 0)
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .enterStagger(index = 0, key = OnboardingPage.HELLO)
-                .padding(top = 12.dp, bottom = 8.dp),
-        ) {
-            AnimatedFmhyWordmark()
-        }
-
-        // Title and Subtitle (index 1)
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .enterStagger(index = 1, key = OnboardingPage.HELLO),
-        ) {
-            Text(
-                text = "Your FMHY, as an app",
-                style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "Pick a look. You can change everything later in Settings.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-
-        Spacer(modifier = Modifier.height(14.dp))
-
-        // Live preview with animated colour transitions (index 2)
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .enterStagger(index = 2, key = OnboardingPage.HELLO),
-        ) {
-            LookPreview(
-                themeMode = state.themeMode,
-                colorSource = state.colorSource,
-                accentSeed = state.accentSeed,
-            )
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Theme Options (index 3)
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .enterStagger(index = 3, key = OnboardingPage.HELLO),
-        ) {
-            Text(
-                text = "Theme",
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                listOf(
-                    Triple(ThemeMode.SYSTEM, "System", true),
-                    Triple(ThemeMode.LIGHT, "Light", false),
-                    Triple(ThemeMode.DARK, "Dark", false),
-                ).forEach { (mode, label, rec) ->
-                    val isSelected = state.themeMode == mode
-                    Card(
-                        modifier = Modifier
-                            .weight(1f)
-                            .selectable(
-                                selected = isSelected,
-                                role = Role.RadioButton,
-                                onClick = {
-                                    haptics.tick()
-                                    model.setThemeMode(mode)
-                                },
-                            ),
-                        shape = RoundedCornerShape(12.dp),
-                        border = BorderStroke(
-                            if (isSelected) 2.dp else 1.dp,
-                            if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
-                        ),
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (isSelected) {
-                                MaterialTheme.colorScheme.surfaceContainerHigh
-                            } else {
-                                MaterialTheme.colorScheme.surfaceContainerLow
-                            },
-                        ),
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 12.dp, horizontal = 6.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                        ) {
-                            Text(
-                                text = label,
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.onSurface,
-                            )
-                            if (rec) {
-                                Spacer(modifier = Modifier.height(4.dp))
-                                RecommendedPill()
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Accent / Colors (index 4)
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .enterStagger(index = 4, key = OnboardingPage.HELLO),
-        ) {
-            Text(
-                text = "Accent",
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-
-            if (isMaterialYouAvailable) {
-                val isMaterialYouSelected = state.colorSource == ColorSource.MATERIAL_YOU
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .selectable(
-                            selected = isMaterialYouSelected,
-                            role = Role.RadioButton,
-                            onClick = {
-                                haptics.tick()
-                                model.setColorSource(ColorSource.MATERIAL_YOU)
-                            },
-                        )
-                        .padding(bottom = 10.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(
-                        if (isMaterialYouSelected) 2.dp else 1.dp,
-                        if (isMaterialYouSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
-                    ),
-                    colors = CardDefaults.cardColors(
-                        containerColor = if (isMaterialYouSelected) {
-                            MaterialTheme.colorScheme.surfaceContainerHigh
-                        } else {
-                            MaterialTheme.colorScheme.surfaceContainerLow
-                        },
-                    ),
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        Column {
-                            Text("Material You", style = MaterialTheme.typography.titleSmall)
-                            Text(
-                                "Match system wallpaper colours",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        if (isMaterialYouSelected) {
-                            Icon(
-                                Icons.Default.Check,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Swatches with check scale spring pop-in
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                ACCENT_PRESETS.forEach { preset ->
-                    val swatch = Color(preset.seed)
-                    val isSelected = state.colorSource == ColorSource.FMHY && state.accentSeed == preset.seed
-                    val isVioletRec = preset.name == "Violet"
-
-                    val checkScale by animateFloatAsState(
-                        targetValue = if (isSelected) 1f else 0f,
-                        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
-                        label = "check_scale_${preset.seed}",
-                    )
-
-                    Box(
-                        modifier = Modifier
-                            .size(42.dp)
-                            .then(
-                                if (isSelected) {
-                                    Modifier.border(3.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
-                                } else {
-                                    Modifier
-                                },
-                            )
-                            .background(swatch, CircleShape)
-                            .selectable(
-                                selected = isSelected,
-                                role = Role.RadioButton,
-                                onClick = {
-                                    haptics.tick()
-                                    model.setAccentSeed(preset.seed)
-                                },
-                            )
-                            .semantics { contentDescription = "${preset.name} accent ${if (isVioletRec) "(Recommended)" else ""}" },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        if (checkScale > 0.01f) {
-                            Icon(
-                                Icons.Default.Check,
-                                contentDescription = null,
-                                tint = if (swatch.luminance() > 0.4f) Color.Black else Color.White,
-                                modifier = Modifier
-                                    .size(20.dp)
-                                    .graphicsLayer {
-                                        scaleX = checkScale
-                                        scaleY = checkScale
-                                    },
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
     }
 }
 

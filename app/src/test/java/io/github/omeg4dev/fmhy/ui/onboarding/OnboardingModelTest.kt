@@ -292,14 +292,15 @@ class OnboardingModelTest {
         val model = OnboardingModel(repo, userStore, container)
         testDispatcher.scheduler.advanceUntilIdle()
 
-        // 4-page flow: HELLO, BROWSING, FOLLOW, DONE
+        // 5-page flow: WELCOME, HELLO, BROWSING, FOLLOW, DONE (progress bar has 5 segments)
         val pages = model.visiblePages
-        assertEquals(4, pages.size)
+        assertEquals(5, pages.size)
         assertEquals(
-            listOf(OnboardingPage.HELLO, OnboardingPage.BROWSING, OnboardingPage.FOLLOW, OnboardingPage.DONE),
+            listOf(OnboardingPage.WELCOME, OnboardingPage.HELLO, OnboardingPage.BROWSING, OnboardingPage.FOLLOW, OnboardingPage.DONE),
             pages,
         )
 
+        assertEquals(OnboardingPage.HELLO, model.nextPage(OnboardingPage.WELCOME))
         assertEquals(OnboardingPage.BROWSING, model.nextPage(OnboardingPage.HELLO))
         assertEquals(OnboardingPage.FOLLOW, model.nextPage(OnboardingPage.BROWSING))
         assertEquals(OnboardingPage.DONE, model.nextPage(OnboardingPage.FOLLOW))
@@ -308,14 +309,15 @@ class OnboardingModelTest {
         assertEquals(OnboardingPage.FOLLOW, model.previousPage(OnboardingPage.DONE))
         assertEquals(OnboardingPage.BROWSING, model.previousPage(OnboardingPage.FOLLOW))
         assertEquals(OnboardingPage.HELLO, model.previousPage(OnboardingPage.BROWSING))
-        assertNull(model.previousPage(OnboardingPage.HELLO))
+        assertEquals(OnboardingPage.WELCOME, model.previousPage(OnboardingPage.HELLO))
+        assertNull(model.previousPage(OnboardingPage.WELCOME))
 
         // Same 4 visible pages when openLinksWith is changed
         model.setOpenLinksWith(OpenLinksWith.CUSTOM_TAB)
-        assertEquals(4, model.visiblePages.size)
+        assertEquals(5, model.visiblePages.size)
 
         model.setOpenLinksWith(OpenLinksWith.EXTERNAL)
-        assertEquals(4, model.visiblePages.size)
+        assertEquals(5, model.visiblePages.size)
     }
 
     @Test
@@ -411,8 +413,9 @@ class OnboardingModelTest {
         model.setOpenLinksWith(OpenLinksWith.EXTERNAL) // page 2 (BROWSING)
         model.setPersonalHome(true) // page 3 (FOLLOW)
 
-        // User only visited HELLO (default visited)
-        assertEquals(setOf(OnboardingPage.HELLO), model.visitedPages)
+        // User only visited WELCOME (default) and HELLO
+        model.markPageVisited(OnboardingPage.HELLO)
+        assertEquals(setOf(OnboardingPage.WELCOME, OnboardingPage.HELLO), model.visitedPages)
 
         var skipped = false
         model.skip { skipped = true }
