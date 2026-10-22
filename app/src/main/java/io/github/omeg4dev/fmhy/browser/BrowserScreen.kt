@@ -789,6 +789,8 @@ fun BrowserScreen(
             tabs = tabs,
             currentTabId = currentTabId,
             tabManager = tabManager,
+            tabsView = browserPrefs.tabsView,
+            onTabsViewChange = { v -> scope.launch { settingsRepository.updateBrowser { it.copy(tabsView = v) } } },
             onDismiss = { showTabsSheet = false },
             onSelectTab = { tabId ->
                 showTabsSheet = false

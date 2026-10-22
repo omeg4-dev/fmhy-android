@@ -8,7 +8,7 @@
 - [x] 3. B1b (TOP: after B2, 1 hide / 0 shows after lift for slow drag and fling on a long local page; bars-after-top.txt; flicker not reproducible once site bar row is gone; also keyed force-show effect on URL minus fragment. BOTTOM run pending in final check)
   B1b bars reshow on release (TOP)
 - [x] 4. B3 back-arrow bubble (BackBubble.kt, settings switch, BackBubbleLogicTest 3 pass; emulator TOP: default/dragged right/hidden with bar/hold menu/dialog/tap->FMHY ok; shots/b3-top-*.png; BOTTOM shots pending final check)
-- [ ] 5. B4 tab overview redesign (TabsSheet.kt)
+- [x] 5. B4 tab overview redesign (full-screen Dialog overlay, LIST default/GRID toggle persisted, search >=6, sections, current outline, TabsLogic + TabsLogicTest 5 pass; full unit suite 359 tests 0 fail; shots/b4-list|grid|search.png)
 - [ ] 6. Checks + evidence
 
 ## Requests for Claude
