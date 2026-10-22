@@ -1,0 +1,7 @@
+- Browser in the bottom bar (hold for tabs); opens reliably; full-screen tab list
+- FMHY status icon in the address bar, correct per page
+- Draggable back-to-FMHY bubble
+- Search: parameter pills, in:/is:/site: suggestions, fuzzy/exact, top 3 categories
+- What's new: overview by type, search, Day/Week/Month
+- Check a link: no autocorrect, steadier, shows where it's listed
+- Notices float at the top; Random pick stays; faster swipe to save; new welcome page

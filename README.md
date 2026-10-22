@@ -14,10 +14,10 @@ in a native app that keeps up with every change for you.
 </div>
 
 <p align="center">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" width="200" alt="Home screen">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" width="200" alt="A section with stars and icons">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/4.png" width="200" alt="Search">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" width="200" alt="Details for one line of the wiki">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" width="200" alt="Your FMHY, as an app">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" width="200" alt="Find anything in a second">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/4.png" width="200" alt="Browse without the junk">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/5.png" width="200" alt="Check a link before you click">
 </p>
 
 ---
@@ -66,9 +66,10 @@ in a native app that keeps up with every change for you.
 - The beginner's guide, notes, FAQ and FMHY's posts, readable in the app.
 
 <p align="center">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/5.png" width="200" alt="Outline of the Non-English section">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/6.png" width="200" alt="Settings">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/7.png" width="200" alt="Icon legend">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" width="200" alt="The best sites, starred">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/6.png" width="200" alt="Never miss what changed">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/7.png" width="200" alt="Your browser, one tap away">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/8.png" width="200" alt="Make it yours">
 </p>
 
 ## Download
@@ -102,7 +103,7 @@ from this repo download the wiki the first time they start.
 - `core/data/`: pure-JVM data layer (Kotlin parser, SQLite, sync, search, ad-block engine)
 - `schema/`: dataset schema
 - `pipeline/`: Python reference parser, only used for parity tests
-- `tools/`: icon conversion (`svg2vd.py`); third-party assets are listed in `THIRD_PARTY.md`
+- `tools/`: icon conversion (`svg2vd.py`), store screenshot frames (`store-frames.py`); third-party assets are listed in `THIRD_PARTY.md`
 
 More detail on the architecture and build is in `STATUS.md`.
 
