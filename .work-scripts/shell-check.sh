@@ -20,10 +20,12 @@ ui shot "$OUT/n1-bar-0tabs.png"
 ui dump | rg -i "^ *[0-9]+, *[0-9]+  '(Browse|Search|Browser|Saved)'" || true
 ui dump | rg "(Browse|Search|Browser|Saved)'" | sort -t, -k1 -n
 
-echo "== B: open 3 tabs, return"
-for u in https://example.com https://example.org https://example.net; do
-  $A shell am start -n $PKG/.browser.BrowserActivity -a android.intent.action.VIEW -d "$u" >/dev/null
-  sleep 3
+echo "== B: open 3 tabs via section entries, return"
+ui tap 'Adblock' || true; sleep 2
+ui shot "$OUT/n5-section.png"
+for y in 900 1100 1300; do
+  $A shell input tap 540 $y; sleep 3
+  fmhy; sleep 2
 done
 fmhy; sleep 3
 ui shot "$OUT/n1-bar-badge.png"

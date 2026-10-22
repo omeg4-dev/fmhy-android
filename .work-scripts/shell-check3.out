@@ -1,0 +1,30 @@
+== tap Browser (0 tabs -> new tab)
+
+Exception occurred while executing 'tap':
+java.lang.IllegalArgumentException: Argument expected after "tap"
+	at com.android.modules.utils.BasicShellCommandHandler.getNextArgRequired(BasicShellCommandHandler.java:295)
+	at com.android.server.input.InputShellCommand.runTap(InputShellCommand.java:484)
+	at com.android.server.input.InputShellCommand.onCommand(InputShellCommand.java:294)
+	at com.android.modules.utils.BasicShellCommandHandler.exec(BasicShellCommandHandler.java:97)
+	at android.os.ShellCommand.exec(ShellCommand.java:38)
+	at com.android.server.input.InputManagerService.onShellCommand(InputManagerService.java:3887)
+	at android.os.Binder.shellCommand(Binder.java:1151)
+	at android.os.Binder.onTransact(Binder.java:953)
+	at android.hardware.input.IInputManager$Stub.onTransact(IInputManager.java:1576)
+	at android.os.Binder.execTransactInternal(Binder.java:1426)
+	at android.os.Binder.execTransact(Binder.java:1365)
+Warning: Activity not started, intent has been delivered to currently running top-most instance.
+no match for '^Search$'
+tapped 'Search 21,799 sites' at 368,389
+  324,  221  'Search FMHY...'
+  199,  369  'Filters'
+   71,  514  'Try'
+  147,  622  'stremio'
+  433,  622  'in:video anime'
+  804,  622  'is:starred adblock'
+  211,  769  'site:github.com'
+  471,  769  'pdf'
+  677,  769  'emulator'
+  172, 2274  'Browse'
+  539, 2274  'Search'
+  907, 2274  'Saved'

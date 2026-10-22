@@ -1,0 +1,71 @@
+Performing Incremental Install
+Success
+Install command complete in 171 ms
+== A: bottom bar
+/home/omega/Projects/fmhy-android-p9-shell/.work-scripts/shots/n1-bar-0tabs.png
+  127, 2274  'Browse'
+  402, 2274  'Search'
+  678, 2232  'Browser'
+  678, 2279  'Browser'
+  953, 2274  'Saved'
+  127, 2274  'Browse'
+  402, 2274  'Search'
+  678, 2232  'Browser'
+  678, 2279  'Browser'
+  953, 2274  'Saved'
+== B: open 3 tabs via section entries, return
+tapped 'Adblocking / Privacy' at 437,1256
+/home/omega/Projects/fmhy-android-p9-shell/.work-scripts/shots/n5-section.png
+Warning: Activity not started, intent has been delivered to currently running top-most instance.
+Warning: Activity not started, intent has been delivered to currently running top-most instance.
+Warning: Activity not started, intent has been delivered to currently running top-most instance.
+Warning: Activity not started, intent has been delivered to currently running top-most instance.
+/home/omega/Projects/fmhy-android-p9-shell/.work-scripts/shots/n1-bar-badge.png
+-- hold Browser item
+browser item at ,
+
+Exception occurred while executing 'swipe':
+java.lang.IllegalArgumentException: Argument expected after "900"
+	at com.android.modules.utils.BasicShellCommandHandler.getNextArgRequired(BasicShellCommandHandler.java:295)
+	at com.android.server.input.InputShellCommand.sendSwipe(InputShellCommand.java:508)
+	at com.android.server.input.InputShellCommand.runSwipe(InputShellCommand.java:502)
+	at com.android.server.input.InputShellCommand.onCommand(InputShellCommand.java:296)
+	at com.android.modules.utils.BasicShellCommandHandler.exec(BasicShellCommandHandler.java:97)
+	at android.os.ShellCommand.exec(ShellCommand.java:38)
+	at com.android.server.input.InputManagerService.onShellCommand(InputManagerService.java:3887)
+	at android.os.Binder.shellCommand(Binder.java:1151)
+	at android.os.Binder.onTransact(Binder.java:953)
+	at android.hardware.input.IInputManager$Stub.onTransact(IInputManager.java:1576)
+	at android.os.Binder.execTransactInternal(Binder.java:1426)
+	at android.os.Binder.execTransact(Binder.java:1365)
+/home/omega/Projects/fmhy-android-p9-shell/.work-scripts/shots/n1-menu-live.png
+  540,  787  'Close sheet'
+  540, 1637  'Drag handle'
+   92, 1735  'Link to another section'
+  380, 1735  'Twitch Adblockers'
+  200, 1795  'Opens in the app'
+  166, 1932  'Open'
+  166, 2045  'Open'
+  415, 1932  'Copy link'
+  416, 2045  'Copy'
+  664, 1932  'Share'
+  665, 2045  'Share'
+  913, 1932  'Save'
+  914, 2045  'Save'
+  330, 2190  'Follow Adblocking'
+  900, 2190  'Follow'
+-- close-all dialog
+no match for '^Close all tabs$'
+/home/omega/Projects/fmhy-android-p9-shell/.work-scripts/shots/n1-close-all-dialog.png
+no match for '^Cancel$'
+== C: restorable-only variant (force-stop keeps persisted tabs)
+/home/omega/Projects/fmhy-android-p9-shell/.work-scripts/shots/n1-menu-restorable.png
+  174, 1965  'No tabs open'
+== D: notice overlay
+Warning: Activity not started, intent has been delivered to currently running top-most instance.
+  368,  389  'Search 21,799 sites'
+/home/omega/Projects/fmhy-android-p9-shell/.work-scripts/shots/n4-notice-a.png
+/home/omega/Projects/fmhy-android-p9-shell/.work-scripts/shots/n4-notice-b.png
+  368,  389  'Search 21,799 sites'
+  368,  389  'Search 21,799 sites'
+== crash log

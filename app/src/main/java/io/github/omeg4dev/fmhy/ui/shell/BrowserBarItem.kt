@@ -9,8 +9,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
@@ -31,8 +31,6 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 
 /** Badge text for the Browser item: hidden at 0 tabs, "9+" above 9. */
 fun browserBadgeText(count: Int): String? = when {
@@ -59,7 +57,8 @@ fun RowScope.BrowserBarItem(
     Column(
         modifier = Modifier
             .weight(1f)
-            .fillMaxHeight()
+            .height(80.dp)
+            .padding(bottom = 4.dp)
             .semantics(mergeDescendants = true) {
                 contentDescription = "Browser" + if (tabCount > 0) ", $tabCount " + if (tabCount == 1) "tab" else "tabs" else ""
             }
