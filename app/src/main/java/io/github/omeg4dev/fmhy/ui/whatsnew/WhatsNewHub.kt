@@ -96,8 +96,6 @@ fun WhatsNewSearchField(
 @Composable
 fun WhatsNewHub(
     state: WhatsNewUiState,
-    searchText: String,
-    onSearchChange: (String) -> Unit,
     onSetPeriod: (WhatsNewPeriod) -> Unit,
     onOpenAll: () -> Unit,
     onOpenKind: (ChangeKind) -> Unit,
@@ -111,9 +109,6 @@ fun WhatsNewHub(
         ),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item(key = "search") {
-            WhatsNewSearchField(text = searchText, onChange = onSearchChange)
-        }
         item(key = "period") {
             val periods = WhatsNewPeriod.entries
             SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {

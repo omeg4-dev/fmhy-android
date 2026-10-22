@@ -202,16 +202,22 @@ fun WhatsNewScreen(
                 .fillMaxSize()
                 .padding(innerPadding),
         ) {
+            // One search field for hub and feed, so typing keeps its focus when the hub turns into the feed.
+            Column(modifier = Modifier.fillMaxSize()) {
+            WhatsNewSearchField(
+                text = searchText,
+                onChange = {
+                    // A search from the hub looks through every kind, including edits.
+                    if (!showFeed && it.isNotBlank()) viewModel.setTypes(emptySet())
+                    searchText = it
+                    viewModel.setQuery(it)
+                },
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 8.dp),
+            )
+            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
             if (!showFeed) {
                 WhatsNewHub(
                     state = state,
-                    searchText = searchText,
-                    onSearchChange = {
-                        // A search from the hub looks through every kind, including edits.
-                        if (searchText.isBlank() && it.isNotBlank()) viewModel.setTypes(emptySet())
-                        searchText = it
-                        viewModel.setQuery(it)
-                    },
                     onSetPeriod = {
                         haptics.tick()
                         viewModel.setPeriod(it)
@@ -232,14 +238,6 @@ fun WhatsNewScreen(
                 )
             } else
             Column(modifier = Modifier.fillMaxSize()) {
-                WhatsNewSearchField(
-                    text = searchText,
-                    onChange = {
-                        searchText = it
-                        viewModel.setQuery(it)
-                    },
-                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp),
-                )
                 // Filter dropdown pills row
                 FilterBar(
                     state = state,
@@ -362,6 +360,8 @@ fun WhatsNewScreen(
                         }
                     }
                 }
+            }
+            }
             }
         }
     }
