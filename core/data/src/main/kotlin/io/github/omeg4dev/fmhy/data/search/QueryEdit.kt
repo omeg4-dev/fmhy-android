@@ -50,10 +50,10 @@ object QueryEdit {
         return if (last.isPill && last.end >= raw.length) "$raw " else raw
     }
 
-    /** Re-serialises [raw] into canonical form with every parameter committed. */
+    /** Re-serialises [raw] into canonical form with every parameter committed (for queries set from outside the field). */
     fun canonical(raw: String): String {
         val s = split(commitAll(raw))
-        return compose(s.pills, s.free)
+        return compose(s.pills, s.free.trimEnd())
     }
 
     fun paramText(key: String, value: String): String =

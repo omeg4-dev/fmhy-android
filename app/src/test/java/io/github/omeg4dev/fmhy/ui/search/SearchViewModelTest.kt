@@ -18,7 +18,9 @@ import io.github.omeg4dev.fmhy.data.ThemeMode
 import io.github.omeg4dev.fmhy.data.model.Entry
 import io.github.omeg4dev.fmhy.data.model.Section
 import io.github.omeg4dev.fmhy.data.model.Tier
+import io.github.omeg4dev.fmhy.data.search.MatchMode
 import io.github.omeg4dev.fmhy.data.search.Query
+import io.github.omeg4dev.fmhy.data.search.SuggestionKind
 import io.github.omeg4dev.fmhy.data.search.SearchEngine
 import io.github.omeg4dev.fmhy.data.search.SearchGroup
 import io.github.omeg4dev.fmhy.data.search.SearchHit
@@ -29,6 +31,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -131,10 +134,14 @@ class SearchViewModelTest {
         )
 
         var lastQuery: String? = null
+        var lastMode: MatchMode? = null
+        var lastSectionFilter: Set<String>? = null
         val queries = MutableStateFlow<List<String>>(emptyList())
 
-        override suspend fun search(query: String, sectionFilter: Set<String>, limit: Int): SearchResults {
+        override suspend fun search(query: String, sectionFilter: Set<String>, limit: Int, mode: MatchMode): SearchResults {
             lastQuery = query
+            lastMode = mode
+            lastSectionFilter = sectionFilter
             queries.value = queries.value + query
             val group = SearchGroup(
                 section = Section("video", "Video", "", 1, 10),
@@ -143,9 +150,12 @@ class SearchViewModelTest {
             return SearchResults(groups = listOf(group), total = 1, tookMs = 5L)
         }
 
-        override suspend fun search(query: Query, sectionFilter: Set<String>, limit: Int): SearchResults {
-            return search(query.raw, sectionFilter, limit)
+        override suspend fun search(query: Query, sectionFilter: Set<String>, limit: Int, mode: MatchMode): SearchResults {
+            return search(query.raw, sectionFilter, limit, mode)
         }
+
+        override suspend fun suggestHosts(prefix: String, limit: Int): List<String> =
+            listOf("github.com", "gitlab.com").filter { it.startsWith(prefix) }
     }
 
     @Test
@@ -207,8 +217,10 @@ class SearchViewModelTest {
         searchEngine.queries.filter { list -> list.any { it.contains("is:starred") } }.first()
         assertTrue(searchEngine.queries.value.last().contains("is:starred"))
 
-        // Ensure visible query in state remains what user typed
-        assertEquals("stremio", viewModel.uiState.value.query)
+        // The filter is a typed parameter now: it shows up in the query itself (pill first, text after)
+        assertEquals("is:starred stremio", viewModel.uiState.value.query)
+        assertEquals("is:starred stremio", viewModel.queryText)
+        assertEquals(1, viewModel.uiState.value.filterCount)
     }
 
     @Test
@@ -227,5 +239,110 @@ class SearchViewModelTest {
         val state = viewModel.uiState.filter { it.query == "google.com" && it.verdict != null }.first()
         org.junit.Assert.assertNotNull(state.verdict)
         assertEquals(io.github.omeg4dev.fmhy.data.safety.SafetyStatus.SEARCH_ENGINE, state.verdict?.status)
+    }
+
+    private fun newVm(initial: String = "", engine: FakeSearchEngine? = null, settings: FakeSettingsRepository = FakeSettingsRepository()): SearchViewModel {
+        val store = FakeDatasetStore()
+        return SearchViewModel(initial, store, engine ?: FakeSearchEngine(store), settings)
+    }
+
+    @Test
+    fun filterTogglesEditTheQueryString() = runTest {
+        val vm = newVm("anime")
+        vm.toggleStarredOnly()
+        assertEquals("is:starred anime", vm.queryText)
+        vm.toggleB64Only()
+        assertEquals("is:starred is:b64 anime", vm.queryText)
+        vm.uiState.filter { it.starredOnly && it.b64Only }.first()
+        vm.toggleStarredOnly()
+        assertEquals("is:b64 anime", vm.queryText)
+        vm.uiState.filter { !it.starredOnly && it.b64Only }.first()
+        vm.clearAllFilters()
+        assertEquals("anime", vm.queryText)
+    }
+
+    @Test
+    fun sectionFiltersBecomeInPillsAndNeverReachTheEngineSeparately() = runTest {
+        val store = FakeDatasetStore()
+        val engine = FakeSearchEngine(store)
+        val vm = SearchViewModel("anime", store, engine, FakeSettingsRepository())
+        vm.uiState.filter { it.availableSections.isNotEmpty() }.first()
+        vm.toggleSectionFilter("video")
+        assertEquals("in:video anime", vm.queryText)
+        val st = vm.uiState.filter { "video" in it.selectedSectionFilters }.first()
+        assertEquals(1, st.filterCount)
+        engine.queries.filter { list -> list.any { it == "in:video anime" } }.first()
+        assertEquals(emptySet<String>(), engine.lastSectionFilter)
+        vm.toggleSectionFilter("video")
+        assertEquals("anime", vm.queryText)
+    }
+
+    @Test
+    fun removingAPillEditsTheQuery() = runTest {
+        val vm = newVm("in:video -foo is:top anime")
+        assertEquals("in:video -foo is:top anime", vm.queryText)
+        vm.removePill("-foo")
+        assertEquals("in:video is:top anime", vm.queryText)
+        vm.removePill("in:video")
+        assertEquals("is:top anime", vm.queryText)
+    }
+
+    @Test
+    fun recentSearchComesBackAsPills() = runTest {
+        val vm = newVm()
+        vm.selectRecentSearch("anime in:video is:starred")
+        assertEquals("in:video is:starred anime", vm.queryText)
+        assertEquals(2, vm.uiState.filter { it.filterCount == 2 }.first().filterCount)
+    }
+
+    @Test
+    fun typingRoundTrip() {
+        val vm = newVm()
+        // what the screen does: field text -> split -> canonical raw
+        val s = io.github.omeg4dev.fmhy.data.search.QueryEdit.split("anime in:video ")
+        vm.onQueryChange(io.github.omeg4dev.fmhy.data.search.QueryEdit.compose(s.pills, s.free))
+        assertEquals("in:video anime ", vm.queryText)
+    }
+
+    @Test
+    fun halfTypedParametersAreNotSearchedAsWords() {
+        assertEquals("anime", searchableQuery("anime is:st"))
+        assertEquals("anime", searchableQuery("anime in:"))
+        assertEquals("anime in:video", searchableQuery("anime in:video"))
+        assertEquals("a b", searchableQuery("a  site:  b".replace("  site:  ", " ")))
+    }
+
+    @Test
+    fun exactModeReachesTheEngineAndIsPersisted() = runTest {
+        val store = FakeDatasetStore()
+        val engine = FakeSearchEngine(store)
+        val settings = FakeSettingsRepository()
+        val vm = SearchViewModel("stremio", store, engine, settings)
+        vm.uiState.filter { it.hasSearched }.first()
+        assertEquals(MatchMode.FUZZY, engine.lastMode)
+        vm.setExact(true)
+        vm.uiState.filter { it.exact }.first()
+        engine.queries.filter { it.size >= 2 || engine.lastMode == MatchMode.EXACT }.first()
+        kotlinx.coroutines.delay(200)
+        assertEquals(MatchMode.EXACT, engine.lastMode)
+        assertTrue(settings.homePrefs.first().searchExact)
+    }
+
+    @Test
+    fun suggestionsFollowTheCaret() = runTest {
+        val vm = newVm()
+        vm.uiState.filter { it.availableSections.isNotEmpty() }.first()
+        val job = backgroundScope.launch(kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)) { vm.suggestions.collect { } }
+        vm.onCaretChange("anime in:vi", 11)
+        val sec = vm.suggestions.filter { it.isNotEmpty() }.first()
+        assertEquals(SuggestionKind.SECTION, sec[0].kind)
+        assertEquals("in:video", sec[0].insert)
+        vm.onCaretChange("site:git", 8)
+        assertEquals(listOf("site:github.com", "site:gitlab.com"), vm.suggestions.filter { it.firstOrNull()?.kind == SuggestionKind.SITE }.first().map { it.insert })
+        vm.onCaretChange("is:", 3)
+        assertEquals(3, vm.suggestions.filter { it.firstOrNull()?.kind == SuggestionKind.IS }.first().size)
+        vm.onCaretChange("anime ", 6)
+        assertTrue(vm.suggestions.filter { it.isEmpty() }.first().isEmpty())
+        job.cancel()
     }
 }
