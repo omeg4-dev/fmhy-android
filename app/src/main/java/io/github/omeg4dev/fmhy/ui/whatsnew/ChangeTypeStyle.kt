@@ -69,7 +69,7 @@ object ChangeTypeStyle {
 
         val rawBase = when (kind) {
             ChangeKind.ADDED -> Color(0xFF2E7D32)
-            ChangeKind.REMOVED -> colorScheme.error
+            ChangeKind.REMOVED -> Color(0xFFE53935)
             ChangeKind.RENAMED -> Color(0xFF1E88E5)
             ChangeKind.URL_CHANGED -> Color(0xFF00897B)
             ChangeKind.MOVED -> Color(0xFF7E57C2)
@@ -78,13 +78,15 @@ object ChangeTypeStyle {
             ChangeKind.EDITED -> Color(0xFFEF6C00)
         }
 
-        val base = lerp(rawBase, colorScheme.primary, 0.20f)
+        // Removed stays a clear red; the other kinds are nudged toward the accent so they sit in the theme
+        val isRemoved = kind == ChangeKind.REMOVED
+        val base = if (isRemoved) rawBase else lerp(rawBase, colorScheme.primary, 0.20f)
         val contentColor = if (isDark) {
-            lerp(base, Color.White, 0.35f)
+            lerp(base, Color.White, if (isRemoved) 0.20f else 0.35f)
         } else {
-            lerp(base, Color.Black, 0.25f)
+            lerp(base, Color.Black, if (isRemoved) 0.15f else 0.25f)
         }
-        val containerColor = base.copy(alpha = 0.16f).compositeOver(colorScheme.surface)
+        val containerColor = base.copy(alpha = if (isRemoved) 0.20f else 0.16f).compositeOver(colorScheme.surface)
 
         return ChangeTypeLook(
             kind = kind,
