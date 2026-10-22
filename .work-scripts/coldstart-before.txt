@@ -1,0 +1,31 @@
+Serving...
+All files should be loaded. Notifying the device.
+Performing Incremental Install
+Success
+Install command complete in 445 ms
+  with-url #1 resumed
+  with-url #2 resumed
+  with-url #3 resumed
+  with-url #4 resumed
+  with-url #5 resumed
+  with-url #6 resumed
+  with-url #7 resumed
+  with-url #8 resumed
+  with-url #9 resumed
+  with-url #10 resumed
+with-url: 10/10 resumed
+  no-url #1 resumed
+  no-url #2 resumed
+  no-url #3 resumed
+  no-url #4 resumed
+  no-url #5 resumed
+  no-url #6 resumed
+  no-url #7 resumed
+  no-url #8 resumed
+  no-url #9 resumed
+  no-url #10 resumed
+no-url: 10/10 resumed
+== new-tab extra
+    topResumedActivity=ActivityRecord{231606638 u0 io.github.omeg4dev.fmhy/.browser.BrowserActivity t204}
+cold tabs:
+Warning: Activity not started, intent has been delivered to currently running top-most instance.

@@ -102,3 +102,33 @@ object SiteBarModel {
         }
     }
 }
+
+/** Glyph shown by the FMHY status icon in the address pill. */
+enum class StatusGlyph { STAR, VERIFIED, INFO, WARNING, ERROR }
+
+/** Colour role of the status icon, mapped to the theme where it is drawn. */
+enum class StatusTone { PRIMARY, TERTIARY, NEUTRAL, ERROR }
+
+data class StatusIconSpec(val glyph: StatusGlyph, val tone: StatusTone)
+
+/** Pure mapping from a site state to the small icon in the address pill. */
+fun statusIconSpec(kind: SiteBarKind): StatusIconSpec = when (kind) {
+    SiteBarKind.STARRED -> StatusIconSpec(StatusGlyph.STAR, StatusTone.TERTIARY)
+    SiteBarKind.LISTED -> StatusIconSpec(StatusGlyph.VERIFIED, StatusTone.PRIMARY)
+    SiteBarKind.DOMAIN_LISTED -> StatusIconSpec(StatusGlyph.VERIFIED, StatusTone.PRIMARY)
+    SiteBarKind.FMHY_SITE -> StatusIconSpec(StatusGlyph.VERIFIED, StatusTone.PRIMARY)
+    SiteBarKind.NOT_ON_FMHY -> StatusIconSpec(StatusGlyph.INFO, StatusTone.NEUTRAL)
+    SiteBarKind.POTENTIALLY_UNSAFE -> StatusIconSpec(StatusGlyph.WARNING, StatusTone.ERROR)
+    SiteBarKind.UNSAFE -> StatusIconSpec(StatusGlyph.ERROR, StatusTone.ERROR)
+}
+
+/** Popover title for a state; the section/reason follow underneath. */
+fun statusTitle(kind: SiteBarKind): String = when (kind) {
+    SiteBarKind.STARRED -> "Starred on FMHY"
+    SiteBarKind.LISTED -> "Listed on FMHY"
+    SiteBarKind.DOMAIN_LISTED -> "Site is on FMHY"
+    SiteBarKind.FMHY_SITE -> "Official FMHY site"
+    SiteBarKind.NOT_ON_FMHY -> "Not on FMHY"
+    SiteBarKind.POTENTIALLY_UNSAFE -> "Potentially unsafe"
+    SiteBarKind.UNSAFE -> "Unsafe site"
+}

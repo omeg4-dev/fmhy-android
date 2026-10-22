@@ -110,7 +110,7 @@ class TabManagerTest {
             coroutineScope = CoroutineScope(Dispatchers.Unconfined),
         )
         val hooks = object : BrowserHooks {
-            override val siteBar: @androidx.compose.runtime.Composable (TabState) -> Unit = {}
+            override val siteStatusIcon: @androidx.compose.runtime.Composable (TabState) -> Unit = {}
             override fun handleCreateWindow(
                 context: Context,
                 tab: TabState,

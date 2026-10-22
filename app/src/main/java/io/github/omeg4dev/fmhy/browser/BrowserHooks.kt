@@ -19,6 +19,23 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.filled.GppBad
+import androidx.compose.material.icons.filled.GppMaybe
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
+import io.github.omeg4dev.fmhy.ui.common.Motion
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -121,7 +138,8 @@ interface BrowserHooks {
         contentLength: Long
     )
 
-    val siteBar: @Composable (TabState) -> Unit
+    /** Small FMHY status icon (with its tap popover) for the address pill; draws nothing without a state. */
+    val siteStatusIcon: @Composable (TabState) -> Unit
 
     fun shouldOverrideNavigation(
         context: Context,
@@ -569,105 +587,87 @@ class DefaultBrowserHooks(
         }
     }
 
-    override val siteBar: @Composable (TabState) -> Unit = { tab ->
+    override val siteStatusIcon: @Composable (TabState) -> Unit = { tab ->
         val state = tab.siteBarState
         AnimatedVisibility(
             visible = state != null,
-            enter = expandVertically() + fadeIn(),
-            exit = shrinkVertically() + fadeOut(),
+            enter = fadeIn(Motion.enter()) + expandHorizontally(Motion.enter()),
+            exit = fadeOut(Motion.exit()) + shrinkHorizontally(Motion.exit()),
         ) {
-            if (state != null) {
+            // Keep the last state while the exit animation runs.
+            val shown = remember { mutableStateOf(state) }
+            if (state != null) shown.value = state
+            val st = shown.value
+            if (st != null) {
                 val context = LocalContext.current
+                var showPopover by remember { mutableStateOf(false) }
                 var showDetailSheet by remember { mutableStateOf(false) }
-                var showVerdictDialog by remember { mutableStateOf(false) }
+                val state = st
 
-                val (containerColor, contentColor, icon) = when (state.kind) {
-                    SiteBarKind.STARRED -> Triple(
-                        MaterialTheme.colorScheme.primaryContainer,
-                        MaterialTheme.colorScheme.onPrimaryContainer,
-                        Icons.Filled.Star
-                    )
-                    SiteBarKind.LISTED -> Triple(
-                        MaterialTheme.colorScheme.secondaryContainer,
-                        MaterialTheme.colorScheme.onSecondaryContainer,
-                        Icons.Filled.Check
-                    )
-                    SiteBarKind.DOMAIN_LISTED -> Triple(
-                        MaterialTheme.colorScheme.secondaryContainer,
-                        MaterialTheme.colorScheme.onSecondaryContainer,
-                        Icons.Filled.Domain
-                    )
-                    SiteBarKind.FMHY_SITE -> Triple(
-                        MaterialTheme.colorScheme.primaryContainer,
-                        MaterialTheme.colorScheme.onPrimaryContainer,
-                        Icons.Filled.Verified
-                    )
-                    SiteBarKind.POTENTIALLY_UNSAFE -> Triple(
-                        MaterialTheme.colorScheme.tertiaryContainer,
-                        MaterialTheme.colorScheme.onTertiaryContainer,
-                        Icons.Filled.Warning
-                    )
-                    SiteBarKind.UNSAFE -> Triple(
-                        MaterialTheme.colorScheme.errorContainer,
-                        MaterialTheme.colorScheme.onErrorContainer,
-                        Icons.Filled.Error
-                    )
-                    SiteBarKind.NOT_ON_FMHY -> Triple(
-                        MaterialTheme.colorScheme.surfaceContainerHighest,
-                        MaterialTheme.colorScheme.onSurfaceVariant,
-                        Icons.Outlined.Info
-                    )
-                }
-
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            if (state.entry != null) {
-                                showDetailSheet = true
-                            } else if (state.kind == SiteBarKind.UNSAFE || state.kind == SiteBarKind.POTENTIALLY_UNSAFE) {
-                                showVerdictDialog = true
-                            }
-                        },
-                    color = containerColor,
-                    contentColor = contentColor,
-                ) {
-                    Row(
+                Box(contentAlignment = Alignment.Center) {
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .height(28.dp)
-                            .padding(start = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .clickable(onClickLabel = "FMHY status", role = Role.Button) { showPopover = true },
+                        contentAlignment = Alignment.Center,
                     ) {
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = null,
-                            modifier = Modifier.size(14.dp),
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = state.text,
-                            style = MaterialTheme.typography.labelSmall,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f),
-                        )
-                        Box(
-                            modifier = Modifier
-                                .size(28.dp)
-                                .clickable(onClickLabel = "Dismiss", role = androidx.compose.ui.semantics.Role.Button) {
-                                    val host = try { Uri.parse(tab.url).host } catch (_: Exception) { null }
-                                    if (host != null) {
-                                        tabManager?.dismissSiteBar(tab.id, host)
-                                    }
-                                },
-                            contentAlignment = Alignment.Center,
-                        ) {
+                        Crossfade(targetState = state.kind, animationSpec = Motion.standard(), label = "statusIcon") { kind ->
+                            val spec = statusIconSpec(kind)
                             Icon(
-                                imageVector = Icons.Filled.Close,
-                                contentDescription = "Dismiss",
-                                modifier = Modifier.size(14.dp),
+                                imageVector = statusGlyphVector(spec.glyph),
+                                contentDescription = statusTitle(kind),
+                                modifier = Modifier.size(18.dp),
+                                tint = statusToneColor(spec.tone),
                             )
+                        }
+                    }
+                    DropdownMenu(
+                        expanded = showPopover,
+                        onDismissRequest = { showPopover = false },
+                        shape = RoundedCornerShape(16.dp),
+                    ) {
+                        val spec = statusIconSpec(state.kind)
+                        val detail = state.text.substringAfter(" · ", "")
+                        val entry = state.entry
+                        Column(
+                            modifier = Modifier
+                                .widthIn(min = 220.dp, max = 300.dp)
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Icon(
+                                    imageVector = statusGlyphVector(spec.glyph),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp),
+                                    tint = statusToneColor(spec.tone),
+                                )
+                                Text(statusTitle(state.kind), style = MaterialTheme.typography.titleSmall)
+                            }
+                            if (entry != null) {
+                                Text(entry.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                            }
+                            if (detail.isNotBlank()) {
+                                Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            val reason = state.verdict.reason
+                            if (!reason.isNullOrBlank() && state.kind != SiteBarKind.STARRED && state.kind != SiteBarKind.LISTED) {
+                                Text(reason, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            if (state.kind == SiteBarKind.NOT_ON_FMHY) {
+                                Text(
+                                    "This site is not on the FMHY list. That does not mean it is unsafe.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            if (entry != null) {
+                                TextButton(
+                                    onClick = { showPopover = false; showDetailSheet = true },
+                                    modifier = Modifier.align(Alignment.End),
+                                ) { Text("FMHY entry") }
+                            }
                         }
                     }
                 }
@@ -694,19 +694,24 @@ class DefaultBrowserHooks(
                 )
             }
 
-            if (showVerdictDialog) {
-                AlertDialog(
-                    onDismissRequest = { showVerdictDialog = false },
-                    title = { Text(state.text) },
-                    text = { Text(state.verdict.reason ?: "Reported on FMHY safety list.") },
-                    confirmButton = {
-                        TextButton(onClick = { showVerdictDialog = false }) {
-                            Text("OK")
-                        }
-                    }
-                )
-            }
         }
     }
     }
+}
+
+@Composable
+private fun statusGlyphVector(glyph: StatusGlyph): ImageVector = when (glyph) {
+    StatusGlyph.STAR -> Icons.Filled.Star
+    StatusGlyph.VERIFIED -> Icons.Filled.Verified
+    StatusGlyph.INFO -> Icons.Outlined.Info
+    StatusGlyph.WARNING -> Icons.Filled.GppMaybe
+    StatusGlyph.ERROR -> Icons.Filled.GppBad
+}
+
+@Composable
+private fun statusToneColor(tone: StatusTone): Color = when (tone) {
+    StatusTone.PRIMARY -> MaterialTheme.colorScheme.primary
+    StatusTone.TERTIARY -> MaterialTheme.colorScheme.tertiary
+    StatusTone.NEUTRAL -> MaterialTheme.colorScheme.onSurfaceVariant
+    StatusTone.ERROR -> MaterialTheme.colorScheme.error
 }

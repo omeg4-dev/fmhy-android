@@ -236,8 +236,10 @@ fun BrowserScreen(
     }
 
     // Close activity if no tabs remain
-    LaunchedEffect(tabs) {
-        if (tabs.isEmpty() && currentTabId == null) {
+    // Only once restore is done: the tab list is empty before that, which used to close the browser right after it opened.
+    val restored by tabManager.restored.collectAsStateWithLifecycle()
+    LaunchedEffect(tabs, restored) {
+        if (shouldFinishWhenEmpty(restored, tabs.size, currentTabId, tabManager.linkQueue.hasPendingLinks())) {
             onFinishActivity()
         }
     }
@@ -520,12 +522,6 @@ fun BrowserScreen(
                             .zIndex(5f),
                     ) {
                         Column(modifier = Modifier.fillMaxWidth()) {
-                            if (browserPrefs.toolbarPosition == ToolbarPosition.BOTTOM) {
-                                currentTab?.let { tabState ->
-                                    browserHooks.siteBar(tabState)
-                                }
-                            }
-
                             BrowserToolbar(
                                 tab = currentTab,
                                 tabs = tabs,
@@ -606,6 +602,7 @@ fun BrowserScreen(
                                 onSelectTab = { tabId ->
                                     tabManager.selectTab(tabId)
                                 },
+                                statusIcon = { currentTab?.let { browserHooks.siteStatusIcon(it) } },
                                 onCopyLink = {
                                     currentTab?.url?.let { url ->
                                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -616,12 +613,6 @@ fun BrowserScreen(
                                     }
                                 },
                             )
-
-                            if (browserPrefs.toolbarPosition == ToolbarPosition.TOP) {
-                                currentTab?.let { tabState ->
-                                    browserHooks.siteBar(tabState)
-                                }
-                            }
                         }
                     }
                 }
