@@ -62,13 +62,20 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.animation.core.animateFloatAsState
+import io.github.omeg4dev.fmhy.SectionNavKey
+import io.github.omeg4dev.fmhy.data.model.Entry
+import io.github.omeg4dev.fmhy.nav.LocalAppNavOrNull
+import io.github.omeg4dev.fmhy.nav.Tab
+import io.github.omeg4dev.fmhy.ui.common.Motion
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import io.github.omeg4dev.fmhy.data.safety.SafeGuard
 import io.github.omeg4dev.fmhy.data.safety.SafetyStatus
 import io.github.omeg4dev.fmhy.data.safety.Verdict
 import io.github.omeg4dev.fmhy.di.AppContainer
-import io.github.omeg4dev.fmhy.ui.common.CrossfadeContent
 import io.github.omeg4dev.fmhy.ui.common.EmptyState
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
 import io.github.omeg4dev.fmhy.ui.common.enterStagger
@@ -107,6 +114,8 @@ fun CheckLinkScreen(
 
     var query by rememberSaveable { mutableStateOf(initialQuery) }
     var verdict by remember { mutableStateOf<Verdict?>(null) }
+    var sectionTitles by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    val nav = LocalAppNavOrNull.current
     var isChecking by remember { mutableStateOf(false) }
 
     var clipboardHost by remember { mutableStateOf<String?>(null) }
@@ -119,7 +128,13 @@ fun CheckLinkScreen(
         val rawJson = container.userStore.get("check_recent")
         if (!rawJson.isNullOrEmpty()) {
             try {
-                recentChecks = Json.decodeFromString<List<RecentCheck>>(rawJson)
+                val stored = Json.decodeFromString<List<RecentCheck>>(rawJson)
+                // Older versions saved every typing stage; clean those out once.
+                val pruned = pruneRecentChecks(stored)
+                recentChecks = pruned
+                if (pruned.size != stored.size) {
+                    container.userStore.put("check_recent", Json.encodeToString(pruned))
+                }
             } catch (_: Exception) {}
         }
     }
@@ -205,7 +220,25 @@ fun CheckLinkScreen(
         }
     }
 
-    // While typing, check debounced 400 ms
+    // Section titles for the "Section > heading" breadcrumbs
+    LaunchedEffect(container.datasetStore.isAvailable) {
+        if (container.datasetStore.isAvailable) {
+            try {
+                sectionTitles = container.datasetStore.sections().associate { it.id to it.title }
+            } catch (_: Exception) {}
+        }
+    }
+
+    // A link handed in by share/intent counts as a deliberate check: save it to the history.
+    LaunchedEffect(initialQuery) {
+        if (initialQuery.isNotBlank() && container.datasetStore.isAvailable) {
+            val v = container.safeGuard.check(initialQuery.trim())
+            saveRecentCheck(initialQuery.trim(), v.status)
+        }
+    }
+
+    // While typing, check debounced 400 ms. Typing stages are never saved to the history; only
+    // Go / Check / a recent item / "check host" / a shared link do that.
     LaunchedEffect(query) {
         val trimmed = query.trim()
         if (trimmed.isEmpty()) {
@@ -216,10 +249,21 @@ fun CheckLinkScreen(
         delay(400)
         if (container.datasetStore.isAvailable) {
             isChecking = true
-            val v = container.safeGuard.check(trimmed)
-            verdict = v
+            verdict = container.safeGuard.check(trimmed)
             isChecking = false
-            saveRecentCheck(trimmed, v.status)
+        }
+    }
+
+    fun openMatch(entry: Entry) {
+        val navState = nav ?: return
+        coroutineScope.launch {
+            val anchor = try {
+                entry.headingId?.let { hid ->
+                    container.datasetStore.headings(entry.sectionId).firstOrNull { it.id == hid }?.anchor
+                }
+            } catch (_: Exception) { null }
+            navState.select(Tab.BROWSE)
+            navState.push(SectionNavKey(entry.sectionId, anchor = anchor, focusEntryId = entry.id))
         }
     }
 
@@ -259,6 +303,8 @@ fun CheckLinkScreen(
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Uri,
                     imeAction = ImeAction.Go,
+                    autoCorrectEnabled = false,
+                    capitalization = KeyboardCapitalization.None,
                 ),
                 keyboardActions = KeyboardActions(
                     onGo = {
@@ -320,46 +366,36 @@ fun CheckLinkScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-            } else if (isChecking) {
-                // Status: checking
-                Spacer(Modifier.height(16.dp))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                ) {
-                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                    Spacer(Modifier.width(12.dp))
-                    Text(
-                        text = "Checking\u2026",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
             }
 
-            // Results: VerdictCard entering with enterStagger, CrossfadeContent when switching
-            if (verdict != null) {
+            // Results: one card that stays mounted while typing; only its content changes.
+            // Dimmed + slim progress bar while the next check is pending.
+            val shown = verdict
+            if (shown != null) {
+                val pending = isChecking || query.trim() != shown.input.trim()
+                val dim by animateFloatAsState(
+                    targetValue = if (pending) 0.55f else 1f,
+                    animationSpec = Motion.standard(Motion.SHORT),
+                    label = "verdictDim",
+                )
                 Spacer(Modifier.height(16.dp))
-                CrossfadeContent(
-                    targetState = verdict,
-                    contentKey = { it?.input },
-                ) { currentVerdict ->
-                    if (currentVerdict != null) {
-                        VerdictCard(
-                            verdict = currentVerdict,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp)
-                                .enterStagger(key = currentVerdict.input),
-                            onOpenUrl = { linkOpener.openUrl(it) },
-                            onShowSnackbar = onShowSnackbar,
-                            onCheckHost = { host ->
-                                query = host
-                                runImmediateCheck(host)
-                            },
-                        )
-                    }
-                }
+                VerdictCard(
+                    verdict = shown,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .enterStagger()
+                        .graphicsLayer { alpha = dim },
+                    onOpenUrl = { linkOpener.openUrl(it) },
+                    onShowSnackbar = onShowSnackbar,
+                    onCheckHost = { host ->
+                        query = host
+                        runImmediateCheck(host)
+                    },
+                    sectionTitles = sectionTitles,
+                    onOpenMatch = if (nav != null) ({ e: Entry -> openMatch(e) }) else null,
+                    checking = pending,
+                )
             }
 
             // When query is empty: Recent checks or EmptyState
