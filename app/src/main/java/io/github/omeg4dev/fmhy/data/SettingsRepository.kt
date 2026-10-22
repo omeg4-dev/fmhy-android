@@ -97,6 +97,7 @@ class DefaultSettingsRepository(
         // Home
         private val KEY_HOME_PERSONAL_HOME = booleanPreferencesKey("home_personal_home")
         private val KEY_HOME_NEW_BADGE_DAYS = intPreferencesKey("home_new_badge_days")
+        private val KEY_HOME_SEARCH_EXACT = booleanPreferencesKey("home_search_exact")
 
         // Browser
         private val KEY_BROWSER_OPEN_LINKS_WITH = stringPreferencesKey("browser_open_links_with")
@@ -110,6 +111,10 @@ class DefaultSettingsRepository(
         private val KEY_BROWSER_BUBBLE_HIDDEN = booleanPreferencesKey("browser_bubble_hidden")
         private val KEY_BROWSER_BUBBLE_SIDE = stringPreferencesKey("browser_bubble_side")
         private val KEY_BROWSER_BUBBLE_Y = floatPreferencesKey("browser_bubble_y")
+        private val KEY_BROWSER_BACK_BUBBLE_HIDDEN = booleanPreferencesKey("browser_back_bubble_hidden")
+        private val KEY_BROWSER_BACK_BUBBLE_SIDE = stringPreferencesKey("browser_back_bubble_side")
+        private val KEY_BROWSER_BACK_BUBBLE_Y = floatPreferencesKey("browser_back_bubble_y")
+        private val KEY_BROWSER_TABS_VIEW = stringPreferencesKey("browser_tabs_view")
         private val KEY_BROWSER_JAVASCRIPT = booleanPreferencesKey("browser_javascript")
         private val KEY_BROWSER_FORCE_DARK = booleanPreferencesKey("browser_force_dark")
         private val KEY_BROWSER_DESKTOP_BY_DEFAULT = booleanPreferencesKey("browser_desktop_by_default")
@@ -349,11 +354,13 @@ class DefaultSettingsRepository(
         return HomePrefs(
             personalHome = prefs[KEY_HOME_PERSONAL_HOME] ?: default.personalHome,
             newBadgeDays = prefs[KEY_HOME_NEW_BADGE_DAYS] ?: default.newBadgeDays,
+            searchExact = prefs[KEY_HOME_SEARCH_EXACT] ?: default.searchExact,
         )
     }
 
     private fun writeHomePrefs(prefs: MutablePreferences, p: HomePrefs) {
         prefs[KEY_HOME_PERSONAL_HOME] = p.personalHome
+        prefs[KEY_HOME_SEARCH_EXACT] = p.searchExact
         prefs[KEY_HOME_NEW_BADGE_DAYS] = p.newBadgeDays
     }
 
@@ -391,6 +398,12 @@ class DefaultSettingsRepository(
         val bubbleSide = prefs[KEY_BROWSER_BUBBLE_SIDE]?.let { name ->
             try { BubbleSide.valueOf(name) } catch (_: IllegalArgumentException) { default.bubbleSide }
         } ?: default.bubbleSide
+        val backBubbleSide = prefs[KEY_BROWSER_BACK_BUBBLE_SIDE]?.let { name ->
+            try { BubbleSide.valueOf(name) } catch (_: IllegalArgumentException) { default.backBubbleSide }
+        } ?: default.backBubbleSide
+        val tabsView = prefs[KEY_BROWSER_TABS_VIEW]?.let { name ->
+            try { TabsView.valueOf(name) } catch (_: IllegalArgumentException) { default.tabsView }
+        } ?: default.tabsView
 
         return BrowserPrefs(
             openLinksWith = openLinksWith,
@@ -404,6 +417,10 @@ class DefaultSettingsRepository(
             browserBubbleHidden = prefs[KEY_BROWSER_BUBBLE_HIDDEN] ?: default.browserBubbleHidden,
             bubbleSide = bubbleSide,
             bubbleY = (prefs[KEY_BROWSER_BUBBLE_Y] ?: default.bubbleY).coerceIn(0f, 1f),
+            backBubbleHidden = prefs[KEY_BROWSER_BACK_BUBBLE_HIDDEN] ?: default.backBubbleHidden,
+            backBubbleSide = backBubbleSide,
+            backBubbleY = (prefs[KEY_BROWSER_BACK_BUBBLE_Y] ?: default.backBubbleY).coerceIn(0f, 1f),
+            tabsView = tabsView,
             javascript = prefs[KEY_BROWSER_JAVASCRIPT] ?: default.javascript,
             forceDark = prefs[KEY_BROWSER_FORCE_DARK] ?: default.forceDark,
             desktopByDefault = prefs[KEY_BROWSER_DESKTOP_BY_DEFAULT] ?: default.desktopByDefault,
@@ -434,6 +451,10 @@ class DefaultSettingsRepository(
         prefs[KEY_BROWSER_BUBBLE_HIDDEN] = p.browserBubbleHidden
         prefs[KEY_BROWSER_BUBBLE_SIDE] = p.bubbleSide.name
         prefs[KEY_BROWSER_BUBBLE_Y] = p.bubbleY
+        prefs[KEY_BROWSER_BACK_BUBBLE_HIDDEN] = p.backBubbleHidden
+        prefs[KEY_BROWSER_BACK_BUBBLE_SIDE] = p.backBubbleSide.name
+        prefs[KEY_BROWSER_BACK_BUBBLE_Y] = p.backBubbleY
+        prefs[KEY_BROWSER_TABS_VIEW] = p.tabsView.name
         prefs[KEY_BROWSER_JAVASCRIPT] = p.javascript
         prefs[KEY_BROWSER_FORCE_DARK] = p.forceDark
         prefs[KEY_BROWSER_DESKTOP_BY_DEFAULT] = p.desktopByDefault

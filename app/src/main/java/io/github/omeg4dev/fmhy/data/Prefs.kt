@@ -13,6 +13,9 @@ enum class BrowserButtonStyle { FLOATING, TOP_BAR }
 
 enum class BubbleSide { LEFT, RIGHT }
 
+/** Layout of the browser's tab overview. */
+enum class TabsView { LIST, GRID }
+
 enum class AutoplayMode(val label: String) {
     BLOCK("Never"),
     ALLOW_MUTED("Muted only"),
@@ -63,6 +66,8 @@ data class HomePrefs(
     val personalHome: Boolean = false,
     /** 0 = NEW badges off. */
     val newBadgeDays: Int = 7,
+    /** Search: whole words only. Off = fuzzy (prefix + typo-tolerant trigram matches). */
+    val searchExact: Boolean = false,
 )
 
 data class BrowserPrefs(
@@ -79,6 +84,12 @@ data class BrowserPrefs(
     val bubbleSide: BubbleSide = BubbleSide.RIGHT,
     /** 0..1 position inside the allowed vertical range. */
     val bubbleY: Float = 0.75f,
+    /** Floating back-to-FMHY bubble inside the browser; hidden from its hold menu, shown again in Settings. */
+    val backBubbleHidden: Boolean = false,
+    val backBubbleSide: BubbleSide = BubbleSide.LEFT,
+    /** 0..1 position inside the allowed vertical range. */
+    val backBubbleY: Float = 0.85f,
+    val tabsView: TabsView = TabsView.LIST,
     // Page
     val javascript: Boolean = true,
     /** Darken pages when the app is in dark theme. */
