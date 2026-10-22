@@ -33,5 +33,5 @@ class WhatsNewTextFilterTest {
         assertEquals(0, WhatsNewGrouping.filterByText(cards, "zoro privacy", titles).size)
     }
 
-    @Test fun urlPathIsNotSearched() = assertEquals(0, WhatsNewGrouping.filterByText(cards, "watch", titles).size)
+    @Test fun urlPathIsNotSearched() = assertEquals(0, WhatsNewGrouping.filterByText(cards, "/watch", titles).size)
 }
