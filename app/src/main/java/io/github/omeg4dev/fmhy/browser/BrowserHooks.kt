@@ -84,11 +84,9 @@ import io.github.omeg4dev.fmhy.data.safety.SafeGuard
 import io.github.omeg4dev.fmhy.data.safety.SafetyStatus
 import io.github.omeg4dev.fmhy.data.safety.Verdict
 import io.github.omeg4dev.fmhy.ui.common.EntryDetailBottomSheet
-import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 
 data class BrowserSnackbarEvent(
@@ -172,7 +170,10 @@ class DefaultBrowserHooks(
     var onShowCustomViewListener: ((View) -> Unit)? = null
     var onHideCustomViewListener: (() -> Unit)? = null
 
-    private val hostVerdictCache = ConcurrentHashMap<String, Verdict>()
+    /** Verdicts per page URL (fragment dropped): shared hosts like github.com differ per path. */
+    private val verdictCache = object : LinkedHashMap<String, Verdict>(64, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Verdict>?) = size > 64
+    }
     private val livePopupCount = java.util.concurrent.atomic.AtomicInteger(0)
 
     override fun handleCreateWindow(
@@ -538,9 +539,9 @@ class DefaultBrowserHooks(
 
         tabManager?.appScope?.launch(Dispatchers.IO) {
             val sg = safeGuard ?: return@launch
-            val verdict = hostVerdictCache.computeIfAbsent(host) {
-                runBlocking { sg.check(url) }
-            }
+            val key = url.substringBefore('#')
+            val verdict = synchronized(verdictCache) { verdictCache[key] }
+                ?: sg.check(url).also { synchronized(verdictCache) { verdictCache[key] = it } }
 
             withContext(Dispatchers.Main) {
                 // Drop stale results when the tab already moved on to another host.

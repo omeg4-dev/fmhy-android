@@ -151,6 +151,16 @@ class BrowserWebViewFactory(
                 }
             }
 
+            // In-page navigations (pushState, e.g. GitHub between repos) don't fire onPageStarted:
+            // refresh the URL and the FMHY status when the page itself changes.
+            override fun doUpdateVisitedHistory(view: WebView, url: String, isReload: Boolean) {
+                super.doUpdateVisitedHistory(view, url, isReload)
+                if (isReload || url.substringBefore('#') == record.url.substringBefore('#')) return
+                record.url = url
+                tabManager.updateTabUrlAndTitle(record.id, url, view.title ?: record.title)
+                (browserHooks as? DefaultBrowserHooks)?.onPageStarted(record, url)
+            }
+
             override fun onPageFinished(view: WebView, url: String) {
                 super.onPageFinished(view, url)
                 record.canGoBack = view.canGoBack()
