@@ -1,0 +1,20 @@
+== bottom
+--- a) tap (expect none) raw=
+
+  [hides=0 shows=0]
+--- d) slow drag up 400px + lift (expect hides=1 shows=0) raw=1
+  20:06:33.352 D/FmhyBars(24607): target 0.0 -> 171.0 pointerDown=false
+
+  [hides=1 shows=0]
+--- d2) slow drag down 400px + lift (expect shows<=1) raw=1
+  20:06:37.451 D/FmhyBars(24607): target 171.0 -> 0.0 pointerDown=false
+
+  [hides=0 shows=1]
+--- e) fling up (expect hides=1 shows=0) raw=1
+  20:06:43.544 D/FmhyBars(24607): target 0.0 -> 171.0 pointerDown=false
+
+  [hides=1 shows=0]
+--- e2) fling down raw=1
+  20:06:46.344 D/FmhyBars(24607): target 171.0 -> 0.0 pointerDown=false
+
+  [hides=0 shows=1]

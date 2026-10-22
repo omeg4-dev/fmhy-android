@@ -9,7 +9,7 @@
   B1b bars reshow on release (TOP)
 - [x] 4. B3 back-arrow bubble (BackBubble.kt, settings switch, BackBubbleLogicTest 3 pass; emulator TOP: default/dragged right/hidden with bar/hold menu/dialog/tap->FMHY ok; shots/b3-top-*.png; BOTTOM shots pending final check)
 - [x] 5. B4 tab overview redesign (full-screen Dialog overlay, LIST default/GRID toggle persisted, search >=6, sections, current outline, TabsLogic + TabsLogicTest 5 pass; full unit suite 359 tests 0 fail; shots/b4-list|grid|search.png)
-- [ ] 6. Checks + evidence
+- [x] 6. Checks + evidence: compileDebugKotlin ok; unit suite 359 tests 0 failures/errors (--no-build-cache); emulator TOP+BOTTOM back bubble shots (shots/b3-*), bars-after-bottom.txt (hide 1/show 0 for drag+fling, tap 0), tabs shots b4-*, crash log empty. Emulator left: toolbar TOP, bubble visible (right edge), tabs view LIST. Helper: .work-scripts/setpos.py TOP|BOTTOM.
 
 ## Requests for Claude
 (none)
