@@ -1,11 +1,13 @@
 package io.github.omeg4dev.fmhy.browser
 
 import android.graphics.Bitmap
-import android.net.Uri
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,33 +15,40 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
@@ -58,22 +67,45 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.omeg4dev.fmhy.data.TabsView
+import io.github.omeg4dev.fmhy.ui.common.Motion
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import io.github.omeg4dev.fmhy.ui.common.showUndo
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
+private sealed interface TabsRow {
+    val key: String
+    data class Header(val label: String, val count: Int) : TabsRow { override val key get() = "h:$label" }
+    data class Item(val tab: TabState) : TabsRow { override val key get() = "t:${tab.id}" }
+}
+
+private fun buildRows(g: TabsLogic.Grouped): List<TabsRow> = buildList {
+    if (g.normal.isNotEmpty()) {
+        add(TabsRow.Header("Tabs", g.normal.size))
+        g.normal.forEach { add(TabsRow.Item(it)) }
+    }
+    if (g.priv.isNotEmpty()) {
+        add(TabsRow.Header("Private tabs", g.priv.size))
+        g.priv.forEach { add(TabsRow.Item(it)) }
+    }
+}
+
+/** Full-screen tab overview (list by default, grid switchable). System back closes it. */
 @Composable
 fun TabsSheet(
     tabs: List<TabState>,
     currentTabId: Long?,
     tabManager: TabManager,
+    tabsView: TabsView,
+    onTabsViewChange: (TabsView) -> Unit,
     onDismiss: () -> Unit,
     onSelectTab: (Long) -> Unit,
     onCloseTab: (Long) -> Unit,
@@ -86,194 +118,293 @@ fun TabsSheet(
     val thumbnailVersion by tabManager.thumbnailVersion.collectAsStateWithLifecycle()
     var showOverflow by remember { mutableStateOf(false) }
     var showCloseAllDialog by remember { mutableStateOf(false) }
-    val sheetSnackbarHostState = remember { SnackbarHostState() }
+    var query by remember { mutableStateOf("") }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val isGrid = tabsView == TabsView.GRID
 
     LaunchedEffect(currentTabId) {
-        if (currentTabId != null) {
-            tabManager.captureThumbnail(currentTabId)
+        if (currentTabId != null) tabManager.captureThumbnail(currentTabId)
+    }
+
+    val showSearch = tabs.size >= TabsLogic.SEARCH_MIN_TABS
+    val grouped = TabsLogic.group(TabsLogic.filter(tabs, if (showSearch) query else ""))
+    val allGrouped = TabsLogic.group(tabs)
+    val rows = buildRows(grouped)
+    val gridState = rememberLazyGridState()
+
+    // Bring the current tab into view when the overview opens.
+    LaunchedEffect(Unit) {
+        val key = currentTabId?.let { "t:$it" } ?: return@LaunchedEffect
+        val idx = rows.indexOfFirst { it.key == key }
+        if (idx > 1) gridState.scrollToItem(idx - 1)
+    }
+
+    fun closeWithUndo(tab: TabState) {
+        haptics.remove()
+        val index = tabs.indexOfFirst { it.id == tab.id }
+        onCloseTab(tab.id)
+        scope.launch {
+            if (snackbarHostState.showUndo("Tab closed")) {
+                tabManager.restoreTab(
+                    url = tab.url,
+                    title = tab.title,
+                    index = index,
+                    isPrivate = tab.isPrivate,
+                    entryId = tab.entryId,
+                )
+            }
         }
     }
 
-    ModalBottomSheet(
+    Dialog(
         onDismissRequest = onDismiss,
-        modifier = modifier,
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
     ) {
-        Box(modifier = Modifier.fillMaxWidth()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 24.dp),
+        BackHandler(onBack = onDismiss)
+        var shown by remember { mutableStateOf(false) }
+        LaunchedEffect(Unit) { shown = true }
+        AnimatedVisibility(
+            visible = shown,
+            enter = fadeIn(Motion.enter()) + slideInVertically(Motion.enter()) { it / 12 },
+        ) {
+            Surface(
+                color = MaterialTheme.colorScheme.surface,
+                modifier = modifier.fillMaxSize(),
             ) {
-                // Header
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = "Tabs (${tabs.size})",
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        FilledTonalButton(
-                            onClick = {
-                                onNewTab(false)
-                            },
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("New tab")
-                        }
-
-                        Box {
-                            IconButton(onClick = {
-                                showOverflow = true
-                            }) {
-                                Icon(Icons.Default.MoreVert, contentDescription = "Menu")
-                            }
-
-                            DropdownMenu(
-                                expanded = showOverflow,
-                                onDismissRequest = { showOverflow = false },
-                            ) {
-                                DropdownMenuItem(
-                                    text = { Text("New private tab") },
-                                    onClick = {
-                                        showOverflow = false
-                                        onNewTab(true)
-                                    },
-                                    leadingIcon = {
-                                        Icon(Icons.Default.Security, contentDescription = null)
-                                    },
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Close all tabs") },
-                                    onClick = {
-                                        showOverflow = false
-                                        showCloseAllDialog = true
-                                    },
-                                    leadingIcon = {
-                                        Icon(Icons.Default.Close, contentDescription = null)
-                                    },
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // 2-column LazyVerticalGrid with 12 dp gaps and 16 dp padding
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(2),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = PaddingValues(16.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f, fill = false),
-                ) {
-                    items(tabs, key = { it.id }) { tab ->
-                        var isDismissed by remember(tab.id) { mutableStateOf(false) }
-                        @Suppress("DEPRECATION")
-                        val dismissState = rememberSwipeToDismissBoxState(
-                            confirmValueChange = { value ->
-                                if (value != SwipeToDismissBoxValue.Settled && !isDismissed) {
-                                    isDismissed = true
-                                    haptics.remove()
-                                    val index = tabs.indexOfFirst { it.id == tab.id }
-                                    onCloseTab(tab.id)
-                                    scope.launch {
-                                        val undo = sheetSnackbarHostState.showUndo("Tab closed")
-                                        if (undo) {
-                                            tabManager.restoreTab(
-                                                url = tab.url,
-                                                title = tab.title,
-                                                index = index,
-                                                isPrivate = tab.isPrivate,
-                                                entryId = tab.entryId,
-                                            )
-                                        }
-                                    }
-                                    true
-                                } else {
-                                    true
-                                }
-                            }
+                Box(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars)) {
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        TopRow(
+                            title = TabsLogic.title(tabs.size, allGrouped.priv.size),
+                            isGrid = isGrid,
+                            onBack = onDismiss,
+                            onToggleView = { onTabsViewChange(if (isGrid) TabsView.LIST else TabsView.GRID) },
+                            onNewTab = { onNewTab(false) },
+                            showOverflow = showOverflow,
+                            onOverflow = { showOverflow = it },
+                            onNewPrivate = { onNewTab(true) },
+                            onCloseAll = { showCloseAllDialog = true },
                         )
-
-                        SwipeToDismissBox(
-                            state = dismissState,
-                            backgroundContent = {},
-                            modifier = Modifier.animateItem(),
-                        ) {
-                            TabCard(
-                                tab = tab,
-                                thumbnail = remember(tab.id, thumbnailVersion) { tabManager.getThumbnail(tab.id) },
-                                isSelected = tab.id == currentTabId,
-                                onSelect = {
-                                    onSelectTab(tab.id)
-                                },
-                                onClose = {
-                                    haptics.remove()
-                                    val index = tabs.indexOfFirst { it.id == tab.id }
-                                    onCloseTab(tab.id)
-                                    scope.launch {
-                                        val undo = sheetSnackbarHostState.showUndo("Tab closed")
-                                        if (undo) {
-                                            tabManager.restoreTab(
-                                                url = tab.url,
-                                                title = tab.title,
-                                                index = index,
-                                                isPrivate = tab.isPrivate,
-                                                entryId = tab.entryId,
-                                            )
+                        if (showSearch) {
+                            OutlinedTextField(
+                                value = query,
+                                onValueChange = { query = it },
+                                singleLine = true,
+                                placeholder = { Text("Search tabs") },
+                                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                                trailingIcon = {
+                                    if (query.isNotEmpty()) {
+                                        IconButton(onClick = { query = "" }) {
+                                            Icon(Icons.Default.Close, contentDescription = "Clear search")
                                         }
                                     }
                                 },
+                                shape = RoundedCornerShape(28.dp),
+                                keyboardOptions = KeyboardOptions.Default,
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
                             )
                         }
+                        LazyVerticalGrid(
+                            state = gridState,
+                            columns = GridCells.Fixed(if (isGrid) 2 else 1),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(if (isGrid) 12.dp else 8.dp),
+                            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 88.dp),
+                            modifier = Modifier.fillMaxWidth().weight(1f),
+                        ) {
+                            rows.forEach { row ->
+                                when (row) {
+                                    is TabsRow.Header -> item(key = row.key, span = { GridItemSpan(maxLineSpan) }) {
+                                        Text(
+                                            text = "${row.label} · ${row.count}",
+                                            style = MaterialTheme.typography.labelLarge,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.padding(start = 4.dp, top = 8.dp, bottom = 2.dp),
+                                        )
+                                    }
+                                    is TabsRow.Item -> item(key = row.key) {
+                                        val tab = row.tab
+                                        var isDismissed by remember(tab.id) { mutableStateOf(false) }
+                                        @Suppress("DEPRECATION")
+                                        val dismissState = rememberSwipeToDismissBoxState(
+                                            confirmValueChange = { value ->
+                                                if (value != SwipeToDismissBoxValue.Settled && !isDismissed) {
+                                                    isDismissed = true
+                                                    closeWithUndo(tab)
+                                                }
+                                                true
+                                            },
+                                        )
+                                        SwipeToDismissBox(
+                                            state = dismissState,
+                                            backgroundContent = {},
+                                            modifier = Modifier.animateItem(),
+                                        ) {
+                                            if (isGrid) {
+                                                TabCard(
+                                                    tab = tab,
+                                                    thumbnail = remember(tab.id, thumbnailVersion) { tabManager.getThumbnail(tab.id) },
+                                                    isSelected = tab.id == currentTabId,
+                                                    onSelect = { onSelectTab(tab.id) },
+                                                    onClose = { closeWithUndo(tab) },
+                                                )
+                                            } else {
+                                                TabListRow(
+                                                    tab = tab,
+                                                    isSelected = tab.id == currentTabId,
+                                                    onSelect = { onSelectTab(tab.id) },
+                                                    onClose = { closeWithUndo(tab) },
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
+                    if (rows.isEmpty() && query.isNotBlank()) {
+                        Text(
+                            text = "No tabs match \"${query.trim()}\"",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.align(Alignment.Center),
+                        )
+                    }
+                    SnackbarHost(
+                        hostState = snackbarHostState,
+                        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp),
+                    )
                 }
             }
-
-            // SnackbarHost inside the bottom sheet
-            SnackbarHost(
-                hostState = sheetSnackbarHostState,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 16.dp),
-            )
         }
     }
 
     if (showCloseAllDialog) {
         AlertDialog(
             onDismissRequest = { showCloseAllDialog = false },
-            title = { Text("Close all tabs") },
-            text = { Text("Close all ${tabs.size} tabs?") },
+            title = { Text("Close all ${tabs.size} tabs?") },
             confirmButton = {
-                TextButton(
-                    onClick = {
-                        showCloseAllDialog = false
-                        haptics.remove()
-                        onCloseAll()
-                    }
-                ) {
-                    Text("Close all")
-                }
+                TextButton(onClick = {
+                    showCloseAllDialog = false
+                    haptics.remove()
+                    onCloseAll()
+                }) { Text("Close all") }
             },
-            dismissButton = {
-                TextButton(onClick = { showCloseAllDialog = false }) {
-                    Text("Cancel")
-                }
-            },
+            dismissButton = { TextButton(onClick = { showCloseAllDialog = false }) { Text("Cancel") } },
         )
+    }
+}
+
+@Composable
+private fun TopRow(
+    title: String,
+    isGrid: Boolean,
+    onBack: () -> Unit,
+    onToggleView: () -> Unit,
+    onNewTab: () -> Unit,
+    showOverflow: Boolean,
+    onOverflow: (Boolean) -> Unit,
+    onNewPrivate: () -> Unit,
+    onCloseAll: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Close tab overview") }
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f).padding(start = 4.dp),
+        )
+        IconButton(onClick = onToggleView) {
+            Icon(
+                imageVector = if (isGrid) Icons.AutoMirrored.Filled.ViewList else Icons.Default.GridView,
+                contentDescription = if (isGrid) "Show as list" else "Show as grid",
+            )
+        }
+        IconButton(onClick = onNewTab) { Icon(Icons.Default.Add, contentDescription = "New tab") }
+        Box {
+            IconButton(onClick = { onOverflow(true) }) { Icon(Icons.Default.MoreVert, contentDescription = "Menu") }
+            DropdownMenu(expanded = showOverflow, onDismissRequest = { onOverflow(false) }) {
+                DropdownMenuItem(
+                    text = { Text("New private tab") },
+                    onClick = { onOverflow(false); onNewPrivate() },
+                    leadingIcon = { Icon(Icons.Default.Security, contentDescription = null) },
+                )
+                DropdownMenuItem(
+                    text = { Text("Close all tabs") },
+                    onClick = { onOverflow(false); onCloseAll() },
+                    leadingIcon = { Icon(Icons.Default.Close, contentDescription = null) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TabListRow(
+    tab: TabState,
+    isSelected: Boolean,
+    onSelect: () -> Unit,
+    onClose: () -> Unit,
+) {
+    val shape = RoundedCornerShape(16.dp)
+    val colors = MaterialTheme.colorScheme
+    Surface(
+        shape = shape,
+        color = if (isSelected) colors.secondaryContainer else colors.surfaceContainerHigh,
+        border = if (isSelected) BorderStroke(2.dp, colors.primary) else null,
+        modifier = Modifier.fillMaxWidth().clip(shape).clickable(onClick = onSelect),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().height(64.dp).padding(start = 12.dp, end = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(colors.surfaceContainerHighest),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (tab.isPrivate) {
+                    Icon(Icons.Default.Security, contentDescription = "Private tab", tint = colors.primary, modifier = Modifier.size(20.dp))
+                } else if (tab.favicon != null) {
+                    Image(bitmap = tab.favicon.asImageBitmap(), contentDescription = null, modifier = Modifier.size(20.dp).clip(CircleShape))
+                } else {
+                    Icon(Icons.Outlined.Public, contentDescription = null, tint = colors.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                }
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = tab.title.ifEmpty { "New tab" },
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                    color = if (isSelected) colors.onSecondaryContainer else colors.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                val domain = TabsLogic.domain(tab.url)
+                val sub = when {
+                    isSelected && domain.isNotEmpty() -> "Current · $domain"
+                    isSelected -> "Current"
+                    else -> domain
+                }
+                if (sub.isNotEmpty()) {
+                    Text(
+                        text = sub,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (isSelected) colors.primary else colors.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            IconButton(onClick = onClose, modifier = Modifier.size(48.dp)) {
+                Icon(Icons.Default.Close, contentDescription = "Close tab", tint = colors.onSurfaceVariant, modifier = Modifier.size(18.dp))
+            }
+        }
     }
 }
 
@@ -287,7 +418,7 @@ private fun TabCard(
 ) {
     val shape = RoundedCornerShape(16.dp)
     val borderStroke = if (isSelected) {
-        BorderStroke(3.dp, MaterialTheme.colorScheme.primary)
+        BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
     } else {
         null
     }
@@ -335,15 +466,26 @@ private fun TabCard(
 
                 Spacer(modifier = Modifier.width(8.dp))
 
-                Text(
-                    text = tab.title.ifEmpty { "New tab" },
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = tab.title.ifEmpty { "New tab" },
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    val domain = TabsLogic.domain(tab.url)
+                    if (domain.isNotEmpty()) {
+                        Text(
+                            text = domain,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
 
                 IconButton(
                     onClick = onClose,

@@ -182,7 +182,9 @@ fun BrowserScreen(
 
     // Ensure toolbar is fully shown at top, during loading, find, edit, or navigation
     val shouldForceToolbarShown = currentTab?.isLoading == true || isFindMode || isEditMode
-    LaunchedEffect(shouldForceToolbarShown, currentTab?.url) {
+    // Keyed on the URL without its fragment: in-page hash changes must not pop the bars back up.
+    val navKey = currentTab?.url?.substringBefore('#')
+    LaunchedEffect(shouldForceToolbarShown, navKey) {
         bars.hidden = false
         barTracker.reset()
         if (!bars.pointerDown) applyBarsState()
@@ -236,8 +238,10 @@ fun BrowserScreen(
     }
 
     // Close activity if no tabs remain
-    LaunchedEffect(tabs) {
-        if (tabs.isEmpty() && currentTabId == null) {
+    // Only once restore is done: the tab list is empty before that, which used to close the browser right after it opened.
+    val restored by tabManager.restored.collectAsStateWithLifecycle()
+    LaunchedEffect(tabs, restored) {
+        if (shouldFinishWhenEmpty(restored, tabs.size, currentTabId, tabManager.linkQueue.hasPendingLinks())) {
             onFinishActivity()
         }
     }
@@ -520,12 +524,6 @@ fun BrowserScreen(
                             .zIndex(5f),
                     ) {
                         Column(modifier = Modifier.fillMaxWidth()) {
-                            if (browserPrefs.toolbarPosition == ToolbarPosition.BOTTOM) {
-                                currentTab?.let { tabState ->
-                                    browserHooks.siteBar(tabState)
-                                }
-                            }
-
                             BrowserToolbar(
                                 tab = currentTab,
                                 tabs = tabs,
@@ -606,6 +604,7 @@ fun BrowserScreen(
                                 onSelectTab = { tabId ->
                                     tabManager.selectTab(tabId)
                                 },
+                                statusIcon = { currentTab?.let { browserHooks.siteStatusIcon(it) } },
                                 onCopyLink = {
                                     currentTab?.url?.let { url ->
                                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -616,15 +615,28 @@ fun BrowserScreen(
                                     }
                                 },
                             )
-
-                            if (browserPrefs.toolbarPosition == ToolbarPosition.TOP) {
-                                currentTab?.let { tabState ->
-                                    browserHooks.siteBar(tabState)
-                                }
-                            }
                         }
                     }
                 }
+
+                // Back-to-FMHY bubble: slides away with the toolbar, hidden while something else owns the screen.
+                BackBubble(
+                    settingsRepository = settingsRepository,
+                    visible = BubbleLogic.backBubbleVisible(
+                        hidden = browserPrefs.backBubbleHidden,
+                        fullscreen = customView != null,
+                        pip = isInPip,
+                        ime = WindowInsets.ime.getBottom(density) > 0,
+                        editMode = isEditMode,
+                        findMode = isFindMode,
+                    ),
+                    toolbarPosition = browserPrefs.toolbarPosition,
+                    barHeightPx = totalBarHeightPx,
+                    barTranslation = { toolbarTranslation.value },
+                    side = browserPrefs.backBubbleSide,
+                    yFraction = browserPrefs.backBubbleY,
+                    modifier = Modifier.zIndex(4f),
+                )
 
                 // Edit Mode overlay (when typing a URL over an existing page)
                 if (isEditMode && currentTab != null && currentTab.url != "about:blank" && currentTab.url.isNotEmpty()) {
@@ -777,6 +789,8 @@ fun BrowserScreen(
             tabs = tabs,
             currentTabId = currentTabId,
             tabManager = tabManager,
+            tabsView = browserPrefs.tabsView,
+            onTabsViewChange = { v -> scope.launch { settingsRepository.updateBrowser { it.copy(tabsView = v) } } },
             onDismiss = { showTabsSheet = false },
             onSelectTab = { tabId ->
                 showTabsSheet = false

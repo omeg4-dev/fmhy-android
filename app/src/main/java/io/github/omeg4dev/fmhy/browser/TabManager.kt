@@ -154,6 +154,11 @@ class TabManager(
      */
     val browserTabCount: StateFlow<Int> = _browserTabCount.asStateFlow()
 
+    private val _restored = MutableStateFlow(false)
+
+    /** True once [restoreTabsIfNeeded] finished and queued links were opened; before that an empty tab list is normal. */
+    val restored: StateFlow<Boolean> = _restored.asStateFlow()
+
     private val _showTabsRequested = MutableStateFlow(false)
 
     /** Set by an intent (Home card "All tabs"); the browser screen opens the tabs sheet and calls [consumeShowTabs]. */
@@ -452,18 +457,20 @@ class TabManager(
             }
         }
 
-        linkQueue.isRestored.set(true)
+        var hadPending = false
         _browserTabCount.value = tabs.value.size
-
-        if (linkQueue.hasPendingLinks()) {
-            linkQueue.drain { link, select ->
-                openQueuedLink(link, select)
-            }
-        } else if (!restoredAny) {
-            openTab(url = "about:blank", title = "New tab", isPrivate = false, select = true)
-        } else if (records.isNotEmpty() && _currentTabId.value == null) {
-            selectTab(records.first().id)
+        linkQueue.completeRestore { link, select ->
+            hadPending = true
+            openQueuedLink(link, select)
         }
+        if (!hadPending) {
+            if (!restoredAny) {
+                openTab(url = "about:blank", title = "New tab", isPrivate = false, select = true)
+            } else if (records.isNotEmpty() && _currentTabId.value == null) {
+                selectTab(records.first().id)
+            }
+        }
+        _restored.value = true
     }
 
     fun getTabRecord(tabId: Long): TabRecord? = synchronized(records) {

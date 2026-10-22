@@ -179,3 +179,25 @@ class SiteBarModelTest {
         assertNull(model)
     }
 }
+
+class StatusIconSpecTest {
+    @Test
+    fun everyKind_hasASpec_withExpectedGlyphAndTone() {
+        val expected = mapOf(
+            SiteBarKind.STARRED to (StatusGlyph.STAR to StatusTone.TERTIARY),
+            SiteBarKind.LISTED to (StatusGlyph.VERIFIED to StatusTone.PRIMARY),
+            SiteBarKind.DOMAIN_LISTED to (StatusGlyph.VERIFIED to StatusTone.PRIMARY),
+            SiteBarKind.FMHY_SITE to (StatusGlyph.VERIFIED to StatusTone.PRIMARY),
+            SiteBarKind.NOT_ON_FMHY to (StatusGlyph.INFO to StatusTone.NEUTRAL),
+            SiteBarKind.POTENTIALLY_UNSAFE to (StatusGlyph.WARNING to StatusTone.ERROR),
+            SiteBarKind.UNSAFE to (StatusGlyph.ERROR to StatusTone.ERROR),
+        )
+        assertEquals(SiteBarKind.entries.toSet(), expected.keys)
+        for ((kind, pair) in expected) {
+            val spec = statusIconSpec(kind)
+            org.junit.Assert.assertEquals("$kind glyph", pair.first, spec.glyph)
+            org.junit.Assert.assertEquals("$kind tone", pair.second, spec.tone)
+            org.junit.Assert.assertTrue(statusTitle(kind).isNotBlank())
+        }
+    }
+}

@@ -87,3 +87,53 @@ class BrowserLinkQueueTest {
         }
     }
 }
+
+class ShouldFinishWhenEmptyTest {
+    @Test
+    fun beforeRestore_neverFinishes() {
+        assertFalse(shouldFinishWhenEmpty(restored = false, tabCount = 0, currentTabId = null, pendingLinks = false))
+    }
+
+    @Test
+    fun afterRestore_emptyAndNothingQueued_finishes() {
+        assertTrue(shouldFinishWhenEmpty(restored = true, tabCount = 0, currentTabId = null, pendingLinks = false))
+    }
+
+    @Test
+    fun afterRestore_pendingLinkOrTabs_doesNotFinish() {
+        assertFalse(shouldFinishWhenEmpty(true, 0, null, pendingLinks = true))
+        assertFalse(shouldFinishWhenEmpty(true, 1, 1L, pendingLinks = false))
+        assertFalse(shouldFinishWhenEmpty(true, 0, 3L, pendingLinks = false))
+    }
+
+    @Test
+    fun slowRestore_linksOfferedMeanwhileAreOpenedByCompleteRestore() {
+        val queue = BrowserLinkQueue()
+        val opened = mutableListOf<Pair<String, Boolean>>()
+        val sink: (QueuedLink, Boolean) -> Unit = { l, s -> opened.add(l.url to s) }
+        // restore running: the tab list is empty, finishing is not allowed even though a link is queued
+        queue.offerOrExecute(QueuedLink("https://a.example"), sink)
+        queue.offerOrExecute(QueuedLink("https://b.example"), sink)
+        assertFalse(shouldFinishWhenEmpty(false, 0, null, queue.hasPendingLinks()))
+        assertTrue(opened.isEmpty())
+        queue.completeRestore(sink)
+        assertEquals(listOf("https://a.example" to false, "https://b.example" to true), opened)
+        // after restore a new link runs at once
+        queue.offerOrExecute(QueuedLink("https://c.example"), sink)
+        assertEquals("https://c.example" to true, opened.last())
+    }
+
+    @Test
+    fun concurrentOffersDuringCompleteRestore_neverLost() {
+        repeat(200) {
+            val queue = BrowserLinkQueue()
+            val opened = java.util.concurrent.CopyOnWriteArrayList<String>()
+            val sink: (QueuedLink, Boolean) -> Unit = { l, _ -> opened.add(l.url) }
+            val threads = (1..4).map { t -> Thread { for (i in 0 until 5) queue.offerOrExecute(QueuedLink("u$t-$i"), sink) } }
+            threads.forEach { it.start() }
+            queue.completeRestore(sink)
+            threads.forEach { it.join() }
+            assertEquals(20, opened.size)
+        }
+    }
+}

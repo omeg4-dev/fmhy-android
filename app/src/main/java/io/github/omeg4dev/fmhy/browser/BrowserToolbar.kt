@@ -138,6 +138,8 @@ fun BrowserToolbar(
     onToggleBookmark: () -> Unit = {},
     onSelectTab: (Long) -> Unit = {},
     onCopyLink: () -> Unit = {},
+    /** FMHY status icon (drawn at the start of the address pill); empty when the tab has no state. */
+    statusIcon: @Composable () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val haptics = rememberHaptics()
@@ -185,37 +187,6 @@ fun BrowserToolbar(
                     )
                 }
 
-                // Back to FMHY pill, immediately left of the address pill
-                val context = LocalContext.current
-                Surface(
-                    onClick = { bringFmhyToFront(context) },
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier
-                        .padding(horizontal = 4.dp)
-                        .minimumInteractiveComponentSize()
-                        .height(32.dp)
-                        .semantics { contentDescription = "Back to FMHY" },
-                ) {
-                    Row(
-                        modifier = Modifier.padding(start = 6.dp, end = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                        )
-                        Text(
-                            text = "FMHY",
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                        )
-                    }
-                }
-
                 // Address pill (weight 1, swipe tabs, progress line)
                 AddressPill(
                     tab = tab,
@@ -224,6 +195,7 @@ fun BrowserToolbar(
                     onAddressClick = onAddressClick,
                     onShieldClick = onShieldClick,
                     onSelectTab = onSelectTab,
+                    statusIcon = statusIcon,
                     modifier = Modifier.weight(1f),
                 )
 
@@ -357,6 +329,7 @@ private fun AddressPill(
     onAddressClick: () -> Unit,
     onShieldClick: () -> Unit,
     onSelectTab: (Long) -> Unit,
+    statusIcon: @Composable () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val haptics = rememberHaptics()
@@ -426,9 +399,13 @@ private fun AddressPill(
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(start = 12.dp, end = 4.dp),
+                .padding(start = if (tab?.siteBarState != null) 4.dp else 12.dp, end = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            // FMHY status icon (32 dp touch box, 18 dp glyph) with its own tap popover
+            statusIcon()
+            if (tab?.siteBarState != null) Spacer(modifier = Modifier.width(4.dp))
+
             // Leading 20 dp site favicon
             if (tab?.favicon != null && !tab.isPrivate) {
                 Image(

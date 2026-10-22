@@ -142,35 +142,14 @@ fun BrowserPage(
                             },
                         )
                         SettingsDivider()
-                        ChoiceRow(
-                            title = "Browser button",
-                            options = listOf(
-                                BrowserButtonStyle.FLOATING to "Floating",
-                                BrowserButtonStyle.TOP_BAR to "In top bar",
-                            ),
-                            selected = browserPrefs.browserButton,
-                            onSelect = { style ->
-                                viewModel.updateBrowser { it.copy(browserButton = style) }
+                        SwitchRow(
+                            title = "Back-to-FMHY button",
+                            summary = "Small floating arrow in the browser that returns to FMHY",
+                            checked = !browserPrefs.backBubbleHidden,
+                            onChange = { checked ->
+                                viewModel.updateBrowser { it.copy(backBubbleHidden = !checked) }
                             },
                         )
-                        if (browserPrefs.browserBubbleHidden) {
-                            androidx.compose.foundation.layout.Row(
-                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp),
-                            ) {
-                                Text(
-                                    text = "Hidden from the hold menu",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.weight(1f),
-                                )
-                                androidx.compose.material3.TextButton(onClick = {
-                                    viewModel.updateBrowser { it.copy(browserBubbleHidden = false) }
-                                }) { Text("Show again") }
-                            }
-                        }
                     }
                 }
             }
@@ -224,8 +203,8 @@ fun BrowserPage(
                         // FMHY helpers
                         SettingsSection(title = "FMHY helpers") {
                             SwitchRow(
-                                title = "FMHY site bar",
-                                summary = "Shows where a site is listed on FMHY",
+                                title = "FMHY status icon",
+                                summary = "Small icon in the address bar showing if a site is on FMHY",
                                 checked = browserPrefs.siteBar,
                                 onChange = { checked ->
                                     viewModel.updateBrowser { it.copy(siteBar = checked) }

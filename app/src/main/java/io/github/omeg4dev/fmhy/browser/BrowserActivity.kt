@@ -35,6 +35,7 @@ import io.github.omeg4dev.fmhy.browser.media.shouldKeepPlaying
 import io.github.omeg4dev.fmhy.data.Appearance
 import io.github.omeg4dev.fmhy.data.ThemeMode
 import io.github.omeg4dev.fmhy.theme.FMHYTheme
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 class BrowserActivity : ComponentActivity() {
@@ -285,7 +286,15 @@ class BrowserActivity : ComponentActivity() {
         val container = (application as FmhyApp).container
         val url = intent.dataString
         if (url.isNullOrBlank()) {
-            if (container.tabManager.linkQueue.isRestored.get()) handleSwitchExtras(intent)
+            if (container.tabManager.linkQueue.isRestored.get()) {
+                handleSwitchExtras(intent)
+            } else {
+                // Restore still running: keep the extras and apply them right after it (they are consumed once).
+                lifecycleScope.launch {
+                    container.tabManager.restored.first { it }
+                    handleSwitchExtras(intent)
+                }
+            }
         } else {
             val entryId = intent.getStringExtra(EXTRA_ENTRY_ID)
             val newTab = intent.getBooleanExtra(EXTRA_NEW_TAB, true)
@@ -309,6 +318,15 @@ class BrowserActivity : ComponentActivity() {
         if (intent.getBooleanExtra(EXTRA_SHOW_TABS, false)) {
             intent.removeExtra(EXTRA_SHOW_TABS)
             tabManager.requestShowTabs()
+        }
+        if (intent.getBooleanExtra(EXTRA_NEW_TAB_PAGE, false)) {
+            val private = intent.getBooleanExtra(EXTRA_PRIVATE_TAB, false)
+            intent.removeExtra(EXTRA_NEW_TAB_PAGE)
+            intent.removeExtra(EXTRA_PRIVATE_TAB)
+            // A cold start already made one blank tab; don't stack a second one on top of it.
+            val only = tabManager.tabs.value.singleOrNull()
+            if (only != null && only.url == "about:blank" && only.isPrivate == private && tabManager.currentTabId.value == only.id) return
+            tabManager.openTab(url = "about:blank", isPrivate = private, select = true)
         }
     }
 
