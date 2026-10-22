@@ -37,18 +37,33 @@ data class WhatsNewUiState(
     val isLoading: Boolean = true,
     val isRefreshing: Boolean = false,
     val oldestChangeTs: Long? = null,
+    val query: String = "",
 )
 
 class WhatsNewViewModel(
     private val initialFilter: String = "all",
+    initialType: String? = null,
     private val container: AppContainer,
 ) : ViewModel() {
+
+    companion object {
+        /** `WhatsNewNavKey.type` for the feed with every kind (incl. edits). */
+        const val TYPE_ALL = "ALL"
+    }
 
     private val store: DatasetStore = container.datasetStore
     private val userStore: UserStore = container.userStore
 
     private val period = MutableStateFlow(WhatsNewPeriod.WEEK)
-    private val types = MutableStateFlow(WhatsNewGrouping.DEFAULT_TYPES)
+    private val types = MutableStateFlow(
+        when {
+            initialType == null -> WhatsNewGrouping.DEFAULT_TYPES
+            initialType == TYPE_ALL -> emptySet()
+            else -> ChangeKind.entries.firstOrNull { it.name == initialType }?.let { setOf(it) }
+                ?: WhatsNewGrouping.DEFAULT_TYPES
+        }
+    )
+    private val query = MutableStateFlow("")
     private val scope = MutableStateFlow<WhatsNewScope>(
         when (initialFilter) {
             "following" -> WhatsNewScope.Following
@@ -170,13 +185,15 @@ class WhatsNewViewModel(
         FilterState(p, t, s, refreshing, loading)
     }
 
+    private val filterAndQuery = combine(filterState, query) { f, q -> f to q }
+
     val uiState: StateFlow<WhatsNewUiState> = combine(
-        filterState,
+        filterAndQuery,
         rawChanges,
         allSections,
         followsList,
         savedUrlsAndIds,
-    ) { filter, changes, sections, follows, (savedIds, savedUrls) ->
+    ) { (filter, text), changes, sections, follows, (savedIds, savedUrls) ->
         val collapsedCards = WhatsNewGrouping.collapseChanges(changes)
 
         // Sections that have changes in current dataset/period
@@ -194,12 +211,17 @@ class WhatsNewViewModel(
             hierarchy = hierarchy,
         )
 
-        // 2. Counts per kind computed AFTER scope filter, BEFORE type filter
-        val counts = WhatsNewGrouping.countsPerKind(afterScopeCards)
-        val totalCards = afterScopeCards.size
+        // 1b. Free-text search over name, host and section title
+        val afterTextCards = WhatsNewGrouping.filterByText(
+            afterScopeCards, text, sections.associate { it.id to it.title },
+        )
+
+        // 2. Counts per kind computed AFTER scope + text filter, BEFORE type filter
+        val counts = WhatsNewGrouping.countsPerKind(afterTextCards)
+        val totalCards = afterTextCards.size
 
         // 3. Filter by types
-        val afterTypeCards = WhatsNewGrouping.filterByTypes(afterScopeCards, filter.types)
+        val afterTypeCards = WhatsNewGrouping.filterByTypes(afterTextCards, filter.types)
 
         // 4. Group by day
         val dayGroups = WhatsNewGrouping.groupByDay(afterTypeCards).toImmutableList()
@@ -217,6 +239,7 @@ class WhatsNewViewModel(
             isLoading = filter.loading,
             isRefreshing = filter.refreshing,
             oldestChangeTs = oldestTs,
+            query = text,
         )
     }.stateIn(
         viewModelScope,
@@ -228,6 +251,10 @@ class WhatsNewViewModel(
             isLoading = true,
         )
     )
+
+    fun setQuery(text: String) {
+        query.value = text
+    }
 
     fun setPeriod(newPeriod: WhatsNewPeriod) {
         if (period.value == newPeriod) return

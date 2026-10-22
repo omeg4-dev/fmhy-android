@@ -544,8 +544,8 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
         }
 
         entry<WhatsNewNavKey> { key ->
-            val whatsNewViewModel: io.github.omeg4dev.fmhy.ui.whatsnew.WhatsNewViewModel = viewModel(key = "whatsnew-${key.filter}") {
-                io.github.omeg4dev.fmhy.ui.whatsnew.WhatsNewViewModel(key.filter, container)
+            val whatsNewViewModel: io.github.omeg4dev.fmhy.ui.whatsnew.WhatsNewViewModel = viewModel(key = "whatsnew-${key.filter}-${key.type}") {
+                io.github.omeg4dev.fmhy.ui.whatsnew.WhatsNewViewModel(key.filter, key.type, container)
             }
             io.github.omeg4dev.fmhy.ui.whatsnew.WhatsNewScreen(
                 viewModel = whatsNewViewModel,
@@ -554,6 +554,7 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                 onShowSnackbar = { msg ->
                     scope.launch { snackbarHostState.showSnackbar(msg) }
                 },
+                startInHub = key.filter == "all" && key.type == null,
             )
         }
 

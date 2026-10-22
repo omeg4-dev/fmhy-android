@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -61,6 +62,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -106,6 +108,8 @@ fun WhatsNewScreen(
     container: AppContainer,
     onBack: () -> Unit,
     onShowSnackbar: (String) -> Unit = {},
+    /** Open on the hub (All changes + one tile per kind) instead of the feed. */
+    startInHub: Boolean = false,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
@@ -114,6 +118,18 @@ fun WhatsNewScreen(
     val haptics = rememberHaptics()
     val linkOpener = rememberLinkOpener(container, onShowSnackbar)
     val pasteResolver = LocalPasteResolver.current
+
+    // Hub -> feed is internal state so the system back from the feed lands on the hub again.
+    var inFeed by rememberSaveable { mutableStateOf(!startInHub) }
+    var searchText by rememberSaveable { mutableStateOf("") }
+    val showFeed = inFeed || searchText.isNotBlank()
+    fun backToHub() {
+        inFeed = false
+        searchText = ""
+        viewModel.setQuery("")
+        viewModel.setScope(WhatsNewScope.All)
+    }
+    BackHandler(enabled = startInHub && showFeed) { backToHub() }
 
     var showLegendSheet by remember { mutableStateOf(false) }
     var showSectionsSheet by remember { mutableStateOf(false) }
@@ -149,7 +165,7 @@ fun WhatsNewScreen(
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = { if (startInHub && showFeed) backToHub() else onBack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
@@ -186,7 +202,44 @@ fun WhatsNewScreen(
                 .fillMaxSize()
                 .padding(innerPadding),
         ) {
+            if (!showFeed) {
+                WhatsNewHub(
+                    state = state,
+                    searchText = searchText,
+                    onSearchChange = {
+                        // A search from the hub looks through every kind, including edits.
+                        if (searchText.isBlank() && it.isNotBlank()) viewModel.setTypes(emptySet())
+                        searchText = it
+                        viewModel.setQuery(it)
+                    },
+                    onSetPeriod = {
+                        haptics.tick()
+                        viewModel.setPeriod(it)
+                    },
+                    onOpenAll = {
+                        viewModel.setTypes(emptySet())
+                        inFeed = true
+                    },
+                    onOpenKind = {
+                        viewModel.setTypes(setOf(it))
+                        inFeed = true
+                    },
+                    onOpenScope = {
+                        viewModel.setTypes(WhatsNewGrouping.DEFAULT_TYPES)
+                        viewModel.setScope(it)
+                        inFeed = true
+                    },
+                )
+            } else
             Column(modifier = Modifier.fillMaxSize()) {
+                WhatsNewSearchField(
+                    text = searchText,
+                    onChange = {
+                        searchText = it
+                        viewModel.setQuery(it)
+                    },
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp),
+                )
                 // Filter dropdown pills row
                 FilterBar(
                     state = state,
