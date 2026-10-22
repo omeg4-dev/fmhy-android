@@ -619,6 +619,25 @@ fun BrowserScreen(
                     }
                 }
 
+                // Back-to-FMHY bubble: slides away with the toolbar, hidden while something else owns the screen.
+                BackBubble(
+                    settingsRepository = settingsRepository,
+                    visible = BubbleLogic.backBubbleVisible(
+                        hidden = browserPrefs.backBubbleHidden,
+                        fullscreen = customView != null,
+                        pip = isInPip,
+                        ime = WindowInsets.ime.getBottom(density) > 0,
+                        editMode = isEditMode,
+                        findMode = isFindMode,
+                    ),
+                    toolbarPosition = browserPrefs.toolbarPosition,
+                    barHeightPx = totalBarHeightPx,
+                    barTranslation = { toolbarTranslation.value },
+                    side = browserPrefs.backBubbleSide,
+                    yFraction = browserPrefs.backBubbleY,
+                    modifier = Modifier.zIndex(4f),
+                )
+
                 // Edit Mode overlay (when typing a URL over an existing page)
                 if (isEditMode && currentTab != null && currentTab.url != "about:blank" && currentTab.url.isNotEmpty()) {
                     BrowserEditMode(
