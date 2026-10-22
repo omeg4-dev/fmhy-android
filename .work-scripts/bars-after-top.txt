@@ -1,0 +1,65 @@
+All files should be loaded. Notifying the device.
+== top
+--- a) tap (expect none) raw=
+
+  [hides=0 shows=0]
+--- d) slow drag up 400px + lift (expect hides=1 shows=0) raw=8
+  18:43:57.494 D/FmhyBars(20202): target 0.0 -> -171.0 pointerDown=false
+  18:43:57.526 D/FmhyBars(20202): webView.translationY=161.25002 pointerDown=false
+  18:43:57.587 D/FmhyBars(20202): webView.translationY=121.66243 pointerDown=false
+  18:43:57.691 D/FmhyBars(20202): webView.translationY=62.149925 pointerDown=false
+  18:43:57.721 D/FmhyBars(20202): webView.translationY=4.8303833 pointerDown=false
+  18:43:57.742 D/FmhyBars(20202): webView.translationY=2.588562 pointerDown=false
+  18:43:57.765 D/FmhyBars(20202): webView.translationY=0.26356506 pointerDown=false
+  18:43:57.783 D/FmhyBars(20202): webView.translationY=0.0 pointerDown=false
+
+  [hides=1 shows=0]
+--- d2) slow drag down 400px + lift (expect shows<=1) raw=13
+  18:44:01.830 D/FmhyBars(20202): target -171.0 -> 0.0 pointerDown=false
+  18:44:01.859 D/FmhyBars(20202): webView.translationY=9.75 pointerDown=false
+  18:44:01.879 D/FmhyBars(20202): webView.translationY=49.33757 pointerDown=false
+  18:44:01.896 D/FmhyBars(20202): webView.translationY=85.5 pointerDown=false
+  18:44:01.925 D/FmhyBars(20202): webView.translationY=108.85007 pointerDown=false
+  18:44:01.944 D/FmhyBars(20202): webView.translationY=125.151695 pointerDown=false
+  18:44:01.975 D/FmhyBars(20202): webView.translationY=137.19049 pointerDown=false
+  18:44:01.998 D/FmhyBars(20202): webView.translationY=153.41512 pointerDown=false
+  18:44:02.021 D/FmhyBars(20202): webView.translationY=158.87134 pointerDown=false
+  18:44:02.048 D/FmhyBars(20202): webView.translationY=163.04605 pointerDown=false
+  18:44:02.067 D/FmhyBars(20202): webView.translationY=168.41144 pointerDown=false
+  18:44:02.094 D/FmhyBars(20202): webView.translationY=169.90027 pointerDown=false
+  18:44:02.125 D/FmhyBars(20202): webView.translationY=171.0 pointerDown=false
+
+  [hides=0 shows=1]
+--- e) fling up (expect hides=1 shows=0) raw=13
+  18:44:07.973 D/FmhyBars(20202): target 0.0 -> -171.0 pointerDown=false
+  18:44:08.013 D/FmhyBars(20202): webView.translationY=161.25002 pointerDown=false
+  18:44:08.032 D/FmhyBars(20202): webView.translationY=121.66243 pointerDown=false
+  18:44:08.055 D/FmhyBars(20202): webView.translationY=85.5 pointerDown=false
+  18:44:08.080 D/FmhyBars(20202): webView.translationY=62.149925 pointerDown=false
+  18:44:08.100 D/FmhyBars(20202): webView.translationY=33.80951 pointerDown=false
+  18:44:08.124 D/FmhyBars(20202): webView.translationY=24.649231 pointerDown=false
+  18:44:08.145 D/FmhyBars(20202): webView.translationY=12.128662 pointerDown=false
+  18:44:08.163 D/FmhyBars(20202): webView.translationY=7.953949 pointerDown=false
+  18:44:08.188 D/FmhyBars(20202): webView.translationY=4.8303833 pointerDown=false
+  18:44:08.210 D/FmhyBars(20202): webView.translationY=2.588562 pointerDown=false
+  18:44:08.227 D/FmhyBars(20202): webView.translationY=0.26356506 pointerDown=false
+  18:44:08.255 D/FmhyBars(20202): webView.translationY=0.0 pointerDown=false
+
+  [hides=1 shows=0]
+--- e2) fling down raw=14
+  18:44:10.776 D/FmhyBars(20202): target -171.0 -> 0.0 pointerDown=false
+  18:44:10.814 D/FmhyBars(20202): webView.translationY=9.75 pointerDown=false
+  18:44:10.832 D/FmhyBars(20202): webView.translationY=49.33757 pointerDown=false
+  18:44:10.856 D/FmhyBars(20202): webView.translationY=85.5 pointerDown=false
+  18:44:10.876 D/FmhyBars(20202): webView.translationY=108.85007 pointerDown=false
+  18:44:10.896 D/FmhyBars(20202): webView.translationY=137.19049 pointerDown=false
+  18:44:10.915 D/FmhyBars(20202): webView.translationY=146.35077 pointerDown=false
+  18:44:10.937 D/FmhyBars(20202): webView.translationY=153.41512 pointerDown=false
+  18:44:10.961 D/FmhyBars(20202): webView.translationY=158.87134 pointerDown=false
+  18:44:10.978 D/FmhyBars(20202): webView.translationY=166.16962 pointerDown=false
+  18:44:11.000 D/FmhyBars(20202): webView.translationY=168.41144 pointerDown=false
+  18:44:11.018 D/FmhyBars(20202): webView.translationY=169.90027 pointerDown=false
+  18:44:11.039 D/FmhyBars(20202): webView.translationY=170.73643 pointerDown=false
+  18:44:11.059 D/FmhyBars(20202): webView.translationY=171.0 pointerDown=false
+
+  [hides=0 shows=1]

@@ -182,7 +182,9 @@ fun BrowserScreen(
 
     // Ensure toolbar is fully shown at top, during loading, find, edit, or navigation
     val shouldForceToolbarShown = currentTab?.isLoading == true || isFindMode || isEditMode
-    LaunchedEffect(shouldForceToolbarShown, currentTab?.url) {
+    // Keyed on the URL without its fragment: in-page hash changes must not pop the bars back up.
+    val navKey = currentTab?.url?.substringBefore('#')
+    LaunchedEffect(shouldForceToolbarShown, navKey) {
         bars.hidden = false
         barTracker.reset()
         if (!bars.pointerDown) applyBarsState()
