@@ -2,6 +2,12 @@
 
 <img src="app/src/main/res/drawable-nodpi/fmhy_logo_hero.png" width="120" alt="FMHY logo">
 
+[![Stars](https://img.shields.io/github/stars/omeg4-dev/fmhy-android?style=flat)](https://github.com/omeg4-dev/fmhy-android/stargazers)
+[![Release](https://img.shields.io/github/v/release/omeg4-dev/fmhy-android)](https://github.com/omeg4-dev/fmhy-android/releases/latest)
+[![Last Commit](https://img.shields.io/github/last-commit/omeg4-dev/fmhy-android)](https://github.com/omeg4-dev/fmhy-android/commits/main)
+[![License](https://img.shields.io/github/license/omeg4-dev/fmhy-android)](https://github.com/omeg4-dev/fmhy-android/blob/main/LICENSE)
+[![Downloads](https://img.shields.io/github/downloads/omeg4-dev/fmhy-android/total)](https://github.com/omeg4-dev/fmhy-android/releases)
+
 # FMHY for Android
 
 **The whole FMHY wiki in your pocket: faster than the website, safer than a random browser, and it works offline.**
