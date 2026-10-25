@@ -31,9 +31,7 @@ object SiteBarModel {
         if (isDismissed) return null
 
         val entry = verdict.matches.firstOrNull()
-        val path = entry?.headingPath?.ifBlank { null }
-            ?: sectionTitle?.ifBlank { null }
-            ?: entry?.sectionId?.replace('-', ' ')?.replaceFirstChar { it.uppercase() }
+        val path = entry?.let { placePath(it, sectionTitle) }
         val suffix = if (path != null) " · $path" else ""
 
         return when (verdict.status) {
@@ -121,6 +119,12 @@ fun statusIconSpec(kind: SiteBarKind): StatusIconSpec = when (kind) {
     SiteBarKind.POTENTIALLY_UNSAFE -> StatusIconSpec(StatusGlyph.WARNING, StatusTone.ERROR)
     SiteBarKind.UNSAFE -> StatusIconSpec(StatusGlyph.ERROR, StatusTone.ERROR)
 }
+
+/** A place in the lists for display: the entry's heading path ("Adblocking / Privacy › Adblocking"), else the section. */
+fun placePath(entry: Entry, sectionTitle: String? = null): String =
+    entry.headingPath.ifBlank { null }
+        ?: sectionTitle?.ifBlank { null }
+        ?: entry.sectionId.replace('-', ' ').replaceFirstChar { it.uppercase() }
 
 /** Popover title for a state; the section/reason follow underneath. */
 fun statusTitle(kind: SiteBarKind): String = when (kind) {

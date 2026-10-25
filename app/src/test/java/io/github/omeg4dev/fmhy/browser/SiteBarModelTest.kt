@@ -180,6 +180,48 @@ class SiteBarModelTest {
     }
 }
 
+class PlacePathTest {
+    private fun makeEntry(headingPath: String, sectionId: String): Entry = Entry(
+        id = "e1",
+        num = 1,
+        sectionId = sectionId,
+        headingId = null,
+        ord = 0,
+        name = "Test",
+        url = "https://example.com",
+        originalUrl = null,
+        description = "",
+        tags = emptyList(),
+        headingPath = headingPath,
+        tier = Tier.NORMAL,
+        isInlineMore = false,
+        isBase64 = false,
+        mirrors = emptyList(),
+        extraLinks = emptyList(),
+        firstSeen = 0L,
+        lastChanged = 0L,
+        starredAt = null,
+    )
+
+    @Test
+    fun headingPath_wins_over_sectionTitle() {
+        val entry = makeEntry("Video › Streaming", "video")
+        assertEquals("Video › Streaming", placePath(entry, sectionTitle = "Some Section"))
+    }
+
+    @Test
+    fun sectionTitle_fallback_when_headingPath_blank() {
+        val entry = makeEntry("", "video")
+        assertEquals("My Section", placePath(entry, sectionTitle = "My Section"))
+    }
+
+    @Test
+    fun sectionId_fallback_when_both_blank() {
+        val entry = makeEntry("", "ad-blocking")
+        assertEquals("Ad blocking", placePath(entry, sectionTitle = null))
+    }
+}
+
 class StatusIconSpecTest {
     @Test
     fun everyKind_hasASpec_withExpectedGlyphAndTone() {

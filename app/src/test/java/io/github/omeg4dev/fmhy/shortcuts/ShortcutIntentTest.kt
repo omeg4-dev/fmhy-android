@@ -37,4 +37,12 @@ class ShortcutIntentTest {
         assertNull(shortcutDestination(null))
         assertNull(shortcutDestination("nope"))
     }
+
+    @Test fun entryNeedsAnId() {
+        assertEquals(ShortcutDestination.Entry("e1", "audio", "h1"), shortcutDestination("entry", entryId = "e1", sectionId = "audio", headingId = "h1"))
+        assertEquals(ShortcutDestination.Entry("e1", null, null), shortcutDestination("entry", entryId = "e1"))
+        assertEquals(ShortcutDestination.Entry("e1", null, null), shortcutDestination("entry", entryId = "e1", sectionId = "", headingId = ""))
+        assertNull(shortcutDestination("entry"))
+        assertNull(shortcutDestination("entry", entryId = ""))
+    }
 }

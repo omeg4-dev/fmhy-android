@@ -20,6 +20,9 @@ sealed interface ShortcutDestination {
 
     /** A pinned section (headingId empty) or category, from the widget. */
     data class Pin(val sectionId: String, val headingId: String) : ShortcutDestination
+
+    /** One entry from the browser's FMHY status popup; section/heading are the fallback when the entry is gone. */
+    data class Entry(val entryId: String, val sectionId: String?, val headingId: String?) : ShortcutDestination
 }
 
 fun shortcutDestination(
@@ -36,5 +39,6 @@ fun shortcutDestination(
     "posts" -> ShortcutDestination.Posts
     "random" -> ShortcutDestination.Random(entryId?.takeIf { it.isNotEmpty() })
     "pin" -> sectionId?.takeIf { it.isNotEmpty() }?.let { ShortcutDestination.Pin(it, headingId.orEmpty()) }
+    "entry" -> entryId?.takeIf { it.isNotEmpty() }?.let { ShortcutDestination.Entry(it, sectionId?.takeIf { s -> s.isNotEmpty() }, headingId?.takeIf { h -> h.isNotEmpty() }) }
     else -> null
 }

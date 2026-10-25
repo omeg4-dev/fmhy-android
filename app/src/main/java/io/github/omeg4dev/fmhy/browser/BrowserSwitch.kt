@@ -4,6 +4,11 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import io.github.omeg4dev.fmhy.MainActivity
+import io.github.omeg4dev.fmhy.data.model.Entry
+import io.github.omeg4dev.fmhy.shortcuts.EXTRA_ENTRY_ID
+import io.github.omeg4dev.fmhy.shortcuts.EXTRA_HEADING_ID
+import io.github.omeg4dev.fmhy.shortcuts.EXTRA_OPEN
+import io.github.omeg4dev.fmhy.shortcuts.EXTRA_SECTION_ID
 
 const val EXTRA_SELECT_TAB = "select_tab"
 const val EXTRA_SHOW_TABS = "show_tabs"
@@ -39,6 +44,19 @@ fun bringFmhyToFront(context: Context) {
     val intent = Intent(context, MainActivity::class.java).apply {
         addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
         if (context !is Activity) addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+    context.startActivity(intent)
+}
+
+/** "Show in section": brings FMHY to the front at [entry]; the browser and its tabs stay alive. */
+fun showEntryInApp(context: Context, entry: Entry) {
+    val intent = Intent(context, MainActivity::class.java).apply {
+        addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+        if (context !is Activity) addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        putExtra(EXTRA_OPEN, "entry")
+        putExtra(EXTRA_ENTRY_ID, entry.id)
+        putExtra(EXTRA_SECTION_ID, entry.sectionId)
+        entry.headingId?.let { putExtra(EXTRA_HEADING_ID, it) }
     }
     context.startActivity(intent)
 }

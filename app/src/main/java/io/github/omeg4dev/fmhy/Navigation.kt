@@ -38,6 +38,8 @@ import io.github.omeg4dev.fmhy.browser.bringBrowserToFront
 import io.github.omeg4dev.fmhy.browser.openBrowserNewTab
 import io.github.omeg4dev.fmhy.browser.formatRelativeTime
 import io.github.omeg4dev.fmhy.data.adblock.FilterListCatalog
+import io.github.omeg4dev.fmhy.data.DatasetStore
+import io.github.omeg4dev.fmhy.data.model.Entry
 import io.github.omeg4dev.fmhy.ui.settings.InfoRow
 import io.github.omeg4dev.fmhy.ui.settings.NavRow
 import io.github.omeg4dev.fmhy.ui.settings.SettingsGroupHeader
@@ -235,13 +237,22 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                                 shortcut.entryId?.let { store.entry(it) } ?: store.randomTopPick()
                             }.getOrNull()
                             if (entry != null) {
+                                navigateToEntry(store, nav, entry)
+                            }
+                        }
+                        is ShortcutDestination.Entry -> {
+                            val store = container.datasetStore
+                            val entry = runCatching { store.entry(shortcut.entryId) }.getOrNull()
+                            if (entry != null) {
+                                navigateToEntry(store, nav, entry)
+                            } else if (shortcut.sectionId != null) {
                                 val anchor = runCatching {
-                                    entry.headingId?.let { hid ->
-                                        store.headings(entry.sectionId).firstOrNull { it.id == hid }?.anchor
+                                    shortcut.headingId?.let { hid ->
+                                        store.headings(shortcut.sectionId).firstOrNull { it.id == hid }?.anchor
                                     }
                                 }.getOrNull()
                                 nav.select(Tab.BROWSE)
-                                nav.push(SectionNavKey(entry.sectionId, anchor = anchor, focusEntryId = entry.id))
+                                nav.push(SectionNavKey(shortcut.sectionId, anchor = anchor))
                             }
                         }
                         is ShortcutDestination.Pin -> {
@@ -806,4 +817,14 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
         }
         UnsafeWarningDialog(linkOpener)
     }
+}
+
+private suspend fun navigateToEntry(store: DatasetStore, nav: AppNavState, entry: Entry) {
+    val anchor = runCatching {
+        entry.headingId?.let { hid ->
+            store.headings(entry.sectionId).firstOrNull { it.id == hid }?.anchor
+        }
+    }.getOrNull()
+    nav.select(Tab.BROWSE)
+    nav.push(SectionNavKey(entry.sectionId, anchor = anchor, focusEntryId = entry.id))
 }
