@@ -174,8 +174,8 @@ fun EntryRow(
     }
 
     val primaryColor = MaterialTheme.colorScheme.primary
-    val hlColor = MaterialTheme.colorScheme.onSurface
-    val hlBackground = MaterialTheme.colorScheme.primary.copy(alpha = 0.28f)
+    val hlColor = MaterialTheme.colorScheme.onPrimaryContainer
+    val hlBackground = MaterialTheme.colorScheme.primaryContainer
     val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
 
     val displayName = remember(nameHl, entry.name, hlColor, hlBackground) {

@@ -2,6 +2,7 @@ package io.github.omeg4dev.fmhy.theme
 
 import androidx.compose.material3.ColorScheme
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import com.materialkolor.dynamiccolor.ColorSpec
 import com.materialkolor.dynamiccolor.MaterialDynamicColors
 import com.materialkolor.hct.Hct
@@ -83,3 +84,33 @@ fun ColorScheme.toPureBlack(): ColorScheme = copy(
     surfaceContainerHigh = Color(0xFF1A1A1D),
     surfaceContainerHighest = Color(0xFF232327),
 )
+
+fun ColorScheme.withLightCardTiers(): ColorScheme {
+    val scLow = lerp(surface, onSurface, 0.03f)
+    val sc = lerp(surface, onSurface, 0.05f)
+    val scHigh = lerp(surface, onSurface, 0.08f)
+    val scHighest = lerp(surface, onSurface, 0.11f)
+
+    val outVariant = if (contrastRatio(outlineVariant, surface) < 1.6) {
+        lerp(surface, onSurface, 0.22f)
+    } else {
+        outlineVariant
+    }
+
+    var out = outline
+    var f = 0.0f
+    while (contrastRatio(out, surface) < 3.0 && f <= 1.0f) {
+        f += 0.05f
+        out = lerp(surface, onSurface, f)
+    }
+
+    return copy(
+        surfaceContainerLowest = surface,
+        surfaceContainerLow = scLow,
+        surfaceContainer = sc,
+        surfaceContainerHigh = scHigh,
+        surfaceContainerHighest = scHighest,
+        outlineVariant = outVariant,
+        outline = out,
+    )
+}

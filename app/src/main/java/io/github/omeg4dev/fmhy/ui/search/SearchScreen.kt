@@ -750,8 +750,8 @@ private fun CategoryRow(
 ) {
     val title = hit.heading?.title ?: hit.section.title
     val words = remember(query) { plainQueryWords(query) }
-    val hlColor = MaterialTheme.colorScheme.onSurface
-    val hlBackground = MaterialTheme.colorScheme.primary.copy(alpha = 0.28f)
+    val hlColor = MaterialTheme.colorScheme.onPrimaryContainer
+    val hlBackground = MaterialTheme.colorScheme.primaryContainer
     val styled = remember(title, words, hlColor, hlBackground) { parseHighlight(categoryHighlight(title, words), hlColor, hlBackground) }
     ListItem(
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
@@ -929,8 +929,8 @@ private fun suggestionIcon(s: QuerySuggestion) = when (s.kind) {
 private fun MatchLine(hit: SearchHit) {
     val label = hit.extraLabel ?: return
     val hl = hit.extraHl ?: return
-    val hlColor = MaterialTheme.colorScheme.onSurface
-    val hlBackground = MaterialTheme.colorScheme.primary.copy(alpha = 0.28f)
+    val hlColor = MaterialTheme.colorScheme.onPrimaryContainer
+    val hlBackground = MaterialTheme.colorScheme.primaryContainer
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     val text = remember(label, hl, hlColor, hlBackground, muted) {
         buildAnnotatedString {

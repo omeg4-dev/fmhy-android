@@ -38,8 +38,8 @@ private fun buildPaletteColors(seedArgb: Int, dark: Boolean): PaletteColors {
         PaletteColors(
             accent = Color(Hct.from(h, c, 40.0).toInt()),
             onAccent = Color.White,
-            selected = Color(Hct.from(h, (c * 0.55).coerceIn(16.0, 48.0), 72.0).toInt()),
-            onSelected = Color(Hct.from(h, 30.0, 10.0).toInt()),
+            selected = Color(Hct.from(h, (c * 0.55).coerceIn(16.0, 48.0), 58.0).toInt()),
+            onSelected = Color(Hct.from(h, 30.0, 8.0).toInt()),
             accentContainer = Color(Hct.from(h, (c * 0.4).coerceIn(12.0, 36.0), 90.0).toInt()),
             onAccentContainer = Color(Hct.from(h, 30.0, 10.0).toInt()),
         )
@@ -74,10 +74,10 @@ fun AccentPalette.colors(dark: Boolean): PaletteColors = if (dark) this.dark els
 
 fun paletteColorScheme(seedArgb: Int, dark: Boolean): ColorScheme {
     val base = seedColorScheme(seedArgb, dark)
-    val palette = paletteFor(seedArgb) ?: return base
+    val palette = paletteFor(seedArgb) ?: return if (dark) base else base.withLightCardTiers()
     val colors = palette.colors(dark)
 
-    return base.copy(
+    val scheme = base.copy(
         primary = colors.accent,
         onPrimary = colors.onAccent,
         primaryContainer = colors.selected,
@@ -101,6 +101,7 @@ fun paletteColorScheme(seedArgb: Int, dark: Boolean): ColorScheme {
         surfaceTint = colors.accent,
         inversePrimary = if (dark) palette.light.accent else palette.dark.accent,
     )
+    return if (dark) scheme else scheme.withLightCardTiers()
 }
 
 fun calloutColorsForSeed(seedArgb: Int, dark: Boolean): CalloutColors {

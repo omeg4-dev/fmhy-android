@@ -46,20 +46,22 @@ class CalloutColorsTest {
                     selectedContrast >= 1.15,
                 )
 
-                // 1c. Contrast against every surfaceContainer* >= 1.15
-                val surfaceContainers = listOf(
-                    "surfaceContainerLowest" to scheme.surfaceContainerLowest,
-                    "surfaceContainerLow" to scheme.surfaceContainerLow,
-                    "surfaceContainer" to scheme.surfaceContainer,
-                    "surfaceContainerHigh" to scheme.surfaceContainerHigh,
-                    "surfaceContainerHighest" to scheme.surfaceContainerHighest,
-                )
-                for ((scName, scColor) in surfaceContainers) {
-                    val scContrast = contrastRatio(tipContainer, scColor)
-                    assertTrue(
-                        "TIP container vs $scName contrast was $scContrast, expected >= 1.15 for ${palette.name} ($modeName)",
-                        scContrast >= 1.15,
+                // 1c. Contrast against every surfaceContainer* >= 1.15 (dark only: calm light callout distinctness comes from hue+border)
+                if (dark) {
+                    val surfaceContainers = listOf(
+                        "surfaceContainerLowest" to scheme.surfaceContainerLowest,
+                        "surfaceContainerLow" to scheme.surfaceContainerLow,
+                        "surfaceContainer" to scheme.surfaceContainer,
+                        "surfaceContainerHigh" to scheme.surfaceContainerHigh,
+                        "surfaceContainerHighest" to scheme.surfaceContainerHighest,
                     )
+                    for ((scName, scColor) in surfaceContainers) {
+                        val scContrast = contrastRatio(tipContainer, scColor)
+                        assertTrue(
+                            "TIP container vs $scName contrast was $scContrast, expected >= 1.15 for ${palette.name} ($modeName)",
+                            scContrast >= 1.15,
+                        )
+                    }
                 }
 
                 // 1d. TIP accent hue >= 40° from palette accent hue

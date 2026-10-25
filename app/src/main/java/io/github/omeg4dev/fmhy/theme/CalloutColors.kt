@@ -70,7 +70,7 @@ private val DANGER_DARK = CalloutStyle(
 )
 
 private val TIP_GREEN_TEAL_LIGHT = CalloutStyle(
-    container = Color(0xFFA7DCD2), // luminance ~0.64, distinct from surfaceContainer*
+    container = Color(0xFFD7EDE1), // HCT tone ~92, hue ~170°, calm light callout
     border = Color(0xFF5DBFA8),
     accent = Color(0xFF006C50),    // HCT hue ~170° (in 165..175°)
     link = Color(0xFF004D38),
@@ -84,7 +84,7 @@ private val TIP_GREEN_TEAL_DARK = CalloutStyle(
 )
 
 private val TIP_BLUE_LIGHT = CalloutStyle(
-    container = Color(0xFFADD0FB), // luminance ~0.61, distinct from surfaceContainer*
+    container = Color(0xFFDBE9FB),
     border = Color(0xFF75A9F9),
     accent = Color(0xFF005E93),    // HCT hue ~248° (in 235..250°)
     link = Color(0xFF00446C),
@@ -124,7 +124,7 @@ fun materialYouCalloutColors(primary: Color, surface: Color, dark: Boolean): Cal
     val c = contrastRatio(nudgedGreenTip.container, surface)
     val hueDist = circularHueDistance(Hct.fromInt(nudgedGreenTip.accent.toArgb()).hue, primaryHue)
 
-    return if (c < 1.25 || hueDist < 40.0) {
+    return if (c < 1.15 || hueDist < 40.0) {
         val blueSet = calloutColors(CalloutSet.BLUE, dark)
         val nudgedBlueTip = nudgeCalloutStyle(blueSet.tip, primaryHue, maxNudgeDeg = 15.0)
         blueSet.copy(tip = nudgedBlueTip)

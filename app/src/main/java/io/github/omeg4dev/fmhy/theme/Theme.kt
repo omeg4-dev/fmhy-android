@@ -36,7 +36,7 @@ fun FMHYTheme(
     val context = LocalContext.current
     val baseScheme = when {
         appearance.colorSource == ColorSource.MATERIAL_YOU && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+            if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context).withLightCardTiers()
         }
         else -> remember(appearance.accentSeed, dark) {
             paletteColorScheme(appearance.accentSeed, dark)
