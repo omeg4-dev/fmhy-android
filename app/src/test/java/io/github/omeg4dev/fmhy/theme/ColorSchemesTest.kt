@@ -43,7 +43,7 @@ class ColorSchemesTest {
     fun testWcagContrastRequirements() {
         for (seed in sharedSeeds) {
             for (dark in listOf(false, true)) {
-                val scheme = seedColorScheme(seed, dark)
+                val scheme = paletteColorScheme(seed, dark)
 
                 val onSurfaceContrast = contrast(scheme.onSurface, scheme.surface)
                 assertTrue(
@@ -69,14 +69,14 @@ class ColorSchemesTest {
     @Test
     fun testSurfaceLuminanceRequirements() {
         for (seed in sharedSeeds) {
-            val lightScheme = seedColorScheme(seed, dark = false)
+            val lightScheme = paletteColorScheme(seed, dark = false)
             val lightLuminance = relativeLuminance(lightScheme.surface)
             assertTrue(
                 "light surface luminance was $lightLuminance, expected > 0.8 for seed $seed",
                 lightLuminance > 0.8,
             )
 
-            val darkScheme = seedColorScheme(seed, dark = true)
+            val darkScheme = paletteColorScheme(seed, dark = true)
             val darkLuminance = relativeLuminance(darkScheme.surface)
             assertTrue(
                 "dark surface luminance was $darkLuminance, expected < 0.05 for seed $seed",
@@ -88,7 +88,7 @@ class ColorSchemesTest {
     @Test
     fun testToPureBlackModifiesSurfaceLeavesPrimaryUnchanged() {
         for (seed in sharedSeeds) {
-            val darkScheme = seedColorScheme(seed, dark = true)
+            val darkScheme = paletteColorScheme(seed, dark = true)
             val pureBlackScheme = darkScheme.toPureBlack()
 
             assertEquals(Color.Black, pureBlackScheme.surface)

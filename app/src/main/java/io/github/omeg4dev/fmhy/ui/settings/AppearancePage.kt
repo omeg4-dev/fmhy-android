@@ -82,7 +82,9 @@ import io.github.omeg4dev.fmhy.data.ColorSource
 import io.github.omeg4dev.fmhy.data.ThemeMode
 import io.github.omeg4dev.fmhy.theme.ACCENT_PRESETS
 import io.github.omeg4dev.fmhy.theme.LocalIsDarkTheme
-import io.github.omeg4dev.fmhy.theme.seedColorScheme
+import io.github.omeg4dev.fmhy.theme.colors
+import io.github.omeg4dev.fmhy.theme.paletteColorScheme
+import io.github.omeg4dev.fmhy.theme.paletteFor
 import io.github.omeg4dev.fmhy.ui.common.EntryRow
 import io.github.omeg4dev.fmhy.ui.common.Motion
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
@@ -151,8 +153,8 @@ fun AppearancePage(
 
             // Accent section
             item {
-                val fmhyPreviewScheme = remember(appearance.accentSeed, isDark) {
-                    seedColorScheme(appearance.accentSeed, isDark)
+                val fmhyDots = remember(appearance.accentSeed, isDark) {
+                    paletteDots(appearance.accentSeed, isDark)
                 }
                 val isMaterialYouAvailable = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
                 val materialYouPreviewScheme = remember(isDark, isMaterialYouAvailable) {
@@ -161,6 +163,9 @@ fun AppearancePage(
                     } else {
                         null
                     }
+                }
+                val materialYouDots = remember(materialYouPreviewScheme, isDark, fmhyDots) {
+                    materialYouPreviewScheme?.let { materialYouDots(it, isDark) } ?: fmhyDots
                 }
 
                 SettingsSection(title = "Accent colour") {
@@ -201,10 +206,9 @@ fun AppearancePage(
                                     modifier = Modifier.padding(bottom = 12.dp)
                                 ) {
                                     listOf(
-                                        fmhyPreviewScheme.primary,
-                                        fmhyPreviewScheme.secondary,
-                                        fmhyPreviewScheme.tertiary,
-                                        fmhyPreviewScheme.surfaceContainerHighest,
+                                        fmhyDots.accent,
+                                        fmhyDots.selected,
+                                        fmhyDots.tip,
                                     ).forEach { color ->
                                         Box(
                                             modifier = Modifier
@@ -265,22 +269,11 @@ fun AppearancePage(
                                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                                     modifier = Modifier.padding(bottom = 12.dp)
                                 ) {
-                                    val colors = if (materialYouPreviewScheme != null) {
-                                        listOf(
-                                            materialYouPreviewScheme.primary,
-                                            materialYouPreviewScheme.secondary,
-                                            materialYouPreviewScheme.tertiary,
-                                            materialYouPreviewScheme.surfaceContainerHighest,
-                                        )
-                                    } else {
-                                        listOf(
-                                            fmhyPreviewScheme.primary,
-                                            fmhyPreviewScheme.secondary,
-                                            fmhyPreviewScheme.tertiary,
-                                            fmhyPreviewScheme.surfaceContainerHighest,
-                                        )
-                                    }
-                                    colors.forEach { color ->
+                                    listOf(
+                                        materialYouDots.accent,
+                                        materialYouDots.selected,
+                                        materialYouDots.tip,
+                                    ).forEach { color ->
                                         Box(
                                             modifier = Modifier
                                                 .size(20.dp)
@@ -329,7 +322,7 @@ fun AppearancePage(
                             verticalArrangement = Arrangement.spacedBy(10.dp),
                         ) {
                             ACCENT_PRESETS.forEach { preset ->
-                                val swatch = Color(preset.seed)
+                                val swatch = paletteFor(preset.seed)?.colors(isDark)?.accent ?: Color(preset.seed)
                                 val isSelected = appearance.accentSeed == preset.seed
                                 Box(
                                     modifier = Modifier
@@ -365,10 +358,10 @@ fun AppearancePage(
                             }
 
                             val customColor = remember(appearance.accentSeed, isDark) {
-                                seedColorScheme(appearance.accentSeed, isDark).primary
+                                paletteColorScheme(appearance.accentSeed, isDark).primary
                             }
                             val customOnColor = remember(appearance.accentSeed, isDark) {
-                                seedColorScheme(appearance.accentSeed, isDark).onPrimary
+                                paletteColorScheme(appearance.accentSeed, isDark).onPrimary
                             }
 
                             Box(

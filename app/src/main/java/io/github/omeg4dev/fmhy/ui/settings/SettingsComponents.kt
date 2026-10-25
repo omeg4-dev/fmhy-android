@@ -70,7 +70,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.omeg4dev.fmhy.ui.shell.JobRowUi
 import com.materialkolor.hct.Hct
-import io.github.omeg4dev.fmhy.theme.seedColorScheme
+import io.github.omeg4dev.fmhy.theme.calloutColorsForSeed
+import io.github.omeg4dev.fmhy.theme.paletteColorScheme
 import io.github.omeg4dev.fmhy.ui.common.Motion
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import kotlin.math.roundToInt
@@ -754,7 +755,10 @@ fun CustomColorDialog(
         Hct.from(hue.toDouble(), chroma.toDouble(), 50.0).toInt()
     }
     val previewScheme = remember(currentSeed, isDark) {
-        seedColorScheme(currentSeed, isDark)
+        paletteColorScheme(currentSeed, isDark)
+    }
+    val previewCallout = remember(currentSeed, isDark) {
+        calloutColorsForSeed(currentSeed, isDark)
     }
 
     AlertDialog(
@@ -762,16 +766,23 @@ fun CustomColorDialog(
         title = { Text("Custom colour") },
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
-                Box(
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = 16.dp),
-                    contentAlignment = Alignment.Center,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Box(
                         modifier = Modifier
                             .size(48.dp)
                             .background(previewScheme.primary, CircleShape)
+                            .border(2.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
+                    )
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .background(previewCallout.tip.accent, CircleShape)
                             .border(2.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
                     )
                 }

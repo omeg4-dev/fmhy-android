@@ -4,12 +4,15 @@ import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.style.TextOverflow
+
+val LocalMarkdownLinkColor = compositionLocalOf<Color?> { null }
 
 fun parseMarkdownToAnnotatedString(
     text: String,
@@ -30,7 +33,7 @@ fun MarkdownText(
     onTextLayout: (TextLayoutResult) -> Unit = {},
     onOpenUrl: ((String) -> Unit)? = null,
 ) {
-    val linkColor = MaterialTheme.colorScheme.primary
+    val linkColor = LocalMarkdownLinkColor.current ?: MaterialTheme.colorScheme.primary
     val annotated = parseMarkdownToAnnotatedString(markdown, linkColor, onOpenUrl)
     Text(
         text = annotated,

@@ -10,13 +10,7 @@ import com.materialkolor.scheme.SchemeFidelity
 
 data class AccentPreset(val name: String, val seed: Int)
 
-val ACCENT_PRESETS = listOf(
-    AccentPreset("Violet", 0xFF7C5CFF.toInt()), AccentPreset("Blue", 0xFF1E88E5.toInt()),
-    AccentPreset("Teal", 0xFF00897B.toInt()),   AccentPreset("Green", 0xFF43A047.toInt()),
-    AccentPreset("Lime", 0xFF7CB342.toInt()),   AccentPreset("Amber", 0xFFFFB300.toInt()),
-    AccentPreset("Orange", 0xFFF4511E.toInt()), AccentPreset("Red", 0xFFE53935.toInt()),
-    AccentPreset("Pink", 0xFFD81B60.toInt()),   AccentPreset("Grey", 0xFF78909C.toInt()),
-)
+val ACCENT_PRESETS: List<AccentPreset> = ACCENT_PALETTES.map { AccentPreset(it.name, it.seed) }
 
 fun seedColorScheme(seedArgb: Int, dark: Boolean): ColorScheme {
     val scheme = SchemeFidelity(

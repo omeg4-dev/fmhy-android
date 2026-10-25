@@ -20,10 +20,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import io.github.omeg4dev.fmhy.theme.LocalCalloutColors
 
 @Composable
 fun CalloutBox(
@@ -37,20 +39,12 @@ fun CalloutBox(
     val isDanger = normType == "DANGER"
     val isTip = normType == "TIP"
 
-    val containerColor = when {
-        isWarning || isDanger -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.55f)
-        isTip -> MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.55f)
-        else -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.55f)
-    }
-    val borderColor = when {
-        isWarning || isDanger -> MaterialTheme.colorScheme.error.copy(alpha = 0.35f)
-        isTip -> MaterialTheme.colorScheme.tertiary.copy(alpha = 0.35f)
-        else -> MaterialTheme.colorScheme.secondary.copy(alpha = 0.35f)
-    }
-    val accentColor = when {
-        isWarning || isDanger -> MaterialTheme.colorScheme.error
-        isTip -> MaterialTheme.colorScheme.tertiary
-        else -> MaterialTheme.colorScheme.secondary
+    val calloutColors = LocalCalloutColors.current
+    val style = when {
+        isTip -> calloutColors.tip
+        isWarning -> calloutColors.warning
+        isDanger -> calloutColors.danger
+        else -> calloutColors.note
     }
     val icon = when {
         isWarning -> Icons.Outlined.WarningAmber
@@ -69,8 +63,8 @@ fun CalloutBox(
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(12.dp),
-        color = containerColor,
-        border = BorderStroke(1.dp, borderColor),
+        color = style.container,
+        border = BorderStroke(1.dp, style.border),
     ) {
         Column(
             modifier = Modifier
@@ -84,7 +78,7 @@ fun CalloutBox(
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = accentColor,
+                    tint = style.accent,
                     modifier = Modifier.size(18.dp),
                 )
                 val cleanTitle = title?.trim()?.takeIf { it.isNotEmpty() && !it.equals(label, ignoreCase = true) }
@@ -93,11 +87,13 @@ fun CalloutBox(
                     text = headerText,
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Bold,
-                    color = accentColor,
+                    color = style.accent,
                 )
             }
             Spacer(Modifier.height(6.dp))
-            content()
+            CompositionLocalProvider(LocalMarkdownLinkColor provides style.link) {
+                content()
+            }
         }
     }
 }

@@ -39,7 +39,7 @@ fun FMHYTheme(
             if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
         else -> remember(appearance.accentSeed, dark) {
-            seedColorScheme(appearance.accentSeed, dark)
+            paletteColorScheme(appearance.accentSeed, dark)
         }
     }
 
@@ -49,10 +49,19 @@ fun FMHYTheme(
         baseScheme
     }
 
+    val calloutColors = remember(appearance.colorSource, appearance.accentSeed, colorScheme, dark) {
+        if (appearance.colorSource == ColorSource.MATERIAL_YOU && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            materialYouCalloutColors(colorScheme.primary, colorScheme.surface, dark)
+        } else {
+            calloutColorsForSeed(appearance.accentSeed, dark)
+        }
+    }
+
     CompositionLocalProvider(
         LocalIsDarkTheme provides dark,
         LocalHapticsEnabled provides appearance.hapticFeedback,
         LocalHapticFeedback provides SilentHapticFeedback,
+        LocalCalloutColors provides calloutColors,
     ) {
         MaterialTheme(
             colorScheme = colorScheme,

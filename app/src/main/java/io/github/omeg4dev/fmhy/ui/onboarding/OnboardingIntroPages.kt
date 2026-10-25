@@ -1,6 +1,7 @@
 package io.github.omeg4dev.fmhy.ui.onboarding
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.res.painterResource
 import io.github.omeg4dev.fmhy.R
 import android.os.Build
@@ -81,6 +82,7 @@ import androidx.compose.ui.unit.dp
 import io.github.omeg4dev.fmhy.data.ColorSource
 import io.github.omeg4dev.fmhy.data.ThemeMode
 import io.github.omeg4dev.fmhy.theme.ACCENT_PRESETS
+import io.github.omeg4dev.fmhy.theme.paletteColorScheme
 import io.github.omeg4dev.fmhy.ui.common.enterStagger
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 
@@ -398,6 +400,13 @@ fun HelloPageContent(
             ) {
                 data class Swatch(val name: String, val color: Color?, val selected: Boolean, val onPick: () -> Unit)
 
+                val isSystemDark = isSystemInDarkTheme()
+                val isDark = when (state.themeMode) {
+                    ThemeMode.SYSTEM -> isSystemDark
+                    ThemeMode.LIGHT -> false
+                    ThemeMode.DARK -> true
+                }
+
                 val swatches = buildList {
                     if (isMaterialYouAvailable) {
                         add(Swatch("Material You", null, materialYouSelected) {
@@ -408,7 +417,7 @@ fun HelloPageContent(
                         add(
                             Swatch(
                                 preset.name,
-                                Color(preset.seed),
+                                paletteColorScheme(preset.seed, isDark).primary,
                                 state.colorSource == ColorSource.FMHY && state.accentSeed == preset.seed,
                             ) { model.setAccentSeed(preset.seed) },
                         )
