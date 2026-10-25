@@ -38,7 +38,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import io.github.omeg4dev.fmhy.data.link.PasteLinks
-import io.github.omeg4dev.fmhy.data.link.PasteResolver
 import io.github.omeg4dev.fmhy.data.model.Entry
 import io.github.omeg4dev.fmhy.data.user.Folder
 
@@ -453,13 +452,17 @@ internal fun EntryNoteDialog(
     )
 }
 
-/** The link to copy or share: a pastebin-hidden link is decoded first (several links → one per line). */
-internal suspend fun resolvedLinkText(
-    url: String,
-    resolver: PasteResolver?,
-    onShowSnackbar: (String) -> Unit,
-): String {
-    if (resolver == null || PasteLinks.rawUrl(url) == null) return url
-    onShowSnackbar("Decoding hidden link…")
-    return resolver.resolve(url)?.joinToString("\n") ?: url
+/** The link to copy or share: a pastebin-hidden link is decoded first (several links → one per line). Without a
+ *  decoder, or for other links, [onText] gets [url] at once. */
+internal fun PasteDecoder?.linkText(url: String, action: PasteAction, onText: (String) -> Unit) {
+    if (this == null || PasteLinks.rawUrl(url) == null) {
+        onText(url)
+    } else {
+        decode(
+            url = url,
+            action = action,
+            onLinks = { onText(it.joinToString("\n")) },
+            onUseRaw = { onText(url) },
+        )
+    }
 }

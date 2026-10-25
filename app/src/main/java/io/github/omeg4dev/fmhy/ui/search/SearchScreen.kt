@@ -95,6 +95,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -137,10 +138,8 @@ import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
 import io.github.omeg4dev.fmhy.ui.common.sectionIcon
 import io.github.omeg4dev.fmhy.ui.check.VerdictCard
 import kotlinx.coroutines.flow.filter
+import java.util.Objects
 import kotlinx.coroutines.launch
-
-/** Categories shown before "View all". */
-private const val CATEGORY_PREVIEW = 3
 
 private enum class SearchContentMode {
     RECENT,
@@ -167,6 +166,19 @@ fun SearchScreen(
     val scope = rememberCoroutineScope()
     var showFiltersSheet by remember { mutableStateOf(false) }
     var categoriesExpanded by rememberSaveable(state.query) { mutableStateOf(false) }
+
+    // New results start at the top: LazyList otherwise keeps the old position by key (BUG-11). The last shown
+    // result set is saved, so coming back to the same results (e.g. from an opened category) keeps the position.
+    var shownResults by rememberSaveable { mutableIntStateOf(0) }
+    LaunchedEffect(state.categories, state.groups) {
+        if (state.categories.isEmpty() && state.groups.isEmpty()) return@LaunchedEffect
+        val results = Objects.hash(state.categories, state.groups)
+        if (results == shownResults) return@LaunchedEffect
+        shownResults = results
+        if (resultsListState.firstVisibleItemIndex != 0 || resultsListState.firstVisibleItemScrollOffset != 0) {
+            resultsListState.scrollToItem(0)
+        }
+    }
 
     val linkOpener = rememberLinkOpener(container, onShowSnackbar)
 
@@ -476,8 +488,9 @@ fun SearchScreen(
                                     }
                                 }
 
-                                if (state.categories.isNotEmpty()) {
-                                    stickyHeader(key = "hdr_categories") {
+                                val block = categoryBlock(state.categories, categoriesExpanded)
+                                if (block.rows.isNotEmpty()) {
+                                    item(key = "hdr_categories") {
                                         Surface(
                                             modifier = Modifier.fillMaxWidth(),
                                             color = MaterialTheme.colorScheme.surface,
@@ -490,9 +503,8 @@ fun SearchScreen(
                                             )
                                         }
                                     }
-                                    val shownCategories = if (categoriesExpanded) state.categories else state.categories.take(CATEGORY_PREVIEW)
                                     itemsIndexed(
-                                        shownCategories,
+                                        block.rows,
                                         key = { _, c -> "cat_${c.heading?.id ?: c.section.id}" },
                                     ) { _, cat ->
                                         CategoryRow(
@@ -502,15 +514,13 @@ fun SearchScreen(
                                                 nav.select(Tab.BROWSE)
                                                 nav.push(SectionNavKey(cat.section.id, anchor = cat.heading?.anchor))
                                             },
-                                            modifier = Modifier.animateItem(),
                                         )
                                     }
-                                    if (state.categories.size > CATEGORY_PREVIEW) {
+                                    if (block.toggleLabel != null) {
                                         item(key = "cat_toggle") {
-                                            val n = state.categories.size
                                             TextButton(
                                                 onClick = { categoriesExpanded = !categoriesExpanded },
-                                                modifier = Modifier.padding(start = 8.dp).animateItem(),
+                                                modifier = Modifier.padding(start = 8.dp),
                                             ) {
                                                 Icon(
                                                     if (categoriesExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
@@ -518,10 +528,7 @@ fun SearchScreen(
                                                     modifier = Modifier.size(18.dp),
                                                 )
                                                 Spacer(Modifier.width(6.dp))
-                                                Text(
-                                                    if (categoriesExpanded) "Show fewer categories"
-                                                    else "View all ${if (n >= 50) "50+" else n.toString()} categories",
-                                                )
+                                                Text(block.toggleLabel)
                                             }
                                         }
                                     }

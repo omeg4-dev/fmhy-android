@@ -62,6 +62,8 @@ class LinkOpener(
     private val userStore: UserStore? = null,
     val docFetcher: DocFetcher? = null,
 ) {
+    val pasteDecoder: PasteDecoder? = pasteResolver?.let { r -> PasteDecoder(coroutineScope) { r.resolve(it) } }
+
     /** Links decoded from a pastebin page that hides several; the chooser dialog shows them. */
     var pendingPasteChoices by mutableStateOf<List<String>?>(null)
         private set
@@ -96,16 +98,15 @@ class LinkOpener(
             pendingNote = PendingNote(path = path, originalUrl = url, title = title)
             return
         }
-        if (pasteResolver != null && PasteLinks.rawUrl(url) != null) {
-            coroutineScope.launch {
-                onShowSnackbar("Decoding hidden link…")
-                val urls = pasteResolver.resolve(url)
-                when {
-                    urls == null -> openChecked(url, entryId)       // not decodable: show the paste itself
-                    urls.size == 1 -> openChecked(urls[0], entryId)
-                    else -> pendingPasteChoices = urls
-                }
-            }
+        if (pasteDecoder != null && PasteLinks.rawUrl(url) != null) {
+            pasteDecoder.decode(
+                url = url,
+                action = PasteAction.OPEN,
+                onLinks = { urls ->
+                    if (urls.size == 1) openChecked(urls[0], entryId) else pendingPasteChoices = urls
+                },
+                onUseRaw = { openChecked(url, entryId) },
+            )
             return
         }
         openChecked(url, entryId)
@@ -227,6 +228,7 @@ class LinkOpener(
 @Composable
 fun UnsafeWarningDialog(opener: LinkOpener) {
     PasteChoiceDialog(opener)
+    opener.pasteDecoder?.let { PasteDecodeUi(it) }
     val fetcher = opener.docFetcher
     if (fetcher != null) {
         NoteSheet(opener, fetcher)

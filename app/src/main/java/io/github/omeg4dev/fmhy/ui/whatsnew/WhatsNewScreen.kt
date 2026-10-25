@@ -65,7 +65,9 @@ import io.github.omeg4dev.fmhy.nav.LocalBottomBarPadding
 import io.github.omeg4dev.fmhy.ui.common.CrossfadeContent
 import io.github.omeg4dev.fmhy.ui.common.EmptyState
 import io.github.omeg4dev.fmhy.ui.common.EntryDetailBottomSheet
-import io.github.omeg4dev.fmhy.ui.common.LocalPasteResolver
+import io.github.omeg4dev.fmhy.ui.common.LocalPasteDecoder
+import io.github.omeg4dev.fmhy.ui.common.PasteAction
+import io.github.omeg4dev.fmhy.ui.common.linkText
 import io.github.omeg4dev.fmhy.ui.common.SkeletonRows
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
 import io.github.omeg4dev.fmhy.ui.common.enterStagger
@@ -89,7 +91,7 @@ fun WhatsNewScreen(
     val context = LocalContext.current
     val haptics = rememberHaptics()
     val linkOpener = rememberLinkOpener(container, onShowSnackbar)
-    val pasteResolver = LocalPasteResolver.current
+    val pasteDecoder = LocalPasteDecoder.current
 
     // Hub -> feed is internal state so the system back from the feed lands on the hub again.
     var inFeed by rememberSaveable { mutableStateOf(!startInHub) }
@@ -434,8 +436,7 @@ fun WhatsNewScreen(
             onOpenUrl = { linkOpener.openUrl(it) },
             onCopyLink = { url ->
                 selectedDetailEntry = null
-                scope.launch {
-                    val text = pasteResolver?.resolve(url)?.joinToString("\n") ?: url
+                pasteDecoder.linkText(url, PasteAction.COPY) { text ->
                     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                     clipboard.setPrimaryClip(ClipData.newPlainText("URL", text))
                     onShowSnackbar(if ('\n' in text) "Links copied to clipboard" else "Link copied to clipboard")
@@ -443,8 +444,7 @@ fun WhatsNewScreen(
             },
             onShareLink = { url ->
                 selectedDetailEntry = null
-                scope.launch {
-                    val text = pasteResolver?.resolve(url)?.joinToString("\n") ?: url
+                pasteDecoder.linkText(url, PasteAction.SHARE) { text ->
                     val intent = Intent(Intent.ACTION_SEND).apply {
                         type = "text/plain"
                         putExtra(Intent.EXTRA_TEXT, text)

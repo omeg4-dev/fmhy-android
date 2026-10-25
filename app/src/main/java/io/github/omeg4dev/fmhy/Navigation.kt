@@ -1,8 +1,9 @@
 package io.github.omeg4dev.fmhy
 
 import android.app.Activity
-import io.github.omeg4dev.fmhy.ui.common.pasteResolverFor
-import io.github.omeg4dev.fmhy.ui.common.LocalPasteResolver
+import io.github.omeg4dev.fmhy.ui.common.LocalPasteDecoder
+import io.github.omeg4dev.fmhy.ui.common.PasteDecodeUi
+import io.github.omeg4dev.fmhy.ui.common.rememberPasteDecoder
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -192,6 +193,7 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
     val linkOpener = rememberLinkOpener(container, onShowSnackbar = { msg ->
         scope.launch { snackbarHostState.showSnackbar(msg) }
     }, nav = nav)
+    val pasteDecoder = rememberPasteDecoder(container)
 
     if (intentFlow != null) {
         LaunchedEffect(intentFlow) {
@@ -656,7 +658,7 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
         LocalBottomBarPadding provides bottomBarPadding,
         LocalBottomBarController provides bottomBarController,
         LocalCrossLinks provides crossLinks,
-        LocalPasteResolver provides remember(container) { pasteResolverFor(container) },
+        LocalPasteDecoder provides pasteDecoder,
         LocalBookmarks provides bookmarksState,
         LocalDatasetStore provides container.datasetStore,
         LocalUserStore provides container.userStore,
@@ -815,6 +817,7 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                 }
             }
         }
+        PasteDecodeUi(pasteDecoder)
         UnsafeWarningDialog(linkOpener)
     }
 }

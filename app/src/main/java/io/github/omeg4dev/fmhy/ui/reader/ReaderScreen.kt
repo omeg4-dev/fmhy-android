@@ -48,6 +48,9 @@ import androidx.compose.ui.unit.dp
 import io.github.omeg4dev.fmhy.data.doc.DocResult
 import io.github.omeg4dev.fmhy.di.AppContainer
 import io.github.omeg4dev.fmhy.nav.LocalBottomBarPadding
+import io.github.omeg4dev.fmhy.ui.common.LocalPasteDecoder
+import io.github.omeg4dev.fmhy.ui.common.PasteAction
+import io.github.omeg4dev.fmhy.ui.common.linkText
 import io.github.omeg4dev.fmhy.ui.common.MarkdownBlocks
 import io.github.omeg4dev.fmhy.ui.common.ReaderStyle
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
@@ -99,6 +102,7 @@ fun ReaderScreen(
 ) {
     val context = LocalContext.current
     val linkOpener = rememberLinkOpener(container, onShowSnackbar)
+    val pasteDecoder = LocalPasteDecoder.current
     val webUrl = remember(path) { fmhyWebUrlForPath(path) }
     val style = remember(path) { readerStyleForPath(path) }
 
@@ -381,17 +385,21 @@ fun ReaderScreen(
             onOpenUrl = { linkOpener.openUrl(it) },
             onCopyLink = { url ->
                 sheetEntry = null
-                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                clipboard.setPrimaryClip(ClipData.newPlainText("URL", url))
-                onShowSnackbar("Link copied to clipboard")
+                pasteDecoder.linkText(url, PasteAction.COPY) { text ->
+                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    clipboard.setPrimaryClip(ClipData.newPlainText("URL", text))
+                    onShowSnackbar(if ('\n' in text) "Links copied to clipboard" else "Link copied to clipboard")
+                }
             },
             onShareLink = { url ->
                 sheetEntry = null
-                val intent = Intent(Intent.ACTION_SEND).apply {
-                    type = "text/plain"
-                    putExtra(Intent.EXTRA_TEXT, url)
+                pasteDecoder.linkText(url, PasteAction.SHARE) { text ->
+                    val intent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, text)
+                    }
+                    context.startActivity(Intent.createChooser(intent, "Share ${entry.name}"))
                 }
-                context.startActivity(Intent.createChooser(intent, "Share ${entry.name}"))
             },
             onShowSnackbar = onShowSnackbar,
         )

@@ -38,7 +38,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import io.github.omeg4dev.fmhy.FmhyApp
 import io.github.omeg4dev.fmhy.ui.common.Motion
+import io.github.omeg4dev.fmhy.ui.common.PasteAction
+import io.github.omeg4dev.fmhy.ui.common.PasteDecodeUi
+import io.github.omeg4dev.fmhy.ui.common.linkText
+import io.github.omeg4dev.fmhy.ui.common.rememberPasteDecoder
 import io.github.omeg4dev.fmhy.data.BrowserPrefs
 import io.github.omeg4dev.fmhy.data.DatasetStore
 import io.github.omeg4dev.fmhy.data.ProtectionPrefs
@@ -683,9 +688,13 @@ class DefaultBrowserHooks(
             val st = shown.value
             if (st != null) {
                 val context = LocalContext.current
+                val container = (context.applicationContext as FmhyApp).container
+                val pasteDecoder = rememberPasteDecoder(container)
                 var showPopover by remember { mutableStateOf(false) }
                 var detailEntry by remember { mutableStateOf<Entry?>(null) }
                 val state = st
+
+                PasteDecodeUi(pasteDecoder)
 
                 Box(contentAlignment = Alignment.Center) {
                     Box(
@@ -735,15 +744,19 @@ class DefaultBrowserHooks(
                             tabManager?.loadUrl(tab.id, newUrl)
                         },
                         onCopyLink = { urlToCopy ->
-                            val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
-                            cm?.setPrimaryClip(android.content.ClipData.newPlainText("Link", urlToCopy))
+                            pasteDecoder.linkText(urlToCopy, PasteAction.COPY) { text ->
+                                val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                                cm?.setPrimaryClip(android.content.ClipData.newPlainText("Link", text))
+                            }
                         },
                         onShareLink = { urlToShare ->
-                            val intent = Intent(Intent.ACTION_SEND).apply {
-                                type = "text/plain"
-                                putExtra(Intent.EXTRA_TEXT, urlToShare)
+                            pasteDecoder.linkText(urlToShare, PasteAction.SHARE) { text ->
+                                val intent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_TEXT, text)
+                                }
+                                context.startActivity(Intent.createChooser(intent, "Share link"))
                             }
-                            context.startActivity(Intent.createChooser(intent, "Share link"))
                         },
                     )
                 }

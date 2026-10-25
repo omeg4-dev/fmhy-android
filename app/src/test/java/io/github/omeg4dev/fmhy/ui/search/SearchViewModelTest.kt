@@ -18,6 +18,7 @@ import io.github.omeg4dev.fmhy.data.ThemeMode
 import io.github.omeg4dev.fmhy.data.model.Entry
 import io.github.omeg4dev.fmhy.data.model.Section
 import io.github.omeg4dev.fmhy.data.model.Tier
+import io.github.omeg4dev.fmhy.data.search.CategoryHit
 import io.github.omeg4dev.fmhy.data.search.MatchMode
 import io.github.omeg4dev.fmhy.data.search.Query
 import io.github.omeg4dev.fmhy.data.search.SuggestionKind
@@ -110,7 +111,10 @@ class SearchViewModelTest {
         override suspend fun setOnboardingVersion(v: Int) { _onboarding.value = v }
     }
 
-    private class FakeSearchEngine(store: DatasetStore) : SearchEngine(store) {
+    private class FakeSearchEngine(
+        store: DatasetStore,
+        private val categoryProvider: ((String) -> List<CategoryHit>)? = null,
+    ) : SearchEngine(store) {
         val sampleEntry = Entry(
             num = 1,
             id = "e1",
@@ -147,7 +151,8 @@ class SearchViewModelTest {
                 section = Section("video", "Video", "", 1, 10),
                 hits = listOf(SearchHit(sampleEntry, sampleEntry.name, sampleEntry.description))
             )
-            return SearchResults(groups = listOf(group), total = 1, tookMs = 5L)
+            val categories = categoryProvider?.invoke(query) ?: emptyList()
+            return SearchResults(groups = listOf(group), total = 1, tookMs = 5L, categories = categories)
         }
 
         override suspend fun search(query: Query, sectionFilter: Set<String>, limit: Int, mode: MatchMode): SearchResults {
@@ -343,6 +348,48 @@ class SearchViewModelTest {
         assertEquals(3, vm.suggestions.filter { it.firstOrNull()?.kind == SuggestionKind.IS }.first().size)
         vm.onCaretChange("anime ", 6)
         assertTrue(vm.suggestions.filter { it.isEmpty() }.first().isEmpty())
+        job.cancel()
+    }
+
+    @Test
+    fun rapidTypingEndsWithTheLastQuerysCategories() = runTest {
+        val store = FakeDatasetStore()
+        val vpnCategories = listOf(
+            CategoryHit(
+                section = Section("vpn", "VPN", "", 1, 10),
+                heading = null,
+                path = emptyList(),
+            )
+        )
+        val engine = FakeSearchEngine(store) { q ->
+            when (q) {
+                "vpn" -> vpnCategories
+                else -> listOf(
+                    CategoryHit(
+                        section = Section(q, "Cat $q", "", 1, 10),
+                        heading = null,
+                        path = emptyList(),
+                    )
+                )
+            }
+        }
+        val vm = SearchViewModel("", store, engine, FakeSettingsRepository())
+        val job = backgroundScope.launch(kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)) {
+            vm.uiState.collect { }
+        }
+
+        vm.onQueryChange("v")
+        vm.onQueryChange("vp")
+        vm.onQueryChange("vpn")
+
+        vm.uiState.filter { it.query == "vpn" && it.hasSearched && it.categories.isNotEmpty() }.first()
+        testScheduler.advanceUntilIdle()
+
+        assertEquals("vpn", vm.uiState.value.query)
+        assertTrue(vm.uiState.value.hasSearched)
+        assertTrue(vm.uiState.value.categories.isNotEmpty())
+        assertEquals(vpnCategories, vm.uiState.value.categories)
+
         job.cancel()
     }
 }

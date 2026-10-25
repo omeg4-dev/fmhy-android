@@ -386,7 +386,7 @@ fun EntryRow(
         }
     }
 
-    val pasteResolver = LocalPasteResolver.current
+    val pasteDecoder = LocalPasteDecoder.current
     if (showBottomSheet) {
         val context = LocalContext.current
         EntryDetailBottomSheet(
@@ -403,8 +403,7 @@ fun EntryRow(
             },
             onCopyLink = { url ->
                 showBottomSheet = false
-                scope.launch {
-                    val text = resolvedLinkText(url, pasteResolver, onShowSnackbar)
+                pasteDecoder.linkText(url, PasteAction.COPY) { text ->
                     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                     clipboard.setPrimaryClip(ClipData.newPlainText("URL", text))
                     onShowSnackbar(if ('\n' in text) "Links copied to clipboard" else "Link copied to clipboard")
@@ -412,8 +411,7 @@ fun EntryRow(
             },
             onShareLink = { url ->
                 showBottomSheet = false
-                scope.launch {
-                    val text = resolvedLinkText(url, pasteResolver, onShowSnackbar)
+                pasteDecoder.linkText(url, PasteAction.SHARE) { text ->
                     val intent = Intent(Intent.ACTION_SEND).apply {
                         type = "text/plain"
                         putExtra(Intent.EXTRA_TEXT, text)

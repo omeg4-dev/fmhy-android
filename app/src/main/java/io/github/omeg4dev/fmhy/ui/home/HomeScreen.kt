@@ -86,7 +86,9 @@ import io.github.omeg4dev.fmhy.nav.LocalAppNav
 import io.github.omeg4dev.fmhy.nav.LocalBottomBarPadding
 import io.github.omeg4dev.fmhy.nav.Tab
 import io.github.omeg4dev.fmhy.ui.common.CrossfadeContent
-import io.github.omeg4dev.fmhy.ui.common.LocalPasteResolver
+import io.github.omeg4dev.fmhy.ui.common.LocalPasteDecoder
+import io.github.omeg4dev.fmhy.ui.common.PasteAction
+import io.github.omeg4dev.fmhy.ui.common.linkText
 import io.github.omeg4dev.fmhy.ui.common.LocalSnackbarHost
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
 import io.github.omeg4dev.fmhy.ui.common.enterStagger
@@ -676,7 +678,7 @@ fun HomeScreen(
     if (showRandomPickDetails && state.randomPick != null) {
         val pick = state.randomPick!!
         val context = LocalContext.current
-        val pasteResolver = LocalPasteResolver.current
+        val pasteDecoder = LocalPasteDecoder.current
         EntryDetailBottomSheet(
             entry = pick,
             onShowInSection = {
@@ -693,8 +695,7 @@ fun HomeScreen(
             onOpenUrl = { linkOpener.openUrl(it) },
             onCopyLink = { url ->
                 showRandomPickDetails = false
-                scope.launch {
-                    val text = pasteResolver?.resolve(url)?.joinToString("\n") ?: url
+                pasteDecoder.linkText(url, PasteAction.COPY) { text ->
                     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                     clipboard.setPrimaryClip(ClipData.newPlainText("URL", text))
                     onShowSnackbar(if ('\n' in text) "Links copied to clipboard" else "Link copied to clipboard")
@@ -702,8 +703,7 @@ fun HomeScreen(
             },
             onShareLink = { url ->
                 showRandomPickDetails = false
-                scope.launch {
-                    val text = pasteResolver?.resolve(url)?.joinToString("\n") ?: url
+                pasteDecoder.linkText(url, PasteAction.SHARE) { text ->
                     val intent = Intent(Intent.ACTION_SEND).apply {
                         type = "text/plain"
                         putExtra(Intent.EXTRA_TEXT, text)
