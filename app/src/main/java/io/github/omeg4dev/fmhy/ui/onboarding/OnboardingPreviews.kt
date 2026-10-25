@@ -64,10 +64,16 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.unit.Density
 import io.github.omeg4dev.fmhy.data.ColorSource
 import io.github.omeg4dev.fmhy.data.OpenLinksWith
 import io.github.omeg4dev.fmhy.data.ThemeMode
 import io.github.omeg4dev.fmhy.data.model.Entry
+import io.github.omeg4dev.fmhy.data.model.Link
 import io.github.omeg4dev.fmhy.data.model.Section
 import io.github.omeg4dev.fmhy.data.model.Tier
 import io.github.omeg4dev.fmhy.theme.LocalCalloutColors
@@ -78,14 +84,38 @@ import io.github.omeg4dev.fmhy.ui.common.BookmarksState
 import io.github.omeg4dev.fmhy.ui.common.EntryRow
 import io.github.omeg4dev.fmhy.ui.common.LocalBookmarks
 import io.github.omeg4dev.fmhy.ui.common.LocalHapticsEnabled
+import io.github.omeg4dev.fmhy.ui.common.LocalWebsiteStyle
 import io.github.omeg4dev.fmhy.ui.common.Motion
 import kotlinx.coroutines.delay
+
+private fun sampleLookEntry(withLinks: Boolean = false): Entry = Entry(
+    id = "ublock",
+    num = 1,
+    sectionId = "adblocking",
+    headingId = null,
+    ord = 1,
+    name = "uBlock Origin",
+    url = "https://ublockorigin.pages.dev/",
+    originalUrl = null,
+    description = "Adblocker / Element Blocker",
+    tags = listOf("Adblocker"),
+    headingPath = "Adblocking / Extensions",
+    tier = Tier.STAR,
+    isInlineMore = false,
+    isBase64 = false,
+    mirrors = emptyList(),
+    extraLinks = if (withLinks) listOf(Link("GitHub", "https://github.com/gorhill/uBlock")) else emptyList(),
+    firstSeen = 0L,
+    lastChanged = 0L,
+    starredAt = 1000L,
+)
 
 @Composable
 fun LookPreview(
     themeMode: ThemeMode,
     colorSource: ColorSource,
     accentSeed: Int,
+    websiteStyle: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -127,29 +157,7 @@ fun LookPreview(
         outlineVariant = animatedOutlineVariant,
     )
 
-    val sampleEntry = remember {
-        Entry(
-            id = "ublock",
-            num = 1,
-            sectionId = "adblocking",
-            headingId = null,
-            ord = 1,
-            name = "uBlock Origin",
-            url = "https://ublockorigin.pages.dev/",
-            originalUrl = null,
-            description = "Adblocker / Element Blocker",
-            tags = listOf("Adblocker"),
-            headingPath = "Adblocking / Extensions",
-            tier = Tier.STAR,
-            isInlineMore = false,
-            isBase64 = false,
-            mirrors = emptyList(),
-            extraLinks = emptyList(),
-            firstSeen = 0L,
-            lastChanged = 0L,
-            starredAt = 1000L,
-        )
-    }
+    val sampleEntry = remember { sampleLookEntry() }
 
     val dummyBookmarks = remember {
         BookmarksState(
@@ -259,12 +267,88 @@ fun LookPreview(
                     CompositionLocalProvider(
                         LocalBookmarks provides dummyBookmarks,
                         LocalHapticsEnabled provides false,
+                        LocalWebsiteStyle provides websiteStyle,
                     ) {
                         EntryRow(
                             entry = sampleEntry,
                             onOpenUrl = {},
                         )
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ListStyleChoice(
+    websiteStyle: Boolean,
+    onSelect: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val dummyBookmarks = remember {
+        BookmarksState(
+            savedIds = emptySet(),
+            toggle = {},
+            folders = emptyList(),
+            savedInfo = { null },
+            setNote = { _, _ -> },
+            moveToFolder = { _, _ -> },
+            createFolder = { _, _ -> },
+        )
+    }
+    val sampleEntry = remember { sampleLookEntry(withLinks = true) }
+    val d = LocalDensity.current
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        listOf(
+            false to "App style",
+            true to "Website style",
+        ).forEach { (value, label) ->
+            val selected = websiteStyle == value
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                border = BorderStroke(
+                    if (selected) 2.dp else 1.dp,
+                    if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+                ),
+                modifier = Modifier.weight(1f),
+            ) {
+                // The preview is display-only: the overlay on top takes every tap and selects the card.
+                Box {
+                    Column(Modifier.padding(vertical = 8.dp)) {
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(horizontal = 12.dp),
+                        )
+                        CompositionLocalProvider(
+                            LocalWebsiteStyle provides value,
+                            LocalBookmarks provides dummyBookmarks,
+                            LocalHapticsEnabled provides false,
+                            LocalDensity provides Density(d.density, d.fontScale * 0.8f),
+                        ) {
+                            EntryRow(
+                                entry = sampleEntry,
+                                onOpenUrl = {},
+                                modifier = Modifier.clearAndSetSemantics {},
+                            )
+                        }
+                    }
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .selectable(
+                                selected = selected,
+                                role = Role.RadioButton,
+                                onClick = { onSelect(value) },
+                            )
+                            .semantics { contentDescription = label },
+                    )
                 }
             }
         }

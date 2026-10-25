@@ -460,6 +460,12 @@ class SettingsViewModel(
         }
     }
 
+    fun setWebsiteStyle(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.setWebsiteStyle(enabled)
+        }
+    }
+
     fun updateNow() {
         viewModelScope.launch {
             _isUpdating.value = true

@@ -76,6 +76,7 @@ class SearchViewModelTest {
         override suspend fun setStarredOnly(starredOnly: Boolean) { _appearance.value = _appearance.value.copy(starredOnly = starredOnly) }
         override suspend fun setShowIndexes(showIndexes: Boolean) { _appearance.value = _appearance.value.copy(showIndexes = showIndexes) }
         override suspend fun setHapticFeedback(enabled: Boolean) { _appearance.value = _appearance.value.copy(hapticFeedback = enabled) }
+        override suspend fun setWebsiteStyle(enabled: Boolean) { _appearance.value = _appearance.value.copy(websiteStyle = enabled) }
         override suspend fun setAppIcon(icon: AppIcon) { _appearance.value = _appearance.value.copy(appIcon = icon) }
 
         private val _home = MutableStateFlow(HomePrefs())

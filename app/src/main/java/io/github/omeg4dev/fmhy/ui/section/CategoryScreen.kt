@@ -58,6 +58,7 @@ import io.github.omeg4dev.fmhy.LegendNavKey
 import io.github.omeg4dev.fmhy.LocalBottomBarController
 import io.github.omeg4dev.fmhy.data.link.CrossLinks
 import io.github.omeg4dev.fmhy.data.model.Heading
+import io.github.omeg4dev.fmhy.ui.common.LocalWebsiteStyle
 import io.github.omeg4dev.fmhy.data.model.SectionItem
 import io.github.omeg4dev.fmhy.di.AppContainer
 import io.github.omeg4dev.fmhy.nav.LocalAppNav
@@ -94,6 +95,7 @@ fun CategoryScreen(
     val bottomBarPadding = LocalBottomBarPadding.current
     val bottomBarController = LocalBottomBarController.current
     val linkOpener = rememberLinkOpener(container, onShowSnackbar)
+    val websiteStyle = LocalWebsiteStyle.current
 
     val listState = rememberLazyListState()
     var showJumpBottomSheet by remember { mutableStateOf(false) }
@@ -518,7 +520,7 @@ fun CategoryScreen(
                                                 )
                                             }
                                             val nextItem = displayItems.getOrNull(index + 1)
-                                            if (nextItem is SectionItem.EntryItem) {
+                                            if (!websiteStyle && nextItem is SectionItem.EntryItem) {
                                                 HorizontalDivider(
                                                     modifier = Modifier.padding(start = 16.dp),
                                                     thickness = 0.5.dp,

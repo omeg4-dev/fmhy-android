@@ -35,9 +35,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.outlined.Lightbulb
 import androidx.compose.material.icons.outlined.Notifications
@@ -418,6 +420,96 @@ fun SubsectionBell(
     }
 }
 
+@Composable
+fun WebsiteSectionRow(
+    currentTitle: String?,        // current subsection, with flag if any; null = none
+    isFollowed: Boolean,
+    onToggleFollow: (() -> Unit)?, // null = no bell
+    onOpenMenu: () -> Unit,
+    onOpenOnThisPage: () -> Unit,
+    modifier: Modifier = Modifier,
+    bellTitle: String = currentTitle.orEmpty(),
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = 40.dp)
+            .padding(horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .heightIn(min = 40.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .semantics { contentDescription = "Menu" }
+                .clickable(
+                    role = Role.Button,
+                    onClick = onOpenMenu,
+                )
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Menu,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.onSurface,
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                text = "Menu",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+
+        Spacer(Modifier.weight(1f))
+
+        if (currentTitle != null) {
+            Text(
+                text = currentTitle,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            if (onToggleFollow != null) {
+                SubsectionBell(
+                    isFollowed = isFollowed,
+                    subsectionTitle = bellTitle,
+                    onToggleFollow = onToggleFollow,
+                )
+            }
+        }
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .heightIn(min = 40.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .semantics { contentDescription = "On this page" }
+                .clickable(
+                    role = Role.Button,
+                    onClick = onOpenOnThisPage,
+                )
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+        ) {
+            Text(
+                text = "On this page",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+    }
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun SubsectionLine(
@@ -649,7 +741,7 @@ sealed interface OutlineItem {
     data class SubHeadingItem(val heading: Heading, val relativeLevel: Int) : OutlineItem
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun JumpToHeadingBottomSheet(
     categories: List<Category>,
@@ -659,6 +751,8 @@ fun JumpToHeadingBottomSheet(
     onReturnToTop: () -> Unit = {},
     headings: List<Heading> = emptyList(),
     sectionId: String? = null,
+    title: String = "Outline",
+    onLongClickCategory: ((Category) -> Unit)? = null,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -699,7 +793,7 @@ fun JumpToHeadingBottomSheet(
                 .padding(bottom = 24.dp)
         ) {
             Text(
-                text = "Outline",
+                text = title,
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
@@ -769,12 +863,21 @@ fun JumpToHeadingBottomSheet(
                                 MaterialTheme.colorScheme.onSurfaceVariant
                             }
 
+                            val categoryClickModifier = if (onLongClickCategory != null) {
+                                Modifier.combinedClickable(
+                                    onClick = { onSelectHeading(category.heading) },
+                                    onLongClick = { onLongClickCategory(category) },
+                                )
+                            } else {
+                                Modifier.clickable { onSelectHeading(category.heading) }
+                            }
+
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .background(color = rowBg, shape = MaterialTheme.shapes.small)
-                                    .clickable { onSelectHeading(category.heading) }
+                                    .then(categoryClickModifier)
                                     .padding(horizontal = 12.dp, vertical = 10.dp),
                             ) {
                                 Text(

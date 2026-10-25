@@ -1,5 +1,6 @@
 package io.github.omeg4dev.fmhy.ui.section
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -16,7 +17,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
@@ -29,6 +32,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -37,6 +41,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -44,6 +52,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberDrawerState
 import io.github.omeg4dev.fmhy.data.HomePrefs
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -64,6 +73,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
@@ -75,6 +85,7 @@ import io.github.omeg4dev.fmhy.SectionNavKey
 import io.github.omeg4dev.fmhy.data.SectionLayout
 import io.github.omeg4dev.fmhy.data.link.CrossLinks
 import io.github.omeg4dev.fmhy.data.model.Heading
+import io.github.omeg4dev.fmhy.data.model.Section
 import io.github.omeg4dev.fmhy.data.model.SectionItem
 import io.github.omeg4dev.fmhy.di.AppContainer
 import io.github.omeg4dev.fmhy.nav.LocalAppNav
@@ -83,6 +94,7 @@ import io.github.omeg4dev.fmhy.ui.common.CrossfadeContent
 import io.github.omeg4dev.fmhy.ui.common.EntryRow
 import io.github.omeg4dev.fmhy.ui.common.LocalGesturePrefs
 import io.github.omeg4dev.fmhy.ui.common.LocalSnackbarHost
+import io.github.omeg4dev.fmhy.ui.common.LocalWebsiteStyle
 import io.github.omeg4dev.fmhy.ui.common.SkeletonRows
 import io.github.omeg4dev.fmhy.ui.common.SwipeToSave
 import io.github.omeg4dev.fmhy.ui.common.pageSwipeTarget
@@ -119,12 +131,21 @@ fun SectionScreen(
 
     val listState = rememberLazyListState()
     val bottomBarController = LocalBottomBarController.current
+    val websiteStyle = LocalWebsiteStyle.current
     var showJumpBottomSheet by remember { mutableStateOf(false) }
+    var showOnThisPage by remember { mutableStateOf(false) }
     var showLegendBottomSheet by remember { mutableStateOf(false) }
     var highlightedHeadingId by remember { mutableStateOf<String?>(null) }
     var highlightedEntryId by remember { mutableStateOf<String?>(null) }
     var pendingSelection by remember { mutableStateOf<Int?>(null) }
     var showOverflowMenu by remember { mutableStateOf(false) }
+
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
+    val drawerListState = rememberLazyListState()
+    var allSections by remember { mutableStateOf<List<Section>>(emptyList()) }
+    BackHandler(enabled = drawerState.isOpen) {
+        scope.launch { drawerState.close() }
+    }
 
     val userChanges by container.userStore.changes.collectAsStateWithLifecycle()
     var follows by remember { mutableStateOf<List<io.github.omeg4dev.fmhy.data.user.Follow>>(emptyList()) }
@@ -135,6 +156,22 @@ fun SectionScreen(
     val currentSectionTitle = state.section?.title ?: "Section"
     val isSectionFollowed = remember(follows, currentSectionId) {
         FollowTree(follows).isSectionFollowed(currentSectionId)
+    }
+
+    LaunchedEffect(drawerState.isOpen) {
+        if (drawerState.isOpen) {
+            val sections = if (allSections.isEmpty()) {
+                val loaded = runCatching { container.datasetStore.sections() }.getOrDefault(emptyList())
+                allSections = loaded
+                loaded
+            } else {
+                allSections
+            }
+            val index = sections.indexOfFirst { it.id == currentSectionId }
+            if (index >= 0) {
+                drawerListState.scrollToItem(index)
+            }
+        }
     }
 
     val followPromptShown by container.settingsRepository.followNotifyPromptShown.collectAsStateWithLifecycle(initialValue = false)
@@ -303,209 +340,328 @@ fun SectionScreen(
         }
     }
 
-    Scaffold(
-        snackbarHost = {
-            SnackbarHost(
-                hostState = snackbarHostState,
-                modifier = Modifier.padding(bottom = bottomBarPadding),
-            )
-        },
-        topBar = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surface)
-            ) {
-                TopAppBar(
-                    title = {
-                        Text(
-                            text = state.section?.title ?: "Section",
-                            style = MaterialTheme.typography.titleLarge,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                        }
-                    },
-                    actions = {
-                        IconButton(onClick = { showLegendBottomSheet = true }) {
-                            BadgedBox(
-                                badge = {
-                                    if (isFilterActive) {
-                                        Badge()
-                                    }
-                                }
-                            ) {
-                                Icon(Icons.Outlined.FilterList, contentDescription = "Legend and options")
+    val screen: @Composable () -> Unit = {
+        Scaffold(
+            snackbarHost = {
+                SnackbarHost(
+                    hostState = snackbarHostState,
+                    modifier = Modifier.padding(bottom = bottomBarPadding),
+                )
+            },
+            topBar = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.surface)
+                ) {
+                    TopAppBar(
+                        title = {
+                            Text(
+                                text = state.section?.title ?: "Section",
+                                style = MaterialTheme.typography.titleLarge,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        },
+                        navigationIcon = {
+                            IconButton(onClick = onBack) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                             }
-                        }
-                        if (state.layout == SectionLayout.CONTINUOUS) {
-                            IconButton(onClick = { showJumpBottomSheet = true }) {
-                                Icon(Icons.AutoMirrored.Outlined.List, contentDescription = "Outline")
-                            }
-                        }
-                        Box {
-                            IconButton(onClick = { showOverflowMenu = true }) {
-                                Icon(Icons.Default.MoreVert, contentDescription = "More options")
-                            }
-                            DropdownMenu(
-                                expanded = showOverflowMenu,
-                                onDismissRequest = { showOverflowMenu = false },
-                            ) {
-                                DropdownMenuItem(
-                                    text = { Text(if (isSectionFollowed) "Unfollow this section" else "Follow this section") },
-                                    onClick = {
-                                        showOverflowMenu = false
-                                        scope.launch {
-                                            if (isSectionFollowed) {
-                                                val snapshots = follows.filter { it.sectionId == currentSectionId }
-                                                container.userStore.unfollowSection(currentSectionId)
-                                                haptics.remove()
-                                                val undone = snackbarHostState.showUndo("Unfollowed $currentSectionTitle")
-                                                if (undone) {
-                                                    for (f in snapshots) {
-                                                        container.userStore.restoreFollow(f)
-                                                    }
-                                                }
-                                            } else {
-                                                container.userStore.followSection(currentSectionId, currentSectionTitle)
-                                                onShowSnackbar("Following $currentSectionTitle")
-                                                promptState.checkAndTrigger()
+                        },
+                        actions = {
+                            if (!websiteStyle) {
+                                IconButton(onClick = { showLegendBottomSheet = true }) {
+                                    BadgedBox(
+                                        badge = {
+                                            if (isFilterActive) {
+                                                Badge()
                                             }
                                         }
-                                    },
-                                )
-                                if (homePrefs.personalHome) {
-                                    if (isSectionPinned) {
+                                    ) {
+                                        Icon(Icons.Outlined.FilterList, contentDescription = "Legend and options")
+                                    }
+                                }
+                                if (state.layout == SectionLayout.CONTINUOUS) {
+                                    IconButton(onClick = { showJumpBottomSheet = true }) {
+                                        Icon(Icons.AutoMirrored.Outlined.List, contentDescription = "Outline")
+                                    }
+                                }
+                            }
+                            Box {
+                                IconButton(onClick = { showOverflowMenu = true }) {
+                                    Icon(Icons.Default.MoreVert, contentDescription = "More options")
+                                }
+                                DropdownMenu(
+                                    expanded = showOverflowMenu,
+                                    onDismissRequest = { showOverflowMenu = false },
+                                ) {
+                                    if (websiteStyle) {
                                         DropdownMenuItem(
-                                            text = { Text("Unpin") },
-                                            onClick = {
-                                                showOverflowMenu = false
-                                                scope.launch {
-                                                    val snapshot = container.userStore.pins().firstOrNull { it.sectionId == secId && it.headingId.isEmpty() } ?: io.github.omeg4dev.fmhy.data.user.Pin(secId, "", secTitle, 0)
-                                                    container.userStore.unpin(secId, "")
-                                                    haptics.remove()
-                                                    val undone = snackbarHostState.showUndo("Unpinned $secTitle")
-                                                    if (undone) {
-                                                        container.userStore.restorePin(snapshot)
-                                                    }
-                                                }
-                                            },
+                                            text = { Text("Legend and options") },
+                                            leadingIcon = { BadgedBox(badge = { if (isFilterActive) Badge() }) { Icon(Icons.Outlined.FilterList, null) } },
+                                            onClick = { showOverflowMenu = false; showLegendBottomSheet = true },
                                         )
-                                    } else {
-                                        DropdownMenuItem(
-                                            text = { Text("Pin to Home") },
-                                            onClick = {
-                                                showOverflowMenu = false
-                                                scope.launch {
-                                                    container.userStore.pin(secId, "", secTitle)
-                                                    onShowSnackbar("Pinned to Home")
-                                                }
-                                            },
-                                        )
+                                        if (state.layout == SectionLayout.CONTINUOUS) {
+                                            DropdownMenuItem(
+                                                text = { Text("Outline") },
+                                                leadingIcon = { Icon(Icons.AutoMirrored.Outlined.List, null) },
+                                                onClick = { showOverflowMenu = false; showJumpBottomSheet = true },
+                                            )
+                                        }
                                     }
                                     DropdownMenuItem(
-                                        text = { Text("Hide on Home") },
+                                        text = { Text(if (isSectionFollowed) "Unfollow this section" else "Follow this section") },
                                         onClick = {
                                             showOverflowMenu = false
                                             scope.launch {
-                                                container.userStore.setSectionHidden(secId, true)
-                                                onShowSnackbar("Section hidden on Home")
+                                                if (isSectionFollowed) {
+                                                    val snapshots = follows.filter { it.sectionId == currentSectionId }
+                                                    container.userStore.unfollowSection(currentSectionId)
+                                                    haptics.remove()
+                                                    val undone = snackbarHostState.showUndo("Unfollowed $currentSectionTitle")
+                                                    if (undone) {
+                                                        for (f in snapshots) {
+                                                            container.userStore.restoreFollow(f)
+                                                        }
+                                                    }
+                                                } else {
+                                                    container.userStore.followSection(currentSectionId, currentSectionTitle)
+                                                    onShowSnackbar("Following $currentSectionTitle")
+                                                    promptState.checkAndTrigger()
+                                                }
                                             }
                                         },
                                     )
+                                    if (homePrefs.personalHome) {
+                                        if (isSectionPinned) {
+                                            DropdownMenuItem(
+                                                text = { Text("Unpin") },
+                                                onClick = {
+                                                    showOverflowMenu = false
+                                                    scope.launch {
+                                                        val snapshot = container.userStore.pins().firstOrNull { it.sectionId == secId && it.headingId.isEmpty() } ?: io.github.omeg4dev.fmhy.data.user.Pin(secId, "", secTitle, 0)
+                                                        container.userStore.unpin(secId, "")
+                                                        haptics.remove()
+                                                        val undone = snackbarHostState.showUndo("Unpinned $secTitle")
+                                                        if (undone) {
+                                                            container.userStore.restorePin(snapshot)
+                                                        }
+                                                    }
+                                                },
+                                            )
+                                        } else {
+                                            DropdownMenuItem(
+                                                text = { Text("Pin to Home") },
+                                                onClick = {
+                                                    showOverflowMenu = false
+                                                    scope.launch {
+                                                        container.userStore.pin(secId, "", secTitle)
+                                                        onShowSnackbar("Pinned to Home")
+                                                    }
+                                                },
+                                            )
+                                        }
+                                        DropdownMenuItem(
+                                            text = { Text("Hide on Home") },
+                                            onClick = {
+                                                showOverflowMenu = false
+                                                scope.launch {
+                                                    container.userStore.setSectionHidden(secId, true)
+                                                    onShowSnackbar("Section hidden on Home")
+                                                }
+                                            },
+                                        )
+                                    }
                                 }
                             }
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        scrolledContainerColor = MaterialTheme.colorScheme.surface,
-                    ),
-                )
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            scrolledContainerColor = MaterialTheme.colorScheme.surface,
+                        ),
+                    )
 
-                if (state.layout == SectionLayout.CONTINUOUS && state.structure.categories.size >= 2) {
-                    val activeIndex = pendingSelection ?: derivedSelectedCategoryIndex
-                    val currentCategory = state.structure.categories.getOrNull(if (activeIndex in state.structure.categories.indices) activeIndex else 0)
-                    val tree = FollowTree(follows)
-                    val isCurrentFollowed = currentCategory != null && tree.isSubsectionFollowed(currentSectionId, currentCategory.heading.id)
-
-                    val isAtTop by remember {
-                        derivedStateOf {
-                            listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0
+                    if (websiteStyle) {
+                        val showSubsection = state.layout == SectionLayout.CONTINUOUS && state.structure.categories.isNotEmpty()
+                        val activeIndex = pendingSelection ?: derivedSelectedCategoryIndex
+                        val currentCategory = if (showSubsection) {
+                            state.structure.categories.getOrNull(if (activeIndex in state.structure.categories.indices) activeIndex else 0)
+                        } else null
+                        val tree = FollowTree(follows)
+                        val isCurrentFollowed = currentCategory != null && tree.isSubsectionFollowed(currentSectionId, currentCategory.heading.id)
+                        val currentSecId = state.section?.id ?: viewModel.sectionId
+                        val currentCleanTitle = currentCategory?.let { CrossLinks.splitLinkTitle(it.heading.title).first }.orEmpty()
+                        val currentTitle = currentCategory?.let { cat ->
+                            val raw = CrossLinks.splitLinkTitle(cat.heading.title).first
+                            flagFor(currentSecId, cat.heading.title)?.let { flag -> "$flag $raw" } ?: raw
                         }
+                        val onToggleFollow: (() -> Unit)? = if (currentCategory != null) {
+                            {
+                                val catTitle = currentCleanTitle
+                                toggleSubsectionFollow(currentCategory.heading.id, catTitle)
+                            }
+                        } else null
+
+                        WebsiteSectionRow(
+                            currentTitle = currentTitle,
+                            bellTitle = currentCleanTitle,
+                            isFollowed = isCurrentFollowed,
+                            onToggleFollow = onToggleFollow,
+                            onOpenMenu = {
+                                scope.launch { drawerState.open() }
+                            },
+                            onOpenOnThisPage = {
+                                showOnThisPage = true
+                            },
+                        )
+
+                        HorizontalDivider(
+                            thickness = 1.dp,
+                            color = MaterialTheme.colorScheme.outlineVariant,
+                        )
+                    } else if (state.layout == SectionLayout.CONTINUOUS && state.structure.categories.size >= 2) {
+                        val activeIndex = pendingSelection ?: derivedSelectedCategoryIndex
+                        val currentCategory = state.structure.categories.getOrNull(if (activeIndex in state.structure.categories.indices) activeIndex else 0)
+                        val tree = FollowTree(follows)
+                        val isCurrentFollowed = currentCategory != null && tree.isSubsectionFollowed(currentSectionId, currentCategory.heading.id)
+
+                        val isAtTop by remember {
+                            derivedStateOf {
+                                listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0
+                            }
+                        }
+                        val dividerAlpha by animateFloatAsState(
+                            targetValue = if (isAtTop) 0f else 1f,
+                            label = "rail_divider_alpha",
+                        )
+
+                        SubsectionLine(
+                            categories = state.structure.categories,
+                            sectionId = state.section?.id ?: viewModel.sectionId,
+                            selectedIndex = pendingSelection ?: derivedSelectedCategoryIndex,
+                            isFollowed = isCurrentFollowed,
+                            onToggleFollow = {
+                                val cat = currentCategory ?: return@SubsectionLine
+                                val catTitle = CrossLinks.splitLinkTitle(cat.heading.title).first
+                                toggleSubsectionFollow(cat.heading.id, catTitle)
+                            },
+                            onSelectCategory = selectCategory,
+                            onLongClickCategory = { index ->
+                                actionsMenuCategoryIndex = index
+                            },
+                        )
+
+                        HorizontalDivider(
+                            thickness = 1.dp,
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = dividerAlpha),
+                        )
                     }
-                    val dividerAlpha by animateFloatAsState(
-                        targetValue = if (isAtTop) 0f else 1f,
-                        label = "rail_divider_alpha",
-                    )
-
-                    SubsectionLine(
-                        categories = state.structure.categories,
-                        sectionId = state.section?.id ?: viewModel.sectionId,
-                        selectedIndex = pendingSelection ?: derivedSelectedCategoryIndex,
-                        isFollowed = isCurrentFollowed,
-                        onToggleFollow = {
-                            val cat = currentCategory ?: return@SubsectionLine
-                            val catTitle = CrossLinks.splitLinkTitle(cat.heading.title).first
-                            toggleSubsectionFollow(cat.heading.id, catTitle)
-                        },
-                        onSelectCategory = selectCategory,
-                        onLongClickCategory = { index ->
-                            actionsMenuCategoryIndex = index
-                        },
-                    )
-
-                    HorizontalDivider(
-                        thickness = 1.dp,
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = dividerAlpha),
-                    )
                 }
             }
-        }
-    ) { innerPadding ->
-        CompositionLocalProvider(LocalSnackbarHost provides snackbarHostState) {
-            CrossfadeContent(
-                targetState = state.isLoading,
-                modifier = Modifier.fillMaxSize(),
-            ) { loading ->
-                if (loading) {
-                    SkeletonRows(
-                        count = 8,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(top = innerPadding.calculateTopPadding()),
-                    )
-                } else if (state.items.isEmpty() && isFilterActive) {
-                    FilterEmptyState(
-                        onShowAll = {
-                            viewModel.setStarredOnly(false)
-                            viewModel.setShowIndexes(true)
-                        },
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(innerPadding),
-                    )
-                } else if (state.layout == SectionLayout.CATEGORIES) {
-                    LazyColumn(
-                        contentPadding = PaddingValues(
-                            top = innerPadding.calculateTopPadding(),
-                            bottom = bottomBarPadding + 16.dp,
-                        ),
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(MaterialTheme.colorScheme.surface),
-                    ) {
-                        if (state.structure.overview.isNotEmpty()) {
-                            item(key = "cat_overview") {
+        ) { innerPadding ->
+            CompositionLocalProvider(LocalSnackbarHost provides snackbarHostState) {
+                CrossfadeContent(
+                    targetState = state.isLoading,
+                    modifier = Modifier.fillMaxSize(),
+                ) { loading ->
+                    if (loading) {
+                        SkeletonRows(
+                            count = 8,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(top = innerPadding.calculateTopPadding()),
+                        )
+                    } else if (state.items.isEmpty() && isFilterActive) {
+                        FilterEmptyState(
+                            onShowAll = {
+                                viewModel.setStarredOnly(false)
+                                viewModel.setShowIndexes(true)
+                            },
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(innerPadding),
+                        )
+                    } else if (state.layout == SectionLayout.CATEGORIES) {
+                        LazyColumn(
+                            contentPadding = PaddingValues(
+                                top = innerPadding.calculateTopPadding(),
+                                bottom = bottomBarPadding + 16.dp,
+                            ),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(MaterialTheme.colorScheme.surface),
+                        ) {
+                            if (state.structure.overview.isNotEmpty()) {
+                                item(key = "cat_overview") {
+                                    ListItem(
+                                        headlineContent = {
+                                            Text(
+                                                text = "Overview",
+                                                style = MaterialTheme.typography.titleMedium,
+                                            )
+                                        },
+                                        trailingContent = {
+                                            Icon(
+                                                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .animateItem()
+                                            .enterStagger(0, currentSectionId)
+                                            .clickable {
+                                                nav.push(
+                                                    CategoryNavKey(
+                                                        sectionId = state.section?.id ?: viewModel.sectionId,
+                                                        categoryHeadingId = "__overview",
+                                                    )
+                                                )
+                                            },
+                                    )
+                                    HorizontalDivider(
+                                        modifier = Modifier.padding(start = 16.dp),
+                                        thickness = 0.5.dp,
+                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
+                                    )
+                                }
+                            }
+
+                            itemsIndexed(
+                                state.structure.categories,
+                                key = { _, category -> "cat_${category.heading.id}" }
+                            ) { index, category ->
+                                val (splitTitle, _) = remember(category.heading.title) {
+                                    CrossLinks.splitLinkTitle(category.heading.title)
+                                }
+                                val flag = remember(category.heading.title, state.section?.id) {
+                                    flagFor(state.section?.id ?: viewModel.sectionId, category.heading.title)
+                                }
+                                val titleWithFlag = if (flag != null) "$flag $splitTitle" else splitTitle
+                                val supportingText = remember(category) {
+                                    val subNames = category.subHeadings.take(3).map { CrossLinks.splitLinkTitle(it.title).first }
+                                    if (subNames.isNotEmpty()) {
+                                        "${category.entryCount} sites · " + subNames.joinToString(", ")
+                                    } else {
+                                        "${category.entryCount} sites"
+                                    }
+                                }
+
                                 ListItem(
                                     headlineContent = {
                                         Text(
-                                            text = "Overview",
+                                            text = titleWithFlag,
                                             style = MaterialTheme.typography.titleMedium,
+                                        )
+                                    },
+                                    supportingContent = {
+                                        Text(
+                                            text = supportingText,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
                                         )
                                     },
                                     trailingContent = {
@@ -518,223 +674,226 @@ fun SectionScreen(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .animateItem()
-                                        .enterStagger(0, currentSectionId)
+                                        .enterStagger(index + if (state.structure.overview.isNotEmpty()) 1 else 0, currentSectionId)
                                         .clickable {
                                             nav.push(
                                                 CategoryNavKey(
                                                     sectionId = state.section?.id ?: viewModel.sectionId,
-                                                    categoryHeadingId = "__overview",
+                                                    categoryHeadingId = category.heading.id,
                                                 )
                                             )
                                         },
                                 )
-                                HorizontalDivider(
-                                    modifier = Modifier.padding(start = 16.dp),
-                                    thickness = 0.5.dp,
-                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
-                                )
-                            }
-                        }
 
-                        itemsIndexed(
-                            state.structure.categories,
-                            key = { _, category -> "cat_${category.heading.id}" }
-                        ) { index, category ->
-                            val (splitTitle, _) = remember(category.heading.title) {
-                                CrossLinks.splitLinkTitle(category.heading.title)
-                            }
-                            val flag = remember(category.heading.title, state.section?.id) {
-                                flagFor(state.section?.id ?: viewModel.sectionId, category.heading.title)
-                            }
-                            val titleWithFlag = if (flag != null) "$flag $splitTitle" else splitTitle
-                            val supportingText = remember(category) {
-                                val subNames = category.subHeadings.take(3).map { CrossLinks.splitLinkTitle(it.title).first }
-                                if (subNames.isNotEmpty()) {
-                                    "${category.entryCount} sites · " + subNames.joinToString(", ")
-                                } else {
-                                    "${category.entryCount} sites"
-                                }
-                            }
-
-                            ListItem(
-                                headlineContent = {
-                                    Text(
-                                        text = titleWithFlag,
-                                        style = MaterialTheme.typography.titleMedium,
+                                if (index < state.structure.categories.lastIndex) {
+                                    HorizontalDivider(
+                                        modifier = Modifier.padding(start = 16.dp),
+                                        thickness = 0.5.dp,
+                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
                                     )
-                                },
-                                supportingContent = {
-                                    Text(
-                                        text = supportingText,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
-                                },
-                                trailingContent = {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .animateItem()
-                                    .enterStagger(index + if (state.structure.overview.isNotEmpty()) 1 else 0, currentSectionId)
-                                    .clickable {
-                                        nav.push(
-                                            CategoryNavKey(
-                                                sectionId = state.section?.id ?: viewModel.sectionId,
-                                                categoryHeadingId = category.heading.id,
-                                            )
-                                        )
-                                    },
-                            )
-
-                            if (index < state.structure.categories.lastIndex) {
-                                HorizontalDivider(
-                                    modifier = Modifier.padding(start = 16.dp),
-                                    thickness = 0.5.dp,
-                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
-                                )
-                            }
-                        }
-                    }
-                } else {
-                    val gesturePrefs = LocalGesturePrefs.current
-                    val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
-                    val minSwipePx = with(LocalDensity.current) { 72.dp.toPx() }
-                    val enableSectionPaging = state.layout == SectionLayout.CONTINUOUS &&
-                        state.structure.categories.size >= 2 &&
-                        !gesturePrefs.swipeToBookmark
-
-                    val currentActiveIndex by rememberUpdatedState(pendingSelection ?: derivedSelectedCategoryIndex)
-                    val currentCategoriesCount by rememberUpdatedState(state.structure.categories.size)
-                    val currentSelectCategory by rememberUpdatedState(selectCategory)
-                    val currentRtl by rememberUpdatedState(isRtl)
-                    val currentMinSwipePx by rememberUpdatedState(minSwipePx)
-
-                    val pageSwipeModifier = if (enableSectionPaging) {
-                        Modifier.pointerInput(enableSectionPaging) {
-                            awaitEachGesture {
-                                val down = awaitFirstDown()
-                                var totalDrag = 0f
-                                val drag = awaitHorizontalTouchSlopOrCancellation(down.id) { change, over ->
-                                    change.consume()
-                                    totalDrag = over
-                                }
-                                if (drag != null) {
-                                    val completed = horizontalDrag(drag.id) { change ->
-                                        totalDrag += change.positionChange().x
-                                        change.consume()
-                                    }
-                                    if (completed) {
-                                        val target = pageSwipeTarget(
-                                            dragPx = totalDrag,
-                                            widthPx = size.width.toFloat(),
-                                            minPx = currentMinSwipePx,
-                                            current = currentActiveIndex,
-                                            count = currentCategoriesCount,
-                                            rtl = currentRtl,
-                                        )
-                                        if (target != null) {
-                                            currentSelectCategory(target)
-                                        }
-                                    }
                                 }
                             }
                         }
                     } else {
-                        Modifier
-                    }
+                        val gesturePrefs = LocalGesturePrefs.current
+                        val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+                        val minSwipePx = with(LocalDensity.current) { 72.dp.toPx() }
+                        val enableSectionPaging = state.layout == SectionLayout.CONTINUOUS &&
+                            state.structure.categories.size >= 2 &&
+                            !gesturePrefs.swipeToBookmark
 
-                    LazyColumn(
-                        state = listState,
-                        contentPadding = PaddingValues(
-                            top = innerPadding.calculateTopPadding(),
-                            bottom = bottomBarPadding + 16.dp,
-                        ),
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(MaterialTheme.colorScheme.surface)
-                            .then(pageSwipeModifier)
-                            .pointerInput(highlightedHeadingId, highlightedEntryId) {
-                                if (highlightedHeadingId != null || highlightedEntryId != null) {
-                                    awaitPointerEventScope {
-                                        awaitFirstDown(requireUnconsumed = false)
-                                        highlightedHeadingId = null
-                                        highlightedEntryId = null
+                        val currentActiveIndex by rememberUpdatedState(pendingSelection ?: derivedSelectedCategoryIndex)
+                        val currentCategoriesCount by rememberUpdatedState(state.structure.categories.size)
+                        val currentSelectCategory by rememberUpdatedState(selectCategory)
+                        val currentRtl by rememberUpdatedState(isRtl)
+                        val currentMinSwipePx by rememberUpdatedState(minSwipePx)
+
+                        val pageSwipeModifier = if (enableSectionPaging) {
+                            Modifier.pointerInput(enableSectionPaging) {
+                                awaitEachGesture {
+                                    val down = awaitFirstDown()
+                                    var totalDrag = 0f
+                                    val drag = awaitHorizontalTouchSlopOrCancellation(down.id) { change, over ->
+                                        change.consume()
+                                        totalDrag = over
                                     }
-                                }
-                            },
-                    ) {
-                        itemsIndexed(
-                            state.items,
-                            key = { _, item ->
-                                when (item) {
-                                    is SectionItem.HeadingItem -> "h_${item.heading.id}"
-                                    is SectionItem.EntryItem -> "e_${item.entry.id}"
-                                    is SectionItem.NoteItem -> "n_${item.note.id}"
-                                    is SectionItem.MoreGroup -> "mg_${item.entries.first().id}"
+                                    if (drag != null) {
+                                        val completed = horizontalDrag(drag.id) { change ->
+                                            totalDrag += change.positionChange().x
+                                            change.consume()
+                                        }
+                                        if (completed) {
+                                            val target = pageSwipeTarget(
+                                                dragPx = totalDrag,
+                                                widthPx = size.width.toFloat(),
+                                                minPx = currentMinSwipePx,
+                                                current = currentActiveIndex,
+                                                count = currentCategoriesCount,
+                                                rtl = currentRtl,
+                                            )
+                                            if (target != null) {
+                                                currentSelectCategory(target)
+                                            }
+                                        }
+                                    }
                                 }
                             }
-                        ) { index, item ->
-                            Box(
-                                modifier = Modifier
-                                    .animateItem()
-                                    .enterStagger(index, currentSectionId)
-                            ) {
-                                when (item) {
-                                    is SectionItem.HeadingItem -> {
-                                        val entryCount = remember(state.structure.categories, item.heading.id) {
-                                            state.structure.categories.firstOrNull { it.heading.id == item.heading.id }?.entryCount
-                                        }
-                                        HeadingHeader(
-                                            heading = item.heading,
-                                            isHighlighted = item.heading.id == highlightedHeadingId,
-                                            isFirstItem = index == 0,
-                                            entryCount = entryCount,
-                                            onOpenUrl = { linkOpener.openUrl(it) },
-                                            sectionId = state.section?.id ?: viewModel.sectionId,
-                                        )
-                                    }
-                                    is SectionItem.EntryItem -> {
-                                        val isEntryHighlighted = item.entry.id == highlightedEntryId || item.alternatives.any { it.id == highlightedEntryId }
-                                        Column(modifier = Modifier.jumpHighlight(active = isEntryHighlighted)) {
-                                            SwipeToSave(entry = item.entry) {
-                                                EntryRow(
-                                                    entry = item.entry,
-                                                    alternatives = item.alternatives,
-                                                    isNew = item.entry.id in state.newEntryIds,
-                                                    onOpenUrl = { linkOpener.openUrl(it) },
-                                                    onShowSnackbar = onShowSnackbar,
-                                                )
-                                            }
-                                            val nextItem = state.items.getOrNull(index + 1)
-                                            if (nextItem is SectionItem.EntryItem) {
-                                                HorizontalDivider(
-                                                    modifier = Modifier.padding(start = 16.dp),
-                                                    thickness = 0.5.dp,
-                                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
-                                                )
-                                            }
+                        } else {
+                            Modifier
+                        }
+
+                        LazyColumn(
+                            state = listState,
+                            contentPadding = PaddingValues(
+                                top = innerPadding.calculateTopPadding(),
+                                bottom = bottomBarPadding + 16.dp,
+                            ),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(MaterialTheme.colorScheme.surface)
+                                .then(pageSwipeModifier)
+                                .pointerInput(highlightedHeadingId, highlightedEntryId) {
+                                    if (highlightedHeadingId != null || highlightedEntryId != null) {
+                                        awaitPointerEventScope {
+                                            awaitFirstDown(requireUnconsumed = false)
+                                            highlightedHeadingId = null
+                                            highlightedEntryId = null
                                         }
                                     }
-                                    is SectionItem.NoteItem -> {
-                                        NoteCallout(note = item.note)
+                                },
+                        ) {
+                            itemsIndexed(
+                                state.items,
+                                key = { _, item ->
+                                    when (item) {
+                                        is SectionItem.HeadingItem -> "h_${item.heading.id}"
+                                        is SectionItem.EntryItem -> "e_${item.entry.id}"
+                                        is SectionItem.NoteItem -> "n_${item.note.id}"
+                                        is SectionItem.MoreGroup -> "mg_${item.entries.first().id}"
                                     }
-                                    is SectionItem.MoreGroup -> {
-                                        MoreGroupRow(
-                                            entries = item.entries,
-                                            onOpenUrl = { linkOpener.openUrl(it) },
-                                        )
+                                }
+                            ) { index, item ->
+                                Box(
+                                    modifier = Modifier
+                                        .animateItem()
+                                        .enterStagger(index, currentSectionId)
+                                ) {
+                                    when (item) {
+                                        is SectionItem.HeadingItem -> {
+                                            val entryCount = remember(state.structure.categories, item.heading.id) {
+                                                state.structure.categories.firstOrNull { it.heading.id == item.heading.id }?.entryCount
+                                            }
+                                            HeadingHeader(
+                                                heading = item.heading,
+                                                isHighlighted = item.heading.id == highlightedHeadingId,
+                                                isFirstItem = index == 0,
+                                                entryCount = entryCount,
+                                                onOpenUrl = { linkOpener.openUrl(it) },
+                                                sectionId = state.section?.id ?: viewModel.sectionId,
+                                            )
+                                        }
+                                        is SectionItem.EntryItem -> {
+                                            val isEntryHighlighted = item.entry.id == highlightedEntryId || item.alternatives.any { it.id == highlightedEntryId }
+                                            Column(modifier = Modifier.jumpHighlight(active = isEntryHighlighted)) {
+                                                SwipeToSave(entry = item.entry) {
+                                                    EntryRow(
+                                                        entry = item.entry,
+                                                        alternatives = item.alternatives,
+                                                        isNew = item.entry.id in state.newEntryIds,
+                                                        onOpenUrl = { linkOpener.openUrl(it) },
+                                                        onShowSnackbar = onShowSnackbar,
+                                                    )
+                                                }
+                                                val nextItem = state.items.getOrNull(index + 1)
+                                                if (!websiteStyle && nextItem is SectionItem.EntryItem) {
+                                                    HorizontalDivider(
+                                                        modifier = Modifier.padding(start = 16.dp),
+                                                        thickness = 0.5.dp,
+                                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        is SectionItem.NoteItem -> {
+                                            NoteCallout(note = item.note)
+                                        }
+                                        is SectionItem.MoreGroup -> {
+                                            MoreGroupRow(
+                                                entries = item.entries,
+                                                onOpenUrl = { linkOpener.openUrl(it) },
+                                            )
+                                        }
                                     }
                                 }
                             }
                         }
                     }
+                }
+            }
+        }
+    }
+
+    if (websiteStyle) {
+        ModalNavigationDrawer(
+            drawerState = drawerState,
+            gesturesEnabled = drawerState.isOpen,
+            drawerContent = {
+                ModalDrawerSheet(modifier = Modifier.widthIn(max = 320.dp)) {
+                    Text(
+                        text = "Sections",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 28.dp, vertical = 16.dp),
+                    )
+                    LazyColumn(
+                        state = drawerListState,
+                        contentPadding = PaddingValues(bottom = bottomBarPadding + 16.dp),
+                    ) {
+                        items(allSections, key = { it.id }) { section ->
+                            NavigationDrawerItem(
+                                label = { Text(section.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                selected = section.id == currentSectionId,
+                                onClick = {
+                                    scope.launch { drawerState.close() }
+                                    if (section.id != currentSectionId) {
+                                        nav.push(SectionNavKey(section.id))
+                                    }
+                                },
+                                modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
+                            )
+                        }
+                    }
+                }
+            },
+        ) {
+            screen()
+        }
+    } else {
+        screen()
+    }
+
+    val onOutlineSelect: (Heading) -> Unit = { heading ->
+        showJumpBottomSheet = false
+        showOnThisPage = false
+        bottomBarController.show()
+        if (state.layout == SectionLayout.CATEGORIES) {
+            val categoryHeadingId = findCategoryHeadingId(state.structure, heading.id)
+            if (categoryHeadingId != null) {
+                nav.push(
+                    CategoryNavKey(
+                        sectionId = state.section?.id ?: viewModel.sectionId,
+                        categoryHeadingId = categoryHeadingId,
+                        focusHeadingId = heading.id,
+                    )
+                )
+            }
+        } else {
+            val targetIdx = state.items.indexOfFirst {
+                it is SectionItem.HeadingItem && it.heading.id == heading.id
+            }
+            if (targetIdx != -1) {
+                scope.launch {
+                    listState.animateScrollToItem(targetIdx)
                 }
             }
         }
@@ -752,33 +911,32 @@ fun SectionScreen(
                     listState.animateScrollToItem(0)
                 }
             },
-            onSelectHeading = { heading ->
-                showJumpBottomSheet = false
-                bottomBarController.show()
-                if (state.layout == SectionLayout.CATEGORIES) {
-                    val categoryHeadingId = findCategoryHeadingId(state.structure, heading.id)
-                    if (categoryHeadingId != null) {
-                        nav.push(
-                            CategoryNavKey(
-                                sectionId = state.section?.id ?: viewModel.sectionId,
-                                categoryHeadingId = categoryHeadingId,
-                                focusHeadingId = heading.id,
-                            )
-                        )
-                    }
-                } else {
-                    val targetIdx = state.items.indexOfFirst {
-                        it is SectionItem.HeadingItem && it.heading.id == heading.id
-                    }
-                    if (targetIdx != -1) {
-                        scope.launch {
-                            listState.animateScrollToItem(targetIdx)
-                        }
-                    }
-                }
-            },
+            onSelectHeading = onOutlineSelect,
             headings = state.headings,
             sectionId = state.section?.id ?: viewModel.sectionId,
+        )
+    }
+
+    if (showOnThisPage) {
+        JumpToHeadingBottomSheet(
+            categories = state.structure.categories,
+            currentCategoryId = currentCategoryHeadingId,
+            onDismiss = { showOnThisPage = false },
+            onReturnToTop = {
+                showOnThisPage = false
+                bottomBarController.show()
+                scope.launch {
+                    listState.animateScrollToItem(0)
+                }
+            },
+            onSelectHeading = onOutlineSelect,
+            headings = state.headings,
+            sectionId = state.section?.id ?: viewModel.sectionId,
+            title = "On this page",
+            onLongClickCategory = { cat ->
+                showOnThisPage = false
+                actionsMenuCategoryIndex = state.structure.categories.indexOfFirst { it.heading.id == cat.heading.id }.takeIf { it >= 0 }
+            },
         )
     }
 

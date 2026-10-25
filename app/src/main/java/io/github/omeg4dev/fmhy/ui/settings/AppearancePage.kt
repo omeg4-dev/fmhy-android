@@ -422,6 +422,13 @@ fun AppearancePage(
                 SettingsSection(
                     title = "Display & interaction",
                 ) {
+                    SwitchRow(
+                        title = "Website style",
+                        summary = "Lists look like fmhy.net",
+                        checked = appearance.websiteStyle,
+                        onChange = { viewModel.setWebsiteStyle(it) },
+                    )
+                    SettingsDivider()
                     var textScaleSliderValue by remember(appearance.textScale) {
                         mutableFloatStateOf(appearance.textScale)
                     }

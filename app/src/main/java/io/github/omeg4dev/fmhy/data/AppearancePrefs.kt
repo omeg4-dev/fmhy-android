@@ -16,5 +16,6 @@ data class Appearance(
     val starredOnly: Boolean = false,
     val showIndexes: Boolean = true,
     val hapticFeedback: Boolean = true,
+    val websiteStyle: Boolean = false,
     val appIcon: AppIcon = AppIcon.DEFAULT,
 )

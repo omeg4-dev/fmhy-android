@@ -53,6 +53,7 @@ data class OnboardingState(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val colorSource: ColorSource = ColorSource.FMHY,
     val accentSeed: Int = 0xFF7C5CFF.toInt(),
+    val websiteStyle: Boolean = false,
     val openLinksWith: OpenLinksWith = OpenLinksWith.IN_APP,
     val adblockLevel: AdblockLevel = AdblockLevel.BALANCED,
     val blockPopupsAndRedirects: Boolean = true,
@@ -76,6 +77,7 @@ data class OnboardingState(
                 themeMode = appearance.themeMode,
                 colorSource = appearance.colorSource,
                 accentSeed = appearance.accentSeed,
+                websiteStyle = appearance.websiteStyle,
                 openLinksWith = browserPrefs.openLinksWith,
                 adblockLevel = AdblockLevel.fromBlockingPrefs(blockingPrefs),
                 blockPopupsAndRedirects = protectionPrefs.popupBlocker && protectionPrefs.redirectGuard,
@@ -166,6 +168,10 @@ class OnboardingModel(
         _state.update { it.copy(accentSeed = seed, colorSource = ColorSource.FMHY) }
     }
 
+    fun setWebsiteStyle(enabled: Boolean) {
+        _state.update { it.copy(websiteStyle = enabled) }
+    }
+
     fun setOpenLinksWith(openLinksWith: OpenLinksWith) {
         _state.update { it.copy(openLinksWith = openLinksWith) }
     }
@@ -220,6 +226,7 @@ class OnboardingModel(
                 settingsRepository.setThemeMode(s.themeMode)
                 settingsRepository.setColorSource(s.colorSource)
                 settingsRepository.setAccentSeed(s.accentSeed)
+                settingsRepository.setWebsiteStyle(s.websiteStyle)
             }
             OnboardingPage.BROWSING -> {
                 settingsRepository.updateBrowser { it.copy(openLinksWith = s.openLinksWith) }

@@ -8,3 +8,4 @@ data class GesturePrefs(
 )
 
 val LocalGesturePrefs = staticCompositionLocalOf { GesturePrefs() }
+val LocalWebsiteStyle = staticCompositionLocalOf { false }

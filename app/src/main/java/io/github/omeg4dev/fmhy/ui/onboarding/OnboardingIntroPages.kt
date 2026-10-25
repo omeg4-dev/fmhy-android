@@ -343,6 +343,7 @@ fun HelloPageContent(
                     themeMode = state.themeMode,
                     colorSource = state.colorSource,
                     accentSeed = state.accentSeed,
+                    websiteStyle = state.websiteStyle,
                 )
             }
 
@@ -456,6 +457,31 @@ fun HelloPageContent(
                         textAlign = TextAlign.Center,
                     )
                 }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // List style (index 4)
+            Column(
+                modifier = Modifier.enterStagger(index = 4, key = key),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    text = "List style",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                ListStyleChoice(
+                    websiteStyle = state.websiteStyle,
+                    onSelect = {
+                        haptics.tick()
+                        model.setWebsiteStyle(it)
+                    },
+                    modifier = Modifier
+                        .widthIn(max = 360.dp)
+                        .fillMaxWidth(),
+                )
             }
         }
     }

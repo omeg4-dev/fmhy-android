@@ -97,6 +97,7 @@ class OnboardingModelTest {
         override suspend fun setStarredOnly(starredOnly: Boolean) { appearanceState.value = appearanceState.value.copy(starredOnly = starredOnly) }
         override suspend fun setShowIndexes(showIndexes: Boolean) { appearanceState.value = appearanceState.value.copy(showIndexes = showIndexes) }
         override suspend fun setHapticFeedback(enabled: Boolean) { appearanceState.value = appearanceState.value.copy(hapticFeedback = enabled) }
+        override suspend fun setWebsiteStyle(enabled: Boolean) { appearanceState.value = appearanceState.value.copy(websiteStyle = enabled) }
         override suspend fun setAppIcon(icon: AppIcon) { appearanceState.value = appearanceState.value.copy(appIcon = icon) }
 
         val homeState = MutableStateFlow(initialHome)
@@ -540,5 +541,38 @@ class OnboardingModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertTrue(userStore.follows().isEmpty())
+    }
+
+    @Test
+    fun testWebsiteStylePersistHelloPage() = runTest {
+        val repo = FakeSettingsRepository()
+        val container = FakeContainer(repo, userStore)
+        val model = OnboardingModel(repo, userStore, container)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertFalse(repo.appearanceState.value.websiteStyle)
+        assertFalse(model.state.value.websiteStyle)
+
+        model.setWebsiteStyle(true)
+        assertTrue(model.state.value.websiteStyle)
+
+        model.persistPage(OnboardingPage.HELLO)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(repo.appearanceState.value.websiteStyle)
+    }
+
+    @Test
+    fun testWebsiteStyleFromCurrent() {
+        val appearance = Appearance().copy(websiteStyle = true)
+        val state = OnboardingState.fromCurrent(
+            appearance = appearance,
+            browserPrefs = BrowserPrefs(),
+            blockingPrefs = BlockingPrefs(),
+            protectionPrefs = ProtectionPrefs(),
+            homePrefs = HomePrefs(),
+            notificationPrefs = NotificationPrefs(),
+        )
+        assertTrue(state.websiteStyle)
     }
 }

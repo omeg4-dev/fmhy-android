@@ -41,6 +41,7 @@ interface SettingsRepository {
     suspend fun setStarredOnly(starredOnly: Boolean)
     suspend fun setShowIndexes(showIndexes: Boolean)
     suspend fun setHapticFeedback(enabled: Boolean)
+    suspend fun setWebsiteStyle(enabled: Boolean)
     suspend fun setAppIcon(icon: AppIcon)
 
     val homePrefs: Flow<HomePrefs>
@@ -99,6 +100,7 @@ class DefaultSettingsRepository(
         private val KEY_STARRED_ONLY = booleanPreferencesKey("starred_only")
         private val KEY_SHOW_INDEXES = booleanPreferencesKey("show_indexes")
         private val KEY_HAPTIC_FEEDBACK = booleanPreferencesKey("haptic_feedback")
+        private val KEY_WEBSITE_STYLE = booleanPreferencesKey("website_style")
         private val KEY_APP_ICON = stringPreferencesKey("app_icon")
         private val KEY_ONBOARDING_VERSION = intPreferencesKey("onboarding_version")
 
@@ -266,6 +268,7 @@ class DefaultSettingsRepository(
         val starredOnly = prefs[KEY_STARRED_ONLY] ?: false
         val showIndexes = prefs[KEY_SHOW_INDEXES] ?: true
         val hapticFeedback = prefs[KEY_HAPTIC_FEEDBACK] ?: true
+        val websiteStyle = prefs[KEY_WEBSITE_STYLE] ?: false
         val appIcon = try {
             prefs[KEY_APP_ICON]?.let { AppIcon.valueOf(it) } ?: AppIcon.DEFAULT
         } catch (_: IllegalArgumentException) {
@@ -284,6 +287,7 @@ class DefaultSettingsRepository(
             starredOnly = starredOnly,
             showIndexes = showIndexes,
             hapticFeedback = hapticFeedback,
+            websiteStyle = websiteStyle,
             appIcon = appIcon,
         )
     }.distinctUntilChanged()
@@ -351,6 +355,12 @@ class DefaultSettingsRepository(
     override suspend fun setHapticFeedback(enabled: Boolean) {
         dataStore.edit { prefs ->
             prefs[KEY_HAPTIC_FEEDBACK] = enabled
+        }
+    }
+
+    override suspend fun setWebsiteStyle(enabled: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[KEY_WEBSITE_STYLE] = enabled
         }
     }
 

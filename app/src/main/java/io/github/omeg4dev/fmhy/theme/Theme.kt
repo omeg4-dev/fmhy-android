@@ -20,6 +20,7 @@ import io.github.omeg4dev.fmhy.data.ThemeMode
 import io.github.omeg4dev.fmhy.ui.common.GesturePrefs
 import io.github.omeg4dev.fmhy.ui.common.LocalGesturePrefs
 import io.github.omeg4dev.fmhy.ui.common.LocalHapticsEnabled
+import io.github.omeg4dev.fmhy.ui.common.LocalWebsiteStyle
 import io.github.omeg4dev.fmhy.ui.common.SilentHapticFeedback
 
 val LocalIsDarkTheme = staticCompositionLocalOf { false }
@@ -66,6 +67,7 @@ fun FMHYTheme(
         LocalHapticFeedback provides SilentHapticFeedback,
         LocalCalloutColors provides calloutColors,
         LocalGesturePrefs provides gesturePrefs,
+        LocalWebsiteStyle provides appearance.websiteStyle,
     ) {
         MaterialTheme(
             colorScheme = colorScheme,

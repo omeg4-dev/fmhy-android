@@ -311,4 +311,16 @@ class SettingsRepositoryTest {
         repo.setGestureHintShown(true)
         assertTrue(repo.gestureHintShown.first())
     }
+
+    @Test
+    fun testWebsiteStyleDefaultsAndPersist() = runTest {
+        val (repo, _) = createRepository(this)
+        val initialAppearance = repo.appearance.first()
+        assertFalse(initialAppearance.websiteStyle)
+
+        repo.setWebsiteStyle(true)
+        val updatedAppearance = repo.appearance.first()
+        assertTrue(updatedAppearance.websiteStyle)
+        assertEquals(initialAppearance.copy(websiteStyle = true), updatedAppearance)
+    }
 }

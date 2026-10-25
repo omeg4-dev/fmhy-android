@@ -58,6 +58,7 @@ class TabManagerTest {
         override suspend fun setStarredOnly(starredOnly: Boolean) {}
         override suspend fun setShowIndexes(showIndexes: Boolean) {}
         override suspend fun setHapticFeedback(enabled: Boolean) {}
+        override suspend fun setWebsiteStyle(enabled: Boolean) {}
         override suspend fun setAppIcon(icon: io.github.omeg4dev.fmhy.data.AppIcon) {}
 
         override val homePrefs: Flow<HomePrefs> = MutableStateFlow(HomePrefs())
