@@ -65,6 +65,10 @@ interface SettingsRepository {
         get() = kotlinx.coroutines.flow.flowOf(false)
     suspend fun setFollowNotifyPromptShown(shown: Boolean) {}
 
+    val gestureHintShown: Flow<Boolean>
+        get() = kotlinx.coroutines.flow.flowOf(false)
+    suspend fun setGestureHintShown(shown: Boolean) {}
+
     val dataPrefs: Flow<DataPrefs>
     suspend fun updateData(f: (DataPrefs) -> DataPrefs)
 
@@ -102,6 +106,8 @@ class DefaultSettingsRepository(
         private val KEY_HOME_PERSONAL_HOME = booleanPreferencesKey("home_personal_home")
         private val KEY_HOME_NEW_BADGE_DAYS = intPreferencesKey("home_new_badge_days")
         private val KEY_HOME_SEARCH_EXACT = booleanPreferencesKey("home_search_exact")
+        private val KEY_HOME_SWIPE_TO_BOOKMARK = booleanPreferencesKey("home_swipe_to_bookmark")
+        private val KEY_HOME_SWAP_TAP_HOLD = booleanPreferencesKey("home_swap_tap_hold")
 
         // Browser
         private val KEY_BROWSER_OPEN_LINKS_WITH = stringPreferencesKey("browser_open_links_with")
@@ -170,6 +176,7 @@ class DefaultSettingsRepository(
         private val KEY_NOTIFICATIONS_INTERVAL = stringPreferencesKey("notifications_interval")
         private val KEY_NOTIFICATIONS_WIFI_ONLY = booleanPreferencesKey("notifications_wifi_only")
         private val KEY_FOLLOW_NOTIFY_PROMPT_SHOWN = booleanPreferencesKey("follow_notify_prompt_shown")
+        private val KEY_GESTURE_HINT_SHOWN = booleanPreferencesKey("gesture_hint_shown")
 
         // Data
         private val KEY_DATA_SYNC_ON_LAUNCH = booleanPreferencesKey("data_sync_on_launch")
@@ -360,6 +367,8 @@ class DefaultSettingsRepository(
             personalHome = prefs[KEY_HOME_PERSONAL_HOME] ?: default.personalHome,
             newBadgeDays = prefs[KEY_HOME_NEW_BADGE_DAYS] ?: default.newBadgeDays,
             searchExact = prefs[KEY_HOME_SEARCH_EXACT] ?: default.searchExact,
+            swipeToBookmark = prefs[KEY_HOME_SWIPE_TO_BOOKMARK] ?: default.swipeToBookmark,
+            swapTapHold = prefs[KEY_HOME_SWAP_TAP_HOLD] ?: default.swapTapHold,
         )
     }
 
@@ -367,6 +376,8 @@ class DefaultSettingsRepository(
         prefs[KEY_HOME_PERSONAL_HOME] = p.personalHome
         prefs[KEY_HOME_SEARCH_EXACT] = p.searchExact
         prefs[KEY_HOME_NEW_BADGE_DAYS] = p.newBadgeDays
+        prefs[KEY_HOME_SWIPE_TO_BOOKMARK] = p.swipeToBookmark
+        prefs[KEY_HOME_SWAP_TAP_HOLD] = p.swapTapHold
     }
 
     override val homePrefs: Flow<HomePrefs> = dataStore.data.map { prefs ->
@@ -655,6 +666,16 @@ class DefaultSettingsRepository(
     override suspend fun setFollowNotifyPromptShown(shown: Boolean) {
         dataStore.edit { prefs ->
             prefs[KEY_FOLLOW_NOTIFY_PROMPT_SHOWN] = shown
+        }
+    }
+
+    override val gestureHintShown: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[KEY_GESTURE_HINT_SHOWN] ?: false
+    }.distinctUntilChanged()
+
+    override suspend fun setGestureHintShown(shown: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[KEY_GESTURE_HINT_SHOWN] = shown
         }
     }
 

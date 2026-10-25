@@ -37,6 +37,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.Placeholder
@@ -298,21 +301,47 @@ fun EntryRow(
         crossLinks?.resolve(entry.url) != null
     }
 
+    val swapTapHold = LocalGesturePrefs.current.swapTapHold
+    val gestures = rowGestures(swapTapHold)
+    val altActionLabel = if (gestures.onTap == RowAction.OPEN_SITE) "Show details" else "Open site"
+    val altAction: () -> Boolean = {
+        if (gestures.onTap == RowAction.OPEN_SITE) {
+            showBottomSheet = true
+        } else {
+            onOpenUrl(entry.url)
+        }
+        true
+    }
+
     Surface(
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = 56.dp)
-            // Tap shows the details (all sites on the line, mirrors, links); hold opens the site directly.
+            .semantics {
+                customActions = listOf(
+                    CustomAccessibilityAction(
+                        label = altActionLabel,
+                        action = altAction,
+                    )
+                )
+            }
+            // Default: tap opens the site directly, hold opens details (swappable in Settings).
             .combinedClickable(
                 onClick = {
-                    showBottomSheet = true
+                    when (gestures.onTap) {
+                        RowAction.OPEN_SITE -> onOpenUrl(entry.url)
+                        RowAction.OPEN_MENU -> showBottomSheet = true
+                    }
                 },
                 onLongClick = {
                     haptics.longPress()
-                    onOpenUrl(entry.url)
+                    when (gestures.onHold) {
+                        RowAction.OPEN_SITE -> onOpenUrl(entry.url)
+                        RowAction.OPEN_MENU -> showBottomSheet = true
+                    }
                 },
-                onClickLabel = "Show details",
-                onLongClickLabel = "Open site",
+                onClickLabel = if (gestures.onTap == RowAction.OPEN_SITE) "Open site" else "Show details",
+                onLongClickLabel = if (gestures.onHold == RowAction.OPEN_SITE) "Open site" else "Show details",
             ),
         color = Color.Transparent,
     ) {

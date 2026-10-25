@@ -68,6 +68,8 @@ data class HomePrefs(
     val newBadgeDays: Int = 7,
     /** Search: whole words only. Off = fuzzy (prefix + typo-tolerant trigram matches). */
     val searchExact: Boolean = false,
+    val swipeToBookmark: Boolean = false,
+    val swapTapHold: Boolean = false,
 )
 
 data class BrowserPrefs(

@@ -5,7 +5,10 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitHorizontalTouchSlopOrCancellation
+import androidx.compose.foundation.gestures.horizontalDrag
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -50,6 +53,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -57,7 +61,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.omeg4dev.fmhy.CategoryNavKey
@@ -73,9 +81,11 @@ import io.github.omeg4dev.fmhy.nav.LocalAppNav
 import io.github.omeg4dev.fmhy.nav.LocalBottomBarPadding
 import io.github.omeg4dev.fmhy.ui.common.CrossfadeContent
 import io.github.omeg4dev.fmhy.ui.common.EntryRow
+import io.github.omeg4dev.fmhy.ui.common.LocalGesturePrefs
 import io.github.omeg4dev.fmhy.ui.common.LocalSnackbarHost
 import io.github.omeg4dev.fmhy.ui.common.SkeletonRows
 import io.github.omeg4dev.fmhy.ui.common.SwipeToSave
+import io.github.omeg4dev.fmhy.ui.common.pageSwipeTarget
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
 import io.github.omeg4dev.fmhy.ui.common.enterStagger
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
@@ -276,6 +286,23 @@ fun SectionScreen(
         }
     }
 
+    val selectCategory: (Int) -> Unit = { index ->
+        bottomBarController.show()
+        val category = state.structure.categories.getOrNull(index)
+        if (category != null) {
+            val targetIdx = state.items.indexOfFirst {
+                it is SectionItem.HeadingItem && it.heading.id == category.heading.id
+            }
+            if (targetIdx != -1) {
+                scope.launch {
+                    pendingSelection = index
+                    listState.jumpTo(targetIdx, viewportFraction = HEADING_VIEWPORT_FRACTION)
+                    pendingSelection = null
+                }
+            }
+        }
+    }
+
     Scaffold(
         snackbarHost = {
             SnackbarHost(
@@ -426,20 +453,7 @@ fun SectionScreen(
                             val catTitle = CrossLinks.splitLinkTitle(cat.heading.title).first
                             toggleSubsectionFollow(cat.heading.id, catTitle)
                         },
-                        onSelectCategory = { index ->
-                            bottomBarController.show()
-                            val category = state.structure.categories.getOrNull(index) ?: return@SubsectionLine
-                            val targetIdx = state.items.indexOfFirst {
-                                it is SectionItem.HeadingItem && it.heading.id == category.heading.id
-                            }
-                            if (targetIdx != -1) {
-                                scope.launch {
-                                    pendingSelection = index
-                                    listState.jumpTo(targetIdx, viewportFraction = HEADING_VIEWPORT_FRACTION)
-                                    pendingSelection = null
-                                }
-                            }
-                        },
+                        onSelectCategory = selectCategory,
                         onLongClickCategory = { index ->
                             actionsMenuCategoryIndex = index
                         },
@@ -589,6 +603,53 @@ fun SectionScreen(
                         }
                     }
                 } else {
+                    val gesturePrefs = LocalGesturePrefs.current
+                    val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+                    val minSwipePx = with(LocalDensity.current) { 72.dp.toPx() }
+                    val enableSectionPaging = state.layout == SectionLayout.CONTINUOUS &&
+                        state.structure.categories.size >= 2 &&
+                        !gesturePrefs.swipeToBookmark
+
+                    val currentActiveIndex by rememberUpdatedState(pendingSelection ?: derivedSelectedCategoryIndex)
+                    val currentCategoriesCount by rememberUpdatedState(state.structure.categories.size)
+                    val currentSelectCategory by rememberUpdatedState(selectCategory)
+                    val currentRtl by rememberUpdatedState(isRtl)
+                    val currentMinSwipePx by rememberUpdatedState(minSwipePx)
+
+                    val pageSwipeModifier = if (enableSectionPaging) {
+                        Modifier.pointerInput(enableSectionPaging) {
+                            awaitEachGesture {
+                                val down = awaitFirstDown()
+                                var totalDrag = 0f
+                                val drag = awaitHorizontalTouchSlopOrCancellation(down.id) { change, over ->
+                                    change.consume()
+                                    totalDrag = over
+                                }
+                                if (drag != null) {
+                                    val completed = horizontalDrag(drag.id) { change ->
+                                        totalDrag += change.positionChange().x
+                                        change.consume()
+                                    }
+                                    if (completed) {
+                                        val target = pageSwipeTarget(
+                                            dragPx = totalDrag,
+                                            widthPx = size.width.toFloat(),
+                                            minPx = currentMinSwipePx,
+                                            current = currentActiveIndex,
+                                            count = currentCategoriesCount,
+                                            rtl = currentRtl,
+                                        )
+                                        if (target != null) {
+                                            currentSelectCategory(target)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        Modifier
+                    }
+
                     LazyColumn(
                         state = listState,
                         contentPadding = PaddingValues(
@@ -598,6 +659,7 @@ fun SectionScreen(
                         modifier = Modifier
                             .fillMaxSize()
                             .background(MaterialTheme.colorScheme.surface)
+                            .then(pageSwipeModifier)
                             .pointerInput(highlightedHeadingId, highlightedEntryId) {
                                 if (highlightedHeadingId != null || highlightedEntryId != null) {
                                     awaitPointerEventScope {

@@ -16,6 +16,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -25,9 +26,13 @@ import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -53,6 +58,35 @@ fun HomeListsPage(
     val hiddenSections by viewModel.hiddenSections.collectAsStateWithLifecycle()
     val allSections by viewModel.allSections.collectAsStateWithLifecycle()
     val appearance = state.appearance
+    var showSwipeBookmarkDialog by rememberSaveable { mutableStateOf(false) }
+
+    if (showSwipeBookmarkDialog) {
+        AlertDialog(
+            onDismissRequest = { showSwipeBookmarkDialog = false },
+            text = {
+                Text("Swipe to bookmark uses the left and right swipe, so swiping between sections stops working. You can still pick a subsection at the top.")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showSwipeBookmarkDialog = false
+                        viewModel.updateHome { it.copy(swipeToBookmark = true) }
+                    }
+                ) {
+                    Text("Turn on")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showSwipeBookmarkDialog = false
+                    }
+                ) {
+                    Text("Cancel")
+                }
+            },
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -132,6 +166,28 @@ fun HomeListsPage(
                         summary = "Include 🌐 index sites that list other sites",
                         checked = appearance.showIndexes,
                         onChange = { viewModel.setShowIndexes(it) },
+                    )
+                    SettingsDivider()
+                    SwitchRow(
+                        title = "Swipe to bookmark",
+                        summary = "Off: swipe a list to move between subsections. On: swipe an entry to save it.",
+                        checked = homePrefs.swipeToBookmark,
+                        onChange = { checked ->
+                            if (checked) {
+                                showSwipeBookmarkDialog = true
+                            } else {
+                                viewModel.updateHome { it.copy(swipeToBookmark = false) }
+                            }
+                        },
+                    )
+                    SettingsDivider()
+                    SwitchRow(
+                        title = "Swap tap and hold",
+                        summary = "Default: tap opens the site, hold opens the menu. Swapped: tap opens the menu, hold opens the site.",
+                        checked = homePrefs.swapTapHold,
+                        onChange = { checked ->
+                            viewModel.updateHome { it.copy(swapTapHold = checked) }
+                        },
                     )
                     SettingsDivider()
                     ChoiceRow(

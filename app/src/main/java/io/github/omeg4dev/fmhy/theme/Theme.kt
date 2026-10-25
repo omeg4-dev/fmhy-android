@@ -17,6 +17,8 @@ import io.github.omeg4dev.fmhy.data.Appearance
 import io.github.omeg4dev.fmhy.data.ColorSource
 import io.github.omeg4dev.fmhy.data.ThemeMode
 
+import io.github.omeg4dev.fmhy.ui.common.GesturePrefs
+import io.github.omeg4dev.fmhy.ui.common.LocalGesturePrefs
 import io.github.omeg4dev.fmhy.ui.common.LocalHapticsEnabled
 import io.github.omeg4dev.fmhy.ui.common.SilentHapticFeedback
 
@@ -25,6 +27,7 @@ val LocalIsDarkTheme = staticCompositionLocalOf { false }
 @Composable
 fun FMHYTheme(
     appearance: Appearance = Appearance(),
+    gesturePrefs: GesturePrefs = GesturePrefs(),
     content: @Composable () -> Unit,
 ) {
     val dark = when (appearance.themeMode) {
@@ -62,6 +65,7 @@ fun FMHYTheme(
         LocalHapticsEnabled provides appearance.hapticFeedback,
         LocalHapticFeedback provides SilentHapticFeedback,
         LocalCalloutColors provides calloutColors,
+        LocalGesturePrefs provides gesturePrefs,
     ) {
         MaterialTheme(
             colorScheme = colorScheme,

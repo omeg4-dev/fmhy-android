@@ -15,11 +15,14 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.compose.runtime.remember
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.omeg4dev.fmhy.data.Appearance
+import io.github.omeg4dev.fmhy.data.HomePrefs
 import io.github.omeg4dev.fmhy.data.ThemeMode
 import io.github.omeg4dev.fmhy.di.AppContainer
 import io.github.omeg4dev.fmhy.theme.FMHYTheme
+import io.github.omeg4dev.fmhy.ui.common.GesturePrefs
 import kotlinx.coroutines.flow.MutableSharedFlow
 
 class MainActivity : ComponentActivity() {
@@ -37,6 +40,13 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val appearance by container.settingsRepository.appearance.collectAsStateWithLifecycle(initialValue = Appearance())
+            val homePrefs by container.settingsRepository.homePrefs.collectAsStateWithLifecycle(initialValue = HomePrefs())
+            val gesturePrefs = remember(homePrefs.swipeToBookmark, homePrefs.swapTapHold) {
+                GesturePrefs(
+                    swipeToBookmark = homePrefs.swipeToBookmark,
+                    swapTapHold = homePrefs.swapTapHold,
+                )
+            }
             val isSystemDark = isSystemInDarkTheme()
             val dark = when (appearance.themeMode) {
                 ThemeMode.SYSTEM -> isSystemDark
@@ -62,7 +72,7 @@ class MainActivity : ComponentActivity() {
                 onDispose {}
             }
 
-            FMHYTheme(appearance) {
+            FMHYTheme(appearance, gesturePrefs) {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     MainNavigation(intentFlow = intentFlow)
                 }

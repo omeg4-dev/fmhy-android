@@ -67,6 +67,7 @@ fun SwipeToSave(
     val isSaved = actions.isSaved(entry)
     val currentActions by rememberUpdatedState(actions)
     val currentEntry by rememberUpdatedState(entry)
+    val swipeToBookmark = LocalGesturePrefs.current.swipeToBookmark
 
     val a11yModifier = if (enabled) {
         Modifier.semantics {
@@ -85,7 +86,7 @@ fun SwipeToSave(
     }
 
     SwipeActionRow(
-        enabled = enabled,
+        enabled = enabled && swipeToBookmark,
         gestureKey = entry.id,
         actionAtDragStart = {
             if (currentActions.isSaved(currentEntry)) SwipeAction.REMOVE else SwipeAction.SAVE

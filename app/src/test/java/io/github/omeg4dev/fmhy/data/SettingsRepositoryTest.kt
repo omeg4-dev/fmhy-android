@@ -290,4 +290,25 @@ class SettingsRepositoryTest {
         repo.setFollowNotifyPromptShown(true)
         assertTrue(repo.followNotifyPromptShown.first())
     }
+
+    @Test
+    fun testHomePrefsGestureDefaultsAndPersist() = runTest {
+        val (repo, _) = createRepository(this)
+        val defaultPrefs = repo.homePrefs.first()
+        assertFalse(defaultPrefs.swipeToBookmark)
+        assertFalse(defaultPrefs.swapTapHold)
+
+        repo.updateHome { it.copy(swipeToBookmark = true, swapTapHold = true) }
+        val updated = repo.homePrefs.first()
+        assertTrue(updated.swipeToBookmark)
+        assertTrue(updated.swapTapHold)
+    }
+
+    @Test
+    fun testGestureHintShownRoundTrip() = runTest {
+        val (repo, _) = createRepository(this)
+        assertFalse(repo.gestureHintShown.first())
+        repo.setGestureHintShown(true)
+        assertTrue(repo.gestureHintShown.first())
+    }
 }

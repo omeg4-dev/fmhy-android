@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material.icons.outlined.Casino
 import androidx.compose.material.icons.outlined.NewReleases
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -55,9 +56,11 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.minimumInteractiveComponentSize
+import io.github.omeg4dev.fmhy.ui.onboarding.ONBOARDING_VERSION
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -120,6 +123,30 @@ fun HomeScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val bottomBarPadding = LocalBottomBarPadding.current
     var showRandomPickDetails by remember { mutableStateOf(false) }
+
+    val gestureHintShown by container.settingsRepository.gestureHintShown.collectAsStateWithLifecycle(initialValue = true)
+    val onboardingVersion by container.settingsRepository.onboardingVersion.collectAsStateWithLifecycle(initialValue = -1)
+
+    if (!gestureHintShown && onboardingVersion >= ONBOARDING_VERSION) {
+        AlertDialog(
+            onDismissRequest = {
+                scope.launch { container.settingsRepository.setGestureHintShown(true) }
+            },
+            title = { Text("Gestures changed") },
+            text = {
+                Text("Tap now opens a site and hold opens its menu. Swipe to bookmark is now optional and off by default; swiping a list moves between subsections instead. Change both in Settings > Home & lists.")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        scope.launch { container.settingsRepository.setGestureHintShown(true) }
+                    }
+                ) {
+                    Text("Got it")
+                }
+            },
+        )
+    }
 
     LaunchedEffect(nav) {
         nav.reselect.filter { it == Tab.BROWSE }.collect {

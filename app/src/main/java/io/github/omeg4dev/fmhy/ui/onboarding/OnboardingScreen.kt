@@ -912,7 +912,7 @@ private fun DonePageContent(
 
         // 3 Compact tip cards (icon + one line), entering staggered (indices 3, 4, 5)
         val tips = listOf(
-            Icons.Outlined.TouchApp to "Hold any site to open it right away",
+            Icons.Outlined.TouchApp to "Tap a site to open it, hold it for more options",
             Icons.Default.Share to "Share a link to FMHY to check it",
             Icons.Default.NewReleases to "Open What's new to see the latest changes",
         )

@@ -294,6 +294,7 @@ class OnboardingModel(
             persistAll()
             startFilterDownloadIfNeeded()
             settingsRepository.setOnboardingVersion(ONBOARDING_VERSION)
+            settingsRepository.setGestureHintShown(true)
             onComplete()
         }
     }
@@ -304,6 +305,7 @@ class OnboardingModel(
                 persistPage(page)
             }
             settingsRepository.setOnboardingVersion(ONBOARDING_VERSION)
+            settingsRepository.setGestureHintShown(true)
             onComplete()
         }
     }
