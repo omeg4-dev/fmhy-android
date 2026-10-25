@@ -246,9 +246,11 @@ fun BrowserToolbar(
     }
 
     if (showMenuSheet) {
+        val isBlank = tab == null || tab.url.isEmpty() || tab.url == "about:blank"
         BrowserMenuSheet(
             tab = tab,
             isSaved = isSaved,
+            hasPage = !isBlank,
             onDismiss = { showMenuSheet = false },
             onBack = {
                 showMenuSheet = false
@@ -334,10 +336,11 @@ private fun AddressPill(
     val haptics = rememberHaptics()
     val scope = rememberCoroutineScope()
     val url = tab?.url.orEmpty()
+    val isBlank = tab == null || url.isEmpty() || url == "about:blank"
     val isHttp = url.startsWith("http://", ignoreCase = true)
 
     val host = try {
-        if (url == "about:blank" || url.isEmpty()) "Search or type link"
+        if (isBlank) "Search or type link"
         else Uri.parse(url).host ?: url
     } catch (_: Exception) {
         url
@@ -401,11 +404,29 @@ private fun AddressPill(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             // FMHY status icon (32 dp touch box, 18 dp glyph) with its own tap popover
-            statusIcon()
-            if (tab?.siteBarState != null) Spacer(modifier = Modifier.width(4.dp))
+            if (!isBlank) {
+                statusIcon()
+                if (tab?.siteBarState != null) Spacer(modifier = Modifier.width(4.dp))
+            }
 
             // Leading 20 dp site favicon; a blocked page gets a neutral warning, never a site's icon
-            if (tab?.interstitialState != null || tab?.showsBlockPage == true) {
+            if (isBlank) {
+                if (tab?.isPrivate == true) {
+                    Icon(
+                        imageVector = Icons.Default.Security,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            } else if (tab?.interstitialState != null || tab?.showsBlockPage == true) {
                 Icon(
                     imageVector = Icons.Default.Warning,
                     contentDescription = null,
@@ -506,42 +527,44 @@ private fun AddressPill(
             }
 
             // Shield with blocked count badge INSIDE the pill on the right
-            val isBlockingOn = tab?.sitePrefs?.adblock ?: true
-            val shieldIcon = if (isBlockingOn) Icons.Default.Shield else Icons.Default.RemoveModerator
+            if (!isBlank) {
+                val isBlockingOn = tab?.sitePrefs?.adblock ?: true
+                val shieldIcon = if (isBlockingOn) Icons.Default.Shield else Icons.Default.RemoveModerator
 
-            Box(
-                modifier = Modifier
-                    .minimumInteractiveComponentSize()
-                    .clickable(onClick = {
-                        onShieldClick()
-                    }),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (showBlockedCount && tab != null && tab.blocked > 0) {
-                    BadgedBox(
-                        badge = {
-                            Badge(
-                                containerColor = MaterialTheme.colorScheme.primary,
-                                contentColor = MaterialTheme.colorScheme.onPrimary,
-                            ) {
-                                Text(tab.blocked.toString())
+                Box(
+                    modifier = Modifier
+                        .minimumInteractiveComponentSize()
+                        .clickable(onClick = {
+                            onShieldClick()
+                        }),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (showBlockedCount && tab != null && tab.blocked > 0) {
+                        BadgedBox(
+                            badge = {
+                                Badge(
+                                    containerColor = MaterialTheme.colorScheme.primary,
+                                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                                ) {
+                                    Text(tab.blocked.toString())
+                                }
                             }
+                        ) {
+                            Icon(
+                                imageVector = shieldIcon,
+                                contentDescription = "Shield",
+                                modifier = Modifier.size(20.dp),
+                                tint = if (isBlockingOn) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                         }
-                    ) {
+                    } else {
                         Icon(
                             imageVector = shieldIcon,
                             contentDescription = "Shield",
                             modifier = Modifier.size(20.dp),
-                            tint = if (isBlockingOn) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            tint = if (isBlockingOn) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error,
                         )
                     }
-                } else {
-                    Icon(
-                        imageVector = shieldIcon,
-                        contentDescription = "Shield",
-                        modifier = Modifier.size(20.dp),
-                        tint = if (isBlockingOn) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error,
-                    )
                 }
             }
         }
@@ -660,6 +683,7 @@ private fun FindInPageBar(
 fun BrowserMenuSheet(
     tab: TabState?,
     isSaved: Boolean,
+    hasPage: Boolean = true,
     onDismiss: () -> Unit,
     onBack: () -> Unit,
     onForward: () -> Unit,
@@ -720,6 +744,7 @@ fun BrowserMenuSheet(
                     MenuIconButton(
                         icon = Icons.Default.Close,
                         label = "Stop",
+                        enabled = hasPage,
                         onClick = {
                             onStop()
                         },
@@ -728,6 +753,7 @@ fun BrowserMenuSheet(
                     MenuIconButton(
                         icon = Icons.Default.Refresh,
                         label = "Reload",
+                        enabled = hasPage,
                         onClick = {
                             onReload()
                         },
@@ -738,6 +764,7 @@ fun BrowserMenuSheet(
                 MenuIconButton(
                     icon = Icons.Default.Share,
                     label = "Share",
+                    enabled = hasPage,
                     onClick = {
                         onShare()
                     },
@@ -747,6 +774,7 @@ fun BrowserMenuSheet(
                 MenuIconButton(
                     icon = if (isSaved) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
                     label = if (isSaved) "Saved" else "Save",
+                    enabled = hasPage,
                     tint = if (isSaved) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                     onClick = {
                         if (isSaved) haptics.remove() else haptics.success()
@@ -777,6 +805,7 @@ fun BrowserMenuSheet(
             MenuActionRow(
                 icon = Icons.Default.Search,
                 title = "Find in page",
+                enabled = hasPage,
                 onClick = {
                     onFindInPage()
                 },
@@ -786,7 +815,7 @@ fun BrowserMenuSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp)
-                    .clickable {
+                    .clickable(enabled = hasPage) {
                         haptics.toggle(tab?.desktopSite != true)
                         onToggleDesktop()
                     }
@@ -799,18 +828,19 @@ fun BrowserMenuSheet(
                         imageVector = Icons.Default.DesktopWindows,
                         contentDescription = null,
                         modifier = Modifier.size(24.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        tint = if (hasPage) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
                     )
                     Spacer(modifier = Modifier.width(16.dp))
                     Text(
                         text = "Desktop site",
                         style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurface,
+                        color = if (hasPage) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
                     )
                 }
 
                 Switch(
                     checked = tab?.desktopSite == true,
+                    enabled = hasPage,
                     onCheckedChange = {
                         haptics.toggle(!it)
                         onToggleDesktop()
@@ -830,6 +860,7 @@ fun BrowserMenuSheet(
             MenuActionRow(
                 icon = Icons.Default.ContentCopy,
                 title = "Copy link",
+                enabled = hasPage,
                 onClick = {
                     onCopyLink()
                 },
@@ -838,6 +869,7 @@ fun BrowserMenuSheet(
             MenuActionRow(
                 icon = Icons.Default.OpenInBrowser,
                 title = "Open in another browser",
+                enabled = hasPage,
                 onClick = {
                     onOpenInBrowser()
                 },
@@ -846,6 +878,7 @@ fun BrowserMenuSheet(
             MenuActionRow(
                 icon = Icons.Default.Shield,
                 title = "Site settings",
+                enabled = hasPage,
                 onClick = {
                     onSiteSettings()
                 },
@@ -949,13 +982,14 @@ private fun PlaybackSpeedRow(
 private fun MenuActionRow(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     title: String,
+    enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(48.dp)
-            .clickable(onClick = onClick)
+            .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -963,13 +997,13 @@ private fun MenuActionRow(
             imageVector = icon,
             contentDescription = null,
             modifier = Modifier.size(24.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            tint = if (enabled) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
         )
         Spacer(modifier = Modifier.width(16.dp))
         Text(
             text = title,
             style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurface,
+            color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
         )
     }
 }

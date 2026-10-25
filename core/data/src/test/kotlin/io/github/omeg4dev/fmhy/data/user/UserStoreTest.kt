@@ -197,6 +197,38 @@ class UserStoreTest {
     }
 
     @Test
+    fun testDeleteHistory() = runTest {
+        var currentTime = 100_000L
+        val store = createStore(clock = { currentTime })
+
+        // Add 3 history rows (2 hosts: host A has 2 rows, host B has 1 row)
+        store.addHistory("https://host-a.com/page1", "e1", "Host A Page 1")
+        currentTime += 40 * 60 * 1000L
+        store.addHistory("https://host-a.com/page2", "e2", "Host A Page 2")
+        currentTime += 40 * 60 * 1000L
+        store.addHistory("https://host-b.com/page1", "e3", "Host B Page 1")
+
+        val initialHist = store.history()
+        assertEquals(3, initialHist.size)
+
+        // deleteHistory(emptyList()) leaves rows intact
+        store.deleteHistory(emptyList())
+        assertEquals(3, store.history().size)
+
+        // deleteHistory(ids of one host)
+        val hostAIds = initialHist.filter { it.url.contains("host-a.com") }.map { it.id }
+        assertEquals(2, hostAIds.size)
+        store.deleteHistory(hostAIds)
+
+        // history() returns only the other host's row
+        val remaining = store.history()
+        assertEquals(1, remaining.size)
+        assertEquals("https://host-b.com/page1", remaining[0].url)
+
+        store.close()
+    }
+
+    @Test
     fun testFollowsAndPinsAndHiddenSections() = runTest {
         val store = createStore()
 

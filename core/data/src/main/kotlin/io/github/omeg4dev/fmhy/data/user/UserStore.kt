@@ -377,6 +377,22 @@ open class UserStore(
         bumpChanges()
     }
 
+    /** Removes the given history rows (the start screen's "remove this site"). */
+    suspend fun deleteHistory(ids: Collection<Long>) {
+        if (ids.isEmpty()) return
+        withTransaction { conn ->
+            val sql = "DELETE FROM history WHERE id = ?"
+            conn.prepare(sql).use { stmt ->
+                for (id in ids) {
+                    stmt.bindLong(1, id)
+                    stmt.step()
+                    stmt.reset()
+                }
+            }
+            bumpChanges()
+        }
+    }
+
     suspend fun clearHistoryWithSnapshot(): List<HistoryItem> = withTransaction { conn ->
         val result = mutableListOf<HistoryItem>()
         val sql = "SELECT id, url, entry_id, title, ts FROM history ORDER BY ts DESC, id DESC"

@@ -797,8 +797,11 @@ class TabManager(
         return false
     }
 
-    fun loadUrl(tabId: Long, url: String) {
+    fun loadUrl(tabId: Long, url: String, entryId: String? = null) {
         val record = getTabRecord(tabId) ?: return
+        if (entryId != null) {
+            record.entryId = entryId
+        }
         record.url = url
         record.sourceUrl = url
         ensureWebView(record)

@@ -18,7 +18,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.exclude
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.ime
@@ -47,6 +49,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -68,6 +71,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.omeg4dev.fmhy.browser.adblock.AdblockService
 import io.github.omeg4dev.fmhy.browser.adblock.SelectorPicker
 import io.github.omeg4dev.fmhy.data.BookmarksRepository
+import io.github.omeg4dev.fmhy.data.DatasetStore
 import io.github.omeg4dev.fmhy.data.SettingsRepository
 import io.github.omeg4dev.fmhy.data.ToolbarPosition
 import io.github.omeg4dev.fmhy.data.search.SearchEngine as DatasetSearchEngine
@@ -92,6 +96,7 @@ fun BrowserScreen(
     settingsRepository: SettingsRepository,
     bookmarksRepository: BookmarksRepository,
     datasetSearchEngine: DatasetSearchEngine,
+    datasetStore: DatasetStore,
     browserHooks: BrowserHooks,
     isAppDark: Boolean,
     isInPip: Boolean = false,
@@ -115,9 +120,13 @@ fun BrowserScreen(
     val currentTab = remember(tabs, currentTabId) {
         tabs.firstOrNull { it.id == currentTabId }
     }
+    val isBlankTab = currentTab == null || currentTab.url == "about:blank" || currentTab.url.isEmpty()
 
     // UI state
     var isEditMode by remember { mutableStateOf(false) }
+    LaunchedEffect(currentTabId) {
+        isEditMode = false
+    }
     var showShieldSheet by remember { mutableStateOf(false) }
     var showTabsSheet by remember { mutableStateOf(false) }
     val showTabsRequested by tabManager.showTabsRequested.collectAsStateWithLifecycle()
@@ -185,7 +194,7 @@ fun BrowserScreen(
     val loadingState by rememberUpdatedState(currentTab?.isLoading == true)
 
     // Ensure toolbar is fully shown at top, during loading, find, edit, or navigation
-    val shouldForceToolbarShown = currentTab?.isLoading == true || isFindMode || isEditMode ||
+    val shouldForceToolbarShown = isBlankTab || currentTab?.isLoading == true || isFindMode || isEditMode ||
         currentTab?.rescueState != null
     // Keyed on the URL without its fragment: in-page hash changes must not pop the bars back up.
     val navKey = currentTab?.url?.substringBefore('#')
@@ -312,29 +321,26 @@ fun BrowserScreen(
                         bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(),
                     ),
             ) {
-                val isBlankTab = currentTab == null || currentTab.url == "about:blank" || currentTab.url.isEmpty()
-
                 if (isBlankTab) {
-                    // New tab page: full-screen with saved tiles, history, followed sections
-                    BrowserEditMode(
-                        initialText = "",
-                        searchEngine = browserPrefs.searchEngine,
-                        datasetSearchEngine = datasetSearchEngine,
-                        userStore = tabManager.userStore,
-                        toolbarPosition = browserPrefs.toolbarPosition,
-                        autofocus = false,
-                        onNavigate = { url ->
-                            currentTab?.let { tabManager.loadUrl(it.id, url) }
-                        },
-                        onDismiss = {
-                            if (tabs.size > 1) {
-                                currentTab?.let { tabManager.closeTab(it.id) }
+                    key(currentTab?.id) {
+                        BrowserStartScreen(
+                            isPrivate = currentTab?.isPrivate == true,
+                            userStore = tabManager.userStore,
+                            datasetStore = datasetStore,
+                            toolbarPosition = browserPrefs.toolbarPosition,
+                            contentPadding = if (browserPrefs.toolbarPosition == ToolbarPosition.TOP) {
+                                PaddingValues(top = with(density) { totalBarHeightPx.toDp() })
                             } else {
-                                onFinishActivity()
-                            }
-                        },
-                        onCloseActivity = onFinishActivity,
-                    )
+                                PaddingValues(bottom = with(density) { totalBarHeightPx.toDp() })
+                            },
+                            onOpenAddressBar = { isEditMode = true },
+                            onNavigate = { url, entryId ->
+                                currentTab?.let { tabManager.loadUrl(it.id, url, entryId) }
+                            },
+                            onShowMessage = { scope.launch { snackbarHostState.showSnackbar(it) } },
+                            onCloseActivity = onFinishActivity,
+                        )
+                    }
                 } else if (currentTab.crashed) {
                     Box(
                         modifier = Modifier.fillMaxSize(),
@@ -666,13 +672,12 @@ fun BrowserScreen(
                     modifier = Modifier.zIndex(4f),
                 )
 
-                // Edit Mode overlay (when typing a URL over an existing page)
-                if (isEditMode && currentTab != null && currentTab.url != "about:blank" && currentTab.url.isNotEmpty()) {
+                // Edit Mode overlay (when typing a URL over an existing page or from start screen)
+                if (isEditMode && currentTab != null) {
                     BrowserEditMode(
-                        initialText = currentTab.url,
+                        initialText = if (isBlankTab) "" else currentTab.url,
                         searchEngine = browserPrefs.searchEngine,
                         datasetSearchEngine = datasetSearchEngine,
-                        userStore = tabManager.userStore,
                         toolbarPosition = browserPrefs.toolbarPosition,
                         autofocus = true,
                         onNavigate = { url ->
@@ -680,8 +685,9 @@ fun BrowserScreen(
                             tabManager.loadUrl(currentTab.id, url)
                         },
                         onDismiss = { isEditMode = false },
-                        onCloseActivity = onFinishActivity,
-                        modifier = Modifier.zIndex(6f),
+                        modifier = Modifier
+                            .zIndex(6f)
+                            .windowInsetsPadding(WindowInsets.ime.exclude(WindowInsets.navigationBars)),
                     )
                 }
 

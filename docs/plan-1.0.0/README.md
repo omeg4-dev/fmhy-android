@@ -9,7 +9,7 @@ Source: the Obsidian note "FMHY 1.0.0 Changes" (2026-10-25). Each batch file hol
 | 03 | BUG-10, BUG-11 | [Pastebin decoding and search glitch](BATCH-03-paste-decoding-search.md) | Sonnet | `sonnet` | no | Done |
 | 04 | BUG-01 | [Sites that never load](BATCH-04-sites-never-load.md) | Opus | `opus` | yes | Done |
 | 05 | BUG-04 | [One warning screen](BATCH-05-single-warning.md) | Sonnet | `sonnet` | no | Done |
-| 06 | BUG-06, BRW-04 | [Browser start screen](BATCH-06-browser-start-screen.md) | Sonnet | `sonnet` | yes | To do |
+| 06 | BUG-06, BRW-04 | [Browser start screen](BATCH-06-browser-start-screen.md) | Sonnet | `sonnet` | yes | Done |
 | 07 | BRW-01 | [Back to FMHY and forward](BATCH-07-back-to-fmhy.md) | Sonnet | `sonnet` | no | To do |
 | 08 | BUG-05, BUG-07 | [Progress display](BATCH-08-progress-display.md) | Sonnet | `sonnet` | yes | To do |
 | 09 | BRW-08, BRW-09 | [Tab groups and empty tabs](BATCH-09-tab-groups-empty-tabs.md) | Sonnet | `sonnet` | yes | To do |

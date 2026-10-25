@@ -170,6 +170,7 @@ class BrowserActivity : ComponentActivity() {
                         settingsRepository = container.settingsRepository,
                         bookmarksRepository = container.bookmarks,
                         datasetSearchEngine = container.searchEngine,
+                        datasetStore = container.datasetStore,
                         browserHooks = container.browserHooks,
                         isAppDark = dark,
                         isInPip = isInPipMode,
