@@ -852,6 +852,19 @@ class TabManager(
         updateTabsFlow()
     }
 
+    /** "Continue anyway" on the warning: lets the page through the unsafe check and the filter, for this tab only. */
+    fun continueAnyway(tabId: Long) {
+        val record = getTabRecord(tabId) ?: return
+        val state = record.interstitialState ?: return
+        record.allowedHosts.add(state.host)
+        record.interstitialState = null
+        if (state.filterRule != null) {
+            record.allowedOnceUrls.add(record.blockedMainFrameUrl ?: state.url)
+            record.webView?.reload()
+        }
+        updateTabsFlow()
+    }
+
     fun dismissSiteBar(tabId: Long, host: String) {
         val record = getTabRecord(tabId) ?: return
         record.dismissedSiteBarHosts.add(host)

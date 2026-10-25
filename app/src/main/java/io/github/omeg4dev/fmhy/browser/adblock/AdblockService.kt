@@ -188,6 +188,7 @@ class AdblockService(
         skipBlockingFor: String? = null,
         onBlocked: (BlockedRequest) -> Unit,
         bridgeName: String,
+        onMainFrameBlocked: (rule: String) -> Unit = {},
     ): WebResourceResponse? {
         val prefs = currentBlockingPrefs
         if (!prefs.adblock) return null
@@ -259,6 +260,7 @@ class AdblockService(
             }
             is MatchResult.Block -> {
                 if (request.isForMainFrame && type == ResourceType.DOCUMENT) {
+                    onMainFrameBlocked(result.rule)
                     val hostToShow = pageHost.ifEmpty { request.url.host.orEmpty() }
                     val blockHtml = buildBlockPageHtml(
                         host = hostToShow,
@@ -336,27 +338,29 @@ class AdblockService(
             <head>
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">
-            <title>Blocked by FMHY's filters</title>
+            <title>Blocked</title>
             <style>
               body { font-family: system-ui, -apple-system, sans-serif; background: #121212; color: #e0e0e0; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 16px; box-sizing: border-box; }
               .card { background: #1e1e1e; padding: 24px; border-radius: 16px; max-width: 420px; width: 100%; box-shadow: 0 4px 24px rgba(0,0,0,0.6); text-align: center; }
               h1 { font-size: 20px; color: #ff5252; margin: 0 0 12px; }
               p { font-size: 14px; color: #aaa; margin: 8px 0; word-break: break-all; }
-              .rule { font-family: monospace; background: #2a2a2a; color: #ffb74d; padding: 8px 12px; border-radius: 6px; font-size: 13px; display: inline-block; margin: 12px 0; word-break: break-all; }
+              details { margin: 12px 0; }
+              summary { font-size: 13px; color: #aaa; cursor: pointer; }
+              .rule { font-family: monospace; background: #2a2a2a; color: #ffb74d; padding: 8px 12px; border-radius: 6px; font-size: 13px; display: inline-block; margin: 8px 0; word-break: break-all; }
               .buttons { display: flex; gap: 12px; margin-top: 24px; }
               button { flex: 1; padding: 12px; border: none; border-radius: 8px; font-weight: bold; font-size: 14px; cursor: pointer; }
-              .btn-back { background: #333; color: #fff; }
-              .btn-open { background: #ff5252; color: #fff; }
+              .btn-back { background: #ff5252; color: #fff; }
+              .btn-continue { background: #333; color: #fff; }
             </style>
             </head>
             <body>
             <div class="card">
-              <h1>Blocked by FMHY's filters</h1>
-              <p>The page at <strong>$escapedHost</strong> was blocked by an ad blocking filter rule:</p>
-              <div class="rule">$escapedRule</div>
+              <h1>Blocked</h1>
+              <p>An ad-blocking filter blocks this site.<br><strong>$escapedHost</strong></p>
+              <details><summary>Details</summary><div class="rule">$escapedRule</div></details>
               <div class="buttons">
                 <button class="btn-back" onclick="history.back()">Go back</button>
-                <button class="btn-open" onclick="openAnyway()">Open anyway</button>
+                <button class="btn-continue" onclick="openAnyway()">Continue anyway</button>
               </div>
             </div>
             <script>

@@ -1,5 +1,6 @@
 package io.github.omeg4dev.fmhy.browser
 
+import android.net.Uri
 import android.webkit.JavascriptInterface
 import io.github.omeg4dev.fmhy.browser.adblock.AdblockService
 import io.github.omeg4dev.fmhy.browser.adblock.ScriptletLibrary
@@ -71,6 +72,7 @@ class BrowserJsBridge(
         tabManager.allowUrlOnce(tabId, url)
         tabManager.postToMain {
             val record = tabManager.getTabRecord(tabId)
+            record?.let { r -> Uri.parse(url).host?.let { r.allowedHosts.add(it) }; r.interstitialState = null }
             record?.webView?.reload()
         }
     }

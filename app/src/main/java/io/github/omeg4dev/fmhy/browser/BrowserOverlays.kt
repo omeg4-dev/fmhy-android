@@ -2,6 +2,7 @@ package io.github.omeg4dev.fmhy.browser
 
 import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,8 +14,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.GppBad
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Warning
@@ -29,8 +33,13 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -150,7 +159,7 @@ fun RescueOverlay(
     }
 }
 
-/** Interstitial shown before an UNSAFE / POTENTIALLY_UNSAFE site; same wording as LinkOpener's dialog. */
+/** The one warning before a page FMHY lists as unsafe and/or an ad filter blocks. */
 @Composable
 fun InterstitialOverlay(
     state: InterstitialState,
@@ -158,46 +167,109 @@ fun InterstitialOverlay(
     onContinue: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val title = if (state.isUnsafe) "FMHY lists this site as unsafe" else "FMHY flags this site as potentially unsafe"
-    val fallback = if (state.isUnsafe) "This site is reported as unsafe on the FMHY safety list." else
-        "This site may be unsafe. Proceed with care."
-    val icon = if (state.isUnsafe) Icons.Default.GppBad else Icons.Default.Warning
-    val iconTint = if (state.isUnsafe) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.tertiary
+    val icon = when {
+        state.reasons.contains(WarningReason.UNSAFE) -> Icons.Default.GppBad
+        state.reasons.contains(WarningReason.POTENTIALLY_UNSAFE) -> Icons.Default.Warning
+        else -> Icons.Default.Block
+    }
+    val iconTint = when {
+        state.reasons.contains(WarningReason.UNSAFE) -> MaterialTheme.colorScheme.error
+        else -> MaterialTheme.colorScheme.tertiary
+    }
 
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(24.dp)
-                .enterStagger(),
-            verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                modifier = Modifier.size(64.dp),
-                tint = iconTint,
-            )
-            Text(
-                title,
-                style = MaterialTheme.typography.headlineSmall,
-                color = iconTint,
-            )
-            Text(state.host, style = MaterialTheme.typography.titleMedium)
-            Text(state.reason ?: fallback, style = MaterialTheme.typography.bodyLarge)
-            Button(
-                onClick = onGoBack,
-                modifier = Modifier.fillMaxWidth(),
+        // Centred while it fits, scrollable when the details make it taller than the screen.
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(24.dp)
+                    .enterStagger(),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text("Go back")
-            }
-            TextButton(
-                onClick = onContinue,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-            ) {
-                Text("Continue anyway")
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(64.dp),
+                    tint = iconTint,
+                )
+                Text(
+                    text = InterstitialMerge.sentence(state.reasons.first()),
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = iconTint,
+                    textAlign = TextAlign.Center,
+                )
+                Text(
+                    text = state.host,
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                for (reason in state.reasons.drop(1)) {
+                    Text(
+                        text = InterstitialMerge.sentence(reason),
+                        style = MaterialTheme.typography.bodyLarge,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+                if (state.note != null) {
+                    Text(
+                        text = state.note,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+                if (state.filterRule != null) {
+                    var showDetails by rememberSaveable(state.url) { mutableStateOf(false) }
+                    TextButton(onClick = { showDetails = !showDetails }) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Text("Details")
+                            Icon(
+                                imageVector = if (showDetails) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                contentDescription = null,
+                            )
+                        }
+                    }
+                    if (showDetails) {
+                        Surface(
+                            shape = MaterialTheme.shapes.small,
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                            ) {
+                                Text(
+                                    text = "Filter rule",
+                                    style = MaterialTheme.typography.labelMedium,
+                                )
+                                Text(
+                                    text = state.filterRule,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontFamily = FontFamily.Monospace,
+                                )
+                            }
+                        }
+                    }
+                }
+                Button(
+                    onClick = onGoBack,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Go back")
+                }
+                TextButton(
+                    onClick = onContinue,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                ) {
+                    Text("Continue anyway")
+                }
             }
         }
     }

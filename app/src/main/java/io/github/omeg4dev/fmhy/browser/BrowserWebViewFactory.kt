@@ -185,6 +185,7 @@ class BrowserWebViewFactory(
 
             override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
                 if (request.isForMainFrame) {
+                    record.blockedMainFrameRule = null
                     tabManager.resetBlocked(record.id)
                 }
                 val response = adblockService.shouldInterceptRequest(
@@ -196,10 +197,14 @@ class BrowserWebViewFactory(
                     skipBlockingFor = record.skipBlockingOnceUrl,
                     onBlocked = { tabManager.incrementBlocked(record.id, it) },
                     bridgeName = bridgeName,
+                    onMainFrameBlocked = { record.blockedMainFrameRule = it },
                 )
                 // A replaced main-frame document is the ad blocker's block page.
                 if (request.isForMainFrame) {
                     record.blockedMainFrameUrl = if (response != null) request.url.toString() else null
+                    if (response == null) {
+                        record.blockedMainFrameRule = null
+                    }
                 }
                 return response
             }

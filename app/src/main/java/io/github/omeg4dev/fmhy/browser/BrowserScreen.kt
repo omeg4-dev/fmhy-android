@@ -743,7 +743,7 @@ fun BrowserScreen(
                                 if (tabs.size > 1) tabManager.closeTab(currentTab.id) else tabManager.loadUrl(currentTab.id, "about:blank")
                             }
                         },
-                        onContinue = { tabManager.allowHost(currentTab.id, interstitial.host) },
+                        onContinue = { tabManager.continueAnyway(currentTab.id) },
                         modifier = Modifier.zIndex(7f),
                     )
                 }

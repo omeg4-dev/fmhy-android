@@ -777,38 +777,38 @@ class DefaultBrowserHooks(
             return
         }
 
+        val filterRule = record.blockedMainFrameRule?.takeIf { RescueDecision.sameAddress(record.blockedMainFrameUrl, url) }
+
         tabManager?.appScope?.launch(Dispatchers.IO) {
-            val sg = safeGuard ?: return@launch
+            val sg = safeGuard
             val key = url.substringBefore('#')
-            val verdict = synchronized(verdictCache) { verdictCache[key] }
-                ?: sg.check(url).also { synchronized(verdictCache) { verdictCache[key] = it } }
+            val verdict = if (sg != null) {
+                synchronized(verdictCache) { verdictCache[key] }
+                    ?: sg.check(url).also { synchronized(verdictCache) { verdictCache[key] = it } }
+            } else {
+                null
+            }
 
             withContext(Dispatchers.Main) {
                 // Drop stale results when the tab already moved on to another host.
                 val currentHost = try { Uri.parse(record.url).host } catch (_: Exception) { null }
                 if (currentHost != null && !currentHost.equals(host, ignoreCase = true)) return@withContext
-                // Interstitial check for UNSAFE / POTENTIALLY_UNSAFE
-                val isAllowed = record.allowedHosts.contains(host)
-                if (!isAllowed) {
-                    if (verdict.status == SafetyStatus.UNSAFE && protectionPrefs.unsafeWarning) {
-                        tabManager?.setInterstitialState(
-                            record.id,
-                            InterstitialState(host = host, isUnsafe = true, reason = verdict.reason)
-                        )
-                    } else if (verdict.status == SafetyStatus.POTENTIALLY_UNSAFE && protectionPrefs.potentiallyUnsafeWarning) {
-                        tabManager?.setInterstitialState(
-                            record.id,
-                            InterstitialState(host = host, isUnsafe = false, reason = verdict.reason)
-                        )
-                    } else {
-                        tabManager?.setInterstitialState(record.id, null)
-                    }
-                } else {
-                    tabManager?.setInterstitialState(record.id, null)
-                }
+
+                tabManager?.setInterstitialState(
+                    record.id,
+                    InterstitialMerge.combine(
+                        host = host,
+                        url = url,
+                        verdict = verdict,
+                        unsafeWarning = protectionPrefs.unsafeWarning,
+                        potentiallyUnsafeWarning = protectionPrefs.potentiallyUnsafeWarning,
+                        hostAllowed = record.allowedHosts.contains(host),
+                        filterRule = filterRule,
+                    )
+                )
 
                 // SiteBar check
-                if (browserPrefs.siteBar) {
+                if (browserPrefs.siteBar && verdict != null) {
                     val isRedirected = record.entryHost != null && !record.entryHost.equals(host, ignoreCase = true)
                     val isDismissed = record.dismissedSiteBarHosts.contains(host)
                     val sectionTitle = verdict.matches.firstOrNull()?.sectionId?.let { secId ->

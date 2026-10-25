@@ -59,6 +59,8 @@ class TabRecord(
     @Volatile var skipBlockingOnceUrl: String? = null,
     /** Main-frame URL the ad blocker last replaced with its block page (set off the main thread). */
     @Volatile var blockedMainFrameUrl: String? = null,
+    /** Filter rule that replaced [blockedMainFrameUrl] (set off the main thread). */
+    @Volatile var blockedMainFrameRule: String? = null,
     var showsBlockPage: Boolean = false,
 ) {
     var blocked: Int

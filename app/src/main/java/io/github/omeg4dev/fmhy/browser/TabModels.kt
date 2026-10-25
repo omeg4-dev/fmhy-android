@@ -19,10 +19,18 @@ data class RescueState(
     val canSkipBlocking: Boolean = false,
 )
 
+enum class WarningReason { UNSAFE, POTENTIALLY_UNSAFE, FILTER_BLOCK }
+
 data class InterstitialState(
     val host: String,
-    val isUnsafe: Boolean, // true = UNSAFE, false = POTENTIALLY_UNSAFE
-    val reason: String?,
+    /** The blocked page's address. */
+    val url: String,
+    /** Every reason, most serious first; never empty. */
+    val reasons: List<WarningReason>,
+    /** Unsafe-list note without raw links; only when an unsafe-list reason is present. */
+    val note: String?,
+    /** Raw filter rule, shown only under "Details"; null unless FILTER_BLOCK is a reason. */
+    val filterRule: String?,
 )
 
 data class BlockedRequest(
