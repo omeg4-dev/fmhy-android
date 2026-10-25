@@ -94,6 +94,7 @@ Not only crashes. Also: freezes and slowness, wrong or missing text, things that
 ## Depends on / affects
 
 - Runs after most batches have landed, and again on the release candidate.
+- No agy here: run the commands below yourself (agy agents must not use the emulator).
 - Read `docs/difficult-sites.md` (from batches 01 and 04) for the sites to open by hand.
 
 ## Where to start in the code

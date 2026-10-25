@@ -5,7 +5,7 @@
 ```text
 1.0.0 batch 23 (SET-01, SET-02): Settings re-sort.
 Read CLAUDE.md, docs/plan-1.0.0/COMMON.md and docs/plan-1.0.0/BATCH-23-settings-resort.md, nothing else from docs/plan-1.0.0/.
-Do every entry in that batch file within its scope, then finish as COMMON.md says.
+Delegate the coding to agy agents as COMMON.md says (agy model: `sonnet`), then verify and finish yourself.
 Plan first and wait for my approval before you change any code.
 ```
 

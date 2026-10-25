@@ -5,7 +5,7 @@
 ```text
 1.0.0 batch 21a (BRW-02): Download Manager (core).
 Read CLAUDE.md, docs/plan-1.0.0/COMMON.md and docs/plan-1.0.0/BATCH-21a-download-manager-core.md, nothing else from docs/plan-1.0.0/.
-Do every entry in that batch file within its scope, then finish as COMMON.md says.
+Delegate the coding to agy agents as COMMON.md says (agy model: `opus`), then verify and finish yourself.
 Plan first and wait for my approval before you change any code.
 ```
 

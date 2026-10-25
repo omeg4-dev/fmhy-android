@@ -5,7 +5,7 @@
 ```text
 1.0.0 batch 19 (APP-02, APP-03): Problem and crash reports.
 Read CLAUDE.md, docs/plan-1.0.0/COMMON.md and docs/plan-1.0.0/BATCH-19-reports.md, nothing else from docs/plan-1.0.0/.
-Do every entry in that batch file within its scope, then finish as COMMON.md says.
+Delegate the coding to agy agents as COMMON.md says (agy model: `sonnet`), then verify and finish yourself.
 ```
 
 ## Goal
