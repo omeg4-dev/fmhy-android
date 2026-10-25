@@ -47,6 +47,8 @@ class TabRecord(
     var savedState: android.os.Bundle? = null,
     /** Something of the current page (not an error page) reached the screen. */
     var contentShown: Boolean = false,
+    /** The tab's address was a real website at least once; never reset. */
+    var hadSite: Boolean = false,
     /** Main-frame failure of the current load attempt; decided in onPageFinished. */
     var failedLoad: FailedLoad? = null,
     /** Quiet background retries already done for [silentRetryUrl]. */
@@ -73,6 +75,7 @@ class TabRecord(
         title = title,
         favicon = favicon,
         isPrivate = isPrivate,
+        hadSite = hadSite,
         entryId = entryId,
         blocked = blockedCount.get(),
         blockedHosts = BlockedHosts.group(blockedRequests),
@@ -113,8 +116,7 @@ fun selectLruVictim(
 }
 
 internal suspend fun TabManager.saveTabsToStore(tabList: List<TabState>) {
-    val nonPrivate = tabList.filter { !it.isPrivate && it.url.isNotBlank() && it.url != "about:blank" }
-    val saved = nonPrivate.map { SavedTab(it.url, it.title, isPrivate = false) }
+    val saved = EmptyTabPolicy.restorable(tabList).map { SavedTab(it.url, it.title, isPrivate = false) }
     val jsonStr = Json.encodeToString(saved)
     userStore.put("browser_tabs", jsonStr)
 }

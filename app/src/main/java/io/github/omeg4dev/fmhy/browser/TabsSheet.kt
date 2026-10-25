@@ -3,6 +3,7 @@ package io.github.omeg4dev.fmhy.browser
 import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.BorderStroke
@@ -38,6 +39,7 @@ import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Security
@@ -67,8 +69,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -80,23 +85,6 @@ import io.github.omeg4dev.fmhy.ui.common.Motion
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import io.github.omeg4dev.fmhy.ui.common.showUndo
 import kotlinx.coroutines.launch
-
-private sealed interface TabsRow {
-    val key: String
-    data class Header(val label: String, val count: Int) : TabsRow { override val key get() = "h:$label" }
-    data class Item(val tab: TabState) : TabsRow { override val key get() = "t:${tab.id}" }
-}
-
-private fun buildRows(g: TabsLogic.Grouped): List<TabsRow> = buildList {
-    if (g.normal.isNotEmpty()) {
-        add(TabsRow.Header("Tabs", g.normal.size))
-        g.normal.forEach { add(TabsRow.Item(it)) }
-    }
-    if (g.priv.isNotEmpty()) {
-        add(TabsRow.Header("Private tabs", g.priv.size))
-        g.priv.forEach { add(TabsRow.Item(it)) }
-    }
-}
 
 /** Full-screen tab overview (list by default, grid switchable). System back closes it. */
 @Composable
@@ -116,6 +104,7 @@ fun TabsSheet(
     val haptics = rememberHaptics()
     val scope = rememberCoroutineScope()
     val thumbnailVersion by tabManager.thumbnailVersion.collectAsStateWithLifecycle()
+    val expanded by tabManager.expandedTabGroups.collectAsStateWithLifecycle()
     var showOverflow by remember { mutableStateOf(false) }
     var showCloseAllDialog by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
@@ -127,14 +116,19 @@ fun TabsSheet(
     }
 
     val showSearch = tabs.size >= TabsLogic.SEARCH_MIN_TABS
-    val grouped = TabsLogic.group(TabsLogic.filter(tabs, if (showSearch) query else ""))
     val allGrouped = TabsLogic.group(tabs)
-    val rows = buildRows(grouped)
+    val rows = TabsLogic.rows(
+        tabs = tabs,
+        query = if (showSearch) query else "",
+        grouping = !isGrid,
+        expanded = expanded,
+        currentTabId = currentTabId,
+    )
     val gridState = rememberLazyGridState()
 
     // Bring the current tab into view when the overview opens.
     LaunchedEffect(Unit) {
-        val key = currentTabId?.let { "t:$it" } ?: return@LaunchedEffect
+        val key = TabsLogic.scrollKey(rows, currentTabId) ?: return@LaunchedEffect
         val idx = rows.indexOfFirst { it.key == key }
         if (idx > 1) gridState.scrollToItem(idx - 1)
     }
@@ -152,6 +146,50 @@ fun TabsSheet(
                     isPrivate = tab.isPrivate,
                     entryId = tab.entryId,
                 )
+            }
+        }
+    }
+
+    fun closeGroupWithUndo(group: TabsRow.Group) {
+        haptics.remove()
+        val n = group.tabs.size
+        val savedTabs = group.tabs.map { tab ->
+            val index = tabs.indexOfFirst { it.id == tab.id }
+            tab to index
+        }
+        val containsCurrent = group.tabs.any { it.id == currentTabId }
+        val currentTab = group.tabs.firstOrNull { it.id == currentTabId }
+        val nonCurrentTabs = group.tabs.filter { it.id != currentTabId }
+        // Closing every open tab would end the browser (and the Undo with it): keep it open on an empty tab,
+        // which closes itself once Undo switches back to the group.
+        val closesAll = group.tabs.size == tabs.size
+        if (closesAll) tabManager.openNewTabPage(isPrivate = false)
+
+        nonCurrentTabs.forEach { onCloseTab(it.id) }
+        if (currentTab != null) {
+            onCloseTab(currentTab.id)
+        }
+
+        scope.launch {
+            if (snackbarHostState.showUndo("$n tabs closed")) {
+                var restoredCurrentTabId: Long? = null
+                var firstRestoredId: Long? = null
+                savedTabs.sortedBy { it.second }.forEach { (tab, index) ->
+                    val restoredId = tabManager.restoreTab(
+                        url = tab.url,
+                        title = tab.title,
+                        index = if (index != -1) index else tabs.size,
+                        isPrivate = tab.isPrivate,
+                        entryId = tab.entryId,
+                        select = false,
+                    )
+                    if (tab.id == currentTabId) {
+                        restoredCurrentTabId = restoredId
+                    }
+                    if (firstRestoredId == null) firstRestoredId = restoredId
+                }
+                val select = if (containsCurrent) restoredCurrentTabId else if (closesAll) firstRestoredId else null
+                if (select != null) tabManager.selectTab(select)
             }
         }
     }
@@ -221,6 +259,14 @@ fun TabsSheet(
                                             modifier = Modifier.padding(start = 4.dp, top = 8.dp, bottom = 2.dp),
                                         )
                                     }
+                                    is TabsRow.Group -> item(key = row.key) {
+                                        TabGroupRow(
+                                            group = row,
+                                            onToggle = { tabManager.toggleTabGroup(row.groupKey) },
+                                            onClose = { closeGroupWithUndo(row) },
+                                            modifier = Modifier.animateItem(),
+                                        )
+                                    }
                                     is TabsRow.Item -> item(key = row.key) {
                                         val tab = row.tab
                                         var isDismissed by remember(tab.id) { mutableStateOf(false) }
@@ -237,7 +283,9 @@ fun TabsSheet(
                                         SwipeToDismissBox(
                                             state = dismissState,
                                             backgroundContent = {},
-                                            modifier = Modifier.animateItem(),
+                                            modifier = Modifier
+                                                .animateItem()
+                                                .padding(start = if (row.indented) 16.dp else 0.dp),
                                         ) {
                                             if (isGrid) {
                                                 TabCard(
@@ -338,6 +386,103 @@ private fun TopRow(
                     text = { Text("Close all tabs") },
                     onClick = { onOverflow(false); onCloseAll() },
                     leadingIcon = { Icon(Icons.Default.Close, contentDescription = null) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TabGroupRow(
+    group: TabsRow.Group,
+    onToggle: () -> Unit,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val shape = RoundedCornerShape(16.dp)
+    val colors = MaterialTheme.colorScheme
+    val arrowRotation by animateFloatAsState(
+        targetValue = if (group.expanded) 180f else 0f,
+        label = "arrowRotation",
+    )
+    val firstFavicon = remember(group.tabs) {
+        group.tabs.firstOrNull { it.favicon != null }?.favicon
+    }
+
+    Surface(
+        shape = shape,
+        color = if (group.containsCurrent) colors.secondaryContainer else colors.surfaceContainerHigh,
+        border = if (group.containsCurrent) BorderStroke(2.dp, colors.primary) else null,
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .semantics {
+                stateDescription = if (group.expanded) "Expanded" else "Collapsed"
+            }
+            .clickable(onClick = onToggle),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().height(64.dp).padding(start = 12.dp, end = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(colors.surfaceContainerHighest),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (group.isPrivate) {
+                    Icon(
+                        imageVector = Icons.Default.Security,
+                        contentDescription = null,
+                        tint = colors.primary,
+                        modifier = Modifier.size(20.dp),
+                    )
+                } else if (firstFavicon != null) {
+                    Image(
+                        bitmap = firstFavicon.asImageBitmap(),
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp).clip(CircleShape),
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Outlined.Public,
+                        contentDescription = null,
+                        tint = colors.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "${group.site} · ${group.tabs.size} tabs",
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = if (group.containsCurrent) FontWeight.SemiBold else FontWeight.Normal,
+                    color = if (group.containsCurrent) colors.onSecondaryContainer else colors.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (group.containsCurrent) {
+                    Text(
+                        text = "Current tab inside",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            Icon(
+                imageVector = Icons.Default.KeyboardArrowDown,
+                contentDescription = null,
+                tint = colors.onSurfaceVariant,
+                modifier = Modifier.size(20.dp).rotate(arrowRotation),
+            )
+            IconButton(onClick = onClose, modifier = Modifier.size(48.dp)) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "Close ${group.tabs.size} tabs",
+                    tint = colors.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp),
                 )
             }
         }

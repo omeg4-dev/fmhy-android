@@ -71,6 +71,8 @@ fun BackBubble(
     barTranslation: () -> Float,
     side: BubbleSide,
     yFraction: Float,
+    /** Called when the user taps the bubble to return to FMHY; handles empty-tab cleanup. */
+    onBackToFmhy: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -132,7 +134,7 @@ fun BackBubble(
                     .pointerInput(Unit) {
                         detectTapGestures(
                             onPress = { held = false },
-                            onTap = { bringFmhyToFront(context) },
+                            onTap = { onBackToFmhy() },
                             onLongPress = {
                                 held = true
                                 haptics.longPress()

@@ -260,6 +260,13 @@ fun BrowserScreen(
         }
     }
 
+    // Leave-to-FMHY: close empty tabs first, then switch to FMHY (or finish if no tabs remain).
+    val leaveToFmhy: () -> Unit = {
+        val left = tabManager.closeEmptyTabsOnLeave()
+        bringFmhyToFront(context)
+        if (left == 0) onFinishActivity()
+    }
+
     // System Back Handling
     BackHandler(enabled = true) {
         val action = backAction(
@@ -287,7 +294,7 @@ fun BrowserScreen(
                 currentTab?.let { tabManager.closeTab(it.id) }
             }
             BackAction.RETURN_TO_FMHY -> {
-                onFinishActivity()
+                leaveToFmhy()
             }
         }
     }
@@ -584,9 +591,9 @@ fun BrowserScreen(
                                 onStopClick = { currentTab?.let { tabManager.stopTab(it.id) } },
                                 onBackClick = { currentTab?.let { tabManager.goBack(it.id) } },
                                 onForwardClick = { currentTab?.let { tabManager.goForward(it.id) } },
-                                onBackToFmhyClick = { bringFmhyToFront(context) },
+                                onBackToFmhyClick = { leaveToFmhy() },
                                 onNewTabClick = { isPrivate ->
-                                    tabManager.openTab(url = "about:blank", title = "New tab", isPrivate = isPrivate, select = true)
+                                    tabManager.openNewTabPage(isPrivate = isPrivate)
                                 },
                                 onFindInPageClick = {
                                     isFindMode = true
@@ -678,6 +685,7 @@ fun BrowserScreen(
                     barTranslation = { toolbarTranslation.value },
                     side = browserPrefs.backBubbleSide,
                     yFraction = browserPrefs.backBubbleY,
+                    onBackToFmhy = leaveToFmhy,
                     modifier = Modifier.zIndex(4f),
                 )
 
@@ -877,7 +885,7 @@ fun BrowserScreen(
             },
             onNewTab = { isPrivate ->
                 showTabsSheet = false
-                tabManager.openTab(url = "about:blank", title = "New tab", isPrivate = isPrivate, select = true)
+                tabManager.openNewTabPage(isPrivate = isPrivate)
             },
             onCloseAll = {
                 showTabsSheet = false

@@ -223,4 +223,121 @@ class TabManagerTest {
         assertFalse(tabManager.hasThumbnail(t1))
         assertTrue(tabManager.tabs.value.isEmpty())
     }
+
+    // ── hadSite flag ─────────────────────────────────────────────────────────
+
+    @Test
+    fun testHadSiteSetByOpenTabWithRealUrl() = runTest {
+        val tabManager = createTabManager()
+        val tabId = tabManager.openTab(url = "https://example.com", title = "Example", select = false)
+        val state = tabManager.tabs.value.first { it.id == tabId }
+        assertTrue("hadSite should be true for real url", state.hadSite)
+    }
+
+    @Test
+    fun testHadSiteNotSetByOpenTabWithBlankUrl() = runTest {
+        val tabManager = createTabManager()
+        val tabId = tabManager.openTab(url = "about:blank", title = "New tab", select = false)
+        val state = tabManager.tabs.value.first { it.id == tabId }
+        assertFalse("hadSite should be false for about:blank", state.hadSite)
+    }
+
+    @Test
+    fun testHadSiteSetByUpdateTabUrlAndTitle() = runTest {
+        val tabManager = createTabManager()
+        val tabId = tabManager.openTab(url = "about:blank", title = "New tab", select = false)
+
+        tabManager.updateTabUrlAndTitle(tabId, "https://fmhy.net", "FMHY")
+
+        val state = tabManager.tabs.value.first { it.id == tabId }
+        assertTrue("hadSite should be true after navigating to real url", state.hadSite)
+    }
+
+    @Test
+    fun testHadSiteStaysTrueAfterNavigatingBackToBlank() = runTest {
+        val tabManager = createTabManager()
+        val tabId = tabManager.openTab(url = "about:blank", title = "New tab", select = false)
+
+        tabManager.updateTabUrlAndTitle(tabId, "https://fmhy.net", "FMHY")
+        // Simulate user navigating back to start screen
+        tabManager.updateTabUrlAndTitle(tabId, "about:blank", "New tab")
+
+        val state = tabManager.tabs.value.first { it.id == tabId }
+        assertTrue("hadSite must never be reset once set", state.hadSite)
+    }
+
+    // ── closeEmptyTabsOnLeave ─────────────────────────────────────────────────
+
+    @Test
+    fun testCloseEmptyTabsOnLeaveClosesOnlyEmptyTabs() = runTest {
+        val tabManager = createTabManager()
+        val emptyId = tabManager.openTab(url = "about:blank", title = "New tab", select = false)
+        val realId = tabManager.openTab(url = "https://example.com", title = "Example", select = false)
+
+        tabManager.closeEmptyTabsOnLeave()
+
+        val remaining = tabManager.tabs.value
+        assertEquals(1, remaining.size)
+        assertEquals(realId, remaining.first().id)
+    }
+
+    @Test
+    fun testCloseEmptyTabsOnLeaveReturnsRemainingCount() = runTest {
+        val tabManager = createTabManager()
+        tabManager.openTab(url = "about:blank", title = "New tab", select = false)
+        tabManager.openTab(url = "https://example.com", title = "Example", select = false)
+        tabManager.openTab(url = "about:blank", title = "New tab 2", select = false)
+
+        val left = tabManager.closeEmptyTabsOnLeave()
+        assertEquals(1, left)
+    }
+
+    @Test
+    fun testCloseEmptyTabsOnLeaveDoesNotCloseHadSiteTab() = runTest {
+        val tabManager = createTabManager()
+        val tabId = tabManager.openTab(url = "about:blank", title = "New tab", select = false)
+
+        // Simulate user navigating to a site then back
+        tabManager.updateTabUrlAndTitle(tabId, "https://example.com", "Example")
+        tabManager.updateTabUrlAndTitle(tabId, "about:blank", "New tab")
+
+        val left = tabManager.closeEmptyTabsOnLeave()
+        // Tab had a site, so it must NOT be closed
+        assertEquals(1, left)
+        assertEquals(tabId, tabManager.tabs.value.first().id)
+    }
+
+    @Test
+    fun testToggleTabGroup() = runTest {
+        val tabManager = createTabManager()
+        assertEquals(emptySet<String>(), tabManager.expandedTabGroups.value)
+
+        tabManager.toggleTabGroup("n:github.com")
+        assertEquals(setOf("n:github.com"), tabManager.expandedTabGroups.value)
+
+        tabManager.toggleTabGroup("p:github.com")
+        assertEquals(setOf("n:github.com", "p:github.com"), tabManager.expandedTabGroups.value)
+
+        tabManager.toggleTabGroup("n:github.com")
+        assertEquals(setOf("p:github.com"), tabManager.expandedTabGroups.value)
+    }
+
+    @Test
+    fun testRestoreTabWithoutSelect() = runTest {
+        val tabManager = createTabManager()
+        val currentId = tabManager.openTab(url = "https://example.com/current", title = "Current", select = true)
+        assertEquals(currentId, tabManager.currentTabId.value)
+
+        val restoredId = tabManager.restoreTab(
+            url = "https://example.com/restored",
+            title = "Restored",
+            index = 0,
+            isPrivate = false,
+            select = false,
+        )
+
+        assertEquals(currentId, tabManager.currentTabId.value)
+        assertEquals(2, tabManager.tabs.value.size)
+        assertEquals(restoredId, tabManager.tabs.value[0].id)
+    }
 }

@@ -35,6 +35,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 
@@ -95,6 +96,13 @@ class TabManager(
 
     private val _currentTabId = MutableStateFlow<Long?>(null)
     val currentTabId: StateFlow<Long?> = _currentTabId.asStateFlow()
+
+    private val _expandedTabGroups = MutableStateFlow<Set<String>>(emptySet())
+    val expandedTabGroups: StateFlow<Set<String>> = _expandedTabGroups.asStateFlow()
+
+    fun toggleTabGroup(key: String) {
+        _expandedTabGroups.update { if (key in it) it - key else it + key }
+    }
 
     private val _webViewVersion = MutableStateFlow(0)
     val webViewVersion: StateFlow<Int> = _webViewVersion.asStateFlow()
@@ -419,6 +427,7 @@ class TabManager(
             entryHost = initialHost,
             lastLoadedHost = initialHost,
             desktopSite = currentBrowserPrefs.desktopByDefault,
+            hadSite = !EmptyTabPolicy.isStartUrl(url),
         )
 
         synchronized(records) {
@@ -467,6 +476,14 @@ class TabManager(
             resumeTab(record)
         }
         updateTabsFlow(immediate = true)
+        // Close the previously active tab if it was empty (never showed a real site).
+        // The newly selected tab is never closed, even if it is currently empty.
+        if (oldId != null && oldId != tabId) {
+            val old = getTabRecord(oldId)
+            if (old != null && EmptyTabPolicy.isEmpty(old.url, old.hadSite)) {
+                closeTab(oldId)
+            }
+        }
     }
 
     fun restoreTab(
@@ -475,6 +492,7 @@ class TabManager(
         index: Int,
         isPrivate: Boolean,
         entryId: String? = null,
+        select: Boolean = true,
     ): Long {
         val id = nextId.getAndIncrement()
         val initialHost = try { Uri.parse(url).host } catch (_: Exception) { null }
@@ -487,6 +505,7 @@ class TabManager(
             entryHost = initialHost,
             lastLoadedHost = initialHost,
             desktopSite = currentBrowserPrefs.desktopByDefault,
+            hadSite = !EmptyTabPolicy.isStartUrl(url),
         )
 
         synchronized(records) {
@@ -505,7 +524,9 @@ class TabManager(
         }
 
         updateTabsFlow(immediate = true)
-        selectTab(id)
+        if (select) {
+            selectTab(id)
+        }
         return id
     }
 
@@ -596,6 +617,36 @@ class TabManager(
         appScope.launch {
             try { userStore.put("browser_tabs", "[]") } catch (_: Exception) {}
         }
+    }
+
+    /** Current tab states straight from the records ([tabs] is throttled and may lag behind). */
+    private fun liveStates(): List<TabState> = synchronized(records) { records.map { it.toState() } }
+
+    /**
+     * Closes every empty tab (including the currently active one). Called when the browser is
+     * fully leaving the screen (back to FMHY, activity finishing). Returns the number of tabs
+     * remaining after the closes.
+     */
+    fun closeEmptyTabsOnLeave(): Int {
+        val toClose = EmptyTabPolicy.toCloseOnLeave(liveStates(), keepId = null)
+        for (id in toClose) closeTab(id)
+        return synchronized(records) { records.size }
+    }
+
+    /**
+     * Opens a new empty tab page, reusing an existing empty tab when one is available instead of
+     * stacking a second one. Returns the id of the tab that ended up selected.
+     *
+     * @param isPrivate Whether the new tab should be private.
+     */
+    fun openNewTabPage(isPrivate: Boolean): Long {
+        val actualPrivate = isPrivate || (currentPrivacyPrefs.privateTabsByDefault)
+        val reusable = EmptyTabPolicy.reusable(liveStates(), actualPrivate, _currentTabId.value)
+        if (reusable != null) {
+            selectTab(reusable.id)
+            return reusable.id
+        }
+        return openTab(url = "about:blank", title = "New tab", isPrivate = isPrivate, select = true)
     }
 
     fun pauseTab(record: TabRecord) {
@@ -806,6 +857,7 @@ class TabManager(
         }
         record.url = url
         record.sourceUrl = url
+        if (!EmptyTabPolicy.isStartUrl(url)) record.hadSite = true
         ensureWebView(record)
         if (currentPrivacyPrefs.sendGpc) {
             record.webView?.loadUrl(url, mapOf("Sec-GPC" to "1", "DNT" to "1"))
@@ -818,6 +870,7 @@ class TabManager(
     fun updateTabUrlAndTitle(tabId: Long, url: String, title: String) {
         val record = getTabRecord(tabId) ?: return
         record.url = url
+        if (!EmptyTabPolicy.isStartUrl(url)) record.hadSite = true
         record.hasStartedFirstLoad = true
         if (title.isNotEmpty()) record.title = title
         val host = try { Uri.parse(url).host } catch (_: Exception) { null }

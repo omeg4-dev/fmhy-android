@@ -61,6 +61,8 @@ data class TabState(
     val title: String,
     val favicon: Bitmap? = null,
     val isPrivate: Boolean = false,
+    /** The tab's address was a real website at least once; never reset. */
+    val hadSite: Boolean = false,
     val entryId: String? = null,
     val blocked: Int = 0,
     val blockedHosts: List<BlockedHost> = emptyList(),
