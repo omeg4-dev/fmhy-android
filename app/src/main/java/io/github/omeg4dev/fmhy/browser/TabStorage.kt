@@ -15,6 +15,8 @@ class TabRecord(
     val isPrivate: Boolean = false,
     var entryId: String? = null,
     val blockedCount: java.util.concurrent.atomic.AtomicInteger = java.util.concurrent.atomic.AtomicInteger(0),
+    val blockedRequests: java.util.concurrent.ConcurrentLinkedQueue<BlockedRequest> = java.util.concurrent.ConcurrentLinkedQueue(),
+    val bypass: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet(),
     var canGoBack: Boolean = false,
     var canGoForward: Boolean = false,
     var isLoading: Boolean = false,
@@ -52,6 +54,9 @@ class TabRecord(
     var silentRetryUrl: String? = null,
     /** Pending silent retry, 5xx probe or rescue lookup; cancelled when a new page starts. */
     var rescueJob: kotlinx.coroutines.Job? = null,
+    var stallJob: kotlinx.coroutines.Job? = null,
+    var blankJob: kotlinx.coroutines.Job? = null,
+    @Volatile var skipBlockingOnceUrl: String? = null,
     /** Main-frame URL the ad blocker last replaced with its block page (set off the main thread). */
     @Volatile var blockedMainFrameUrl: String? = null,
     var showsBlockPage: Boolean = false,
@@ -68,6 +73,7 @@ class TabRecord(
         isPrivate = isPrivate,
         entryId = entryId,
         blocked = blockedCount.get(),
+        blockedHosts = BlockedHosts.group(blockedRequests),
         canGoBack = canGoBack,
         canGoForward = canGoForward,
         isLoading = isLoading,

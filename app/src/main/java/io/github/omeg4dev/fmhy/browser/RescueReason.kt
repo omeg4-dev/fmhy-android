@@ -1,5 +1,15 @@
 package io.github.omeg4dev.fmhy.browser
 
+enum class LoadFailureKind {
+    BLOCKED,
+    OFFLINE,
+    REFUSED,
+    TIMEOUT,
+    SERVER,
+    BLANK,
+    UNKNOWN,
+}
+
 object RescueReason {
     const val ERROR_UNKNOWN = -1
     const val ERROR_HOST_LOOKUP = -2
@@ -40,6 +50,10 @@ object RescueReason {
         return statusCode in 500..599
     }
 
+    fun shouldTriggerRefused(statusCode: Int): Boolean {
+        return statusCode in setOf(403, 429, 451)
+    }
+
     fun fromErrorCode(errorCode: Int, description: String = ""): String {
         if (description.contains("CLEARTEXT", ignoreCase = true)) return "Insecure (http) connection blocked"
         return when (errorCode) {
@@ -56,6 +70,9 @@ object RescueReason {
 
     fun fromHttpStatus(statusCode: Int): String {
         val what = when (statusCode) {
+            403 -> "The site refused access"
+            429 -> "Too many requests to the site"
+            451 -> "The site is not available here"
             503, 529 -> "The site is overloaded or down for maintenance"
             504, 522, 524 -> "The site did not answer in time"
             502, 520, 521, 523 -> "The site's server is down"
@@ -63,5 +80,49 @@ object RescueReason {
             else -> "The site's server had an error"
         }
         return "$what (error $statusCode)"
+    }
+
+    fun title(kind: LoadFailureKind): String = when (kind) {
+        LoadFailureKind.BLOCKED -> "FMHY's filters blocked part of this page"
+        LoadFailureKind.OFFLINE -> "No internet connection"
+        LoadFailureKind.REFUSED -> "The site refused to show this page"
+        LoadFailureKind.TIMEOUT -> "The site took too long to answer"
+        LoadFailureKind.BLANK -> "The page stayed blank"
+        LoadFailureKind.SERVER,
+        LoadFailureKind.UNKNOWN -> "This site isn't loading"
+    }
+
+    fun advice(kind: LoadFailureKind): String = when (kind) {
+        LoadFailureKind.BLOCKED -> "Reload without blocking, or allow the blocked sites in the shield panel."
+        LoadFailureKind.OFFLINE -> "Check Wi-Fi or mobile data, then retry."
+        LoadFailureKind.REFUSED -> "Try desktop site, a private tab, or a mirror."
+        LoadFailureKind.TIMEOUT -> "Retry, or try a mirror."
+        LoadFailureKind.SERVER -> "The site may be down. Retry later or try a mirror."
+        LoadFailureKind.BLANK -> "Reload without blocking, or try desktop site."
+        LoadFailureKind.UNKNOWN -> "Retry, or try a mirror."
+    }
+
+    fun kindForError(errorCode: Int, online: Boolean): LoadFailureKind {
+        if (!online && errorCode in setOf(
+                ERROR_HOST_LOOKUP,
+                ERROR_CONNECT,
+                ERROR_IO,
+                ERROR_TIMEOUT,
+                ERROR_UNKNOWN,
+            )
+        ) {
+            return LoadFailureKind.OFFLINE
+        }
+        return if (errorCode == ERROR_TIMEOUT) {
+            LoadFailureKind.TIMEOUT
+        } else {
+            LoadFailureKind.UNKNOWN
+        }
+    }
+
+    fun kindForHttp(status: Int): LoadFailureKind = when (status) {
+        403, 429, 451 -> LoadFailureKind.REFUSED
+        in 500..599 -> LoadFailureKind.SERVER
+        else -> LoadFailureKind.UNKNOWN
     }
 }

@@ -60,7 +60,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.resume
 
 data class BrowserSnackbarEvent(
     val message: String,
@@ -451,22 +453,39 @@ class DefaultBrowserHooks(
         if (!browserPrefs.deadSiteRescue) return
         if (!RescueReason.shouldTrigger(errorCode, description)) return
         val record = tabManager?.getTabRecord(tab.id) ?: return
-        record.failedLoad = FailedLoad(failingUrl, RescueReason.fromErrorCode(errorCode, description), isHttp = false)
+        record.failedLoad = FailedLoad(
+            url = failingUrl,
+            reason = RescueReason.fromErrorCode(errorCode, description),
+            isHttp = false,
+            kind = RescueReason.kindForError(errorCode, tabManager?.isOnline() ?: true),
+        )
     }
 
     override fun onMainFrameHttpError(tab: TabState, statusCode: Int, failingUrl: String) {
         val browserPrefs = tabManager?.currentBrowserPrefs ?: BrowserPrefs()
         rescueLog("http $statusCode url=$failingUrl tab=${tab.url}")
         if (!browserPrefs.deadSiteRescue) return
-        if (!RescueReason.shouldTriggerHttp(statusCode)) return
+        if (!RescueReason.shouldTriggerHttp(statusCode) && !RescueReason.shouldTriggerRefused(statusCode)) return
         val record = tabManager?.getTabRecord(tab.id) ?: return
-        record.failedLoad = FailedLoad(failingUrl, RescueReason.fromHttpStatus(statusCode), isHttp = true)
+        record.failedLoad = FailedLoad(
+            url = failingUrl,
+            reason = RescueReason.fromHttpStatus(statusCode),
+            isHttp = true,
+            kind = RescueReason.kindForHttp(statusCode),
+        )
     }
 
     /** A new document starts in the main frame (not called for in-page navigations). */
     fun onMainFramePageStarted(record: TabRecord, url: String) {
+        if (!RescueDecision.sameAddress(url, record.skipBlockingOnceUrl)) {
+            record.skipBlockingOnceUrl = null
+        }
         record.rescueJob?.cancel()
         record.rescueJob = null
+        record.stallJob?.cancel()
+        record.stallJob = null
+        record.blankJob?.cancel()
+        record.blankJob = null
         record.contentShown = false
         if (!RescueDecision.sameAddress(url, record.failedLoad?.url)) record.failedLoad = null
         if (!RescueDecision.sameAddress(url, record.silentRetryUrl)) {
@@ -478,6 +497,25 @@ class DefaultBrowserHooks(
         if (rescue != null && !RescueDecision.sameAddress(url, rescue.failingUrl)) {
             tabManager?.setRescueState(record.id, null)
         }
+
+        if (RescueDecision.isWebPage(url)) {
+            val appScope = tabManager?.appScope
+            if (appScope != null) {
+                record.stallJob = appScope.launch(Dispatchers.Main) {
+                    delay(RescueDecision.STALL_MS)
+                    val deadSiteRescue = tabManager?.currentBrowserPrefs?.deadSiteRescue ?: false
+                    if (!record.contentShown && record.isLoading && RescueDecision.sameAddress(record.url, url) && record.rescueState == null && deadSiteRescue) {
+                        buildRescueState(
+                            record = record,
+                            failingUrl = url,
+                            reason = RescueReason.title(LoadFailureKind.TIMEOUT),
+                            kind = LoadFailureKind.TIMEOUT,
+                            ignoreContentShown = true,
+                        )
+                    }
+                }
+            }
+        }
     }
 
     /**
@@ -487,14 +525,77 @@ class DefaultBrowserHooks(
     fun onPageCommitVisible(record: TabRecord, url: String) {
         if (RescueDecision.sameAddress(url, record.failedLoad?.url)) return
         record.contentShown = true
+        record.stallJob?.cancel()
+        record.stallJob = null
+    }
+
+    private suspend fun evaluate(view: WebView?, js: String): String? {
+        if (view == null) return null
+        return suspendCancellableCoroutine { continuation ->
+            view.evaluateJavascript(js) { raw -> if (continuation.isActive) continuation.resume(raw) }
+        }
+    }
+
+    private suspend fun evaluateProbe(view: WebView?): RescueDecision.PageProbe? {
+        if (view == null) return null
+        return suspendCancellableCoroutine { continuation ->
+            view.evaluateJavascript(RescueDecision.PROBE_JS) { raw ->
+                if (continuation.isActive) {
+                    continuation.resume(RescueDecision.parseProbe(raw))
+                }
+            }
+        }
     }
 
     /** End of a load attempt; every main-frame error of the attempt has arrived by now. */
     fun onMainFramePageFinished(record: TabRecord, view: WebView, url: String) {
+        record.stallJob?.cancel()
+        record.stallJob = null
         val failed = record.failedLoad?.takeIf { RescueDecision.sameAddress(it.url, url) }
         record.failedLoad = null
         if (failed == null) {
             if (RescueDecision.sameAddress(url, record.url)) onContentShown(record, url)
+            val browserPrefs = tabManager?.currentBrowserPrefs ?: BrowserPrefs()
+            if (RescueDecision.isWebPage(url) && !record.showsBlockPage && browserPrefs.deadSiteRescue) {
+                record.blankJob?.cancel()
+                val appScope = tabManager?.appScope
+                if (appScope != null) {
+                    record.blankJob = appScope.launch(Dispatchers.Main) {
+                        delay(RescueDecision.BLANK_FIRST_MS)
+                        if (!RescueDecision.sameAddress(record.url, url)) return@launch
+                        val probe1 = evaluateProbe(record.webView) ?: return@launch
+                        if (!RescueDecision.sameAddress(record.url, url)) return@launch
+                        if (!RescueDecision.isBlank(probe1)) return@launch
+
+                        delay(RescueDecision.BLANK_SECOND_MS)
+                        if (!RescueDecision.sameAddress(record.url, url)) return@launch
+                        val probe2 = evaluateProbe(record.webView) ?: return@launch
+                        if (!RescueDecision.sameAddress(record.url, url)) return@launch
+                        if (!RescueDecision.isBlank(probe2)) return@launch
+                        if (RescueDecision.parseFlag(evaluate(record.webView, RescueDecision.CENTER_DRAWN_JS))) return@launch
+
+                        val kind = RescueDecision.blankKind(record.blocked)
+                        buildRescueState(
+                            record = record,
+                            failingUrl = url,
+                            reason = RescueReason.title(kind),
+                            kind = kind,
+                            ignoreContentShown = true,
+                        )
+
+                        for (i in 0 until RescueDecision.BLANK_RECHECKS) {
+                            delay(RescueDecision.BLANK_RECHECK_MS)
+                            if (!RescueDecision.sameAddress(record.url, url)) return@launch
+                            val recheck = evaluateProbe(record.webView) ?: return@launch
+                            if (!RescueDecision.sameAddress(record.url, url)) return@launch
+                            if (!RescueDecision.isBlank(recheck)) {
+                                tabManager?.setRescueState(record.id, null)
+                                return@launch
+                            }
+                        }
+                    }
+                }
+            }
             return
         }
         val scope = tabManager?.appScope ?: return
@@ -510,15 +611,31 @@ class DefaultBrowserHooks(
         record.rescueJob = scope.launch(Dispatchers.Main) {
             delay(RescueDecision.HTTP_SETTLE_MS)
             if (!RescueDecision.sameAddress(record.url, failed.url)) return@launch
-            view.evaluateJavascript(RescueDecision.PROBE_JS) { raw ->
-                if (!RescueDecision.sameAddress(record.url, failed.url)) return@evaluateJavascript
-                val probe = RescueDecision.parseProbe(raw)
-                rescueLog("probe $probe url=${failed.url}")
-                if (RescueDecision.looksLikeContent(probe)) {
-                    onContentShown(record, failed.url)
-                } else {
-                    decideRescue(record, failed)
+
+            val runProbe = {
+                view.evaluateJavascript(RescueDecision.PROBE_JS) { raw ->
+                    if (!RescueDecision.sameAddress(record.url, failed.url)) return@evaluateJavascript
+                    val probe = RescueDecision.parseProbe(raw)
+                    rescueLog("probe $probe url=${failed.url}")
+                    if (RescueDecision.looksLikeContent(probe)) {
+                        onContentShown(record, failed.url)
+                    } else {
+                        decideRescue(record, failed)
+                    }
                 }
+            }
+
+            if (failed.kind == LoadFailureKind.REFUSED) {
+                view.evaluateJavascript(RescueDecision.VERIFICATION_JS) { raw ->
+                    if (!RescueDecision.sameAddress(record.url, failed.url)) return@evaluateJavascript
+                    if (RescueDecision.parseFlag(raw)) {
+                        onContentShown(record, failed.url)
+                    } else {
+                        runProbe()
+                    }
+                }
+            } else {
+                runProbe()
             }
         }
     }
@@ -553,15 +670,40 @@ class DefaultBrowserHooks(
                     record.webView?.reload()
                 }
             }
-            RescueDecision.Action.SHOW -> buildRescueState(record, failed.url, failed.reason)
+            RescueDecision.Action.SHOW -> buildRescueState(
+                record = record,
+                failingUrl = failed.url,
+                reason = failed.reason,
+                kind = failed.kind,
+            )
         }
     }
 
-    private fun buildRescueState(record: TabRecord, failingUrl: String, reason: String) {
+    private fun adblockActive(record: TabRecord): Boolean {
+        val tm = tabManager ?: return false
+        return tm.adblockService.currentBlockingPrefs.adblock && record.sitePrefs?.adblock != false
+    }
+
+    private fun buildRescueState(
+        record: TabRecord,
+        failingUrl: String,
+        reason: String,
+        kind: LoadFailureKind = LoadFailureKind.UNKNOWN,
+        ignoreContentShown: Boolean = false,
+    ) {
+        val canSkipBlocking = kind != LoadFailureKind.OFFLINE && adblockActive(record)
         // Same address already rescued (e.g. the user pressed Retry): update it in place, no flash.
         val current = record.rescueState
         if (current != null && RescueDecision.sameAddress(current.failingUrl, failingUrl)) {
-            tabManager?.setRescueState(record.id, current.copy(reason = reason, retrying = false))
+            tabManager?.setRescueState(
+                record.id,
+                current.copy(
+                    reason = reason,
+                    retrying = false,
+                    kind = kind,
+                    canSkipBlocking = canSkipBlocking,
+                )
+            )
             return
         }
         val host = try { Uri.parse(failingUrl).host ?: failingUrl } catch (_: Exception) { failingUrl }
@@ -588,7 +730,7 @@ class DefaultBrowserHooks(
 
             withContext(Dispatchers.Main) {
                 // The page may have loaded or the tab moved on while the lookup ran.
-                if (record.contentShown) return@withContext
+                if (!ignoreContentShown && record.contentShown) return@withContext
                 if (listOf(record.url, record.sourceUrl).none { RescueDecision.sameAddress(it, failingUrl) }) return@withContext
                 rescueLog("SHOW rescue url=$failingUrl ($reason)")
                 tabManager?.setRescueState(
@@ -599,6 +741,8 @@ class DefaultBrowserHooks(
                         reason = reason,
                         mirrors = mirrors,
                         alternatives = alternatives,
+                        kind = kind,
+                        canSkipBlocking = canSkipBlocking,
                     )
                 )
             }
@@ -608,6 +752,15 @@ class DefaultBrowserHooks(
     /** User pressed Retry: keep the rescue up while loading; no extra silent rounds. */
     fun retryRescue(record: TabRecord) {
         val rescue = record.rescueState ?: return
+        record.silentRetries = RescueDecision.MAX_SILENT_RETRIES
+        record.silentRetryUrl = rescue.failingUrl
+        tabManager?.setRescueState(record.id, rescue.copy(retrying = true))
+        tabManager?.loadUrl(record.id, rescue.failingUrl)
+    }
+
+    fun reloadWithoutBlocking(record: TabRecord) {
+        val rescue = record.rescueState ?: return
+        record.skipBlockingOnceUrl = rescue.failingUrl
         record.silentRetries = RescueDecision.MAX_SILENT_RETRIES
         record.silentRetryUrl = rescue.failingUrl
         tabManager?.setRescueState(record.id, rescue.copy(retrying = true))

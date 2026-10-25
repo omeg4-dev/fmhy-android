@@ -16,17 +16,20 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.GppBad
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,6 +46,7 @@ import io.github.omeg4dev.fmhy.ui.common.enterStagger
 fun RescueOverlay(
     state: RescueState,
     onRetry: () -> Unit,
+    onReloadWithoutBlocking: () -> Unit,
     onOpenUrl: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -65,27 +69,46 @@ fun RescueOverlay(
             verticalArrangement = Arrangement.spacedBy(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            val icon = if (state.kind == LoadFailureKind.BLOCKED) Icons.Default.Shield else Icons.Default.CloudOff
             Icon(
-                imageVector = Icons.Default.CloudOff,
+                imageVector = icon,
                 contentDescription = null,
                 modifier = Modifier.size(64.dp),
                 tint = MaterialTheme.colorScheme.error,
             )
+            val headline = RescueReason.title(state.kind)
             Text(
-                "This site isn't loading",
+                headline,
                 style = MaterialTheme.typography.headlineSmall,
                 color = MaterialTheme.colorScheme.onBackground,
             )
-            Text(
-                state.reason,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.error,
-            )
+            if (state.reason != headline) {
+                Text(
+                    state.reason,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
             Text(
                 state.host,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            Text(
+                RescueReason.advice(state.kind),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+            if (state.canSkipBlocking) {
+                FilledTonalButton(
+                    onClick = onReloadWithoutBlocking,
+                    enabled = !state.retrying,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Reload without blocking")
+                }
+            }
             Button(
                 onClick = onRetry,
                 enabled = !state.retrying,

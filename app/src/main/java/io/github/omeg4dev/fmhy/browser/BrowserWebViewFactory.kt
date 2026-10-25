@@ -4,10 +4,12 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.os.Build
 import android.os.Message
+import android.view.ViewGroup
 import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
+import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.webkit.WebSettingsCompat
@@ -41,8 +43,10 @@ class BrowserWebViewFactory(
         onExternalAppRequest: (intent: android.content.Intent, appName: String) -> Unit,
     ): WebView {
         val webView = WebView(context)
+        // WRAP_CONTENT makes the WebView report `vh`/`dvh` as 0, which collapses sites such as chat.qwen.ai to a blank page.
+        webView.layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
         val settings = webView.settings
-        val defaultUa = settings.userAgentString
+        val defaultUa = WebSettings.getDefaultUserAgent(context)
 
         // JavaScript
         val jsAllowed = record.sitePrefs?.javascript ?: browserPrefs.javascript
@@ -180,12 +184,17 @@ class BrowserWebViewFactory(
             }
 
             override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
+                if (request.isForMainFrame) {
+                    tabManager.resetBlocked(record.id)
+                }
                 val response = adblockService.shouldInterceptRequest(
                     request = request,
                     sourceUrl = record.sourceUrl,
                     sitePrefs = record.sitePrefs,
                     tabAllowedOnceUrls = record.allowedOnceUrls,
-                    onBlocked = { tabManager.incrementBlocked(record.id) },
+                    tabBypass = record.bypass,
+                    skipBlockingFor = record.skipBlockingOnceUrl,
+                    onBlocked = { tabManager.incrementBlocked(record.id, it) },
                     bridgeName = bridgeName,
                 )
                 // A replaced main-frame document is the ad blocker's block page.
@@ -267,7 +276,7 @@ class BrowserWebViewFactory(
         isAppDark: Boolean
     ) {
         val settings = webView.settings
-        val defaultUa = settings.userAgentString
+        val defaultUa = WebSettings.getDefaultUserAgent(webView.context)
         settings.mediaPlaybackRequiresUserGesture = browserPrefs.autoplay == AutoplayMode.BLOCK
 
         val jsAllowed = record.sitePrefs?.javascript ?: browserPrefs.javascript

@@ -714,6 +714,15 @@ fun BrowserScreen(
                                 tabManager.loadUrl(tabId, shown.failingUrl)
                             }
                         },
+                        onReloadWithoutBlocking = {
+                            val record = tabId?.let { tabManager.getTabRecord(it) }
+                            if (hooks != null && record != null) {
+                                hooks.reloadWithoutBlocking(record)
+                            } else if (tabId != null) {
+                                tabManager.setRescueState(tabId, null)
+                                tabManager.loadUrl(tabId, shown.failingUrl)
+                            }
+                        },
                         onOpenUrl = { url ->
                             if (tabId != null) {
                                 tabManager.setRescueState(tabId, null)
@@ -828,6 +837,9 @@ fun BrowserScreen(
             onHideElement = {
                 showShieldSheet = false
                 tabManager.startElementPicker(currentTab.id)
+            },
+            onAllowHost = { host ->
+                tabManager.allowBlockedHost(currentTab.id, host)
             },
         )
     }

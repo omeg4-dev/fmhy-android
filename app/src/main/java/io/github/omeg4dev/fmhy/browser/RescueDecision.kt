@@ -3,7 +3,12 @@ package io.github.omeg4dev.fmhy.browser
 import java.net.URI
 
 /** A main-frame load that failed: a network error, or a 5xx whose body may still be a real page. */
-data class FailedLoad(val url: String, val reason: String, val isHttp: Boolean)
+data class FailedLoad(
+    val url: String,
+    val reason: String,
+    val isHttp: Boolean,
+    val kind: LoadFailureKind = LoadFailureKind.UNKNOWN,
+)
 
 /**
  * Pure "show the dead-site rescue screen?" decision. The rescue is only for the main page of the
@@ -15,6 +20,12 @@ object RescueDecision {
 
     /** Wait after a 5xx page finished before probing it: challenge pages redirect within this time. */
     const val HTTP_SETTLE_MS = 2_000L
+
+    const val STALL_MS = 30_000L
+    const val BLANK_FIRST_MS = 6_000L
+    const val BLANK_SECOND_MS = 4_000L
+    const val BLANK_RECHECK_MS = 3_000L
+    const val BLANK_RECHECKS = 10
 
     enum class Action { IGNORE, RETRY, SHOW }
 
@@ -58,10 +69,33 @@ object RescueDecision {
     /** What the page shows, as counted by [PROBE_JS]. */
     data class PageProbe(val textLength: Int, val links: Int, val media: Int)
 
+    fun isBlank(probe: PageProbe?): Boolean =
+        probe != null && probe.textLength == 0 && probe.links == 0 && probe.media == 0
+
+    fun blankKind(blockedOnPage: Int): LoadFailureKind =
+        if (blockedOnPage > 0) LoadFailureKind.BLOCKED else LoadFailureKind.BLANK
+
+    fun isWebPage(url: String?): Boolean =
+        url != null && (url.startsWith("http://", ignoreCase = true) || url.startsWith("https://", ignoreCase = true))
+
     /** Counts visible text, links and media elements; result is "text,links,media". */
     const val PROBE_JS = "(function(){var b=document.body;if(!b)return '0,0,0';" +
         "return [(b.innerText||'').trim().length,document.links.length," +
         "document.querySelectorAll('img,video,iframe,canvas').length].join(',');})()"
+
+    /** Evaluates to "1" when the page is a human-verification page, else "0". */
+    const val VERIFICATION_JS = "(function(){try{" +
+        "var t=document.title||'';" +
+        "if(/just a moment|attention required|verify you are human|checking your browser|ddos-guard|captcha/i.test(t))return '1';" +
+        "if(document.querySelector('#challenge-form,#challenge-running,.cf-turnstile,.g-recaptcha,.h-captcha,iframe[src*=\"challenges.cloudflare.com\"],iframe[src*=\"hcaptcha.com\"],iframe[src*=\"recaptcha\"]'))return '1';" +
+        "return '0';" +
+        "}catch(e){return '0';}})()"
+
+    fun parseFlag(raw: String?): Boolean = raw?.trim()?.removeSurrounding("\"") == "1"
+
+    /** Evaluates to "1" when something other than the bare page is drawn at the screen centre (e.g. shadow DOM content the probe cannot count). */
+    const val CENTER_DRAWN_JS = "(function(){var e=document.elementFromPoint(innerWidth/2,innerHeight/2);" +
+        "return e&&e!==document.body&&e!==document.documentElement?'1':'0';})()"
 
     /** Parses the raw evaluateJavascript result (a JSON string such as "\"123,4,5\""). */
     fun parseProbe(raw: String?): PageProbe? {

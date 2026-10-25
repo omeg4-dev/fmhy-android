@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.DarkMode
@@ -27,9 +29,14 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.omeg4dev.fmhy.browser.adblock.AdblockStatus
 import io.github.omeg4dev.fmhy.data.BlockingPrefs
@@ -50,6 +57,7 @@ fun ShieldSheet(
     onUpdateSitePref: (update: (io.github.omeg4dev.fmhy.data.user.SitePrefs) -> io.github.omeg4dev.fmhy.data.user.SitePrefs) -> Unit,
     onResetDefaults: () -> Unit,
     onHideElement: () -> Unit,
+    onAllowHost: (host: String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val host = try {
@@ -57,6 +65,8 @@ fun ShieldSheet(
     } catch (_: Exception) {
         ""
     }
+
+    var expanded by remember { mutableStateOf(false) }
 
     val sitePrefs = tab.sitePrefs
     val hasOverrides = sitePrefs != null && (
@@ -81,6 +91,7 @@ fun ShieldSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp)
                 .padding(bottom = 32.dp),
         ) {
@@ -121,6 +132,51 @@ fun ShieldSheet(
                 if (hasOverrides) {
                     TextButton(onClick = onResetDefaults) {
                         Text("Reset to defaults")
+                    }
+                }
+            }
+
+            if (adblockOn) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "Blocked on this page",
+                    style = MaterialTheme.typography.titleSmall,
+                )
+                if (tab.blockedHosts.isEmpty()) {
+                    Text(
+                        text = "Nothing blocked on this page",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    val hostsToShow = if (expanded) tab.blockedHosts else tab.blockedHosts.take(8)
+                    for (blockedHost in hostsToShow) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(
+                                text = blockedHost.host,
+                                style = MaterialTheme.typography.bodyMedium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Text(
+                                text = "· ${blockedHost.count}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            TextButton(onClick = { onAllowHost(blockedHost.host) }) {
+                                Text("Allow")
+                            }
+                        }
+                    }
+                    if (tab.blockedHosts.size > 8 && !expanded) {
+                        TextButton(onClick = { expanded = true }) {
+                            Text("Show all (${tab.blockedHosts.size})")
+                        }
                     }
                 }
             }

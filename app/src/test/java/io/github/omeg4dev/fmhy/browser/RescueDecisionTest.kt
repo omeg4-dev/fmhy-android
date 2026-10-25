@@ -83,4 +83,31 @@ class RescueDecisionTest {
         assertTrue(RescueDecision.looksLikeContent(PageProbe(300, 40, 0)))
         assertTrue(RescueDecision.looksLikeContent(PageProbe(100, 2, 12)))
     }
+
+    @Test
+    fun testIsBlank() {
+        assertTrue(RescueDecision.isBlank(PageProbe(0, 0, 0)))
+        assertFalse(RescueDecision.isBlank(PageProbe(1, 0, 0)))
+        assertFalse(RescueDecision.isBlank(PageProbe(0, 0, 1)))
+        assertFalse(RescueDecision.isBlank(null))
+    }
+
+    @Test
+    fun testBlankKind() {
+        assertEquals(LoadFailureKind.BLANK, RescueDecision.blankKind(0))
+        assertEquals(LoadFailureKind.BLOCKED, RescueDecision.blankKind(3))
+    }
+
+    @Test
+    fun testIsWebPage() {
+        assertFalse(RescueDecision.isWebPage("about:blank"))
+        assertTrue(RescueDecision.isWebPage("HTTPS://x.y"))
+    }
+
+    @Test
+    fun testParseFlag() {
+        assertTrue(RescueDecision.parseFlag("\"1\""))
+        assertFalse(RescueDecision.parseFlag("\"0\""))
+        assertFalse(RescueDecision.parseFlag(null))
+    }
 }

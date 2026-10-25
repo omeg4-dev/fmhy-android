@@ -13,6 +13,7 @@ import android.view.ViewGroup
 import android.webkit.WebView
 import androidx.core.view.drawToBitmap
 import io.github.omeg4dev.fmhy.browser.adblock.AdblockService
+import io.github.omeg4dev.fmhy.browser.adblock.AllowRule
 import io.github.omeg4dev.fmhy.browser.adblock.ScriptletLibrary
 import io.github.omeg4dev.fmhy.data.Appearance
 import io.github.omeg4dev.fmhy.data.AutoplayMode
@@ -47,6 +48,16 @@ class TabManager(
     private val browserHooks: BrowserHooks,
     val appScope: CoroutineScope,
 ) {
+    fun isOnline(): Boolean {
+        return try {
+            val cm = appContext.getSystemService(Context.CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager
+            val network = cm?.activeNetwork
+            val caps = network?.let { cm.getNetworkCapabilities(it) }
+            caps?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true
+        } catch (_: Throwable) {
+            true
+        }
+    }
     val bridgeName = "_fmhy" + (1..8).map { ('a'..'z').random() }.joinToString("")
     private val mainHandler by lazy {
         try {
@@ -1023,10 +1034,38 @@ class TabManager(
         updateTabsFlow()
     }
 
+    fun incrementBlocked(tabId: Long, blocked: BlockedRequest) {
+        val record = getTabRecord(tabId) ?: return
+        record.blockedCount.incrementAndGet()
+        if (record.blockedRequests.size < 300) {
+            record.blockedRequests.add(blocked)
+        }
+        updateTabsFlow(immediate = false)
+    }
+
     fun incrementBlocked(tabId: Long) {
         val record = getTabRecord(tabId) ?: return
         record.blockedCount.incrementAndGet()
         updateTabsFlow(immediate = false)
+    }
+
+    fun resetBlocked(tabId: Long) {
+        val record = getTabRecord(tabId) ?: return
+        record.blockedCount.set(0)
+        record.blockedRequests.clear()
+        updateTabsFlow(immediate = false)
+    }
+
+    fun allowBlockedHost(tabId: Long, host: String) {
+        val record = getTabRecord(tabId) ?: return
+        val site = AllowRule.pageSite(record.url) ?: return
+        record.bypass.add(AllowRule.bypassKey(site, host))
+        appScope.launch {
+            settingsRepository.updateBlocking {
+                it.copy(customRules = AllowRule.append(it.customRules, AllowRule.forHost(host, site)))
+            }
+        }
+        reloadTab(tabId)
     }
 
     fun allowUrlOnce(tabId: Long, url: String) {

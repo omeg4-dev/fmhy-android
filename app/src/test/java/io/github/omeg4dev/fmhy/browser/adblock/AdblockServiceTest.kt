@@ -13,6 +13,8 @@ import io.github.omeg4dev.fmhy.data.adblock.EngineStats
 import io.github.omeg4dev.fmhy.data.adblock.FilterEngine
 import io.github.omeg4dev.fmhy.data.adblock.FilterEngineBuilder
 import io.github.omeg4dev.fmhy.data.adblock.ListState
+import io.github.omeg4dev.fmhy.data.adblock.MatchResult
+import io.github.omeg4dev.fmhy.data.adblock.ResourceType
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -200,5 +202,40 @@ class AdblockServiceTest {
         assertTrue(service.isHostAllowlisted("a.b.allowed.org", allowlist))
         assertFalse(service.isHostAllowlisted("notexample.com", allowlist))
         assertFalse(service.isHostAllowlisted("example.org", allowlist))
+    }
+
+    @Test
+    fun testEffectiveResultExemptsFirstPartyGenericScript() {
+        val result = AdblockService.effectiveResult(
+            result = MatchResult.Block("/analytics-"),
+            requestUrl = "https://example.com/assets/analytics-bundle.js",
+            pageUrl = "https://example.com/",
+            type = ResourceType.SCRIPT,
+        )
+        assertEquals(MatchResult.NoMatch, result)
+    }
+
+    @Test
+    fun testEffectiveResultKeepsSiteSpecificBlock() {
+        val original = MatchResult.Block("||ads.example.com^")
+        val result = AdblockService.effectiveResult(
+            result = original,
+            requestUrl = "https://ads.example.com/x.js",
+            pageUrl = "https://example.com/",
+            type = ResourceType.SCRIPT,
+        )
+        assertEquals(original, result)
+    }
+
+    @Test
+    fun testEffectiveResultKeepsThirdPartyRedirect() {
+        val original = MatchResult.Redirect(resource = "noopjs", rule = "||tracker.net^")
+        val result = AdblockService.effectiveResult(
+            result = original,
+            requestUrl = "https://tracker.net/tracker.js",
+            pageUrl = "https://example.com/",
+            type = ResourceType.SCRIPT,
+        )
+        assertEquals(original, result)
     }
 }

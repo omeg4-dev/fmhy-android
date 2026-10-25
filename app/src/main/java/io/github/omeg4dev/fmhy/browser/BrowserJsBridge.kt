@@ -26,7 +26,7 @@ class BrowserJsBridge(
     fun cosmetics(href: String): String {
         val tab = tabManager.getTabRecord(tabId) ?: return "{}"
         val prefs = adblockService.currentBlockingPrefs
-        if (!prefs.adblock || tab.sitePrefs?.adblock == false) {
+        if (!prefs.adblock || tab.sitePrefs?.adblock == false || RescueDecision.sameAddress(href, tab.skipBlockingOnceUrl)) {
             return Json.encodeToString(CosmeticsResponse("", "", false))
         }
 

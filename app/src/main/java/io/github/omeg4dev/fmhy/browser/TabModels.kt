@@ -1,6 +1,7 @@
 package io.github.omeg4dev.fmhy.browser
 
 import android.graphics.Bitmap
+import io.github.omeg4dev.fmhy.data.adblock.ResourceType
 import io.github.omeg4dev.fmhy.data.model.Entry
 import io.github.omeg4dev.fmhy.data.model.Link
 import io.github.omeg4dev.fmhy.data.user.SitePrefs
@@ -14,6 +15,8 @@ data class RescueState(
     val alternatives: List<Entry> = emptyList(),
     /** The user pressed Retry and the page is loading again. */
     val retrying: Boolean = false,
+    val kind: LoadFailureKind = LoadFailureKind.UNKNOWN,
+    val canSkipBlocking: Boolean = false,
 )
 
 data class InterstitialState(
@@ -21,6 +24,28 @@ data class InterstitialState(
     val isUnsafe: Boolean, // true = UNSAFE, false = POTENTIALLY_UNSAFE
     val reason: String?,
 )
+
+data class BlockedRequest(
+    val host: String,
+    val url: String,
+    val type: ResourceType,
+    val rule: String,
+)
+
+data class BlockedHost(
+    val host: String,
+    val count: Int,
+)
+
+object BlockedHosts {
+    fun group(requests: Collection<BlockedRequest>): List<BlockedHost> {
+        return requests
+            .groupingBy { it.host.lowercase() }
+            .eachCount()
+            .map { (host, count) -> BlockedHost(host, count) }
+            .sortedWith(compareByDescending<BlockedHost> { it.count }.thenBy { it.host })
+    }
+}
 
 data class TabState(
     val id: Long,
@@ -30,6 +55,7 @@ data class TabState(
     val isPrivate: Boolean = false,
     val entryId: String? = null,
     val blocked: Int = 0,
+    val blockedHosts: List<BlockedHost> = emptyList(),
     val canGoBack: Boolean = false,
     val canGoForward: Boolean = false,
     val isLoading: Boolean = false,

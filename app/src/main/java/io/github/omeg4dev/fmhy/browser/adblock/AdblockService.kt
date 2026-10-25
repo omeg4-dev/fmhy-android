@@ -4,6 +4,8 @@ import android.net.Uri
 import android.util.Log
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
+import io.github.omeg4dev.fmhy.browser.BlockedRequest
+import io.github.omeg4dev.fmhy.browser.RescueDecision
 import io.github.omeg4dev.fmhy.data.BlockingPrefs
 import io.github.omeg4dev.fmhy.data.SettingsRepository
 import io.github.omeg4dev.fmhy.data.adblock.FilterEngine
@@ -182,7 +184,9 @@ class AdblockService(
         sourceUrl: String?,
         sitePrefs: SitePrefs?,
         tabAllowedOnceUrls: Set<String>,
-        onBlocked: () -> Unit,
+        tabBypass: Set<String> = emptySet(),
+        skipBlockingFor: String? = null,
+        onBlocked: (BlockedRequest) -> Unit,
         bridgeName: String,
     ): WebResourceResponse? {
         val prefs = currentBlockingPrefs
@@ -190,7 +194,20 @@ class AdblockService(
         if (sitePrefs?.adblock == false) return null
 
         val urlStr = request.url.toString()
+        if (skipBlockingFor != null && (RescueDecision.sameAddress(sourceUrl ?: urlStr, skipBlockingFor) ||
+            (request.isForMainFrame && RescueDecision.sameAddress(urlStr, skipBlockingFor)))) {
+            return null
+        }
+
         if (tabAllowedOnceUrls.contains(urlStr)) return null
+
+        if (tabBypass.isNotEmpty()) {
+            val pageSite = AllowRule.pageSite(sourceUrl ?: urlStr)
+            val host = request.url.host.orEmpty().lowercase()
+            if (pageSite != null && host.isNotEmpty() && isBypassed(tabBypass, pageSite, host)) {
+                return null
+            }
+        }
 
         val pageHost = try {
             Uri.parse(sourceUrl ?: urlStr).host.orEmpty()
@@ -213,12 +230,19 @@ class AdblockService(
             sourceUrl = sourceUrl ?: urlStr,
             type = type,
         )
-        val result = engine.match(filterReq)
+        val result = effectiveResult(engine.match(filterReq), urlStr, sourceUrl ?: urlStr, type)
 
         return when (result) {
             is MatchResult.NoMatch, is MatchResult.Allow -> null
             is MatchResult.Redirect -> {
-                onBlocked()
+                onBlocked(
+                    BlockedRequest(
+                        host = request.url.host.orEmpty().lowercase(),
+                        url = urlStr,
+                        type = type,
+                        rule = result.rule,
+                    )
+                )
                 val neutered = NeuteredResources.get(result.resource)
                 if (neutered != null) {
                     WebResourceResponse(
@@ -251,12 +275,37 @@ class AdblockService(
                         ByteArrayInputStream(blockHtml.toByteArray(Charsets.UTF_8))
                     )
                 } else {
-                    onBlocked()
+                    onBlocked(
+                        BlockedRequest(
+                            host = request.url.host.orEmpty().lowercase(),
+                            url = urlStr,
+                            type = type,
+                            rule = result.rule,
+                        )
+                    )
                     // 404 (not an empty 200) so <script>/<img> fire onerror like a cancelled request.
                     emptyResponse(type, failed = true)
                 }
             }
         }
+    }
+
+    private fun isBypassed(tabBypass: Set<String>, pageSite: String, host: String): Boolean {
+        var currentHost: String? = host
+        while (currentHost != null) {
+            if (tabBypass.contains(AllowRule.bypassKey(pageSite, currentHost))) {
+                return true
+            }
+            val dotIndex = currentHost.indexOf('.')
+            if (dotIndex == -1) break
+            val nextHost = currentHost.substring(dotIndex + 1)
+            if (nextHost.contains('.')) {
+                currentHost = nextHost
+            } else {
+                break
+            }
+        }
+        return false
     }
 
     private fun emptyResponse(type: ResourceType, failed: Boolean = false): WebResourceResponse {
@@ -324,6 +373,28 @@ class AdblockService(
 
     companion object {
         private const val TAG = "FmhyAdblock"
+
+        /**
+         * Returns [MatchResult.NoMatch] if the match is a block or redirect on an essential request
+         * that should be exempted; otherwise returns [result] unchanged.
+         */
+        fun effectiveResult(
+            result: MatchResult,
+            requestUrl: String,
+            pageUrl: String,
+            type: ResourceType,
+        ): MatchResult {
+            val rule = when (result) {
+                is MatchResult.Block -> result.rule
+                is MatchResult.Redirect -> result.rule
+                else -> return result
+            }
+            return if (EssentialRequests.exempt(requestUrl, pageUrl, type, rule)) {
+                MatchResult.NoMatch
+            } else {
+                result
+            }
+        }
 
         private fun logI(tag: String, msg: String) {
             try {
