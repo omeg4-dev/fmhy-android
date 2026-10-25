@@ -38,6 +38,7 @@ data class Follow(
     val headingId: String = "",
     val title: String,
     val createdAt: Long,
+    val excluded: Boolean = false,
 )
 
 @Serializable

@@ -703,7 +703,7 @@ fun StayUpdatedPreview(
                             text = if (firstFollowedTitle != null) {
                                 "Fresh sites and resources added to community lists."
                             } else {
-                                "Choose categories below to receive notifications when new sites are added."
+                                "Choose sections below to receive notifications when new sites are added."
                             },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,

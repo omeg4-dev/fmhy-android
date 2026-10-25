@@ -13,7 +13,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.automirrored.filled.Segment
-import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -349,9 +349,9 @@ fun EntryDetailBottomSheet(
                     colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                     leadingContent = {
                         Icon(
-                            imageVector = if (followState.isFollowing) Icons.Default.NotificationsActive else Icons.Outlined.Notifications,
+                            imageVector = if (followState.isFollowing) Icons.Filled.Notifications else Icons.Outlined.Notifications,
                             contentDescription = null,
-                            tint = if (followState.isFollowing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            tint = if (followState.isFollowing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                         )
                     },
                     headlineContent = {

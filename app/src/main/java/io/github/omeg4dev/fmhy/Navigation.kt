@@ -134,6 +134,7 @@ import io.github.omeg4dev.fmhy.ui.settings.AppearancePage
 import io.github.omeg4dev.fmhy.ui.settings.BlockingPage
 import io.github.omeg4dev.fmhy.ui.settings.BrowserPage
 import io.github.omeg4dev.fmhy.ui.settings.DataPage
+import io.github.omeg4dev.fmhy.ui.settings.FollowingScreen
 import io.github.omeg4dev.fmhy.ui.settings.HomeListsPage
 import io.github.omeg4dev.fmhy.ui.settings.NavRow
 import io.github.omeg4dev.fmhy.ui.settings.NotificationsPage
@@ -406,7 +407,7 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
     val browserTabCount by container.tabManager.browserTabCount.collectAsStateWithLifecycle()
     var showBrowserMenu by rememberSaveable { mutableStateOf(false) }
 
-    val shouldShowBar = isBarVisible && !showOnboarding && currentTopKey !is SettingsNavKey && currentTopKey !is SettingsPageNavKey && currentTopKey !is LegendNavKey && currentTopKey !is SiteSettingsNavKey && currentTopKey !is ReaderNavKey
+    val shouldShowBar = isBarVisible && !showOnboarding && currentTopKey !is SettingsNavKey && currentTopKey !is SettingsPageNavKey && currentTopKey !is LegendNavKey && currentTopKey !is SiteSettingsNavKey && currentTopKey !is ReaderNavKey && currentTopKey !is FollowingNavKey
 
     BackHandler(enabled = nav.current != Tab.BROWSE && nav.currentStack.size == 1) {
         nav.back()
@@ -551,6 +552,7 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                         scope.launch { snackbarHostState.showSnackbar(msg) }
                     },
                     onNavigateToWhatsNew = { nav.push(WhatsNewNavKey()) },
+                    onNavigateToFollowing = { nav.push(FollowingNavKey) },
                 )
                 SettingsPage.DATA -> DataPage(
                     viewModel = settingsViewModel,
@@ -582,6 +584,7 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                     scope.launch { snackbarHostState.showSnackbar(msg) }
                 },
                 startInHub = key.filter == "all" && key.type == null,
+                onNavigateToFollowing = { nav.push(FollowingNavKey) },
             )
         }
 
@@ -650,6 +653,14 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                 onShowSnackbar = { msg ->
                     scope.launch { snackbarHostState.showSnackbar(msg) }
                 }
+            )
+        }
+
+        entry<FollowingNavKey> {
+            FollowingScreen(
+                userStore = container.userStore,
+                datasetStore = container.datasetStore,
+                onBack = { if (!nav.back()) activity?.finish() },
             )
         }
     }

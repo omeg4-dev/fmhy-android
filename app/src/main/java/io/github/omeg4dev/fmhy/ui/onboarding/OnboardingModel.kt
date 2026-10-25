@@ -117,7 +117,7 @@ class OnboardingModel(
         val homePrefs = settingsRepository.homePrefs.first()
         val notificationPrefs = settingsRepository.notificationPrefs.first()
         val follows = try {
-            userStore.follows().map { it.sectionId }.toSet()
+            userStore.follows().filter { !it.excluded }.map { it.sectionId }.toSet()
         } catch (_: Exception) {
             emptySet()
         }
@@ -252,20 +252,29 @@ class OnboardingModel(
                 try {
                     val existingFollows = userStore.follows()
                     val existingSectionIds = existingFollows.map { it.sectionId }.toSet()
-                    val titles = if (s.followedSections.any { it !in existingSectionIds }) {
-                        runCatching { appContainer?.datasetStore?.sections() }.getOrNull()
-                            ?.associate { it.id to it.title }.orEmpty()
-                    } else {
-                        emptyMap()
-                    }
+                    val wholeFollowedSecIds = existingFollows
+                        .filter { it.headingId.isEmpty() && !it.excluded }
+                        .map { it.sectionId }
+                        .toSet()
+                    val onlySubFollowedSecIds = existingSectionIds - existingFollows.filter { it.headingId.isEmpty() }.map { it.sectionId }.toSet()
+
+                    val titles = runCatching { appContainer?.datasetStore?.sections() }.getOrNull()
+                        ?.associate { it.id to it.title }
+                        ?: emptyMap()
+
                     for (secId in s.followedSections) {
-                        if (secId !in existingSectionIds) {
-                            userStore.follow(secId, "", titles[secId].orEmpty())
+                        if (secId in onlySubFollowedSecIds) {
+                            continue
+                        }
+                        if (secId !in wholeFollowedSecIds) {
+                            val title = titles[secId] ?: existingFollows.firstOrNull { it.sectionId == secId }?.title?.substringBefore(" › ") ?: secId.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+                            userStore.followSection(secId, title)
                         }
                     }
-                    for (f in existingFollows) {
-                        if (f.sectionId !in s.followedSections && f.headingId.isEmpty()) {
-                            userStore.unfollow(f.sectionId, f.headingId)
+
+                    for (secId in existingSectionIds) {
+                        if (secId !in s.followedSections) {
+                            userStore.unfollowSection(secId)
                         }
                     }
                 } catch (_: Exception) {}

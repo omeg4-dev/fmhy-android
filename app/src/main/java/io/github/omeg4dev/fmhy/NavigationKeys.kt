@@ -66,6 +66,9 @@ data class ReaderNavKey(val path: String, val title: String) : NavKey
 @Serializable
 data object PostsNavKey : NavKey
 
+@Serializable
+data object FollowingNavKey : NavKey
+
 // Also aliases matching the brief names:
 typealias Home = HomeNavKey
 typealias Section = SectionNavKey
@@ -77,3 +80,4 @@ typealias WhatsNew = WhatsNewNavKey
 typealias CheckLink = CheckLinkNavKey
 typealias Reader = ReaderNavKey
 typealias Posts = PostsNavKey
+typealias Following = FollowingNavKey

@@ -31,6 +31,7 @@ import io.github.omeg4dev.fmhy.data.user.Follow
 import io.github.omeg4dev.fmhy.data.user.ImportResult
 import io.github.omeg4dev.fmhy.data.user.Pin
 import io.github.omeg4dev.fmhy.di.AppContainer
+import io.github.omeg4dev.fmhy.ui.common.FollowTree
 import io.github.omeg4dev.fmhy.ui.shell.JobRowUi
 import io.github.omeg4dev.fmhy.ui.shell.SYNC_CANCELLED
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -146,6 +147,40 @@ class SettingsViewModel(
             try { container.userStore.follows() } catch (_: Exception) { emptyList() }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val followedSectionsCount: StateFlow<Int> = combine(
+        container.userStore.changes,
+        store.changes,
+    ) { _, _ ->
+        try {
+            val follows = container.userStore.follows()
+            val tree = FollowTree(follows)
+            if (tree.isEmpty) {
+                0
+            } else {
+                val sections = try { store.sections() } catch (_: Exception) { emptyList() }
+                val headings = try { store.allHeadings() } catch (_: Exception) { emptyList() }
+                val headingsBySec = headings.groupBy { it.sectionId }
+                val subMap = sections.associate { sec ->
+                    val secHeadings = headingsBySec[sec.id].orEmpty()
+                    val hasLevel1 = secHeadings.any { it.level == 1 }
+                    val topLevel = when {
+                        hasLevel1 -> 1
+                        secHeadings.any { it.level == 2 } -> 2
+                        else -> 0
+                    }
+                    sec.id to (if (topLevel == 0) emptyList() else secHeadings.filter { it.level == topLevel }.map { it.id })
+                }
+                if (subMap.isEmpty()) {
+                    follows.filter { !it.excluded }.map { it.sectionId }.distinct().size
+                } else {
+                    tree.followedCount(subMap)
+                }
+            }
+        } catch (_: Exception) {
+            0
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
     val savedCount: StateFlow<Int> = container.userStore.changes
         .map {

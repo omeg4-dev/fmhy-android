@@ -110,8 +110,8 @@ object UpdateChecker {
         // 2. Followed changes: {ADDED, STARRED} in followed sections/categories
         val followedChanges = if (prefs?.notifyFollowed != false && follows.isNotEmpty()) {
             try {
-                val sectionFollows = follows.filter { it.headingId.isEmpty() }.map { it.sectionId }.toSet()
-                val categoryFollowHeadingIds = follows.filter { it.headingId.isNotEmpty() }.flatMap { f ->
+                val sectionFollows = follows.filter { it.headingId.isEmpty() && !it.excluded }.map { it.sectionId }.toSet()
+                val categoryFollowHeadingIds = follows.filter { it.headingId.isNotEmpty() && !it.excluded }.flatMap { f ->
                     hierarchy[f.headingId] ?: setOf(f.headingId)
                 }.toSet()
 

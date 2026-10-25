@@ -55,6 +55,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.omeg4dev.fmhy.FollowingNavKey
 import io.github.omeg4dev.fmhy.SectionNavKey
 import io.github.omeg4dev.fmhy.data.model.ChangeItem
 import io.github.omeg4dev.fmhy.data.model.ChangeKind
@@ -84,10 +85,12 @@ fun WhatsNewScreen(
     onShowSnackbar: (String) -> Unit = {},
     /** Open on the hub (All changes + one tile per kind) instead of the feed. */
     startInHub: Boolean = false,
+    onNavigateToFollowing: (() -> Unit)? = null,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     val nav = LocalAppNav.current
+    val actualOnNavigateToFollowing = onNavigateToFollowing ?: { nav.push(FollowingNavKey) }
     val context = LocalContext.current
     val haptics = rememberHaptics()
     val linkOpener = rememberLinkOpener(container, onShowSnackbar)
@@ -270,6 +273,7 @@ fun WhatsNewScreen(
                     onOpenSectionsSheet = {
                         showSectionsSheet = true
                     },
+                    onManageFollowing = actualOnNavigateToFollowing,
                 )
 
                 // Summary line
@@ -305,15 +309,25 @@ fun WhatsNewScreen(
                                     .padding(horizontal = 32.dp),
                                 contentAlignment = Alignment.Center,
                             ) {
-                                EmptyState(
-                                    icon = Icons.Outlined.HistoryToggleOff,
-                                    title = "Nothing here for these filters",
-                                    body = "Try a longer period or all types.",
-                                    actionLabel = "Show everything",
-                                    onAction = {
-                                        viewModel.resetFilters()
-                                    },
-                                )
+                                if (state.scope is WhatsNewScope.Following && !state.hasFollows) {
+                                    EmptyState(
+                                        icon = Icons.Outlined.HistoryToggleOff,
+                                        title = "No followed sections",
+                                        body = "Follow sections or subsections to see their updates here.",
+                                        actionLabel = "Follow sections",
+                                        onAction = actualOnNavigateToFollowing,
+                                    )
+                                } else {
+                                    EmptyState(
+                                        icon = Icons.Outlined.HistoryToggleOff,
+                                        title = "Nothing here for these filters",
+                                        body = "Try a longer period or all types.",
+                                        actionLabel = "Show everything",
+                                        onAction = {
+                                            viewModel.resetFilters()
+                                        },
+                                    )
+                                }
                             }
                         }
                         else -> {

@@ -15,12 +15,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -28,7 +25,6 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -43,10 +39,11 @@ fun NotificationsPage(
     onShowSnackbar: (String) -> Unit,
     modifier: Modifier = Modifier,
     onNavigateToWhatsNew: () -> Unit = {},
+    onNavigateToFollowing: () -> Unit = {},
     extraRows: LazyListScope.() -> Unit = {},
 ) {
     val notificationPrefs by viewModel.notificationPrefs.collectAsStateWithLifecycle()
-    val follows by viewModel.follows.collectAsStateWithLifecycle()
+    val followedCount by viewModel.followedSectionsCount.collectAsStateWithLifecycle()
     val isCheckingUpdates by viewModel.isCheckingUpdates.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val master = notificationPrefs.enabled
@@ -112,7 +109,7 @@ fun NotificationsPage(
                     )
                     SettingsDivider()
                     SwitchRow(
-                        title = "New sites in followed categories",
+                        title = "New sites in followed sections",
                         checked = notificationPrefs.notifyFollowed,
                         enabled = master,
                         onChange = { checked ->
@@ -165,33 +162,19 @@ fun NotificationsPage(
                 }
             }
 
-            // 2. Followed sections
+            // 2. Following
             item {
-                SettingsSection(title = "Followed sections") {
-                    if (follows.isEmpty()) {
-                        Text(
-                            text = "Nothing followed yet — open a section and tap Follow",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(16.dp),
-                        )
+                SettingsSection {
+                    val followSummary = if (followedCount > 0) {
+                        if (followedCount == 1) "1 section followed" else "$followedCount sections followed"
                     } else {
-                        follows.forEachIndexed { idx, f ->
-                            if (idx > 0) SettingsDivider()
-                            ListItem(
-                                headlineContent = { Text(f.title) },
-                                trailingContent = {
-                                    IconButton(onClick = {
-                                        viewModel.unfollow(f.sectionId, f.headingId)
-                                        onShowSnackbar("Unfollowed ${f.title}")
-                                    }) {
-                                        Icon(Icons.Default.Close, contentDescription = "Unfollow ${f.title}")
-                                    }
-                                },
-                                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                            )
-                        }
+                        "Nothing followed yet"
                     }
+                    NavRow(
+                        title = "Following",
+                        summary = followSummary,
+                        onClick = onNavigateToFollowing,
+                    )
                 }
             }
 

@@ -282,4 +282,12 @@ class SettingsRepositoryTest {
         val app = repo.appearance.first()
         assertEquals(AppIcon.DEFAULT, app.appIcon)
     }
+
+    @Test
+    fun testFollowNotifyPromptShownRoundTrip() = runTest {
+        val (repo, _) = createRepository(this)
+        assertFalse(repo.followNotifyPromptShown.first())
+        repo.setFollowNotifyPromptShown(true)
+        assertTrue(repo.followNotifyPromptShown.first())
+    }
 }

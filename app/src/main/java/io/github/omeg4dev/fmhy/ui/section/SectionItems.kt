@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -34,8 +35,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.outlined.Lightbulb
+import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material.icons.outlined.WarningAmber
 import io.github.omeg4dev.fmhy.ui.common.EmptyState
@@ -43,9 +48,11 @@ import androidx.compose.material.icons.rounded.VerticalAlignTop
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -70,6 +77,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -382,6 +391,159 @@ fun MoreGroupRow(
                         colors = AssistChipDefaults.assistChipColors(
                             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                         ),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SubsectionBell(
+    isFollowed: Boolean,
+    subsectionTitle: String,
+    onToggleFollow: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    IconButton(
+        onClick = onToggleFollow,
+        modifier = modifier.size(40.dp),
+    ) {
+        Icon(
+            imageVector = if (isFollowed) Icons.Filled.Notifications else Icons.Outlined.Notifications,
+            contentDescription = if (isFollowed) "Unfollow $subsectionTitle" else "Follow $subsectionTitle",
+            modifier = Modifier.size(20.dp),
+            tint = if (isFollowed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+        )
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun SubsectionLine(
+    categories: List<Category>,
+    sectionId: String?,
+    selectedIndex: Int,
+    isFollowed: Boolean,
+    onToggleFollow: () -> Unit,
+    onSelectCategory: (Int) -> Unit,
+    onLongClickCategory: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val activeIndex = if (selectedIndex in categories.indices) selectedIndex else 0
+    val currentCategory = categories.getOrNull(activeIndex)
+    val currentCleanTitle = currentCategory?.let { CrossLinks.splitLinkTitle(it.heading.title).first }.orEmpty()
+    val currentTitle = currentCategory?.let { cat ->
+        val raw = CrossLinks.splitLinkTitle(cat.heading.title).first
+        flagFor(sectionId, cat.heading.title)?.let { flag -> "$flag $raw" } ?: raw
+    }.orEmpty()
+
+    Box(
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 40.dp)
+                .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .semantics {
+                        contentDescription = "Choose subsection"
+                    }
+                    .clickable(
+                        role = Role.Button,
+                        onClick = { expanded = true },
+                    ),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = currentTitle,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                Icon(
+                    imageVector = Icons.Filled.ArrowDropDown,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            SubsectionBell(
+                isFollowed = isFollowed,
+                subsectionTitle = currentCleanTitle,
+                onToggleFollow = onToggleFollow,
+            )
+        }
+
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 420.dp),
+        ) {
+            categories.forEachIndexed { index, category ->
+                val isSelected = index == activeIndex
+                val rawTitle = CrossLinks.splitLinkTitle(category.heading.title).first
+                val titleWithFlag = flagFor(sectionId, category.heading.title)?.let { "$it $rawTitle" } ?: rawTitle
+                val titleColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp)
+                        .combinedClickable(
+                            onClick = {
+                                expanded = false
+                                onSelectCategory(index)
+                            },
+                            onLongClick = {
+                                expanded = false
+                                onLongClickCategory(index)
+                            },
+                        )
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (isSelected) {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .padding(end = 12.dp)
+                                .size(20.dp),
+                        )
+                    } else {
+                        Spacer(modifier = Modifier.width(32.dp))
+                    }
+
+                    Text(
+                        text = titleWithFlag,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = titleColor,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+
+                    Spacer(modifier = Modifier.width(16.dp))
+
+                    Text(
+                        text = "${category.entryCount} sites",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
                     )
                 }
             }

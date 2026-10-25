@@ -42,9 +42,29 @@ internal fun UserStore.migrateIfNeeded(conn: SQLiteConnection) {
     }
 }
 
+internal fun columnExists(conn: SQLiteConnection, table: String, column: String): Boolean {
+    return try {
+        conn.prepare("PRAGMA table_info($table);").use { stmt ->
+            while (stmt.step()) {
+                if (stmt.getText(1).equals(column, ignoreCase = true)) {
+                    return@use true
+                }
+            }
+            false
+        }
+    } catch (_: Exception) {
+        false
+    }
+}
+
 internal fun executeDefaultMigration(conn: SQLiteConnection, fromVersion: Int, toVersion: Int) {
     if (fromVersion == 0 && toVersion >= 1) {
         executeSqlScript(conn, loadSchemaSql())
+    }
+    if (fromVersion == 1 && toVersion == 2) {
+        if (!columnExists(conn, "follows", "excluded")) {
+            conn.execSQL("ALTER TABLE follows ADD COLUMN excluded INTEGER NOT NULL DEFAULT 0;")
+        }
     }
 }
 

@@ -720,4 +720,188 @@ class UserStoreTest {
 
         store.close()
     }
+
+    @Test
+    fun testFollowSectionRemovesSubRows() = runTest {
+        val store = createStore()
+        store.follow("video", "movies", "Movies")
+        store.follow("video", "tv", "TV Shows")
+        store.follow("audio", "music", "Music")
+        assertEquals(3, store.follows().size)
+
+        // Follow whole video section
+        store.followSection("video", "All Video")
+        val follows = store.follows()
+        // movies and tv should be deleted; video section follow created; audio follow preserved
+        assertEquals(2, follows.size)
+        val videoFollow = follows.firstOrNull { it.sectionId == "video" }
+        assertNotNull(videoFollow)
+        assertEquals("", videoFollow!!.headingId)
+        assertEquals("All Video", videoFollow.title)
+        assertFalse(videoFollow.excluded)
+
+        val audioFollow = follows.firstOrNull { it.sectionId == "audio" }
+        assertNotNull(audioFollow)
+        assertEquals("music", audioFollow!!.headingId)
+
+        store.close()
+    }
+
+    @Test
+    fun testSetSubsectionFollowedUnderFollowedSection() = runTest {
+        val store = createStore()
+        store.followSection("video", "All Video")
+        assertEquals(1, store.follows().size)
+
+        // Switching off a subsection under a followed section creates an exclusion row
+        store.setSubsectionFollowed("video", "movies", "Movies", followed = false)
+        val followsAfterExclude = store.follows()
+        assertEquals(2, followsAfterExclude.size)
+        val exclusion = followsAfterExclude.firstOrNull { it.headingId == "movies" }
+        assertNotNull(exclusion)
+        assertEquals("video", exclusion!!.sectionId)
+        assertTrue(exclusion.excluded)
+
+        // Switching subsection back on under a followed section deletes the exclusion row
+        store.setSubsectionFollowed("video", "movies", "Movies", followed = true)
+        val followsAfterReInclude = store.follows()
+        assertEquals(1, followsAfterReInclude.size)
+        assertEquals("", followsAfterReInclude[0].headingId)
+        assertFalse(followsAfterReInclude[0].excluded)
+
+        store.close()
+    }
+
+    @Test
+    fun testSetSubsectionFollowedWithoutSectionFollow() = runTest {
+        val store = createStore()
+        // No whole-section follow for "video"
+        // Following subsection creates plain row with excluded=0
+        store.setSubsectionFollowed("video", "movies", "Movies", followed = true)
+        val follows = store.follows()
+        assertEquals(1, follows.size)
+        assertEquals("video", follows[0].sectionId)
+        assertEquals("movies", follows[0].headingId)
+        assertFalse(follows[0].excluded)
+
+        // Unfollowing subsection deletes the row
+        store.setSubsectionFollowed("video", "movies", "Movies", followed = false)
+        assertTrue(store.follows().isEmpty())
+
+        store.close()
+    }
+
+    @Test
+    fun testUnfollowSectionDeletesEverything() = runTest {
+        val store = createStore()
+        store.followSection("video", "All Video")
+        store.setSubsectionFollowed("video", "movies", "Movies", followed = false) // exclusion row
+        store.follow("audio", "", "Audio") // another section
+        assertEquals(3, store.follows().size)
+
+        store.unfollowSection("video")
+        val follows = store.follows()
+        assertEquals(1, follows.size)
+        assertEquals("audio", follows[0].sectionId)
+
+        store.close()
+    }
+
+    @Test
+    fun testMigrationFromOldSchemaWithoutExcludedColumn() = runTest {
+        val dbFile = tempFolder.newFile("legacy_v1.db")
+        val rawConn = BundledSQLiteDriver().open(dbFile.absolutePath)
+        rawConn.execSQL("PRAGMA user_version = 1;")
+        rawConn.execSQL("""
+            CREATE TABLE follows (
+                section_id TEXT NOT NULL,
+                heading_id TEXT NOT NULL DEFAULT '',
+                title TEXT NOT NULL,
+                created_at INTEGER NOT NULL,
+                PRIMARY KEY (section_id, heading_id)
+            ) WITHOUT ROWID;
+        """.trimIndent())
+        rawConn.execSQL("INSERT INTO follows (section_id, heading_id, title, created_at) VALUES ('video', '', 'Video Section', 1000);")
+        rawConn.execSQL("INSERT INTO follows (section_id, heading_id, title, created_at) VALUES ('audio', 'podcasts', 'Podcasts', 2000);")
+        rawConn.close()
+
+        // Opening with default targetVersion (= 2) will run migration 1 -> 2
+        val store = UserStore(dbFile)
+        val follows = store.follows()
+        assertEquals(2, follows.size)
+        val video = follows.first { it.sectionId == "video" }
+        assertEquals("", video.headingId)
+        assertEquals("Video Section", video.title)
+        assertEquals(1000L, video.createdAt)
+        assertFalse(video.excluded)
+
+        val podcasts = follows.first { it.headingId == "podcasts" }
+        assertEquals("audio", podcasts.sectionId)
+        assertEquals("Podcasts", podcasts.title)
+        assertEquals(2000L, podcasts.createdAt)
+        assertFalse(podcasts.excluded)
+
+        // Check user_version in DB
+        store.withConnection { conn ->
+            conn.prepare("PRAGMA user_version;").use { stmt ->
+                assertTrue(stmt.step())
+                assertEquals(2L, stmt.getLong(0))
+            }
+        }
+        store.close()
+    }
+
+    @Test
+    fun testExportImportRoundTripKeepsExcluded() = runTest {
+        val store1 = createStore()
+        store1.followSection("video", "All Video")
+        store1.setSubsectionFollowed("video", "movies", "Movies", followed = false) // excluded = true
+        store1.follow("audio", "music", "Music") // excluded = false
+
+        val json = store1.exportJson(includeHistory = false)
+        assertTrue(json.contains("\"excluded\":true") || json.contains("\"excluded\": true"))
+
+        val store2 = createStore()
+        val result = store2.importJson(json)
+        assertEquals(3, result.follows)
+
+        val importedFollows = store2.follows()
+        assertEquals(3, importedFollows.size)
+
+        val videoSection = importedFollows.first { it.sectionId == "video" && it.headingId == "" }
+        assertFalse(videoSection.excluded)
+
+        val moviesExclusion = importedFollows.first { it.sectionId == "video" && it.headingId == "movies" }
+        assertTrue(moviesExclusion.excluded)
+
+        val musicFollow = importedFollows.first { it.sectionId == "audio" && it.headingId == "music" }
+        assertFalse(musicFollow.excluded)
+
+        store1.close()
+        store2.close()
+    }
+
+    @Test
+    fun testImportOldBackupWithoutExcludedField() = runTest {
+        val store = createStore()
+        val oldBackupJson = """
+            {
+                "format": "fmhy-backup",
+                "version": 1,
+                "exportedAt": 1000,
+                "follows": [
+                    {"sectionId": "video", "headingId": "movies", "title": "Movies", "createdAt": 1000}
+                ]
+            }
+        """.trimIndent()
+        val result = store.importJson(oldBackupJson)
+        assertEquals(1, result.follows)
+
+        val follows = store.follows()
+        assertEquals(1, follows.size)
+        assertEquals("movies", follows[0].headingId)
+        assertFalse(follows[0].excluded)
+
+        store.close()
+    }
 }

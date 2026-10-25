@@ -2,6 +2,8 @@ package io.github.omeg4dev.fmhy.work
 
 import io.github.omeg4dev.fmhy.data.model.ChangeItem
 import io.github.omeg4dev.fmhy.data.model.ChangeKind
+import io.github.omeg4dev.fmhy.data.model.Entry
+import io.github.omeg4dev.fmhy.data.model.Tier
 import io.github.omeg4dev.fmhy.data.user.Follow
 import io.github.omeg4dev.fmhy.data.user.UserBookmark
 import org.junit.Assert.assertEquals
@@ -241,5 +243,108 @@ class UpdateWorkerLogicTest {
             detail = "",
             entry = null,
         )
+    }
+
+    private fun makeEntry(id: String, sectionId: String, headingId: String?): Entry {
+        return Entry(
+            id = id,
+            num = 1,
+            sectionId = sectionId,
+            headingId = headingId,
+            ord = 1,
+            name = id,
+            url = "https://example.com/$id",
+            originalUrl = null,
+            description = "",
+            tags = emptyList(),
+            headingPath = "",
+            tier = Tier.NORMAL,
+            isInlineMore = false,
+            isBase64 = false,
+            mirrors = emptyList(),
+            extraLinks = emptyList(),
+            firstSeen = nowSec,
+            lastChanged = nowSec,
+            starredAt = null,
+        )
+    }
+
+    private fun makeChangeWithHeading(
+        id: Long,
+        ts: Long,
+        kind: ChangeKind,
+        name: String,
+        sectionId: String,
+        headingId: String?,
+    ): ChangeItem {
+        return ChangeItem(
+            id = id,
+            ts = ts,
+            kind = kind,
+            entryId = "e_$id",
+            sectionId = sectionId,
+            name = name,
+            url = "https://example.com",
+            detail = "",
+            entry = makeEntry("e_$id", sectionId, headingId),
+        )
+    }
+
+    @Test
+    fun testSectionFollowedWithExcludedSubsectionFiltersOutExcludedItem() {
+        val follows = listOf(
+            makeFollow("video", "", "Video"),
+            Follow(sectionId = "video", headingId = "movies", title = "Movies", createdAt = nowSec, excluded = true),
+        )
+        val changeMovies = makeChangeWithHeading(1, nowSec - 100, ChangeKind.ADDED, "Movie Site", "video", "movies")
+        val changeShows = makeChangeWithHeading(2, nowSec - 100, ChangeKind.ADDED, "Show Site", "video", "shows")
+
+        val filtered = UpdateWorkerLogic.filterFollowedChanges(
+            changes = listOf(changeMovies, changeShows),
+            follows = follows,
+        )
+
+        assertEquals(1, filtered.size)
+        assertEquals("Show Site", filtered[0].name)
+    }
+
+    @Test
+    fun testExcludedSubsectionDescendantsFilteredViaHierarchy() {
+        val follows = listOf(
+            makeFollow("video", "", "Video"),
+            Follow(sectionId = "video", headingId = "parent-cat", title = "Parent Cat", createdAt = nowSec, excluded = true),
+        )
+        val hierarchy = mapOf(
+            "parent-cat" to setOf("parent-cat", "child-sub1", "child-sub2")
+        )
+
+        val changeChild1 = makeChangeWithHeading(1, nowSec - 100, ChangeKind.ADDED, "Child 1 Site", "video", "child-sub1")
+        val changeChild2 = makeChangeWithHeading(2, nowSec - 100, ChangeKind.ADDED, "Child 2 Site", "video", "child-sub2")
+        val changeOther = makeChangeWithHeading(3, nowSec - 100, ChangeKind.ADDED, "Other Site", "video", "other-cat")
+
+        val filtered = UpdateWorkerLogic.filterFollowedChanges(
+            changes = listOf(changeChild1, changeChild2, changeOther),
+            follows = follows,
+            hierarchy = hierarchy,
+        )
+
+        assertEquals(1, filtered.size)
+        assertEquals("Other Site", filtered[0].name)
+    }
+
+    @Test
+    fun testExcludedSubsectionWithoutSectionFollowIgnored() {
+        // Section not followed, only an excluded row exists -> neither counted as follow nor kept
+        val follows = listOf(
+            Follow(sectionId = "video", headingId = "movies", title = "Movies", createdAt = nowSec, excluded = true),
+        )
+        val changeMovies = makeChangeWithHeading(1, nowSec - 100, ChangeKind.ADDED, "Movie Site", "video", "movies")
+
+        val filtered = UpdateWorkerLogic.filterFollowedChanges(
+            changes = listOf(changeMovies),
+            follows = follows,
+        )
+
+        assertTrue(filtered.isEmpty())
     }
 }

@@ -81,6 +81,10 @@ import io.github.omeg4dev.fmhy.ui.common.enterStagger
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
 import io.github.omeg4dev.fmhy.ui.common.showUndo
+import io.github.omeg4dev.fmhy.ui.common.FollowNotifyPrompt
+import io.github.omeg4dev.fmhy.ui.common.FollowTree
+import io.github.omeg4dev.fmhy.ui.common.rememberFollowNotifyPromptState
+import io.github.omeg4dev.fmhy.data.NotificationPrefs
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -112,23 +116,47 @@ fun SectionScreen(
     var pendingSelection by remember { mutableStateOf<Int?>(null) }
     var showOverflowMenu by remember { mutableStateOf(false) }
 
+    val userChanges by container.userStore.changes.collectAsStateWithLifecycle()
     var follows by remember { mutableStateOf<List<io.github.omeg4dev.fmhy.data.user.Follow>>(emptyList()) }
-    LaunchedEffect(container.userStore.changes) {
+    LaunchedEffect(userChanges) {
         follows = container.userStore.follows()
     }
     val currentSectionId = state.section?.id ?: viewModel.sectionId
     val currentSectionTitle = state.section?.title ?: "Section"
     val isSectionFollowed = remember(follows, currentSectionId) {
-        follows.any { it.sectionId == currentSectionId && it.headingId == "" }
+        FollowTree(follows).isSectionFollowed(currentSectionId)
+    }
+
+    val followPromptShown by container.settingsRepository.followNotifyPromptShown.collectAsStateWithLifecycle(initialValue = false)
+    val notificationPrefs by container.settingsRepository.notificationPrefs.collectAsStateWithLifecycle(initialValue = NotificationPrefs())
+    val promptState = rememberFollowNotifyPromptState(followPromptShown, notificationPrefs)
+
+    val toggleSubsectionFollow: (String, String) -> Unit = { headingId, subTitle ->
+        val tree = FollowTree(follows)
+        val isCurrentlyFollowed = tree.isSubsectionFollowed(currentSectionId, headingId)
+        val nextFollowed = !isCurrentlyFollowed
+        val fullTitle = "$currentSectionTitle › $subTitle"
+        scope.launch {
+            container.userStore.setSubsectionFollowed(currentSectionId, headingId, fullTitle, nextFollowed)
+            if (!nextFollowed) {
+                haptics.remove()
+                val undone = snackbarHostState.showUndo("Unfollowed $subTitle")
+                if (undone) {
+                    container.userStore.setSubsectionFollowed(currentSectionId, headingId, fullTitle, true)
+                }
+            } else {
+                onShowSnackbar("Following $subTitle")
+                promptState.checkAndTrigger()
+            }
+        }
     }
 
     val isFilterActive = state.starredOnly || !state.showIndexes
 
     val homePrefs by container.settingsRepository.homePrefs.collectAsStateWithLifecycle(initialValue = HomePrefs())
-    val userChanges by container.userStore.changes.collectAsStateWithLifecycle()
     var isSectionPinned by remember { mutableStateOf(false) }
     var isSectionHidden by remember { mutableStateOf(false) }
-    var categoryToPinIndex by remember { mutableStateOf<Int?>(null) }
+    var actionsMenuCategoryIndex by remember { mutableStateOf<Int?>(null) }
 
     val secId = state.section?.id ?: viewModel.sectionId
     val secTitle = state.section?.title ?: secId
@@ -306,16 +334,19 @@ fun SectionScreen(
                                         showOverflowMenu = false
                                         scope.launch {
                                             if (isSectionFollowed) {
-                                                val snapshot = follows.firstOrNull { it.sectionId == currentSectionId && it.headingId == "" } ?: io.github.omeg4dev.fmhy.data.user.Follow(currentSectionId, "", currentSectionTitle, System.currentTimeMillis())
-                                                container.userStore.unfollow(currentSectionId, "")
+                                                val snapshots = follows.filter { it.sectionId == currentSectionId }
+                                                container.userStore.unfollowSection(currentSectionId)
                                                 haptics.remove()
                                                 val undone = snackbarHostState.showUndo("Unfollowed $currentSectionTitle")
                                                 if (undone) {
-                                                    container.userStore.restoreFollow(snapshot)
+                                                    for (f in snapshots) {
+                                                        container.userStore.restoreFollow(f)
+                                                    }
                                                 }
                                             } else {
-                                                container.userStore.follow(currentSectionId, "", currentSectionTitle)
+                                                container.userStore.followSection(currentSectionId, currentSectionTitle)
                                                 onShowSnackbar("Following $currentSectionTitle")
+                                                promptState.checkAndTrigger()
                                             }
                                         }
                                     },
@@ -370,13 +401,11 @@ fun SectionScreen(
                 )
 
                 if (state.layout == SectionLayout.CONTINUOUS && state.structure.categories.size >= 2) {
-                    val chips = remember(state.structure.categories, state.section?.id) {
-                        val sectionId = state.section?.id ?: viewModel.sectionId
-                        state.structure.categories.map {
-                            val title = CrossLinks.splitLinkTitle(it.heading.title).first
-                            flagFor(sectionId, it.heading.title)?.let { flag -> "$flag $title" } ?: title
-                        }
-                    }
+                    val activeIndex = pendingSelection ?: derivedSelectedCategoryIndex
+                    val currentCategory = state.structure.categories.getOrNull(if (activeIndex in state.structure.categories.indices) activeIndex else 0)
+                    val tree = FollowTree(follows)
+                    val isCurrentFollowed = currentCategory != null && tree.isSubsectionFollowed(currentSectionId, currentCategory.heading.id)
+
                     val isAtTop by remember {
                         derivedStateOf {
                             listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0
@@ -387,45 +416,32 @@ fun SectionScreen(
                         label = "rail_divider_alpha",
                     )
 
-                    CategoryChipRail(
-                        chips = chips,
+                    SubsectionLine(
+                        categories = state.structure.categories,
+                        sectionId = state.section?.id ?: viewModel.sectionId,
                         selectedIndex = pendingSelection ?: derivedSelectedCategoryIndex,
-                        onSelectChip = { index ->
+                        isFollowed = isCurrentFollowed,
+                        onToggleFollow = {
+                            val cat = currentCategory ?: return@SubsectionLine
+                            val catTitle = CrossLinks.splitLinkTitle(cat.heading.title).first
+                            toggleSubsectionFollow(cat.heading.id, catTitle)
+                        },
+                        onSelectCategory = { index ->
                             bottomBarController.show()
-                            val category = state.structure.categories.getOrNull(index) ?: return@CategoryChipRail
+                            val category = state.structure.categories.getOrNull(index) ?: return@SubsectionLine
                             val targetIdx = state.items.indexOfFirst {
                                 it is SectionItem.HeadingItem && it.heading.id == category.heading.id
                             }
                             if (targetIdx != -1) {
                                 scope.launch {
                                     pendingSelection = index
-                                    listState.animateScrollToItem(targetIdx)
+                                    listState.jumpTo(targetIdx, viewportFraction = HEADING_VIEWPORT_FRACTION)
                                     pendingSelection = null
                                 }
                             }
                         },
-                        onLongClickChip = { index ->
-                            val category = state.structure.categories.getOrNull(index) ?: return@CategoryChipRail
-                            if (homePrefs.personalHome) {
-                                categoryToPinIndex = index
-                            } else {
-                                val catTitle = CrossLinks.splitLinkTitle(category.heading.title).first
-                                val fullTitle = "$currentSectionTitle › $catTitle"
-                                val catFollow = follows.firstOrNull { it.sectionId == currentSectionId && it.headingId == category.heading.id }
-                                scope.launch {
-                                    if (catFollow != null) {
-                                        container.userStore.unfollow(currentSectionId, category.heading.id)
-                                        haptics.remove()
-                                        val undone = snackbarHostState.showUndo("Unfollowed $fullTitle")
-                                        if (undone) {
-                                            container.userStore.restoreFollow(catFollow)
-                                        }
-                                    } else {
-                                        container.userStore.follow(currentSectionId, category.heading.id, fullTitle)
-                                        onShowSnackbar("Following $fullTitle")
-                                    }
-                                }
-                            }
+                        onLongClickCategory = { index ->
+                            actionsMenuCategoryIndex = index
                         },
                     )
 
@@ -718,72 +734,53 @@ fun SectionScreen(
         )
     }
 
-    categoryToPinIndex?.let { index ->
+    actionsMenuCategoryIndex?.let { index ->
         val category = state.structure.categories.getOrNull(index)
         if (category != null) {
             val catTitle = CrossLinks.splitLinkTitle(category.heading.title).first
+            val tree = FollowTree(follows)
+            val isCatFollowed = tree.isSubsectionFollowed(secId, category.heading.id)
             var isCatPinned by remember(category.heading.id, userChanges) { mutableStateOf(false) }
             LaunchedEffect(category.heading.id, userChanges) {
                 val pins = container.userStore.pins()
                 isCatPinned = pins.any { it.sectionId == secId && it.headingId == category.heading.id }
             }
-            AlertDialog(
-                onDismissRequest = { categoryToPinIndex = null },
-                title = { Text(catTitle) },
-                text = { Text(if (isCatPinned) "Remove this category from Home pins?" else "Pin this category to Home?") },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            val toPin = !isCatPinned
-                            categoryToPinIndex = null
-                            scope.launch {
-                                if (toPin) {
-                                    container.userStore.pin(secId, category.heading.id, catTitle)
-                                    onShowSnackbar("Pinned to Home")
-                                } else {
-                                    val snapshot = container.userStore.pins().firstOrNull { it.sectionId == secId && it.headingId == category.heading.id } ?: io.github.omeg4dev.fmhy.data.user.Pin(secId, category.heading.id, catTitle, 0)
-                                    container.userStore.unpin(secId, category.heading.id)
-                                    haptics.remove()
-                                    val undone = snackbarHostState.showUndo("Unpinned $catTitle")
-                                    if (undone) {
-                                        container.userStore.restorePin(snapshot)
-                                    }
-                                }
+
+            SubsectionActionsMenu(
+                title = catTitle,
+                isFollowed = isCatFollowed,
+                isPinned = isCatPinned,
+                showPinAction = homePrefs.personalHome,
+                onToggleFollow = {
+                    toggleSubsectionFollow(category.heading.id, catTitle)
+                },
+                onTogglePin = {
+                    val toPin = !isCatPinned
+                    scope.launch {
+                        if (toPin) {
+                            container.userStore.pin(secId, category.heading.id, catTitle)
+                            onShowSnackbar("Pinned to Home")
+                        } else {
+                            val snapshot = container.userStore.pins().firstOrNull { it.sectionId == secId && it.headingId == category.heading.id } ?: io.github.omeg4dev.fmhy.data.user.Pin(secId, category.heading.id, catTitle, 0)
+                            container.userStore.unpin(secId, category.heading.id)
+                            haptics.remove()
+                            val undone = snackbarHostState.showUndo("Unpinned $catTitle")
+                            if (undone) {
+                                container.userStore.restorePin(snapshot)
                             }
                         }
-                    ) {
-                        Text(if (isCatPinned) "Unpin" else "Pin to Home")
                     }
                 },
-                dismissButton = {
-                    Row {
-                        val fullTitle = "$currentSectionTitle › $catTitle"
-                        val catFollow = follows.firstOrNull { it.sectionId == currentSectionId && it.headingId == category.heading.id }
-                        TextButton(
-                            onClick = {
-                                categoryToPinIndex = null
-                                scope.launch {
-                                    if (catFollow != null) {
-                                        container.userStore.unfollow(currentSectionId, category.heading.id)
-                                        haptics.remove()
-                                        val undone = snackbarHostState.showUndo("Unfollowed $fullTitle")
-                                        if (undone) {
-                                            container.userStore.restoreFollow(catFollow)
-                                        }
-                                    } else {
-                                        container.userStore.follow(currentSectionId, category.heading.id, fullTitle)
-                                        onShowSnackbar("Following $fullTitle")
-                                    }
-                                }
-                            },
-                        ) { Text(if (catFollow != null) "Unfollow" else "Follow") }
-                        TextButton(onClick = { categoryToPinIndex = null }) {
-                            Text("Cancel")
-                        }
-                    }
-                }
+                onDismiss = { actionsMenuCategoryIndex = null },
             )
         }
+    }
+
+    if (promptState.showPrompt) {
+        FollowNotifyPrompt(
+            settingsRepository = container.settingsRepository,
+            onDismiss = { promptState.showPrompt = false },
+        )
     }
 
     UnsafeWarningDialog(linkOpener)

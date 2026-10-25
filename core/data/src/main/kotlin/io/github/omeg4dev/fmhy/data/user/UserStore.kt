@@ -439,7 +439,7 @@ open class UserStore(
 
     suspend fun follows(): List<Follow> = withConnection { conn ->
         val result = mutableListOf<Follow>()
-        val sql = "SELECT section_id, heading_id, title, created_at FROM follows ORDER BY created_at DESC, section_id ASC, heading_id ASC"
+        val sql = "SELECT section_id, heading_id, title, created_at, excluded FROM follows ORDER BY created_at DESC, section_id ASC, heading_id ASC"
         conn.prepare(sql).use { stmt ->
             while (stmt.step()) {
                 result.add(
@@ -448,6 +448,7 @@ open class UserStore(
                         headingId = stmt.getText(1),
                         title = stmt.getText(2),
                         createdAt = stmt.getLong(3),
+                        excluded = stmt.getLong(4) != 0L,
                     )
                 )
             }
@@ -457,9 +458,9 @@ open class UserStore(
 
     suspend fun follow(sectionId: String, headingId: String, title: String) = withConnection { conn ->
         val sql = """
-            INSERT INTO follows (section_id, heading_id, title, created_at)
-            VALUES (?, ?, ?, ?)
-            ON CONFLICT(section_id, heading_id) DO UPDATE SET title = excluded.title, created_at = excluded.created_at
+            INSERT INTO follows (section_id, heading_id, title, created_at, excluded)
+            VALUES (?, ?, ?, ?, 0)
+            ON CONFLICT(section_id, heading_id) DO UPDATE SET title = excluded.title, created_at = excluded.created_at, excluded = 0
         """.trimIndent()
         conn.prepare(sql).use { stmt ->
             stmt.bindText(1, sectionId)
@@ -480,17 +481,107 @@ open class UserStore(
         bumpChanges()
     }
 
+    suspend fun followSection(sectionId: String, title: String) {
+        withTransaction { conn ->
+            val sqlInsert = """
+                INSERT INTO follows (section_id, heading_id, title, created_at, excluded)
+                VALUES (?, '', ?, ?, 0)
+                ON CONFLICT(section_id, heading_id) DO UPDATE SET title = excluded.title, created_at = excluded.created_at, excluded = 0
+            """.trimIndent()
+            conn.prepare(sqlInsert).use { stmt ->
+                stmt.bindText(1, sectionId)
+                stmt.bindText(2, title)
+                stmt.bindLong(3, clock())
+                stmt.step()
+            }
+            conn.prepare("DELETE FROM follows WHERE section_id = ? AND heading_id != ''").use { stmt ->
+                stmt.bindText(1, sectionId)
+                stmt.step()
+            }
+        }
+        bumpChanges()
+    }
+
+    suspend fun unfollowSection(sectionId: String) {
+        withTransaction { conn ->
+            conn.prepare("DELETE FROM follows WHERE section_id = ?").use { stmt ->
+                stmt.bindText(1, sectionId)
+                stmt.step()
+            }
+        }
+        bumpChanges()
+    }
+
+    suspend fun setSubsectionFollowed(
+        sectionId: String,
+        headingId: String,
+        title: String,
+        followed: Boolean,
+    ) {
+        withTransaction { conn ->
+            val hasSectionFollow = conn.prepare("SELECT count(*) FROM follows WHERE section_id = ? AND heading_id = ''").use { stmt ->
+                stmt.bindText(1, sectionId)
+                if (stmt.step()) stmt.getLong(0) > 0 else false
+            }
+            if (hasSectionFollow) {
+                if (followed) {
+                    conn.prepare("DELETE FROM follows WHERE section_id = ? AND heading_id = ?").use { stmt ->
+                        stmt.bindText(1, sectionId)
+                        stmt.bindText(2, headingId)
+                        stmt.step()
+                    }
+                } else {
+                    val sql = """
+                        INSERT INTO follows (section_id, heading_id, title, created_at, excluded)
+                        VALUES (?, ?, ?, ?, 1)
+                        ON CONFLICT(section_id, heading_id) DO UPDATE SET title = excluded.title, created_at = excluded.created_at, excluded = 1
+                    """.trimIndent()
+                    conn.prepare(sql).use { stmt ->
+                        stmt.bindText(1, sectionId)
+                        stmt.bindText(2, headingId)
+                        stmt.bindText(3, title)
+                        stmt.bindLong(4, clock())
+                        stmt.step()
+                    }
+                }
+            } else {
+                if (followed) {
+                    val sql = """
+                        INSERT INTO follows (section_id, heading_id, title, created_at, excluded)
+                        VALUES (?, ?, ?, ?, 0)
+                        ON CONFLICT(section_id, heading_id) DO UPDATE SET title = excluded.title, created_at = excluded.created_at, excluded = 0
+                    """.trimIndent()
+                    conn.prepare(sql).use { stmt ->
+                        stmt.bindText(1, sectionId)
+                        stmt.bindText(2, headingId)
+                        stmt.bindText(3, title)
+                        stmt.bindLong(4, clock())
+                        stmt.step()
+                    }
+                } else {
+                    conn.prepare("DELETE FROM follows WHERE section_id = ? AND heading_id = ?").use { stmt ->
+                        stmt.bindText(1, sectionId)
+                        stmt.bindText(2, headingId)
+                        stmt.step()
+                    }
+                }
+            }
+        }
+        bumpChanges()
+    }
+
     suspend fun restoreFollow(follow: Follow) = withConnection { conn ->
         val sql = """
-            INSERT INTO follows (section_id, heading_id, title, created_at)
-            VALUES (?, ?, ?, ?)
-            ON CONFLICT(section_id, heading_id) DO UPDATE SET title = excluded.title, created_at = excluded.created_at
+            INSERT INTO follows (section_id, heading_id, title, created_at, excluded)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(section_id, heading_id) DO UPDATE SET title = excluded.title, created_at = excluded.created_at, excluded = excluded.excluded
         """.trimIndent()
         conn.prepare(sql).use { stmt ->
             stmt.bindText(1, follow.sectionId)
             stmt.bindText(2, follow.headingId)
             stmt.bindText(3, follow.title)
             stmt.bindLong(4, follow.createdAt)
+            stmt.bindLong(5, if (follow.excluded) 1L else 0L)
             stmt.step()
         }
         bumpChanges()
@@ -855,8 +946,8 @@ open class UserStore(
             // 3. Follows: union
             var insertedFollowsCount = 0
             val followSql = """
-                INSERT OR IGNORE INTO follows (section_id, heading_id, title, created_at)
-                VALUES (?, ?, ?, ?)
+                INSERT OR IGNORE INTO follows (section_id, heading_id, title, created_at, excluded)
+                VALUES (?, ?, ?, ?, ?)
             """.trimIndent()
             conn.prepare(followSql).use { stmt ->
                 for (f in payload.follows) {
@@ -865,6 +956,7 @@ open class UserStore(
                     stmt.bindText(2, f.headingId)
                     stmt.bindText(3, f.title)
                     stmt.bindLong(4, f.createdAt)
+                    stmt.bindLong(5, if (f.excluded) 1L else 0L)
                     stmt.step()
                     stmt.reset()
                     val after = countRows(conn, "follows")
@@ -932,7 +1024,7 @@ open class UserStore(
     }
 
     companion object {
-        const val USER_DB_VERSION = 1
+        const val USER_DB_VERSION = 2
         const val BACKUP_FORMAT = "fmhy-backup"
         const val BACKUP_VERSION = 1
 

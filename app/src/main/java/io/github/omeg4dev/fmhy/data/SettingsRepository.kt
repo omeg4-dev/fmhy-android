@@ -61,6 +61,10 @@ interface SettingsRepository {
     val notificationPrefs: Flow<NotificationPrefs>
     suspend fun updateNotifications(f: (NotificationPrefs) -> NotificationPrefs)
 
+    val followNotifyPromptShown: Flow<Boolean>
+        get() = kotlinx.coroutines.flow.flowOf(false)
+    suspend fun setFollowNotifyPromptShown(shown: Boolean) {}
+
     val dataPrefs: Flow<DataPrefs>
     suspend fun updateData(f: (DataPrefs) -> DataPrefs)
 
@@ -165,6 +169,7 @@ class DefaultSettingsRepository(
         private val KEY_NOTIFICATIONS_NOTIFY_NEW_POSTS = booleanPreferencesKey("notifications_notify_new_posts")
         private val KEY_NOTIFICATIONS_INTERVAL = stringPreferencesKey("notifications_interval")
         private val KEY_NOTIFICATIONS_WIFI_ONLY = booleanPreferencesKey("notifications_wifi_only")
+        private val KEY_FOLLOW_NOTIFY_PROMPT_SHOWN = booleanPreferencesKey("follow_notify_prompt_shown")
 
         // Data
         private val KEY_DATA_SYNC_ON_LAUNCH = booleanPreferencesKey("data_sync_on_launch")
@@ -640,6 +645,16 @@ class DefaultSettingsRepository(
             val current = readNotificationPrefs(prefs)
             val updated = f(current)
             writeNotificationPrefs(prefs, updated)
+        }
+    }
+
+    override val followNotifyPromptShown: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[KEY_FOLLOW_NOTIFY_PROMPT_SHOWN] ?: false
+    }.distinctUntilChanged()
+
+    override suspend fun setFollowNotifyPromptShown(shown: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[KEY_FOLLOW_NOTIFY_PROMPT_SHOWN] = shown
         }
     }
 

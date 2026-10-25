@@ -16,7 +16,7 @@ Source: the Obsidian note "FMHY 1.0.0 Changes" (2026-10-25). Each batch file hol
 | 10 | THM-02 | [Accent palettes](BATCH-10-palettes.md) | Sonnet | `sonnet` | yes | Done |
 | 11 | THM-01 | [Light mode pass](BATCH-11-light-mode.md) | Sonnet | `sonnet` | no | Done |
 | 12 | BUG-08 | [Exact jumps and highlight](BATCH-12-exact-jumps.md) | Opus | `opus` | yes | Done |
-| 13 | UI-04, UI-05 | [Section page top and following](BATCH-13-section-top-following.md) | Opus | `opus` | yes | To do |
+| 13 | UI-04, UI-05 | [Section page top and following](BATCH-13-section-top-following.md) | Opus | `opus` | yes | Done |
 | 14 | UI-02, UI-03 | [Swipe and tap gestures](BATCH-14-gestures.md) | Sonnet | `sonnet` | no | To do |
 | 15 | UI-01 | [Website style](BATCH-15-website-style.md) | Opus | `opus` | yes | To do |
 | 16 | HOME-01, HOME-02, HOME-03 | [Home screen](BATCH-16-home-screen.md) | Sonnet | `sonnet` | no | To do |

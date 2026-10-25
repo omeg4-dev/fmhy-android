@@ -28,10 +28,15 @@ object UpdateWorkerLogic {
         hierarchy: Map<String, Set<String>> = emptyMap(),
     ): List<ChangeItem> {
         if (follows.isEmpty()) return emptyList()
-        val sectionFollows = follows.filter { it.headingId.isEmpty() }.map { it.sectionId }.toSet()
-        val categoryFollows = follows.filter { it.headingId.isNotEmpty() }.flatMap { f ->
+        val sectionFollows = follows.filter { it.headingId.isEmpty() && !it.excluded }.map { it.sectionId }.toSet()
+        val categoryFollows = follows.filter { it.headingId.isNotEmpty() && !it.excluded }.flatMap { f ->
             hierarchy[f.headingId] ?: setOf(f.headingId)
         }.toSet()
+        val excludedBySection = follows.filter { it.headingId.isNotEmpty() && it.excluded }
+            .groupBy { it.sectionId }
+            .mapValues { (_, secFollows) ->
+                secFollows.flatMap { f -> hierarchy[f.headingId] ?: setOf(f.headingId) }.toSet()
+            }
 
         val allowedKinds = setOf(
             ChangeKind.ADDED,
@@ -42,10 +47,11 @@ object UpdateWorkerLogic {
         )
         return changes.filter { item ->
             if (item.kind !in allowedKinds) return@filter false
-            if (item.sectionId in sectionFollows) return@filter true
             val hId = item.entry?.headingId
-            if (hId != null && hId in categoryFollows) return@filter true
-            false
+            val excludedSet = excludedBySection[item.sectionId] ?: emptySet()
+            val sectionMatch = item.sectionId in sectionFollows && (hId == null || hId !in excludedSet)
+            val categoryMatch = hId != null && hId in categoryFollows
+            sectionMatch || categoryMatch
         }
     }
 

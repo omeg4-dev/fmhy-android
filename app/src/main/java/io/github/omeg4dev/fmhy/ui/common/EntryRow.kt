@@ -121,9 +121,11 @@ fun EntryRow(
     }
 
     var followsList by remember { mutableStateOf<List<io.github.omeg4dev.fmhy.data.user.Follow>>(emptyList()) }
-    LaunchedEffect(userStore?.changes, showBottomSheet) {
+    LaunchedEffect(userStore, showBottomSheet) {
         if (showBottomSheet && userStore != null && followState == null) {
-            followsList = userStore.follows()
+            userStore.changes.collect {
+                followsList = userStore.follows()
+            }
         }
     }
 
@@ -137,35 +139,39 @@ fun EntryRow(
 
     val effectiveFollowState = remember(followState, followsList, entry.sectionId, entry.headingId, categoryTitle) {
         followState ?: if (categoryTitle.isNotEmpty()) {
-            val isFollowing = followsList.any {
-                it.sectionId == entry.sectionId && (it.headingId == (entry.headingId ?: "") || it.headingId == "")
-            }
+            val targetHeadingId = entry.headingId ?: ""
+            val tree = FollowTree(followsList)
+            val isFollowing = tree.isSubsectionFollowed(entry.sectionId, targetHeadingId)
             FollowState(categoryTitle = categoryTitle, isFollowing = isFollowing)
         } else null
     }
 
-    val effectiveToggleFollow: (() -> Unit)? = remember(onToggleFollow, effectiveFollowState, userStore, entry.sectionId, entry.headingId, snackbarHost) {
+    val effectiveToggleFollow: (() -> Unit)? = remember(onToggleFollow, effectiveFollowState, userStore, entry.sectionId, entry.headingId, entry.headingPath, snackbarHost) {
         onToggleFollow ?: if (userStore != null && effectiveFollowState != null) {
             {
                 scope.launch {
                     val targetHeadingId = entry.headingId ?: ""
-                    if (effectiveFollowState.isFollowing) {
-                        val snapshot = followsList.firstOrNull {
-                            it.sectionId == entry.sectionId && (it.headingId == targetHeadingId || it.headingId == "")
-                        }
+                    val isCurrentlyFollowing = effectiveFollowState.isFollowing
+                    val nextFollowing = !isCurrentlyFollowing
+                    val segments = entry.headingPath
+                        .split(Regex("""\s*[›>]\s*"""))
+                        .filter { it.isNotBlank() }
+                        .map { CrossLinks.splitLinkTitle(it).first }
+                    val sectionTitle = segments.firstOrNull() ?: entry.sectionId
+                    val title = if (segments.size >= 2) "$sectionTitle › ${effectiveFollowState.categoryTitle}" else effectiveFollowState.categoryTitle
+
+                    userStore.setSubsectionFollowed(entry.sectionId, targetHeadingId, title, nextFollowing)
+                    if (!nextFollowing) {
                         haptics.remove()
-                        userStore.unfollow(entry.sectionId, targetHeadingId)
                         val host = snackbarHost
                         if (host != null) {
                             if (host.showUndo("Unfollowed ${effectiveFollowState.categoryTitle}")) {
-                                if (snapshot != null) userStore.restoreFollow(snapshot)
-                                else userStore.follow(entry.sectionId, targetHeadingId, effectiveFollowState.categoryTitle)
+                                userStore.setSubsectionFollowed(entry.sectionId, targetHeadingId, title, true)
                             }
                         } else {
                             onShowSnackbar("Unfollowed ${effectiveFollowState.categoryTitle}")
                         }
                     } else {
-                        userStore.follow(entry.sectionId, targetHeadingId, effectiveFollowState.categoryTitle)
                         onShowSnackbar("Following ${effectiveFollowState.categoryTitle}")
                     }
                 }

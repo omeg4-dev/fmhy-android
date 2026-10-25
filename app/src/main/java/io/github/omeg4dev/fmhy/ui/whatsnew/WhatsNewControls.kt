@@ -6,9 +6,11 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -24,6 +26,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -46,6 +49,7 @@ internal fun FilterBar(
     onSetTypes: (Set<ChangeKind>) -> Unit,
     onSetScope: (WhatsNewScope) -> Unit,
     onOpenSectionsSheet: () -> Unit,
+    onManageFollowing: () -> Unit = {},
 ) {
     var periodMenuExpanded by remember { mutableStateOf(false) }
     var typeMenuExpanded by remember { mutableStateOf(false) }
@@ -231,6 +235,19 @@ internal fun FilterBar(
                         scopeMenuExpanded = false
                         onOpenSectionsSheet()
                     },
+                )
+            }
+        }
+
+        if (state.scope is WhatsNewScope.Following) {
+            TextButton(
+                onClick = onManageFollowing,
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                modifier = Modifier.height(32.dp),
+            ) {
+                Text(
+                    text = "Manage",
+                    style = MaterialTheme.typography.labelMedium,
                 )
             }
         }

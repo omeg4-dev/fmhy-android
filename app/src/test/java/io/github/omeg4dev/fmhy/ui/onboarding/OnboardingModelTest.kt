@@ -460,4 +460,85 @@ class OnboardingModelTest {
         assertTrue(repo.homeState.value.personalHome)
         assertEquals(listOf("gaming"), userStore.follows().map { it.sectionId })
     }
+
+    @Test
+    fun testSelectingSectionPersistsWholeSectionRow() = runTest {
+        val repo = FakeSettingsRepository()
+        val container = FakeContainer(repo, userStore)
+        val model = OnboardingModel(repo, userStore, container)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        model.toggleSectionFollowed("gaming")
+        model.persistPage(OnboardingPage.FOLLOW)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val follows = userStore.follows()
+        assertEquals(1, follows.size)
+        assertEquals("gaming", follows[0].sectionId)
+        assertEquals("", follows[0].headingId)
+        assertFalse(follows[0].excluded)
+    }
+
+    @Test
+    fun testDeselectingSectionRemovesAllRows() = runTest {
+        userStore.followSection("gaming", "Gaming")
+        assertEquals(1, userStore.follows().size)
+
+        val repo = FakeSettingsRepository()
+        val container = FakeContainer(repo, userStore)
+        val model = OnboardingModel(repo, userStore, container)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(model.state.value.followedSections.contains("gaming"))
+
+        model.toggleSectionFollowed("gaming")
+        assertFalse(model.state.value.followedSections.contains("gaming"))
+
+        model.persistPage(OnboardingPage.FOLLOW)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(userStore.follows().isEmpty())
+    }
+
+    @Test
+    fun testSectionWithOnlySubsectionRowsLoadsAsSelected() = runTest {
+        userStore.follow("gaming", "game-sub-1", "Gaming › Sub 1")
+        userStore.follow("gaming", "game-sub-2", "Gaming › Sub 2")
+
+        val repo = FakeSettingsRepository()
+        val container = FakeContainer(repo, userStore)
+        val model = OnboardingModel(repo, userStore, container)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(model.state.value.followedSections.contains("gaming"))
+
+        // Keeping it selected preserves the subsection rows
+        model.persistPage(OnboardingPage.FOLLOW)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val follows = userStore.follows()
+        assertEquals(2, follows.size)
+        assertTrue(follows.all { it.headingId.isNotEmpty() })
+    }
+
+    @Test
+    fun testDeselectingSubsectionOnlySectionRemovesAllRows() = runTest {
+        userStore.follow("gaming", "game-sub-1", "Gaming › Sub 1")
+        userStore.follow("gaming", "game-sub-2", "Gaming › Sub 2")
+
+        val repo = FakeSettingsRepository()
+        val container = FakeContainer(repo, userStore)
+        val model = OnboardingModel(repo, userStore, container)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(model.state.value.followedSections.contains("gaming"))
+
+        model.toggleSectionFollowed("gaming")
+        assertFalse(model.state.value.followedSections.contains("gaming"))
+
+        model.persistPage(OnboardingPage.FOLLOW)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(userStore.follows().isEmpty())
+    }
 }
