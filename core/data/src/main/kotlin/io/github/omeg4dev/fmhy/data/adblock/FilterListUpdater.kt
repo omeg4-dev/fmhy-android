@@ -3,9 +3,12 @@ package io.github.omeg4dev.fmhy.data.adblock
 import java.io.File
 import java.io.FileOutputStream
 import java.util.UUID
+import kotlin.coroutines.cancellation.CancellationException
+import kotlin.coroutines.coroutineContext
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.hours
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
@@ -41,6 +44,8 @@ class OkHttpListFetcher(private val client: OkHttpClient) : ListFetcher {
                     else -> FetchOutcome.Error("HTTP ${response.code}: ${response.message}")
                 }
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             FetchOutcome.Error(e.message ?: e.toString())
         }
@@ -57,6 +62,15 @@ data class ListState(
     val bytes: Long,
     val error: String?
 )
+
+/** Steps of a list update, in order. [Downloading.done] counts lists already handled. */
+sealed interface FilterListProgress {
+    data class Downloading(val done: Int, val total: Int) : FilterListProgress
+    /** Parsing the lists into the engine (cannot be measured). */
+    data object Preparing : FilterListProgress
+    /** Writing engine.bin (cannot be measured). */
+    data object Saving : FilterListProgress
+}
 
 class FilterListUpdater(
     private val dir: File,
@@ -104,20 +118,22 @@ class FilterListUpdater(
      * Fetch every enabled list that is missing or expired (or all when force), try catalog URLs in order,
      * store dir/lists/<id>.txt, then rebuild dir/engine.bin from enabled lists + customRules.
      * Returns the new engine (or the existing one when nothing changed). Never deletes a good list file on fetch error.
+     * Called with Downloading(i, n) before list i, Downloading(n, n) once all lists are handled, then Preparing and Saving if the engine is rebuilt.
      */
     suspend fun update(
         enabled: Set<String>,
         customRules: String,
         force: Boolean,
-        /** Called with (lists handled, lists enabled) before each list and once more when all are handled. */
-        onProgress: (done: Int, total: Int) -> Unit = { _, _ -> },
+        onProgress: (FilterListProgress) -> Unit = {},
     ): FilterEngine = withContext(Dispatchers.IO) {
         val currentStates = states().toMutableMap()
         var anyChanged = false
         val now = clock()
 
         for ((index, id) in enabled.withIndex()) {
-            onProgress(index, enabled.size)
+            coroutineContext.ensureActive()
+            onProgress(FilterListProgress.Downloading(index, enabled.size))
+            coroutineContext.ensureActive()
             val listDef = FilterListCatalog.byId(id)
             if (listDef == null) {
                 log("Unknown list id in enabled set: $id")
@@ -193,21 +209,27 @@ class FilterListUpdater(
             }
         }
 
+        onProgress(FilterListProgress.Downloading(enabled.size, enabled.size))
+        coroutineContext.ensureActive()
+
         saveStates(currentStates)
 
         val engineFile = File(dir, "engine.bin")
         if (anyChanged || force || !engineFile.exists()) {
-            rebuild(enabled, customRules)
+            rebuild(enabled, customRules, onProgress)
         } else {
-            loadEngine() ?: rebuild(enabled, customRules)
+            loadEngine() ?: rebuild(enabled, customRules, onProgress)
         }
     }
 
     /** Rebuild from local files only (e.g. after toggling a list or editing custom rules). */
     suspend fun rebuild(
         enabled: Set<String>,
-        customRules: String
+        customRules: String,
+        onProgress: (FilterListProgress) -> Unit = {},
     ): FilterEngine = withContext(Dispatchers.IO) {
+        coroutineContext.ensureActive()
+        onProgress(FilterListProgress.Preparing)
         val builder = FilterEngineBuilder()
         for (id in enabled) {
             val listFile = File(dir, "lists/$id.txt")
@@ -221,6 +243,9 @@ class FilterListUpdater(
             builder.addCustomRules(customRules)
         }
         val engine = builder.build()
+
+        coroutineContext.ensureActive()
+        onProgress(FilterListProgress.Saving)
 
         val engineFile = File(dir, "engine.bin")
         engineFile.parentFile?.mkdirs()

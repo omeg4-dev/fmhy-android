@@ -9,6 +9,8 @@ import io.github.omeg4dev.fmhy.browser.RescueDecision
 import io.github.omeg4dev.fmhy.data.BlockingPrefs
 import io.github.omeg4dev.fmhy.data.SettingsRepository
 import io.github.omeg4dev.fmhy.data.adblock.FilterEngine
+import io.github.omeg4dev.fmhy.data.adblock.FilterListCatalog
+import io.github.omeg4dev.fmhy.data.adblock.FilterListProgress
 import io.github.omeg4dev.fmhy.data.adblock.FilterRequest
 import io.github.omeg4dev.fmhy.data.adblock.ListState
 import io.github.omeg4dev.fmhy.data.adblock.MatchResult
@@ -18,11 +20,15 @@ import io.github.omeg4dev.fmhy.data.adblock.ResourceTypes
 import io.github.omeg4dev.fmhy.data.user.SitePrefs
 import java.io.ByteArrayInputStream
 import java.util.concurrent.atomic.AtomicReference
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.system.measureTimeMillis
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -49,6 +55,13 @@ class AdblockService(
     private val _status = MutableStateFlow(AdblockStatus())
     val status: StateFlow<AdblockStatus> = _status.asStateFlow()
 
+    @Volatile
+    private var activeJob: Job? = null
+
+    fun cancelUpdate() {
+        activeJob?.cancel()
+    }
+
     private val _listStates = MutableStateFlow<Map<String, ListState>>(emptyMap())
     val listStates: StateFlow<Map<String, ListState>> = _listStates.asStateFlow()
 
@@ -72,7 +85,12 @@ class AdblockService(
                 .drop(1)
                 .debounce(1000L)
                 .collect { (enabledLists, customRules) ->
-                    rebuild(enabledLists, customRules)
+                    try {
+                        rebuild(enabledLists, customRules)
+                    } catch (e: CancellationException) {
+                        // A cancelled rebuild must not end this collector; rethrow only when the scope itself stops.
+                        currentCoroutineContext().ensureActive()
+                    }
                 }
         }
     }
@@ -97,55 +115,147 @@ class AdblockService(
             }
 
             if (loaded == null || (anyExpired && prefs.autoUpdateLists)) {
-                updateInternal(force = false)
+                updateInternal(force = false, userStarted = false)
             }
         }
     }
 
-    suspend fun updateNow() {
-        updateInternal(force = true)
+    suspend fun updateNow(userStarted: Boolean = true) {
+        updateInternal(force = true, userStarted = userStarted)
     }
 
-    private suspend fun updateInternal(force: Boolean) = withContext(ioDispatcher) {
-        _status.value = _status.value.copy(updating = true, error = null, progress = 0f)
+    private suspend fun updateInternal(force: Boolean, userStarted: Boolean) = withContext(ioDispatcher) {
+        activeJob = currentCoroutineContext()[Job]
+        _status.value = _status.value.copy(
+            updating = true,
+            error = null,
+            cancelled = false,
+            failedLists = emptyList(),
+            step = null,
+            userStarted = userStarted,
+        )
         try {
             val prefs = settingsRepository.blockingPrefs.first()
             var newEngine: FilterEngine
             val time = measureTimeMillis {
-                newEngine = updater.update(prefs.enabledLists, prefs.customRules, force) { done, total ->
-                    // Downloads are ~90 %, building the engine the rest.
-                    val p = if (total == 0) 0.9f else 0.9f * done / total
-                    _status.value = _status.value.copy(progress = p)
+                newEngine = updater.update(prefs.enabledLists, prefs.customRules, force) { p ->
+                    _status.value = _status.value.copy(step = p)
                 }
             }
             engineRef.set(newEngine)
-            _listStates.value = updater.states()
-            updateStatusFromEngine(newEngine, updating = false, error = null)
+            val states = updater.states()
+            _listStates.value = states
+            val failed = prefs.enabledLists.mapNotNull { id ->
+                val state = states[id]
+                if (state?.error != null) {
+                    val title = FilterListCatalog.byId(id)?.title ?: id
+                    val lastFetchedAt = state.fetchedAt.takeIf { state.expiresAt > 0 }
+                    FailedList(title = title, lastFetchedAt = lastFetchedAt)
+                } else {
+                    null
+                }
+            }
+            updateStatusFromEngine(
+                engine = newEngine,
+                updating = false,
+                error = null,
+                step = null,
+                failedLists = failed,
+                userStarted = userStarted,
+                totalLists = prefs.enabledLists.size,
+            )
             logEngineStats("Updated ($time ms)", newEngine)
+        } catch (e: CancellationException) {
+            _status.value = _status.value.copy(
+                updating = false,
+                step = null,
+                error = null,
+                cancelled = true,
+            )
+            throw e
         } catch (e: Exception) {
             logE(TAG, "Update failed: ${e.message}", e)
-            _status.value = _status.value.copy(updating = false, error = e.message ?: e.toString(), progress = null)
+            _status.value = _status.value.copy(
+                updating = false,
+                step = null,
+                error = e.message ?: e.toString(),
+                cancelled = false,
+            )
+        } finally {
+            activeJob = null
         }
     }
 
     private suspend fun rebuild(enabledLists: Set<String>, customRules: String) = withContext(ioDispatcher) {
-        _status.value = _status.value.copy(updating = true, error = null)
+        activeJob = currentCoroutineContext()[Job]
+        _status.value = _status.value.copy(
+            updating = true,
+            error = null,
+            cancelled = false,
+            failedLists = emptyList(),
+            step = null,
+            userStarted = false,
+        )
         try {
             var newEngine: FilterEngine
             val time = measureTimeMillis {
-                newEngine = updater.rebuild(enabledLists, customRules)
+                newEngine = updater.rebuild(enabledLists, customRules) { p ->
+                    _status.value = _status.value.copy(step = p)
+                }
             }
             engineRef.set(newEngine)
-            _listStates.value = updater.states()
-            updateStatusFromEngine(newEngine, updating = false, error = null)
+            val states = updater.states()
+            _listStates.value = states
+            val failed = enabledLists.mapNotNull { id ->
+                val state = states[id]
+                if (state?.error != null) {
+                    val title = FilterListCatalog.byId(id)?.title ?: id
+                    val lastFetchedAt = state.fetchedAt.takeIf { state.expiresAt > 0 }
+                    FailedList(title = title, lastFetchedAt = lastFetchedAt)
+                } else {
+                    null
+                }
+            }
+            updateStatusFromEngine(
+                engine = newEngine,
+                updating = false,
+                error = null,
+                step = null,
+                failedLists = failed,
+                userStarted = false,
+                totalLists = enabledLists.size,
+            )
             logEngineStats("Rebuilt ($time ms)", newEngine)
+        } catch (e: CancellationException) {
+            _status.value = _status.value.copy(
+                updating = false,
+                step = null,
+                error = null,
+                cancelled = true,
+            )
+            throw e
         } catch (e: Exception) {
             logE(TAG, "Rebuild failed: ${e.message}", e)
-            _status.value = _status.value.copy(updating = false, error = e.message ?: e.toString())
+            _status.value = _status.value.copy(
+                updating = false,
+                step = null,
+                error = e.message ?: e.toString(),
+                cancelled = false,
+            )
+        } finally {
+            activeJob = null
         }
     }
 
-    private fun updateStatusFromEngine(engine: FilterEngine, updating: Boolean, error: String?) {
+    private fun updateStatusFromEngine(
+        engine: FilterEngine,
+        updating: Boolean,
+        error: String?,
+        step: FilterListProgress? = null,
+        failedLists: List<FailedList> = emptyList(),
+        userStarted: Boolean = false,
+        totalLists: Int = 0,
+    ) {
         val totalRules = engine.stats.networkRules + engine.stats.cosmeticRules + engine.stats.scriptletRules
         val states = _listStates.value
         val lastUpdated = states.values.map { it.fetchedAt }.maxOrNull()
@@ -155,6 +265,11 @@ class AdblockService(
             ruleCount = totalRules,
             lastUpdated = lastUpdated,
             error = error,
+            step = step,
+            failedLists = failedLists,
+            cancelled = false,
+            userStarted = userStarted,
+            totalLists = totalLists,
         )
     }
 

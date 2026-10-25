@@ -7,6 +7,9 @@ import io.github.omeg4dev.fmhy.data.search.SearchEngine
 import java.io.File
 import java.security.MessageDigest
 import io.github.omeg4dev.fmhy.data.parse.FmhyParser
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import mockwebserver3.Dispatcher
 import mockwebserver3.MockResponse
@@ -799,6 +802,196 @@ class FmhySyncTest {
         assertTrue("UrlChange Site should not be in added", "https://new-url.com" !in addedUrls)
         assertTrue("UrlChange Site should not be in removed", "https://old-url.com" !in removedUrls)
 
+        store.close()
+    }
+
+    @Test
+    fun syncReportsStepsInOrder() = runTest {
+        val syncDir = tempFolder.newFolder("sync_steps")
+        val dbFile = File(syncDir, "current.db")
+        val store = DatasetStoreTest.createSampleDb(dbFile, version = 1L)
+
+        val files = mutableMapOf(
+            "/docs/.vitepress/transformer/constants.ts" to sampleConstants,
+            "/rentry" to sampleRentry,
+            "/unsafe-domains.txt" to sampleUnsafeDomains,
+            "/unsafe-reasons.json" to sampleUnsafeReasons,
+            "/docs/audio.md" to sampleAudioMd,
+            "/docs/video.md" to sampleVideoMd,
+        )
+
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                val path = request.url.encodedPath
+                val content = files[path] ?: return MockResponse.Builder().code(404).build()
+                val etag = "\"${sha256(content)}\""
+                return MockResponse.Builder()
+                    .code(200)
+                    .setHeader("ETag", etag)
+                    .body(content)
+                    .build()
+            }
+        }
+
+        val sync = FmhySync(
+            store = store,
+            dir = syncDir,
+            client = client,
+            sources = createSources(),
+            clock = { 1000L },
+            log = {},
+        )
+
+        val events = mutableListOf<SyncProgress>()
+        val result = sync.sync(force = true, onProgress = { events.add(it) })
+        assertTrue("Expected Updated, got $result", result is SyncResult.Updated)
+
+        assertTrue(events.isNotEmpty())
+        assertEquals(SyncProgress.Checking, events.first())
+
+        val filesEvents = events.filterIsInstance<SyncProgress.Files>()
+        assertTrue(filesEvents.isNotEmpty())
+        assertEquals(SyncProgress.Files(0, 2, 0L, true), filesEvents.first())
+        assertTrue(filesEvents.all { it.firstDownload })
+        for (i in 0 until filesEvents.size - 1) {
+            assertTrue("Files done values must be non-decreasing", filesEvents[i].done <= filesEvents[i + 1].done)
+        }
+        val lastFiles = filesEvents.last()
+        assertEquals(2, lastFiles.done)
+        assertEquals(2, lastFiles.total)
+        assertTrue("Downloaded bytes should be > 0", lastFiles.bytes > 0L)
+
+        val readingEvents = events.filterIsInstance<SyncProgress.Reading>()
+        assertTrue(readingEvents.isNotEmpty())
+        assertEquals(SyncProgress.Reading(0, 2), readingEvents.first())
+        for (i in 0 until readingEvents.size - 1) {
+            assertTrue("Reading done values must be non-decreasing", readingEvents[i].done <= readingEvents[i + 1].done)
+        }
+        val lastReading = readingEvents.last()
+        assertEquals(2, lastReading.done)
+        assertEquals(2, lastReading.total)
+
+        assertEquals(SyncProgress.Saving, events.last())
+        store.close()
+    }
+
+    @Test
+    fun secondSyncUpToDateHasNoSaving() = runTest {
+        val syncDir = tempFolder.newFolder("sync_uptodate")
+        val dbFile = File(syncDir, "current.db")
+        val store = DatasetStoreTest.createSampleDb(dbFile, version = 1L)
+
+        val files = mutableMapOf(
+            "/docs/.vitepress/transformer/constants.ts" to sampleConstants,
+            "/rentry" to sampleRentry,
+            "/unsafe-domains.txt" to sampleUnsafeDomains,
+            "/unsafe-reasons.json" to sampleUnsafeReasons,
+            "/docs/audio.md" to sampleAudioMd,
+            "/docs/video.md" to sampleVideoMd,
+        )
+
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                val path = request.url.encodedPath
+                val content = files[path] ?: return MockResponse.Builder().code(404).build()
+                val etag = "\"${sha256(content)}\""
+                if (request.headers["If-None-Match"] == etag) {
+                    return MockResponse.Builder().code(304).build()
+                }
+                return MockResponse.Builder()
+                    .code(200)
+                    .setHeader("ETag", etag)
+                    .body(content)
+                    .build()
+            }
+        }
+
+        var clockTime = 1000L
+        val sync = FmhySync(
+            store = store,
+            dir = syncDir,
+            client = client,
+            sources = createSources(),
+            clock = { clockTime },
+            log = {},
+        )
+
+        // First sync
+        val r1 = sync.sync(force = true)
+        assertTrue(r1 is SyncResult.Updated)
+
+        // Second sync (304 for all)
+        clockTime += 700L
+        val events2 = mutableListOf<SyncProgress>()
+        val r2 = sync.sync(force = false, onProgress = { events2.add(it) })
+        assertTrue("Second sync should be UpToDate, was $r2", r2 is SyncResult.UpToDate)
+
+        assertTrue(events2.contains(SyncProgress.Checking))
+        val filesEvents2 = events2.filterIsInstance<SyncProgress.Files>()
+        assertTrue(filesEvents2.isNotEmpty())
+        assertTrue(filesEvents2.all { !it.firstDownload })
+        assertTrue(events2.none { it is SyncProgress.Saving })
+        store.close()
+    }
+
+    @Test
+    fun cancelPropagates() = runTest {
+        val syncDir = tempFolder.newFolder("sync_cancel")
+        val dbFile = File(syncDir, "current.db")
+        val store = DatasetStoreTest.createSampleDb(dbFile, version = 1L)
+
+        val files = mutableMapOf(
+            "/docs/.vitepress/transformer/constants.ts" to sampleConstants,
+            "/rentry" to sampleRentry,
+            "/unsafe-domains.txt" to sampleUnsafeDomains,
+            "/unsafe-reasons.json" to sampleUnsafeReasons,
+            "/docs/audio.md" to sampleAudioMd,
+            "/docs/video.md" to sampleVideoMd,
+        )
+
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                val path = request.url.encodedPath
+                val content = files[path] ?: return MockResponse.Builder().code(404).build()
+                val etag = "\"${sha256(content)}\""
+                return MockResponse.Builder()
+                    .code(200)
+                    .setHeader("ETag", etag)
+                    .body(content)
+                    .build()
+            }
+        }
+
+        val sync = FmhySync(
+            store = store,
+            dir = syncDir,
+            client = client,
+            sources = createSources(),
+            clock = { 1000L },
+            log = {},
+        )
+
+        var syncJob: Job? = null
+        var caughtCancellation = false
+        var syncResult: SyncResult? = null
+
+        syncJob = launch {
+            try {
+                syncResult = sync.sync(force = true) { progress ->
+                    if (progress is SyncProgress.Files) {
+                        syncJob?.cancel()
+                    }
+                }
+            } catch (e: CancellationException) {
+                caughtCancellation = true
+                throw e
+            }
+        }
+
+        syncJob.join()
+        assertTrue(syncJob.isCancelled)
+        assertTrue(caughtCancellation)
+        assertNull(syncResult)
         store.close()
     }
 }

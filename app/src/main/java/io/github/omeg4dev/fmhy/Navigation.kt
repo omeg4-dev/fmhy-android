@@ -30,8 +30,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBarDefaults
 import io.github.omeg4dev.fmhy.ui.shell.BrowserBarItem
 import io.github.omeg4dev.fmhy.ui.shell.BrowserMenuSheet
 import io.github.omeg4dev.fmhy.ui.shell.StatusNoticeOverlay
@@ -787,9 +789,10 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                         notices = remember(container) { container.statusNotices },
                         modifier = Modifier
                             .align(Alignment.TopCenter)
+                            .fillMaxWidth()
                             .zIndex(2f)
                             .statusBarsPadding()
-                            .padding(top = 8.dp),
+                            .padding(top = TopAppBarDefaults.TopAppBarExpandedHeight),
                     )
                 }
 

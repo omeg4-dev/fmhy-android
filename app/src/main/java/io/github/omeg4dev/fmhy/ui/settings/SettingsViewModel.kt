@@ -31,6 +31,8 @@ import io.github.omeg4dev.fmhy.data.user.Follow
 import io.github.omeg4dev.fmhy.data.user.ImportResult
 import io.github.omeg4dev.fmhy.data.user.Pin
 import io.github.omeg4dev.fmhy.di.AppContainer
+import io.github.omeg4dev.fmhy.ui.shell.JobRowUi
+import io.github.omeg4dev.fmhy.ui.shell.SYNC_CANCELLED
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -56,6 +58,9 @@ class SettingsViewModel(
     private val settingsRepository: SettingsRepository,
     private val container: AppContainer,
 ) : ViewModel() {
+
+    val jobs: StateFlow<List<JobRowUi>> = runCatching { container.statusNotices.jobs }
+        .getOrElse { MutableStateFlow(emptyList()) }
 
     private val _isUpdating = MutableStateFlow(false)
     private val _updateStatusMessage = MutableStateFlow<String?>(null)
@@ -213,11 +218,7 @@ class SettingsViewModel(
     }
 
     fun updateAdblockNow() {
-        viewModelScope.launch {
-            runCatching {
-                container.adblockService.updateNow()
-            }
-        }
+        container.startFilterDownload()
     }
 
     fun checkForUpdates(onResult: (String) -> Unit) {
@@ -434,7 +435,7 @@ class SettingsViewModel(
                     is SyncResult.UpToDate -> "Already up to date"
                     is SyncResult.Updated -> "Updated: ${result.added} added, ${result.removed} removed"
                     is SyncResult.Skipped -> "Skipped"
-                    is SyncResult.Failed -> "Update failed: ${result.reason}"
+                    is SyncResult.Failed -> if (result.reason == SYNC_CANCELLED) "Update cancelled" else "Update failed: ${result.reason}"
                 }
                 _updateStatusMessage.value = msg
             } catch (e: Exception) {

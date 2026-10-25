@@ -36,6 +36,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
@@ -60,9 +61,14 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import io.github.omeg4dev.fmhy.ui.shell.JobRowUi
 import com.materialkolor.hct.Hct
 import io.github.omeg4dev.fmhy.theme.seedColorScheme
 import io.github.omeg4dev.fmhy.ui.common.Motion
@@ -277,6 +283,52 @@ fun InfoRow(
             .fillMaxWidth()
             .defaultMinSize(minHeight = 48.dp),
     )
+}
+
+@Composable
+fun JobProgressRow(
+    row: JobRowUi,
+    modifier: Modifier = Modifier,
+) {
+    val text = if (row.fraction != null) "${row.label} · ${row.percent}%" else row.label
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        if (row.fraction != null) {
+            LinearProgressIndicator(
+                progress = { row.fraction },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(3.dp)
+                    .clearAndSetSemantics {
+                        progressBarRangeInfo = ProgressBarRangeInfo(row.fraction, 0f..1f)
+                        stateDescription = text
+                    },
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+            )
+        } else {
+            LinearProgressIndicator(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(3.dp)
+                    .clearAndSetSemantics {
+                        progressBarRangeInfo = ProgressBarRangeInfo.Indeterminate
+                        stateDescription = text
+                    },
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+            )
+        }
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
 }
 
 @Composable

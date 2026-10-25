@@ -97,9 +97,13 @@ class TabManagerTest {
                 enabled: Set<String>,
                 customRules: String,
                 force: Boolean,
-                onProgress: (Int, Int) -> Unit
+                onProgress: (io.github.omeg4dev.fmhy.data.adblock.FilterListProgress) -> Unit
             ): io.github.omeg4dev.fmhy.data.adblock.FilterEngine = error("")
-            override suspend fun rebuild(enabled: Set<String>, customRules: String): io.github.omeg4dev.fmhy.data.adblock.FilterEngine = error("")
+            override suspend fun rebuild(
+                enabled: Set<String>,
+                customRules: String,
+                onProgress: (io.github.omeg4dev.fmhy.data.adblock.FilterListProgress) -> Unit
+            ): io.github.omeg4dev.fmhy.data.adblock.FilterEngine = error("")
             override fun loadEngine(): io.github.omeg4dev.fmhy.data.adblock.FilterEngine? = null
             override fun states(): Map<String, io.github.omeg4dev.fmhy.data.adblock.ListState> = emptyMap()
         }

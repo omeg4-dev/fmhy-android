@@ -2,6 +2,8 @@ package io.github.omeg4dev.fmhy.data.adblock
 
 import java.io.File
 import kotlin.time.Duration.Companion.hours
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -171,5 +173,88 @@ class FilterListUpdaterTest {
 
         val res2 = engine.match(FilterRequest("https://custom-offline.net/b.js", "https://site.com/", ResourceType.SCRIPT))
         assertTrue(res2 is MatchResult.Block)
+    }
+
+    @Test
+    fun updateReportsStepsInOrder() = runBlocking {
+        val dir = tempFolder.newFolder("adblock_steps")
+        val fetcher = FakeListFetcher()
+        fetcher.outcome = { _, _ -> FetchOutcome.Content("||example.com^\n", "etag-1") }
+        val updater = FilterListUpdater(dir, fetcher, { 1000L }, {})
+        val progressList = mutableListOf<FilterListProgress>()
+        updater.update(
+            enabled = linkedSetOf("ublock-filters", "ublock-badware"),
+            customRules = "",
+            force = false,
+            onProgress = { progressList.add(it) }
+        )
+        val expected = listOf(
+            FilterListProgress.Downloading(0, 2),
+            FilterListProgress.Downloading(1, 2),
+            FilterListProgress.Downloading(2, 2),
+            FilterListProgress.Preparing,
+            FilterListProgress.Saving
+        )
+        assertEquals(expected, progressList)
+    }
+
+    @Test
+    fun updateWithNothingChangedSkipsPreparing() = runBlocking {
+        val dir = tempFolder.newFolder("adblock_skips_prep")
+        val fetcher = FakeListFetcher()
+        fetcher.outcome = { _, _ -> FetchOutcome.Content("! Expires: 2 days\n||example.com^\n", "etag-1") }
+        val updater = FilterListUpdater(dir, fetcher, { 1000L }, {})
+        updater.update(
+            enabled = linkedSetOf("ublock-filters", "ublock-badware"),
+            customRules = "",
+            force = false
+        )
+        val progressList = mutableListOf<FilterListProgress>()
+        updater.update(
+            enabled = linkedSetOf("ublock-filters", "ublock-badware"),
+            customRules = "",
+            force = false,
+            onProgress = { progressList.add(it) }
+        )
+        assertEquals(FilterListProgress.Downloading(2, 2), progressList.last())
+        assertTrue(progressList.none { it is FilterListProgress.Preparing })
+        assertTrue(progressList.none { it is FilterListProgress.Saving })
+    }
+
+    @Test
+    fun cancelDuringDownloadKeepsOldFiles() = runBlocking {
+        val dir = tempFolder.newFolder("adblock_cancel")
+        val fetcher = FakeListFetcher()
+        fetcher.outcome = { _, _ -> FetchOutcome.Content("||old-rule.com^\n", "etag-old") }
+        val updater = FilterListUpdater(dir, fetcher, { 1000L }, {})
+        updater.update(
+            enabled = linkedSetOf("ublock-filters", "ublock-badware"),
+            customRules = "",
+            force = false
+        )
+        val engineFile = File(dir, "engine.bin")
+        val firstListFile = File(dir, "lists/ublock-filters.txt")
+        assertTrue(engineFile.exists())
+        assertTrue(firstListFile.exists())
+        assertNotNull(updater.loadEngine())
+
+        var job: Job? = null
+        job = launch {
+            updater.update(
+                enabled = linkedSetOf("ublock-filters", "ublock-badware"),
+                customRules = "",
+                force = true,
+                onProgress = { p ->
+                    if (p == FilterListProgress.Downloading(1, 2)) {
+                        job?.cancel()
+                    }
+                }
+            )
+        }
+        job.join()
+        assertTrue(job.isCancelled)
+        assertTrue(engineFile.exists())
+        assertTrue(firstListFile.exists())
+        assertNotNull(updater.loadEngine())
     }
 }

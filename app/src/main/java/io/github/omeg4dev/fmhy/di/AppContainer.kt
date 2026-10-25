@@ -8,6 +8,7 @@ import io.github.omeg4dev.fmhy.data.SettingsRepository
 import io.github.omeg4dev.fmhy.data.doc.DocFetcher
 import io.github.omeg4dev.fmhy.data.search.SearchEngine
 import io.github.omeg4dev.fmhy.data.sync.FmhySync
+import io.github.omeg4dev.fmhy.data.sync.SyncProgress
 import io.github.omeg4dev.fmhy.data.sync.SyncResult
 import io.github.omeg4dev.fmhy.data.tracker.TrackerSync
 import io.github.omeg4dev.fmhy.data.BookmarksRepository
@@ -25,7 +26,12 @@ import io.github.omeg4dev.fmhy.browser.adblock.ScriptletLibrary
 import io.github.omeg4dev.fmhy.data.adblock.FilterListUpdater
 import io.github.omeg4dev.fmhy.data.adblock.OkHttpListFetcher
 import io.github.omeg4dev.fmhy.data.OpenLinksWith
+import io.github.omeg4dev.fmhy.ui.shell.JobKind
+import io.github.omeg4dev.fmhy.ui.shell.SYNC_CANCELLED
 import io.github.omeg4dev.fmhy.ui.shell.StatusNotices
+import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.combine
 import java.io.File
 import java.util.concurrent.TimeUnit
@@ -51,7 +57,7 @@ import okhttp3.OkHttpClient
 
 sealed interface SyncStatus {
     data object Idle : SyncStatus
-    data object Syncing : SyncStatus
+    data class Syncing(val progress: SyncProgress? = null, val userStarted: Boolean = false) : SyncStatus
     data class Finished(val result: SyncResult) : SyncStatus
 }
 
@@ -88,6 +94,8 @@ interface AppContainer : OnboardingActions {
     val browserHooks: BrowserHooks get() = error("Not supported")
     val statusNotices: StatusNotices get() = error("Not supported")
 
+    fun cancelSync() {}
+    fun cancelAdblockUpdate() {}
     fun markSyncBannerConsumed()
     fun showSnackbar(message: String)
     fun pushNavigation(key: NavKey) {}
@@ -245,6 +253,17 @@ class DefaultAppContainer(override val context: Context) : AppContainer {
         _isSyncBannerConsumed = true
     }
 
+    @Volatile
+    private var activeSync: Deferred<SyncResult>? = null
+
+    override fun cancelSync() {
+        activeSync?.cancel()
+    }
+
+    override fun cancelAdblockUpdate() {
+        adblockService.cancelUpdate()
+    }
+
     override val statusNotices: StatusNotices by lazy {
         StatusNotices(
             scope = appScope,
@@ -258,7 +277,27 @@ class DefaultAppContainer(override val context: Context) : AppContainer {
             },
             isSyncBannerConsumed = { isSyncBannerConsumed },
             markSyncBannerConsumed = ::markSyncBannerConsumed,
-            startFilterDownload = ::startFilterDownload,
+            cancel = { kind ->
+                when (kind) {
+                    JobKind.ADBLOCK -> cancelAdblockUpdate()
+                    JobKind.WIKI -> cancelSync()
+                }
+            },
+            retry = { kind ->
+                when (kind) {
+                    JobKind.ADBLOCK -> startFilterDownload()
+                    JobKind.WIKI -> {
+                        appScope.launch { sync(force = true) }
+                    }
+                }
+            },
+            lastUpdated = { kind ->
+                when (kind) {
+                    JobKind.ADBLOCK -> adblockService.status.value.lastUpdated
+                    JobKind.WIKI -> fmhySync.loadState().lastSuccess.takeIf { it > 0 }?.times(1000L)
+                }
+            },
+            clock = System::currentTimeMillis,
         )
     }
 
@@ -266,34 +305,52 @@ class DefaultAppContainer(override val context: Context) : AppContainer {
 
     override suspend fun sync(force: Boolean): SyncResult {
         isInitialized.first { it }
-        return syncMutex.withLock {
-            _isSyncBannerConsumed = false
-            _syncStatus.value = SyncStatus.Syncing
-            val result = try {
-                fmhySync.sync(force = force)
-            } catch (e: Exception) {
-                SyncResult.Failed(e.message ?: "Unknown error", 0L)
-            }
-            _syncStatus.value = SyncStatus.Finished(result)
+        // Runs in the app scope: a caller that goes away (e.g. leaving Settings) must not leave the
+        // status stuck at Syncing or release the mutex while the sync is still writing.
+        return appScope.async(Dispatchers.IO) { syncMutex.withLock { runSync(force) } }.await()
+    }
 
-            if (result !is SyncResult.Failed) {
-                try {
-                    val prefs = settingsRepository.notificationPrefs.first()
-                    val overrideUrl = if (BuildConfig.DEBUG) debugTrackerUrl else null
-                    if (prefs.useTracker || overrideUrl != null) {
-                        val currentTracker = trackerSync
-                        currentTracker.sync(force = force || overrideUrl != null)
-                    }
-                } catch (e: Exception) {
-                    Log.w("AppContainer", "TrackerSync failed: ${e.message}", e)
-                } finally {
-                    if (BuildConfig.DEBUG) {
-                        debugTrackerUrl = null
-                    }
+    private suspend fun runSync(force: Boolean): SyncResult {
+        _isSyncBannerConsumed = false
+        // force = true only comes from user actions (settings, pull to refresh, What's new).
+        val userStarted = force
+        _syncStatus.value = SyncStatus.Syncing(null, userStarted)
+        // Separate job so cancelSync() stops only the wiki sync, not this function.
+        val deferred = appScope.async(Dispatchers.IO) {
+            fmhySync.sync(force) { p ->
+                _syncStatus.value = SyncStatus.Syncing(p, userStarted)
+            }
+        }
+        activeSync = deferred
+        val result = try {
+            deferred.await()
+        } catch (e: CancellationException) {
+            if (!deferred.isCancelled) throw e
+            SyncResult.Failed(SYNC_CANCELLED, 0L)
+        } catch (e: Exception) {
+            SyncResult.Failed(e.message ?: "Unknown error", 0L)
+        } finally {
+            activeSync = null
+        }
+        _syncStatus.value = SyncStatus.Finished(result)
+
+        if (result !is SyncResult.Failed) {
+            try {
+                val prefs = settingsRepository.notificationPrefs.first()
+                val overrideUrl = if (BuildConfig.DEBUG) debugTrackerUrl else null
+                if (prefs.useTracker || overrideUrl != null) {
+                    val currentTracker = trackerSync
+                    currentTracker.sync(force = force || overrideUrl != null)
+                }
+            } catch (e: Exception) {
+                Log.w("AppContainer", "TrackerSync failed: ${e.message}", e)
+            } finally {
+                if (BuildConfig.DEBUG) {
+                    debugTrackerUrl = null
                 }
             }
-            result
         }
+        return result
     }
 
     private val _snackbarEvents = MutableSharedFlow<String>(extraBufferCapacity = 10)
@@ -312,7 +369,7 @@ class DefaultAppContainer(override val context: Context) : AppContainer {
 
     override fun startFilterDownload() {
         appScope.launch(Dispatchers.IO) {
-            runCatching { adblockService.updateNow() }
+            runCatching { adblockService.updateNow(userStarted = true) }
                 .onFailure { Log.w("FmhyAdblock", "Filter list download failed", it) }
         }
     }

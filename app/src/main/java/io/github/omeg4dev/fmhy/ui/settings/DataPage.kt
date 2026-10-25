@@ -22,6 +22,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.omeg4dev.fmhy.ui.shell.JobKind
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -33,6 +34,7 @@ fun DataPage(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val dataPrefs by viewModel.dataPrefs.collectAsStateWithLifecycle()
+    val jobs by viewModel.jobs.collectAsStateWithLifecycle()
 
     val sitesStr = if (state.entryCount > 0) "%,d sites".format(state.entryCount) else "No sites loaded"
     val footerText = "$sitesStr · last synced ${state.lastSyncedText}"
@@ -64,9 +66,14 @@ fun DataPage(
                     title = "Sync",
                     footer = footerText,
                 ) {
+                    InfoRow(title = "Last updated", value = state.lastSyncedText)
+                    val wikiJob = jobs.firstOrNull { it.kind == JobKind.WIKI }
+                    if (wikiJob != null) {
+                        JobProgressRow(wikiJob)
+                    }
                     ButtonRow(
-                        text = if (state.isUpdating) "Syncing…" else "Sync now",
-                        loading = state.isUpdating,
+                        text = "Update now",
+                        loading = false,
                         enabled = !state.isUpdating,
                         onClick = { viewModel.updateNow() },
                     )

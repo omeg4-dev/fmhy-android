@@ -48,7 +48,8 @@ import io.github.omeg4dev.fmhy.browser.formatRelativeTime
 import io.github.omeg4dev.fmhy.data.adblock.FilterList
 import io.github.omeg4dev.fmhy.data.adblock.FilterListCatalog
 import io.github.omeg4dev.fmhy.data.adblock.ListState
-import kotlin.math.roundToInt
+import io.github.omeg4dev.fmhy.ui.shell.JobKind
+import io.github.omeg4dev.fmhy.ui.shell.failedListDetail
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -62,6 +63,7 @@ fun BlockingPage(
     val protectionPrefs by viewModel.protectionPrefs.collectAsStateWithLifecycle()
     val adblockStatus by viewModel.adblockStatus.collectAsStateWithLifecycle()
     val listStates by viewModel.listStates.collectAsStateWithLifecycle()
+    val jobs by viewModel.jobs.collectAsStateWithLifecycle()
     val master = blockingPrefs.adblock
 
     var isAdvancedExpanded by remember {
@@ -326,20 +328,27 @@ fun BlockingPage(
                             value = formatRelativeTime(adblockStatus.lastUpdated),
                         )
 
-                        val updateButtonText = if (adblockStatus.progress != null && adblockStatus.updating) {
-                            val pct = (adblockStatus.progress!! * 100).roundToInt()
-                            "Updating lists… ($pct%)"
-                        } else if (adblockStatus.updating) {
-                            "Updating lists…"
-                        } else {
-                            "Update lists now"
+                        val adblockJob = jobs.firstOrNull { it.kind == JobKind.ADBLOCK }
+                        if (adblockJob != null) {
+                            JobProgressRow(adblockJob)
                         }
+
                         ButtonRow(
-                            text = updateButtonText,
-                            loading = adblockStatus.updating,
+                            text = "Update now",
                             enabled = !adblockStatus.updating,
-                            onClick = { viewModel.updateAdblockNow() },
+                            onClick = viewModel::updateAdblockNow,
                         )
+
+                        if (adblockStatus.failedLists.isNotEmpty()) {
+                            adblockStatus.failedLists.forEach { failedList ->
+                                Text(
+                                    text = failedListDetail(failedList),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
+                                )
+                            }
+                        }
 
                         if (adblockStatus.error != null) {
                             Text(

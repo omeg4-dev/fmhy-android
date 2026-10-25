@@ -5,6 +5,7 @@ import java.io.File
 import java.io.IOException
 import java.security.MessageDigest
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -396,7 +397,11 @@ internal suspend fun FmhySync.fetchSectionFiles(
     state: SyncState,
     primarySuccessCount: AtomicInteger,
     fallbackSuccessCount: AtomicInteger,
+    onFileDone: (done: Int, bytes: Long) -> Unit = { _, _ -> },
 ): List<Pair<SectionInfo, FetchResult>> {
+    val doneCounter = AtomicInteger(0)
+    val byteSum = AtomicLong(0L)
+    val lock = Any()
     val sectionFetches = coroutineScope {
         sectionCandidates.map { sec ->
             val path = "docs/${sec.file}"
@@ -404,7 +409,7 @@ internal suspend fun FmhySync.fetchSectionFiles(
             val urlFallback = "${sources.fallback.trimEnd('/')}/$path"
             val etag = state.files[path]?.etag
             async {
-                sec to fetchFile(
+                val res = fetchFile(
                     path = path,
                     urlPrimary = urlPrimary,
                     urlFallback = urlFallback,
@@ -412,6 +417,15 @@ internal suspend fun FmhySync.fetchSectionFiles(
                     primaryCount = primarySuccessCount,
                     fallbackCount = fallbackSuccessCount,
                 )
+                synchronized(lock) {
+                    if (res is FetchResult.Content) {
+                        byteSum.addAndGet(res.body.toByteArray(Charsets.UTF_8).size.toLong())
+                    }
+                    val d = doneCounter.incrementAndGet()
+                    val b = byteSum.get()
+                    onFileDone(d, b)
+                }
+                sec to res
             }
         }.awaitAll()
     }

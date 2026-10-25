@@ -103,6 +103,8 @@ import io.github.omeg4dev.fmhy.di.AppContainer
 import io.github.omeg4dev.fmhy.theme.ACCENT_PRESETS
 import io.github.omeg4dev.fmhy.ui.common.Motion
 import io.github.omeg4dev.fmhy.ui.common.enterStagger
+import io.github.omeg4dev.fmhy.ui.shell.adblockStep
+import kotlin.math.floor
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import io.github.omeg4dev.fmhy.ui.common.sectionIcon
 import kotlinx.coroutines.delay
@@ -848,8 +850,8 @@ private fun DonePageContent(
                         modifier = Modifier.padding(14.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        val progress = adblockStatus?.progress
-                        val isReady = adblockStatus?.ready == true && progress == null
+                        val step = adblockStatus?.step?.let(::adblockStep)
+                        val isReady = adblockStatus?.ready == true && adblockStatus.step == null && !adblockStatus.updating
 
                         if (isReady) {
                             Row(
@@ -869,24 +871,25 @@ private fun DonePageContent(
                                 )
                             }
                         } else {
+                            val text = if (step != null) {
+                                if (step.measured) "${step.label} · ${floor(step.fraction * 100).toInt()}%" else step.label
+                            } else {
+                                "Downloading ad-block lists…"
+                            }
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Text(
-                                    text = if (progress != null) {
-                                        "Downloading ad-block lists… ${(progress * 100).toInt()} %"
-                                    } else {
-                                        "Downloading ad-block lists…"
-                                    },
+                                    text = text,
                                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
                                     color = MaterialTheme.colorScheme.onSurface,
                                 )
                             }
-                            if (progress != null) {
+                            if (step != null && step.measured) {
                                 LinearProgressIndicator(
-                                    progress = { progress },
+                                    progress = { step.fraction },
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(6.dp)

@@ -15,10 +15,13 @@ import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.zip.GZIPInputStream
+import kotlin.coroutines.cancellation.CancellationException
+import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -72,7 +75,7 @@ open class FmhySync(
         }
     }
 
-    suspend fun sync(force: Boolean = false): SyncResult = withContext(Dispatchers.IO) {
+    suspend fun sync(force: Boolean = false, onProgress: (SyncProgress) -> Unit = {}): SyncResult = withContext(Dispatchers.IO) {
         val startMs = System.currentTimeMillis()
         try {
             dir.mkdirs()
@@ -107,6 +110,8 @@ open class FmhySync(
             // 2. Fetch constants.ts, rentry, unsafe files, and SafeGuard lists in parallel
             val constantsPrimaryUrl = "${sources.primary.trimEnd('/')}/$constantsPath"
             val constantsFallbackUrl = "${sources.fallback.trimEnd('/')}/$constantsPath"
+
+            onProgress(SyncProgress.Checking)
 
             val fetchResults = fetchControlFiles(
                 state,
@@ -211,8 +216,18 @@ open class FmhySync(
             // 3. Section list = Sections.parse(constants)
             val sectionCandidates = Sections.parse(constantsText)
 
+            val firstDownload = store.sections().isEmpty()
+            onProgress(SyncProgress.Files(0, sectionCandidates.size, 0L, firstDownload))
+
             // 4. Fetch every section file in parallel
-            val sectionFetches = fetchSectionFiles(sectionCandidates, state, primarySuccessCount, fallbackSuccessCount)
+            val sectionFetches = fetchSectionFiles(
+                sectionCandidates,
+                state,
+                primarySuccessCount,
+                fallbackSuccessCount,
+            ) { done, bytes ->
+                onProgress(SyncProgress.Files(done, sectionCandidates.size, bytes, firstDownload))
+            }
 
             // Check if all failed with error
             val errors = sectionFetches.filter { it.second is FetchResult.Error }
@@ -306,16 +321,27 @@ open class FmhySync(
             val parsedSections = mutableListOf<ParsedSection>()
 
             if (sectionsToParse.isNotEmpty()) {
+                val totalToParse = sectionsToParse.size
+                onProgress(SyncProgress.Reading(0, totalToParse))
+                val parseDoneCount = AtomicInteger(0)
+                val parseLock = Any()
                 val parseResults = coroutineScope {
                     sectionsToParse.map { (sec, markdown) ->
                         async(Dispatchers.Default) {
-                            try {
+                            val res = try {
                                 val parsed = parser(sec, markdown, b64Map)
                                 sec.id to parsed
+                            } catch (e: CancellationException) {
+                                throw e
                             } catch (e: Exception) {
                                 log("FmhySync: parse exception for ${sec.id}: ${e.message}")
                                 sec.id to null
                             }
+                            synchronized(parseLock) {
+                                val done = parseDoneCount.incrementAndGet()
+                                onProgress(SyncProgress.Reading(done, totalToParse))
+                            }
+                            res
                         }
                     }.awaitAll()
                 }
@@ -356,6 +382,8 @@ open class FmhySync(
             val currentVer = store.version()
 
             if (hasStructuralChanges) {
+                coroutineContext.ensureActive()
+                onProgress(SyncProgress.Saving)
                 store.withTransaction { conn ->
                     val commitSha = "sync:$now"
 
@@ -429,6 +457,8 @@ open class FmhySync(
                 log("FmhySync: up to date (${updatedFileStates.size} files, $took ms)")
                 return@withContext SyncResult.UpToDate(took)
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             val took = System.currentTimeMillis() - startMs
             log("FmhySync: failed: ${e.message}")

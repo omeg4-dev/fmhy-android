@@ -12,6 +12,7 @@ import io.github.omeg4dev.fmhy.data.SettingsRepository
 import io.github.omeg4dev.fmhy.data.adblock.EngineStats
 import io.github.omeg4dev.fmhy.data.adblock.FilterEngine
 import io.github.omeg4dev.fmhy.data.adblock.FilterEngineBuilder
+import io.github.omeg4dev.fmhy.data.adblock.FilterListProgress
 import io.github.omeg4dev.fmhy.data.adblock.ListState
 import io.github.omeg4dev.fmhy.data.adblock.MatchResult
 import io.github.omeg4dev.fmhy.data.adblock.ResourceType
@@ -41,7 +42,7 @@ class AdblockServiceTest {
             enabled: Set<String>,
             customRules: String,
             force: Boolean,
-            onProgress: (done: Int, total: Int) -> Unit,
+            onProgress: (FilterListProgress) -> Unit,
         ): FilterEngine {
             updateCalls.add(Triple(enabled, customRules, force))
             val newEngine = FilterEngineBuilder().apply {
@@ -51,7 +52,11 @@ class AdblockServiceTest {
             return newEngine
         }
 
-        override suspend fun rebuild(enabled: Set<String>, customRules: String): FilterEngine {
+        override suspend fun rebuild(
+            enabled: Set<String>,
+            customRules: String,
+            onProgress: (FilterListProgress) -> Unit,
+        ): FilterEngine {
             rebuildCalls.add(Pair(enabled, customRules))
             val newEngine = FilterEngineBuilder().apply {
                 if (customRules.isNotEmpty()) addCustomRules(customRules)
