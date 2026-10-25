@@ -30,10 +30,15 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import io.github.omeg4dev.fmhy.ui.common.enterStagger
 
-/** Full-size Compose overlay shown over the WebView when the main frame failed to load. */
+/**
+ * Compose overlay shown over the WebView (never over the browser bar) when the main frame failed to
+ * load. It takes every touch, so nothing underneath is tapped while it is up or fading out.
+ */
 @Composable
 fun RescueOverlay(
     state: RescueState,
@@ -41,7 +46,16 @@ fun RescueOverlay(
     onOpenUrl: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+    Surface(
+        modifier = modifier
+            .fillMaxSize()
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) awaitPointerEvent(PointerEventPass.Final).changes.forEach { it.consume() }
+                }
+            },
+        color = MaterialTheme.colorScheme.background,
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -74,9 +88,10 @@ fun RescueOverlay(
             )
             Button(
                 onClick = onRetry,
+                enabled = !state.retrying,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text("Retry")
+                Text(if (state.retrying) "Retrying…" else "Retry")
             }
             state.mirrors.forEachIndexed { index, link ->
                 val host = try { Uri.parse(link.url).host ?: link.url } catch (_: Exception) { link.url }

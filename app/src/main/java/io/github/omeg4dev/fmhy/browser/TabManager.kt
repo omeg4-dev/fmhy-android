@@ -803,7 +803,6 @@ class TabManager(
         val record = getTabRecord(tabId) ?: return
         record.url = url
         record.hasStartedFirstLoad = true
-        record.rescueState = null
         if (title.isNotEmpty()) record.title = title
         val host = try { Uri.parse(url).host } catch (_: Exception) { null }
         if (!host.isNullOrEmpty() && host != record.lastLoadedHost) {

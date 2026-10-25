@@ -41,20 +41,27 @@ object RescueReason {
     }
 
     fun fromErrorCode(errorCode: Int, description: String = ""): String {
-        if (description.contains("CLEARTEXT", ignoreCase = true)) return "Insecure connection blocked"
+        if (description.contains("CLEARTEXT", ignoreCase = true)) return "Insecure (http) connection blocked"
         return when (errorCode) {
-            ERROR_HOST_LOOKUP -> "Server not found"
-            ERROR_CONNECT -> "Connection failed"
-            ERROR_TIMEOUT -> "Connection timed out"
-            ERROR_FAILED_SSL_HANDSHAKE -> "Secure connection failed"
-            ERROR_REDIRECT_LOOP -> "Too many redirects"
-            ERROR_TOO_MANY_REQUESTS -> "Too many requests"
-            ERROR_IO -> "Network error"
-            else -> "Could not load the page"
+            ERROR_HOST_LOOKUP -> "The site's address could not be found"
+            ERROR_CONNECT -> "Could not connect to the site"
+            ERROR_TIMEOUT -> "The site did not answer"
+            ERROR_FAILED_SSL_HANDSHAKE -> "A secure connection to the site failed"
+            ERROR_REDIRECT_LOOP -> "The site keeps redirecting"
+            ERROR_TOO_MANY_REQUESTS -> "Too many requests to the site"
+            ERROR_IO -> "The connection was interrupted"
+            else -> "The page could not be loaded"
         }
     }
 
     fun fromHttpStatus(statusCode: Int): String {
-        return "Server error $statusCode"
+        val what = when (statusCode) {
+            503, 529 -> "The site is overloaded or down for maintenance"
+            504, 522, 524 -> "The site did not answer in time"
+            502, 520, 521, 523 -> "The site's server is down"
+            525, 526 -> "A secure connection to the site failed"
+            else -> "The site's server had an error"
+        }
+        return "$what (error $statusCode)"
     }
 }

@@ -139,7 +139,10 @@ class BrowserWebViewFactory(
                 record.sourceUrl = url
                 record.url = url
                 record.hasStartedFirstLoad = true
-                record.rescueState = null
+                // Only the displayed page's icon: drop the old one now, the new one comes with the page.
+                record.favicon = null
+                record.showsBlockPage = RescueDecision.sameAddress(record.blockedMainFrameUrl, url)
+                (browserHooks as? DefaultBrowserHooks)?.onMainFramePageStarted(record, url)
                 tabManager.onPlaybackPageStarted(record.id, url)
                 tabManager.notifyTabChanged(record.id)
                 tabManager.updateTabUrlAndTitle(record.id, url, record.title)
@@ -156,6 +159,7 @@ class BrowserWebViewFactory(
             override fun doUpdateVisitedHistory(view: WebView, url: String, isReload: Boolean) {
                 super.doUpdateVisitedHistory(view, url, isReload)
                 if (isReload || url.substringBefore('#') == record.url.substringBefore('#')) return
+                if (hostOf(url) != hostOf(record.url)) record.favicon = null
                 record.url = url
                 tabManager.updateTabUrlAndTitle(record.id, url, view.title ?: record.title)
                 (browserHooks as? DefaultBrowserHooks)?.onPageStarted(record, url)
@@ -167,10 +171,16 @@ class BrowserWebViewFactory(
                 record.canGoForward = view.canGoForward()
                 tabManager.notifyTabChanged(record.id)
                 tabManager.recordHistory(record.id, url, record.title)
+                (browserHooks as? DefaultBrowserHooks)?.onMainFramePageFinished(record, view, url)
+            }
+
+            override fun onPageCommitVisible(view: WebView, url: String) {
+                super.onPageCommitVisible(view, url)
+                (browserHooks as? DefaultBrowserHooks)?.onPageCommitVisible(record, url)
             }
 
             override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
-                return adblockService.shouldInterceptRequest(
+                val response = adblockService.shouldInterceptRequest(
                     request = request,
                     sourceUrl = record.sourceUrl,
                     sitePrefs = record.sitePrefs,
@@ -178,6 +188,11 @@ class BrowserWebViewFactory(
                     onBlocked = { tabManager.incrementBlocked(record.id) },
                     bridgeName = bridgeName,
                 )
+                // A replaced main-frame document is the ad blocker's block page.
+                if (request.isForMainFrame) {
+                    record.blockedMainFrameUrl = if (response != null) request.url.toString() else null
+                }
+                return response
             }
 
             override fun onReceivedError(view: WebView, request: WebResourceRequest, error: android.webkit.WebResourceError) {
@@ -216,6 +231,8 @@ class BrowserWebViewFactory(
 
             override fun onReceivedIcon(view: WebView, icon: Bitmap?) {
                 super.onReceivedIcon(view, icon)
+                // Late icons of the previous page, and icons behind the block page, are dropped.
+                if (record.showsBlockPage || hostOf(view.url) != hostOf(record.url)) return
                 tabManager.updateTabFavicon(record.id, icon)
             }
 
@@ -278,3 +295,6 @@ class BrowserWebViewFactory(
         }
     }
 }
+
+private fun hostOf(url: String?): String? =
+    try { android.net.Uri.parse(url ?: return null).host?.lowercase() } catch (_: Exception) { null }

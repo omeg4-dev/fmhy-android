@@ -43,6 +43,18 @@ class TabRecord(
     var mutableContext: MutableContextWrapper? = null,
     var crashed: Boolean = false,
     var savedState: android.os.Bundle? = null,
+    /** Something of the current page (not an error page) reached the screen. */
+    var contentShown: Boolean = false,
+    /** Main-frame failure of the current load attempt; decided in onPageFinished. */
+    var failedLoad: FailedLoad? = null,
+    /** Quiet background retries already done for [silentRetryUrl]. */
+    var silentRetries: Int = 0,
+    var silentRetryUrl: String? = null,
+    /** Pending silent retry, 5xx probe or rescue lookup; cancelled when a new page starts. */
+    var rescueJob: kotlinx.coroutines.Job? = null,
+    /** Main-frame URL the ad blocker last replaced with its block page (set off the main thread). */
+    @Volatile var blockedMainFrameUrl: String? = null,
+    var showsBlockPage: Boolean = false,
 ) {
     var blocked: Int
         get() = blockedCount.get()
@@ -66,6 +78,7 @@ class TabRecord(
         rescueState = rescueState,
         siteBarState = siteBarState,
         interstitialState = interstitialState,
+        showsBlockPage = showsBlockPage,
         isVideoPlaying = isVideoPlaying,
         hasMedia = hasMedia,
         playbackSpeed = if (desiredRate > 0f) desiredRate else 1f,

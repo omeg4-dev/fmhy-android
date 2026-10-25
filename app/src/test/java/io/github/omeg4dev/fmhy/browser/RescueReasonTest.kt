@@ -45,11 +45,13 @@ class RescueReasonTest {
 
     @Test
     fun testErrorMessages() {
-        assertEquals("Server not found", RescueReason.fromErrorCode(RescueReason.ERROR_HOST_LOOKUP))
-        assertEquals("Connection failed", RescueReason.fromErrorCode(RescueReason.ERROR_CONNECT))
-        assertEquals("Connection timed out", RescueReason.fromErrorCode(RescueReason.ERROR_TIMEOUT))
-        assertEquals("Secure connection failed", RescueReason.fromErrorCode(RescueReason.ERROR_FAILED_SSL_HANDSHAKE))
-        assertEquals("Server error 522", RescueReason.fromHttpStatus(522))
-        assertEquals("Server error 500", RescueReason.fromHttpStatus(500))
+        assertEquals("The site's address could not be found", RescueReason.fromErrorCode(RescueReason.ERROR_HOST_LOOKUP))
+        assertEquals("Could not connect to the site", RescueReason.fromErrorCode(RescueReason.ERROR_CONNECT))
+        assertEquals("The site did not answer", RescueReason.fromErrorCode(RescueReason.ERROR_TIMEOUT))
+        assertEquals("A secure connection to the site failed", RescueReason.fromErrorCode(RescueReason.ERROR_FAILED_SSL_HANDSHAKE))
+        assertEquals("The page could not be loaded", RescueReason.fromErrorCode(RescueReason.ERROR_FILE))
+        assertEquals("The site did not answer in time (error 522)", RescueReason.fromHttpStatus(522))
+        assertEquals("The site is overloaded or down for maintenance (error 503)", RescueReason.fromHttpStatus(503))
+        assertEquals("The site's server had an error (error 500)", RescueReason.fromHttpStatus(500))
     }
 }

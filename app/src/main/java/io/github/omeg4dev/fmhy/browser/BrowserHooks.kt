@@ -85,6 +85,7 @@ import io.github.omeg4dev.fmhy.data.safety.SafetyStatus
 import io.github.omeg4dev.fmhy.data.safety.Verdict
 import io.github.omeg4dev.fmhy.ui.common.EntryDetailBottomSheet
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -474,28 +475,129 @@ class DefaultBrowserHooks(
 
     override fun onMainFrameError(tab: TabState, errorCode: Int, description: String, failingUrl: String) {
         val browserPrefs = tabManager?.currentBrowserPrefs ?: BrowserPrefs()
+        rescueLog("error $errorCode '$description' url=$failingUrl tab=${tab.url}")
         if (!browserPrefs.deadSiteRescue) return
         if (!RescueReason.shouldTrigger(errorCode, description)) return
-
-        val reason = RescueReason.fromErrorCode(errorCode, description)
-        buildRescueState(tab, failingUrl, reason)
+        val record = tabManager?.getTabRecord(tab.id) ?: return
+        record.failedLoad = FailedLoad(failingUrl, RescueReason.fromErrorCode(errorCode, description), isHttp = false)
     }
 
     override fun onMainFrameHttpError(tab: TabState, statusCode: Int, failingUrl: String) {
         val browserPrefs = tabManager?.currentBrowserPrefs ?: BrowserPrefs()
+        rescueLog("http $statusCode url=$failingUrl tab=${tab.url}")
         if (!browserPrefs.deadSiteRescue) return
         if (!RescueReason.shouldTriggerHttp(statusCode)) return
-
-        val reason = RescueReason.fromHttpStatus(statusCode)
-        buildRescueState(tab, failingUrl, reason)
+        val record = tabManager?.getTabRecord(tab.id) ?: return
+        record.failedLoad = FailedLoad(failingUrl, RescueReason.fromHttpStatus(statusCode), isHttp = true)
     }
 
-    private fun buildRescueState(tab: TabState, failingUrl: String, reason: String) {
+    /** A new document starts in the main frame (not called for in-page navigations). */
+    fun onMainFramePageStarted(record: TabRecord, url: String) {
+        record.rescueJob?.cancel()
+        record.rescueJob = null
+        record.contentShown = false
+        if (!RescueDecision.sameAddress(url, record.failedLoad?.url)) record.failedLoad = null
+        if (!RescueDecision.sameAddress(url, record.silentRetryUrl)) {
+            record.silentRetries = 0
+            record.silentRetryUrl = url
+        }
+        // The rescue stays through retries of its own address; going anywhere else closes it.
+        val rescue = record.rescueState
+        if (rescue != null && !RescueDecision.sameAddress(url, rescue.failingUrl)) {
+            tabManager?.setRescueState(record.id, null)
+        }
+    }
+
+    /**
+     * First paint of the new document: unless an error is known for it, the page has content. The
+     * rescue itself only closes in onPageFinished, so a late error never makes it flash.
+     */
+    fun onPageCommitVisible(record: TabRecord, url: String) {
+        if (RescueDecision.sameAddress(url, record.failedLoad?.url)) return
+        record.contentShown = true
+    }
+
+    /** End of a load attempt; every main-frame error of the attempt has arrived by now. */
+    fun onMainFramePageFinished(record: TabRecord, view: WebView, url: String) {
+        val failed = record.failedLoad?.takeIf { RescueDecision.sameAddress(it.url, url) }
+        record.failedLoad = null
+        if (failed == null) {
+            if (RescueDecision.sameAddress(url, record.url)) onContentShown(record, url)
+            return
+        }
+        val scope = tabManager?.appScope ?: return
+        record.rescueJob?.cancel()
+        if (!failed.isHttp) {
+            // The WebView shows its own error page: nothing of the site is on screen.
+            record.contentShown = false
+            decideRescue(record, failed)
+            return
+        }
+        // A 5xx body is on screen. Challenge pages move on by themselves; real pages served with an
+        // error status have content. Only a bare error page counts as a failure.
+        record.rescueJob = scope.launch(Dispatchers.Main) {
+            delay(RescueDecision.HTTP_SETTLE_MS)
+            if (!RescueDecision.sameAddress(record.url, failed.url)) return@launch
+            view.evaluateJavascript(RescueDecision.PROBE_JS) { raw ->
+                if (!RescueDecision.sameAddress(record.url, failed.url)) return@evaluateJavascript
+                val probe = RescueDecision.parseProbe(raw)
+                rescueLog("probe $probe url=${failed.url}")
+                if (RescueDecision.looksLikeContent(probe)) {
+                    onContentShown(record, failed.url)
+                } else {
+                    decideRescue(record, failed)
+                }
+            }
+        }
+    }
+
+    private fun onContentShown(record: TabRecord, url: String) {
+        record.contentShown = true
+        record.silentRetries = 0
+        record.silentRetryUrl = url
+        if (record.rescueState != null) {
+            rescueLog("content shown, rescue closes url=$url")
+            tabManager?.setRescueState(record.id, null)
+        }
+    }
+
+    private fun decideRescue(record: TabRecord, failed: FailedLoad) {
+        val action = RescueDecision.decide(
+            isForMainFrame = true,
+            failingUrl = failed.url,
+            currentUrls = listOf(record.url, record.sourceUrl),
+            contentShown = record.contentShown,
+            retriesDone = record.silentRetries,
+        )
+        rescueLog("decide $action url=${failed.url} tab=${record.url} shown=${record.contentShown} retries=${record.silentRetries} (${failed.reason})")
+        when (action) {
+            RescueDecision.Action.IGNORE -> Unit
+            RescueDecision.Action.RETRY -> {
+                val scope = tabManager?.appScope ?: return
+                record.rescueJob = scope.launch(Dispatchers.Main) {
+                    delay(RescueDecision.retryDelayMs(record.silentRetries))
+                    record.silentRetries++
+                    record.silentRetryUrl = failed.url
+                    record.webView?.reload()
+                }
+            }
+            RescueDecision.Action.SHOW -> buildRescueState(record, failed.url, failed.reason)
+        }
+    }
+
+    private fun buildRescueState(record: TabRecord, failingUrl: String, reason: String) {
+        // Same address already rescued (e.g. the user pressed Retry): update it in place, no flash.
+        val current = record.rescueState
+        if (current != null && RescueDecision.sameAddress(current.failingUrl, failingUrl)) {
+            tabManager?.setRescueState(record.id, current.copy(reason = reason, retrying = false))
+            return
+        }
         val host = try { Uri.parse(failingUrl).host ?: failingUrl } catch (_: Exception) { failingUrl }
-        tabManager?.appScope?.launch(Dispatchers.IO) {
+        val entryId = record.entryId
+        record.rescueJob = tabManager?.appScope?.launch(Dispatchers.IO) {
             val store = datasetStore
-            val entry = if (tab.entryId != null) {
-                store?.entry(tab.entryId)
+            val entry = if (entryId != null) {
+                store?.entry(entryId)
             } else {
                 safeGuard?.check(failingUrl)?.matches?.firstOrNull()
             }
@@ -513,8 +615,12 @@ class DefaultBrowserHooks(
             }
 
             withContext(Dispatchers.Main) {
+                // The page may have loaded or the tab moved on while the lookup ran.
+                if (record.contentShown) return@withContext
+                if (listOf(record.url, record.sourceUrl).none { RescueDecision.sameAddress(it, failingUrl) }) return@withContext
+                rescueLog("SHOW rescue url=$failingUrl ($reason)")
                 tabManager?.setRescueState(
-                    tab.id,
+                    record.id,
                     RescueState(
                         failingUrl = failingUrl,
                         host = host,
@@ -525,6 +631,15 @@ class DefaultBrowserHooks(
                 )
             }
         }
+    }
+
+    /** User pressed Retry: keep the rescue up while loading; no extra silent rounds. */
+    fun retryRescue(record: TabRecord) {
+        val rescue = record.rescueState ?: return
+        record.silentRetries = RescueDecision.MAX_SILENT_RETRIES
+        record.silentRetryUrl = rescue.failingUrl
+        tabManager?.setRescueState(record.id, rescue.copy(retrying = true))
+        tabManager?.loadUrl(record.id, rescue.failingUrl)
     }
 
     fun onPageStarted(record: TabRecord, url: String) {
@@ -715,4 +830,8 @@ private fun statusToneColor(tone: StatusTone): Color = when (tone) {
     StatusTone.TERTIARY -> MaterialTheme.colorScheme.tertiary
     StatusTone.NEUTRAL -> MaterialTheme.colorScheme.onSurfaceVariant
     StatusTone.ERROR -> MaterialTheme.colorScheme.error
+}
+
+private fun rescueLog(msg: String) {
+    if (io.github.omeg4dev.fmhy.BuildConfig.DEBUG) android.util.Log.d("FmhyRescue", msg)
 }

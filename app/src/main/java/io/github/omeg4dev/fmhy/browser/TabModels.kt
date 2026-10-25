@@ -12,6 +12,8 @@ data class RescueState(
     val reason: String,
     val mirrors: List<Link> = emptyList(),
     val alternatives: List<Entry> = emptyList(),
+    /** The user pressed Retry and the page is loading again. */
+    val retrying: Boolean = false,
 )
 
 data class InterstitialState(
@@ -38,6 +40,8 @@ data class TabState(
     val rescueState: RescueState? = null,
     val siteBarState: SiteBarState? = null,
     val interstitialState: InterstitialState? = null,
+    /** The page on screen is the ad blocker's block page. */
+    val showsBlockPage: Boolean = false,
     val isVideoPlaying: Boolean = false,
     /** width / height of the video last seen on the page, or null when unknown. */
     val videoAspect: Float? = null,

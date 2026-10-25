@@ -10,7 +10,10 @@ import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.webkit.WebView
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -76,6 +79,7 @@ import io.github.omeg4dev.fmhy.ui.common.Motion
 import io.github.omeg4dev.fmhy.ui.common.SavedInfo
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import androidx.compose.runtime.snapshotFlow
+import kotlin.math.roundToInt
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -172,7 +176,7 @@ fun BrowserScreen(
         val hiddenValue = if (browserPrefs.toolbarPosition == ToolbarPosition.TOP) -totalBarHeightPx else totalBarHeightPx
         val target = if (bars.hidden) hiddenValue else 0f
         if (toolbarTranslation.targetValue != target) {
-            barsLog("target ${toolbarTranslation.targetValue} -> $target pointerDown=${bars.pointerDown}")
+            barsLog("target ${toolbarTranslation.targetValue} -> $target pointerDown=${barTracker.pointerDown}")
             snapJob?.cancel()
             snapJob = scope.launch { toolbarTranslation.animateTo(target, Motion.standard()) }
         }
@@ -181,13 +185,14 @@ fun BrowserScreen(
     val loadingState by rememberUpdatedState(currentTab?.isLoading == true)
 
     // Ensure toolbar is fully shown at top, during loading, find, edit, or navigation
-    val shouldForceToolbarShown = currentTab?.isLoading == true || isFindMode || isEditMode
+    val shouldForceToolbarShown = currentTab?.isLoading == true || isFindMode || isEditMode ||
+        currentTab?.rescueState != null
     // Keyed on the URL without its fragment: in-page hash changes must not pop the bars back up.
     val navKey = currentTab?.url?.substringBefore('#')
     LaunchedEffect(shouldForceToolbarShown, navKey) {
         bars.hidden = false
         barTracker.reset()
-        if (!bars.pointerDown) applyBarsState()
+        applyBarsState()
     }
     // Toolbar position changed: reset to shown.
     LaunchedEffect(isTopBar) {
@@ -197,7 +202,7 @@ fun BrowserScreen(
     }
     // Bar block grew/shrank (site bar appeared, find bar...) while hidden: re-snap so it all stays hidden.
     LaunchedEffect(totalBarHeightPx) {
-        if (bars.hidden && !bars.pointerDown && totalBarHeightPx > 0f) {
+        if (bars.hidden && totalBarHeightPx > 0f) {
             val hiddenValue = if (isTopBar) -totalBarHeightPx else totalBarHeightPx
             if (toolbarTranslation.targetValue != hiddenValue) {
                 barsLog("resnap hidden -> $hiddenValue")
@@ -385,7 +390,7 @@ fun BrowserScreen(
                                 snapshotFlow { totalBarHeightPx + toolbarTranslation.value }.collect { visible ->
                                     val ty = if (browserPrefs.toolbarPosition == ToolbarPosition.TOP) visible.coerceAtLeast(0f) else 0f
                                     if (webView.translationY != ty) {
-                                        barsLog("webView.translationY=$ty pointerDown=${bars.pointerDown}")
+                                        barsLog("webView.translationY=$ty pointerDown=${barTracker.pointerDown}")
                                         webView.translationY = ty
                                     }
                                 }
@@ -397,24 +402,43 @@ fun BrowserScreen(
                                     findTotalMatches = numberOfMatches
                                 }
 
-                                // Scroll listener for translation offset and idle snap
+                                // Scroll listener: bars follow the scroll while it happens, never on finger lift.
+                                // Idle: the glide after a lift ended; make sure the bar rests fully shown/hidden.
+                                val idle = Runnable {
+                                    barTracker.onScrollIdle()
+                                    val hiddenValue = if (isTopBar) -totalBarHeightPx else totalBarHeightPx
+                                    val target = if (bars.hidden) hiddenValue else 0f
+                                    if (!toolbarTranslation.isRunning && toolbarTranslation.value != target) {
+                                        // A cancelled animation keeps its target, so applyBars would do nothing here.
+                                        barsLog("idle resnap -> $target")
+                                        snapJob?.cancel()
+                                        snapJob = scope.launch { toolbarTranslation.animateTo(target, Motion.standard()) }
+                                    }
+                                }
+                                var lastTy = webView.translationY
                                 webView.setOnScrollChangeListener { _, _, scrollY, _, oldScrollY ->
-                                    val dy = scrollY - oldScrollY
+                                    // Screen-space delta: moving the WebView with a top bar shifts the finger's
+                                    // position in the page and WebView scrolls by the same amount; that is no scroll.
+                                    val ty = webView.translationY
+                                    val dy = (scrollY - oldScrollY) - (ty - lastTy).roundToInt()
+                                    lastTy = ty
                                     val isAtTop = !webView.canScrollVertically(-1) || scrollY <= 0
 
                                     if (isAtTop) {
                                         barTracker.reset()
-                                        bars.hidden = false
-                                        if (!bars.pointerDown) applyBarsState()
+                                        if (bars.hidden) {
+                                            bars.hidden = false
+                                            applyBarsState()
+                                        }
                                     } else if (!isFindMode && !isEditMode && !loadingState && totalBarHeightPx > 0f) {
-                                        // Accumulated one-direction scroll decides; while a finger is down only the
-                                        // pending state changes (moving the view under the finger feeds back into scroll).
                                         val hide = barTracker.onScroll(dy)
                                         if (hide != null && hide != bars.hidden) {
                                             bars.hidden = hide
-                                            if (!bars.pointerDown) applyBarsState()
+                                            applyBarsState()
                                         }
                                     }
+                                    webView.removeCallbacks(idle)
+                                    if (!barTracker.pointerDown) webView.postDelayed(idle, 200L)
                                 }
 
                                 // Touch listener for Pull-to-refresh at top of WebView
@@ -426,7 +450,8 @@ fun BrowserScreen(
                                 webView.setOnTouchListener { _, event ->
                                     when (event.actionMasked) {
                                         MotionEvent.ACTION_DOWN -> {
-                                            bars.pointerDown = true
+                                            barTracker.onPointerDown()
+                                            webView.removeCallbacks(idle)
                                             startY = event.rawY
                                             isPulling = false
                                             hasCrossedThreshold = false
@@ -458,8 +483,9 @@ fun BrowserScreen(
                                             }
                                         }
                                         MotionEvent.ACTION_UP -> {
-                                            bars.pointerDown = false
-                                            applyBarsState()
+                                            barTracker.onPointerUp()
+                                            webView.removeCallbacks(idle)
+                                            webView.postDelayed(idle, 200L)
                                             if (isPulling) {
                                                 isPulling = false
                                                 if (pullRefreshState.distanceFraction >= 1f) {
@@ -478,8 +504,9 @@ fun BrowserScreen(
                                             }
                                         }
                                         MotionEvent.ACTION_CANCEL -> {
-                                            bars.pointerDown = false
-                                            applyBarsState()
+                                            barTracker.onPointerUp()
+                                            webView.removeCallbacks(idle)
+                                            webView.postDelayed(idle, 200L)
                                             if (isPulling) {
                                                 isPulling = false
                                                 scope.launch { pullRefreshState.animateToHidden() }
@@ -492,6 +519,7 @@ fun BrowserScreen(
 
                                 onDispose {
                                     webView.setOnScrollChangeListener(null)
+                                    webView.removeCallbacks(idle)
                                     webView.setOnTouchListener(null)
                                 }
                             }
@@ -657,20 +685,41 @@ fun BrowserScreen(
                     )
                 }
 
-                // Dead-site rescue overlay
-                val rescue = currentTab?.rescueState
-                if (rescue != null && !isBlankTab) {
+                // Dead-site rescue overlay: under the bar (which stays shown), fades in and out once.
+                val rescue = currentTab?.rescueState?.takeIf { !isBlankTab }
+                var lastRescue by remember { mutableStateOf(rescue) }
+                if (rescue != null) lastRescue = rescue
+                val barHeightDp = with(density) { totalBarHeightPx.toDp() }
+                AnimatedVisibility(
+                    visible = rescue != null,
+                    enter = fadeIn(),
+                    exit = fadeOut(),
+                    modifier = Modifier
+                        .zIndex(4f)
+                        .padding(
+                            top = if (isTopBar) barHeightDp else 0.dp,
+                            bottom = if (isTopBar) 0.dp else barHeightDp,
+                        ),
+                ) {
+                    val shown = lastRescue ?: return@AnimatedVisibility
+                    val tabId = currentTab?.id
                     RescueOverlay(
-                        state = rescue,
+                        state = shown,
                         onRetry = {
-                            tabManager.setRescueState(currentTab.id, null)
-                            tabManager.loadUrl(currentTab.id, rescue.failingUrl)
+                            val record = tabId?.let { tabManager.getTabRecord(it) }
+                            if (hooks != null && record != null) {
+                                hooks.retryRescue(record)
+                            } else if (tabId != null) {
+                                tabManager.setRescueState(tabId, null)
+                                tabManager.loadUrl(tabId, shown.failingUrl)
+                            }
                         },
                         onOpenUrl = { url ->
-                            tabManager.setRescueState(currentTab.id, null)
-                            tabManager.loadUrl(currentTab.id, url)
+                            if (tabId != null) {
+                                tabManager.setRescueState(tabId, null)
+                                tabManager.loadUrl(tabId, url)
+                            }
                         },
-                        modifier = Modifier.zIndex(7f),
                     )
                 }
 

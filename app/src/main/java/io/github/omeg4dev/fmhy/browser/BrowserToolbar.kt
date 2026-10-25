@@ -404,8 +404,15 @@ private fun AddressPill(
             statusIcon()
             if (tab?.siteBarState != null) Spacer(modifier = Modifier.width(4.dp))
 
-            // Leading 20 dp site favicon
-            if (tab?.favicon != null && !tab.isPrivate) {
+            // Leading 20 dp site favicon; a blocked page gets a neutral warning, never a site's icon
+            if (tab?.interstitialState != null || tab?.showsBlockPage == true) {
+                Icon(
+                    imageVector = Icons.Default.Warning,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else if (tab?.favicon != null && !tab.isPrivate) {
                 Image(
                     bitmap = tab.favicon.asImageBitmap(),
                     contentDescription = null,
