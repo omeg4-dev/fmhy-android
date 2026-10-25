@@ -4,23 +4,15 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.AssistChipDefaults
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.ui.draw.clip
-import io.github.omeg4dev.fmhy.SectionNavKey
-import io.github.omeg4dev.fmhy.WhatsNewNavKey
-import io.github.omeg4dev.fmhy.data.link.CrossLinks
-import io.github.omeg4dev.fmhy.data.user.Pin
-import io.github.omeg4dev.fmhy.ui.common.EntryDetailBottomSheet
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -34,7 +26,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -44,6 +35,8 @@ import androidx.compose.material.icons.outlined.NewReleases
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -59,7 +52,16 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
+import io.github.omeg4dev.fmhy.SectionNavKey
+import io.github.omeg4dev.fmhy.WhatsNewNavKey
+import io.github.omeg4dev.fmhy.data.link.CrossLinks
+import io.github.omeg4dev.fmhy.data.user.Pin
+import io.github.omeg4dev.fmhy.ui.common.EntryDetailBottomSheet
 import io.github.omeg4dev.fmhy.ui.onboarding.ONBOARDING_VERSION
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -99,6 +101,9 @@ import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
 import io.github.omeg4dev.fmhy.ui.common.sectionIcon
 import io.github.omeg4dev.fmhy.ui.common.showUndo
+import io.github.omeg4dev.fmhy.ui.search.SearchBarShape
+import io.github.omeg4dev.fmhy.ui.search.searchBarBorder
+import io.github.omeg4dev.fmhy.ui.search.searchBarContainerColor
 import kotlinx.coroutines.flow.filter
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -253,8 +258,9 @@ fun HomeScreen(
                     item(key = "search-pill") {
                         Surface(
                             onClick = onNavigateToSearch,
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            shape = SearchBarShape,
+                            color = searchBarContainerColor(),
+                            border = searchBarBorder(focused = false),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(52.dp)
@@ -269,7 +275,7 @@ fun HomeScreen(
                                 Icon(
                                     imageVector = Icons.Default.Search,
                                     contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    tint = MaterialTheme.colorScheme.primary,
                                 )
                                 Spacer(Modifier.width(12.dp))
                                 Text(
@@ -320,9 +326,39 @@ fun HomeScreen(
                         }
                     }
 
-                    // Random pick card
+                    // Random pick row
                     state.randomPick?.let { pick ->
                         item(key = "random-pick") {
+                            val sectionTitle = state.sections.firstOrNull { it.id == pick.sectionId }?.title
+                            val category = remember(pick.headingPath, sectionTitle) {
+                                val segments = pick.headingPath
+                                    .split(Regex("""\s*[›>]\s*"""))
+                                    .filter { it.isNotBlank() }
+                                    .map { CrossLinks.splitLinkTitle(it).first }
+                                segments.drop(1).lastOrNull() ?: sectionTitle.orEmpty()
+                            }
+                            val labelMediumStyle = MaterialTheme.typography.labelMedium
+                            val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
+                            val annotatedText = remember(pick.name, category, labelMediumStyle, onSurfaceVariant) {
+                                buildAnnotatedString {
+                                    withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
+                                        append(pick.name)
+                                    }
+                                    if (category.isNotEmpty()) {
+                                        append("  ")
+                                        withStyle(
+                                            SpanStyle(
+                                                fontSize = labelMediumStyle.fontSize,
+                                                fontWeight = FontWeight.Normal,
+                                                color = onSurfaceVariant,
+                                            )
+                                        ) {
+                                            append(category)
+                                        }
+                                    }
+                                }
+                            }
+
                             Surface(
                                 shape = MaterialTheme.shapes.large,
                                 color = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -340,111 +376,36 @@ fun HomeScreen(
                                         },
                                     ),
                             ) {
-                                Column(
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(14.dp),
+                                        .heightIn(min = 56.dp)
+                                        .padding(horizontal = 16.dp, vertical = 8.dp),
                                 ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.fillMaxWidth(),
+                                    Icon(
+                                        imageVector = Icons.Outlined.Casino,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(22.dp),
+                                    )
+                                    Spacer(Modifier.width(12.dp))
+                                    Text(
+                                        text = annotatedText,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                    IconButton(
+                                        onClick = {
+                                            viewModel.refreshRandomPick()
+                                        },
                                     ) {
                                         Icon(
-                                            imageVector = Icons.Outlined.Casino,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(18.dp),
+                                            imageVector = Icons.Default.Refresh,
+                                            contentDescription = "Reroll random pick",
                                         )
-                                        Spacer(Modifier.width(8.dp))
-                                        Text(
-                                            text = "Random pick",
-                                            style = MaterialTheme.typography.labelLarge,
-                                            color = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.weight(1f),
-                                        )
-                                        IconButton(
-                                            onClick = {
-                                                viewModel.refreshRandomPick()
-                                            },
-                                            modifier = Modifier.minimumInteractiveComponentSize(),
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Refresh,
-                                                contentDescription = "Reroll random pick",
-                                                modifier = Modifier.size(18.dp),
-                                            )
-                                        }
-                                    }
-                                    Spacer(Modifier.height(8.dp))
-                                    Text(
-                                        text = pick.name,
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Medium,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
-                                    if (pick.description.isNotEmpty()) {
-                                        Spacer(Modifier.height(2.dp))
-                                        Text(
-                                            text = pick.description,
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                        )
-                                    }
-                                    // Where it lives: section icon + "Section › category"; tap opens the section
-                                    val sectionTitle = state.sections.firstOrNull { it.id == pick.sectionId }?.title
-                                    val origin = remember(pick.headingPath, sectionTitle) {
-                                        val segments = pick.headingPath
-                                            .split(Regex("""\s*[›>]\s*"""))
-                                            .filter { it.isNotBlank() }
-                                            .map { CrossLinks.splitLinkTitle(it).first }
-                                        val section = sectionTitle ?: segments.firstOrNull().orEmpty()
-                                        val category = segments.drop(1).lastOrNull()
-                                        listOfNotNull(section.ifEmpty { null }, category).joinToString(" › ")
-                                    }
-                                    if (origin.isNotEmpty()) {
-                                        Spacer(Modifier.height(10.dp))
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            modifier = Modifier
-                                                .clip(MaterialTheme.shapes.small)
-                                                .clickable {
-                                                    scope.launch {
-                                                        val anchor = try {
-                                                            pick.headingId?.let { hid ->
-                                                                container.datasetStore.headings(pick.sectionId).firstOrNull { it.id == hid }?.anchor
-                                                            }
-                                                        } catch (_: Exception) { null }
-                                                        nav.push(SectionNavKey(pick.sectionId, anchor = anchor, focusEntryId = pick.id))
-                                                    }
-                                                }
-                                                .padding(vertical = 2.dp),
-                                        ) {
-                                            Surface(
-                                                shape = CircleShape,
-                                                color = MaterialTheme.colorScheme.secondaryContainer,
-                                                modifier = Modifier.size(24.dp),
-                                            ) {
-                                                Box(contentAlignment = Alignment.Center) {
-                                                    Icon(
-                                                        imageVector = sectionIcon(pick.sectionId),
-                                                        contentDescription = null,
-                                                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                                                        modifier = Modifier.size(14.dp),
-                                                    )
-                                                }
-                                            }
-                                            Spacer(Modifier.width(8.dp))
-                                            Text(
-                                                text = origin,
-                                                style = MaterialTheme.typography.labelMedium,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis,
-                                            )
-                                        }
                                     }
                                 }
                             }
@@ -493,56 +454,73 @@ fun HomeScreen(
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.padding(bottom = 8.dp),
                                     )
-                                    FlowRow(
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    Column(
                                         verticalArrangement = Arrangement.spacedBy(8.dp),
                                         modifier = Modifier.fillMaxWidth(),
                                     ) {
-                                        state.pins.forEach { pin ->
-                                            AssistChip(
-                                                onClick = {
-                                                    onNavigateToSection(pin.sectionId, pin.anchor)
-                                                },
-                                                leadingIcon = {
-                                                    Icon(
-                                                        imageVector = sectionIcon(pin.sectionId),
-                                                        contentDescription = null,
-                                                        modifier = Modifier.size(18.dp),
-                                                    )
-                                                },
-                                                trailingIcon = {
-                                                    Icon(
-                                                        imageVector = Icons.Default.Close,
-                                                        contentDescription = "Unpin ${pin.label}",
-                                                        modifier = Modifier
-                                                            .minimumInteractiveComponentSize()
-                                                            .size(16.dp)
-                                                            .clickable {
-                                                                haptics.remove()
-                                                                scope.launch {
-                                                                    val snapshot = pin.pin ?: Pin(pin.sectionId, pin.headingId, pin.label, 0)
-                                                                    container.userStore.unpin(pin.sectionId, pin.headingId)
-                                                                    val undo = snackbarHostState.showUndo("Unpinned ${pin.label}")
-                                                                    if (undo) {
-                                                                        container.userStore.restorePin(snapshot)
+                                        state.pins.chunked(2).forEach { rowPins ->
+                                            Row(
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .height(IntrinsicSize.Min),
+                                            ) {
+                                                rowPins.forEach { pin ->
+                                                    val isFollowed = (pin.sectionId to pin.headingId) in state.followedKeys
+                                                    PinTile(
+                                                        pin = pin,
+                                                        isFollowed = isFollowed,
+                                                        onNavigate = {
+                                                            onNavigateToSection(pin.sectionId, pin.anchor)
+                                                        },
+                                                        onUnpin = {
+                                                            haptics.remove()
+                                                            scope.launch {
+                                                                val snapshot = pin.pin ?: Pin(pin.sectionId, pin.headingId, pin.label, 0)
+                                                                container.userStore.unpin(pin.sectionId, pin.headingId)
+                                                                val undo = snackbarHostState.showUndo("Unpinned ${pin.label}")
+                                                                if (undo) {
+                                                                    container.userStore.restorePin(snapshot)
+                                                                }
+                                                            }
+                                                        },
+                                                        onToggleFollow = {
+                                                            scope.launch {
+                                                                val isMainSection = pin.headingId.isEmpty()
+                                                                if (isMainSection) {
+                                                                    if (isFollowed) {
+                                                                        container.userStore.unfollowSection(pin.sectionId)
+                                                                        onShowSnackbar("Unfollowed ${pin.title}")
+                                                                    } else {
+                                                                        container.userStore.followSection(pin.sectionId, pin.title)
+                                                                        onShowSnackbar("Following ${pin.title}")
+                                                                    }
+                                                                } else {
+                                                                    val nextFollowed = !isFollowed
+                                                                    val fullTitle = if (pin.parentTitle != null) "${pin.parentTitle} › ${pin.title}" else pin.title
+                                                                    container.userStore.setSubsectionFollowed(
+                                                                        pin.sectionId,
+                                                                        pin.headingId,
+                                                                        fullTitle,
+                                                                        nextFollowed,
+                                                                    )
+                                                                    if (nextFollowed) {
+                                                                        onShowSnackbar("Following ${pin.title}")
+                                                                    } else {
+                                                                        onShowSnackbar("Unfollowed ${pin.title}")
                                                                     }
                                                                 }
-                                                            },
+                                                            }
+                                                        },
+                                                        modifier = Modifier
+                                                            .weight(1f)
+                                                            .fillMaxHeight(),
                                                     )
-                                                },
-                                                label = {
-                                                    Text(
-                                                        text = pin.label,
-                                                        style = MaterialTheme.typography.labelLarge,
-                                                        maxLines = 1,
-                                                        overflow = TextOverflow.Ellipsis,
-                                                    )
-                                                },
-                                                colors = AssistChipDefaults.assistChipColors(
-                                                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                                ),
-                                                border = null,
-                                            )
+                                                }
+                                                if (rowPins.size == 1) {
+                                                    Spacer(Modifier.weight(1f))
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -763,3 +741,88 @@ fun HomeScreen(
     onNavigateToCheckLink = onNavigateToCheckLink,
     onShowSnackbar = onShowSnackbar,
 )
+
+@Composable
+private fun PinTile(
+    pin: ResolvedPin,
+    isFollowed: Boolean,
+    onNavigate: () -> Unit,
+    onUnpin: () -> Unit,
+    onToggleFollow: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var menuExpanded by remember { mutableStateOf(false) }
+    val haptics = rememberHaptics()
+
+    Box(modifier = modifier) {
+        Surface(
+            shape = MaterialTheme.shapes.medium,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            modifier = Modifier
+                .fillMaxSize()
+                .heightIn(min = 56.dp)
+                .clip(MaterialTheme.shapes.medium)
+                .combinedClickable(
+                    onClick = onNavigate,
+                    onLongClick = {
+                        haptics.longPress()
+                        menuExpanded = true
+                    },
+                ),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+            ) {
+                Icon(
+                    imageVector = sectionIcon(pin.sectionId),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp),
+                )
+                Spacer(Modifier.width(10.dp))
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    Text(
+                        text = pin.title,
+                        style = MaterialTheme.typography.labelLarge,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (pin.parentTitle != null) {
+                        Text(
+                            text = pin.parentTitle,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+        }
+        DropdownMenu(
+            expanded = menuExpanded,
+            onDismissRequest = { menuExpanded = false },
+        ) {
+            DropdownMenuItem(
+                text = { Text("Unpin") },
+                onClick = {
+                    menuExpanded = false
+                    onUnpin()
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(if (isFollowed) "Unfollow" else "Follow") },
+                onClick = {
+                    menuExpanded = false
+                    onToggleFollow()
+                },
+            )
+        }
+    }
+}

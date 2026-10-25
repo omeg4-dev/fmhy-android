@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import io.github.omeg4dev.fmhy.data.HomePrefs
+import io.github.omeg4dev.fmhy.data.user.Follow
 import io.github.omeg4dev.fmhy.data.user.Pin
 import io.github.omeg4dev.fmhy.data.user.UserStore
 
@@ -34,6 +35,8 @@ data class ResolvedPin(
     val label: String,
     val anchor: String? = null,
     val pin: Pin? = null,
+    val title: String = label,
+    val parentTitle: String? = null,
 )
 
 @Immutable
@@ -48,6 +51,7 @@ data class HomeUiState(
     val isEmptyState: Boolean = false,
     val personalHome: Boolean = false,
     val pins: ImmutableList<ResolvedPin> = persistentListOf(),
+    val followedKeys: Set<Pair<String, String>> = emptySet(),
     val hiddenSectionsCount: Int = 0,
     val showingHiddenSections: Boolean = false,
     val unreadPosts: Int = 0,
@@ -175,6 +179,8 @@ internal fun resolvePins(
                 label = sectionTitle,
                 anchor = null,
                 pin = pin,
+                title = sectionTitle,
+                parentTitle = null,
             )
         } else {
             val label = "$sectionTitle › ${pin.title}"
@@ -184,8 +190,23 @@ internal fun resolvePins(
                 label = label,
                 anchor = pin.headingId,
                 pin = pin,
+                title = pin.title,
+                parentTitle = sectionTitle,
             )
         }
+    }
+}
+
+internal fun isPinFollowed(pin: ResolvedPin, follows: List<Follow>): Boolean {
+    val sectionFollowed = follows.any { it.sectionId == pin.sectionId && it.headingId.isEmpty() && !it.excluded }
+    if (pin.headingId.isEmpty()) {
+        return sectionFollowed
+    }
+    val subFollow = follows.firstOrNull { it.sectionId == pin.sectionId && it.headingId == pin.headingId }
+    return if (sectionFollowed) {
+        subFollow?.excluded != true
+    } else {
+        subFollow != null && !subFollow.excluded
     }
 }
 
@@ -307,7 +328,15 @@ class HomeViewModel(
                 try { userStore.pins() } catch (_: Exception) { emptyList() }
             } else emptyList()
 
+            val rawFollows = if (personalHome) {
+                try { userStore.follows() } catch (_: Exception) { emptyList() }
+            } else emptyList()
+
             val resolvedPins = resolvePins(rawPins, allSections).toImmutableList()
+            val followedKeys = resolvedPins
+                .filter { isPinFollowed(it, rawFollows) }
+                .map { it.sectionId to it.headingId }
+                .toSet()
             val visibleSections = filterSections(allSections, personalHome, hiddenSections, showHidden).toImmutableList()
 
             val newCount = if (lastVisitTs > 0L) store.countAddedSince(lastVisitTs) else 0
@@ -328,6 +357,7 @@ class HomeViewModel(
                 isEmptyState = isEmpty,
                 personalHome = personalHome,
                 pins = resolvedPins,
+                followedKeys = followedKeys,
                 hiddenSectionsCount = hiddenSections.size,
                 showingHiddenSections = showHidden,
                 unreadPosts = unreadPosts,

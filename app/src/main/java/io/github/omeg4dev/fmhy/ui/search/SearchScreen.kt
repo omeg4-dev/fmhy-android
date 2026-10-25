@@ -275,8 +275,9 @@ fun SearchScreen(
             Column(modifier = Modifier.fillMaxSize()) {
             // Top area: Surface 52dp tall, 16dp horizontal margin, 8dp top with status-bar inset
             Surface(
-                shape = RoundedCornerShape(26.dp),
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                shape = SearchBarShape,
+                color = searchBarContainerColor(),
+                border = searchBarBorder(focused = fieldFocused),
                 modifier = Modifier
                     .statusBarsPadding()
                     .padding(start = 16.dp, end = 16.dp, top = 8.dp)

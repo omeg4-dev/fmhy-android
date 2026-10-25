@@ -1,9 +1,12 @@
 package io.github.omeg4dev.fmhy.ui.home
 
 import io.github.omeg4dev.fmhy.data.model.Section
+import io.github.omeg4dev.fmhy.data.user.Follow
 import io.github.omeg4dev.fmhy.data.user.Pin
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PinOrderTest {
@@ -116,5 +119,89 @@ class PinOrderTest {
 
         assertEquals(3, filtered.size)
         assertEquals(listOf("audio", "video", "gaming"), filtered.map { it.id })
+    }
+
+    @Test
+    fun testResolvedPinTitleAndParentTitle() {
+        val rawPins = listOf(
+            Pin(sectionId = "audio", headingId = "audio-tools", title = "Audio Tools", ord = 0),
+            Pin(sectionId = "video", headingId = "", title = "Video", ord = 1),
+        )
+
+        val resolved = resolvePins(rawPins, sections)
+        assertEquals(2, resolved.size)
+
+        // Subsection pin
+        assertEquals("Audio Tools", resolved[0].title)
+        assertEquals("Audio", resolved[0].parentTitle)
+        assertEquals("Audio › Audio Tools", resolved[0].label)
+
+        // Main section pin
+        assertEquals("Video", resolved[1].title)
+        assertNull(resolved[1].parentTitle)
+        assertEquals("Video", resolved[1].label)
+    }
+
+    @Test
+    fun testIsPinFollowed_mainFollowed() {
+        val pin = ResolvedPin(sectionId = "gaming", headingId = "", label = "Gaming", title = "Gaming")
+        val follows = listOf(
+            Follow(sectionId = "gaming", headingId = "", title = "Gaming", createdAt = 1000L),
+        )
+        assertTrue(isPinFollowed(pin, follows))
+    }
+
+    @Test
+    fun testIsPinFollowed_subsectionFollowedDirectly() {
+        val pin = ResolvedPin(
+            sectionId = "audio",
+            headingId = "audio-tools",
+            label = "Audio › Audio Tools",
+            title = "Audio Tools",
+            parentTitle = "Audio",
+        )
+        val follows = listOf(
+            Follow(sectionId = "audio", headingId = "audio-tools", title = "Audio Tools", createdAt = 1000L),
+        )
+        assertTrue(isPinFollowed(pin, follows))
+    }
+
+    @Test
+    fun testIsPinFollowed_subsectionFollowedViaWholeSection() {
+        val pin = ResolvedPin(
+            sectionId = "audio",
+            headingId = "audio-tools",
+            label = "Audio › Audio Tools",
+            title = "Audio Tools",
+            parentTitle = "Audio",
+        )
+        val follows = listOf(
+            Follow(sectionId = "audio", headingId = "", title = "Audio", createdAt = 1000L),
+        )
+        assertTrue(isPinFollowed(pin, follows))
+    }
+
+    @Test
+    fun testIsPinFollowed_notFollowed() {
+        val subPin = ResolvedPin(
+            sectionId = "audio",
+            headingId = "audio-tools",
+            label = "Audio › Audio Tools",
+            title = "Audio Tools",
+            parentTitle = "Audio",
+        )
+        val mainPin = ResolvedPin(sectionId = "video", headingId = "", label = "Video", title = "Video")
+        val follows = listOf(
+            Follow(sectionId = "gaming", headingId = "", title = "Gaming", createdAt = 1000L),
+        )
+        assertFalse(isPinFollowed(subPin, follows))
+        assertFalse(isPinFollowed(mainPin, follows))
+
+        // Excluded subsection when whole section is followed
+        val followsWithExclusion = listOf(
+            Follow(sectionId = "audio", headingId = "", title = "Audio", createdAt = 1000L),
+            Follow(sectionId = "audio", headingId = "audio-tools", title = "Audio Tools", createdAt = 1000L, excluded = true),
+        )
+        assertFalse(isPinFollowed(subPin, followsWithExclusion))
     }
 }

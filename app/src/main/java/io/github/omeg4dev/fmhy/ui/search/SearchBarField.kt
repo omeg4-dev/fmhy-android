@@ -1,5 +1,7 @@
 package io.github.omeg4dev.fmhy.ui.search
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -36,13 +38,16 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -67,6 +72,27 @@ internal val SearchKeyboardOptions = KeyboardOptions(
     keyboardType = KeyboardType.Text,
     imeAction = ImeAction.Search,
 )
+
+internal val SearchBarShape = RoundedCornerShape(26.dp)
+
+@Composable
+internal fun searchBarContainerColor(): Color =
+    MaterialTheme.colorScheme.primary.copy(alpha = 0.12f).compositeOver(MaterialTheme.colorScheme.surface)
+
+@Composable
+internal fun searchBarBorder(focused: Boolean = false): BorderStroke {
+    val borderColor = if (focused) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
+    }
+    val animatedColor by animateColorAsState(
+        targetValue = borderColor,
+        label = "searchBarBorderColor",
+    )
+    val width = if (focused) 2.dp else 1.dp
+    return BorderStroke(width, animatedColor)
+}
 
 /**
  * The search bar: parameter pills (`in:video`, `is:starred`, `site:x`, `-word`) followed by the free text.
@@ -102,7 +128,7 @@ internal fun SearchBarField(
             Icon(
                 Icons.Default.Search,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(start = 16.dp, end = 8.dp),
             )
         }
