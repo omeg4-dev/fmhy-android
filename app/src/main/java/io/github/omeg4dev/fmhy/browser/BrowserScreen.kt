@@ -262,23 +262,31 @@ fun BrowserScreen(
 
     // System Back Handling
     BackHandler(enabled = true) {
-        when {
-            hooks?.customView != null -> hooks.onHideCustomView()
-            isFindMode -> {
+        val action = backAction(
+            fullscreen = hooks?.customView != null,
+            findMode = isFindMode,
+            editMode = isEditMode,
+            hasTab = currentTab != null,
+            canGoBack = currentTab != null && tabManager.canGoBack(currentTab.id),
+            isBlankTab = currentTab != null && (currentTab.url == "about:blank" || currentTab.url.isEmpty()),
+            tabCount = tabs.size,
+        )
+        when (action) {
+            BackAction.EXIT_FULLSCREEN -> hooks?.onHideCustomView()
+            BackAction.CLOSE_FIND -> {
                 isFindMode = false
                 currentTab?.let { tabManager.getTabRecord(it.id)?.webView?.clearMatches() }
             }
-            isEditMode -> {
+            BackAction.CLOSE_EDIT -> {
                 isEditMode = false
             }
-            currentTab != null && tabManager.goBack(currentTab.id) -> {
-                // Navigated back in WebView
+            BackAction.WEB_BACK -> {
+                currentTab?.let { tabManager.goBack(it.id) }
             }
-            // Back on an empty new tab returns to the tab you came from instead of leaving the browser.
-            currentTab != null && tabs.size > 1 && (currentTab.url == "about:blank" || currentTab.url.isEmpty()) -> {
-                tabManager.closeTab(currentTab.id)
+            BackAction.CLOSE_BLANK_TAB -> {
+                currentTab?.let { tabManager.closeTab(it.id) }
             }
-            else -> {
+            BackAction.RETURN_TO_FMHY -> {
                 onFinishActivity()
             }
         }
@@ -576,6 +584,7 @@ fun BrowserScreen(
                                 onStopClick = { currentTab?.let { tabManager.stopTab(it.id) } },
                                 onBackClick = { currentTab?.let { tabManager.goBack(it.id) } },
                                 onForwardClick = { currentTab?.let { tabManager.goForward(it.id) } },
+                                onBackToFmhyClick = { bringFmhyToFront(context) },
                                 onNewTabClick = { isPrivate ->
                                     tabManager.openTab(url = "about:blank", title = "New tab", isPrivate = isPrivate, select = true)
                                 },

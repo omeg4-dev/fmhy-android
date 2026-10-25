@@ -144,7 +144,7 @@ fun BrowserPage(
                         SettingsDivider()
                         SwitchRow(
                             title = "Back-to-FMHY button",
-                            summary = "Small floating arrow in the browser that returns to FMHY",
+                            summary = "Floating button over pages that returns to FMHY. The FMHY logo in the address bar always does too.",
                             checked = !browserPrefs.backBubbleHidden,
                             onChange = { checked ->
                                 viewModel.updateBrowser { it.copy(backBubbleHidden = !checked) }

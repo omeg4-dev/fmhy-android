@@ -162,6 +162,15 @@ class BrowserWebViewFactory(
             // refresh the URL and the FMHY status when the page itself changes.
             override fun doUpdateVisitedHistory(view: WebView, url: String, isReload: Boolean) {
                 super.doUpdateVisitedHistory(view, url, isReload)
+                // Back/forward availability changes on every history update (redirects, back/forward, pushState routes),
+                // not only when a page finishes loading.
+                val back = view.canGoBack()
+                val forward = view.canGoForward()
+                if (back != record.canGoBack || forward != record.canGoForward) {
+                    record.canGoBack = back
+                    record.canGoForward = forward
+                    tabManager.notifyTabChanged(record.id)
+                }
                 if (isReload || url.substringBefore('#') == record.url.substringBefore('#')) return
                 if (hostOf(url) != hostOf(record.url)) record.favicon = null
                 record.url = url

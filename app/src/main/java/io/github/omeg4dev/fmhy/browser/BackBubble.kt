@@ -195,7 +195,7 @@ fun BackBubble(
         AlertDialog(
             onDismissRequest = { showHide = false },
             title = { Text("Hide the back-to-FMHY button?") },
-            text = { Text("Turn it back on in Settings → Browsing → Back-to-FMHY button. Back still returns to FMHY.") },
+            text = { Text("Turn it back on in Settings → Browsing → Back-to-FMHY button. The FMHY logo in the address bar and \"Back to FMHY\" in the menu still return to FMHY.") },
             confirmButton = {
                 TextButton(onClick = {
                     showHide = false

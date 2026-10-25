@@ -779,6 +779,8 @@ class TabManager(
         record.webView?.stopLoading()
     }
 
+    fun canGoBack(tabId: Long): Boolean = getTabRecord(tabId)?.webView?.canGoBack() == true
+
     fun goBack(tabId: Long): Boolean {
         val record = getTabRecord(tabId) ?: return false
         if (record.webView?.canGoBack() == true) {

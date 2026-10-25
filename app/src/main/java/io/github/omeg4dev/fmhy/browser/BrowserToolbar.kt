@@ -8,8 +8,10 @@ import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -95,11 +97,13 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import io.github.omeg4dev.fmhy.R
 import io.github.omeg4dev.fmhy.data.BookmarksRepository
 import io.github.omeg4dev.fmhy.data.ToolbarPosition
 import io.github.omeg4dev.fmhy.ui.common.Motion
@@ -126,6 +130,7 @@ fun BrowserToolbar(
     onStopClick: () -> Unit = {},
     onBackClick: () -> Unit = {},
     onForwardClick: () -> Unit = {},
+    onBackToFmhyClick: () -> Unit = {},
     onNewTabClick: (isPrivate: Boolean) -> Unit = {},
     onFindInPageClick: () -> Unit = {},
     onFindQueryChange: (String) -> Unit = {},
@@ -172,18 +177,24 @@ fun BrowserToolbar(
                     .padding(horizontal = 4.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                // Back button (48 dp target, disabled when !canGoBack)
-                IconButton(
-                    onClick = {
-                        onBackClick()
-                    },
-                    enabled = tab?.canGoBack == true,
-                    modifier = Modifier.size(48.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
+                // Back to FMHY (48 dp target, always enabled): the FMHY logo, never an arrow, so it can't be mistaken for web back.
+                IconButton(onClick = onBackToFmhyClick, modifier = Modifier.size(48.dp)) {
+                    Image(
+                        painter = painterResource(R.drawable.fmhy_logo),
+                        contentDescription = "Back to FMHY",
+                        modifier = Modifier.size(28.dp).clip(CircleShape),
                     )
+                }
+
+                // Forward: only when there is a page to go forward to; slides/fades so the address pill resizes smoothly.
+                AnimatedVisibility(
+                    visible = tab?.canGoForward == true,
+                    enter = fadeIn(Motion.standard()) + expandHorizontally(Motion.standard()),
+                    exit = fadeOut(Motion.standard()) + shrinkHorizontally(Motion.standard()),
+                ) {
+                    IconButton(onClick = onForwardClick, modifier = Modifier.size(48.dp)) {
+                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Forward")
+                    }
                 }
 
                 // Address pill (weight 1, swipe tabs, progress line)
@@ -252,6 +263,10 @@ fun BrowserToolbar(
             isSaved = isSaved,
             hasPage = !isBlank,
             onDismiss = { showMenuSheet = false },
+            onBackToFmhy = {
+                showMenuSheet = false
+                onBackToFmhyClick()
+            },
             onBack = {
                 showMenuSheet = false
                 onBackClick()
@@ -685,6 +700,7 @@ fun BrowserMenuSheet(
     isSaved: Boolean,
     hasPage: Boolean = true,
     onDismiss: () -> Unit,
+    onBackToFmhy: () -> Unit,
     onBack: () -> Unit,
     onForward: () -> Unit,
     onReload: () -> Unit,
@@ -711,6 +727,18 @@ fun BrowserMenuSheet(
                 .padding(horizontal = 16.dp)
                 .padding(bottom = 32.dp),
         ) {
+            MenuActionRow(
+                title = "Back to FMHY",
+                onClick = onBackToFmhy,
+                leading = {
+                    Image(
+                        painter = painterResource(R.drawable.fmhy_logo),
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp).clip(CircleShape),
+                    )
+                },
+            )
+
             // Top row: 5 icon buttons (Back, Forward, Reload/Stop, Share, Save/Saved)
             Row(
                 modifier = Modifier
@@ -980,10 +1008,10 @@ private fun PlaybackSpeedRow(
 
 @Composable
 private fun MenuActionRow(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
     title: String,
     enabled: Boolean = true,
     onClick: () -> Unit,
+    leading: @Composable () -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -993,12 +1021,7 @@ private fun MenuActionRow(
             .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            modifier = Modifier.size(24.dp),
-            tint = if (enabled) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
-        )
+        leading()
         Spacer(modifier = Modifier.width(16.dp))
         Text(
             text = title,
@@ -1006,6 +1029,28 @@ private fun MenuActionRow(
             color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
         )
     }
+}
+
+@Composable
+private fun MenuActionRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+) {
+    MenuActionRow(
+        title = title,
+        enabled = enabled,
+        onClick = onClick,
+        leading = {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(24.dp),
+                tint = if (enabled) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
+            )
+        },
+    )
 }
 
 fun openInExternalBrowser(context: Context, url: String) {
