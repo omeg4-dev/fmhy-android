@@ -446,20 +446,22 @@ fun SubsectionLine(
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = 40.dp)
-                .padding(horizontal = 16.dp),
+                .padding(end = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Row(
                 modifier = Modifier
                     .weight(1f)
+                    .height(40.dp)
                     .semantics {
                         contentDescription = "Choose subsection"
                     }
                     .clickable(
                         role = Role.Button,
                         onClick = { expanded = true },
-                    ),
+                    )
+                    .padding(start = 16.dp, end = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
@@ -473,7 +475,7 @@ fun SubsectionLine(
                 Icon(
                     imageVector = Icons.Filled.ArrowDropDown,
                     contentDescription = null,
-                    modifier = Modifier.size(18.dp),
+                    modifier = Modifier.size(24.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
