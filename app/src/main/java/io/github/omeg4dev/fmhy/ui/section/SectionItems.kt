@@ -124,13 +124,6 @@ fun HeadingHeader(
     val effectiveFlag = flag ?: if (heading.level == 1) flagFor(sectionId, heading.title) else null
     val displayTitle = if (effectiveFlag != null && heading.level == 1) "$effectiveFlag $splitTitle" else splitTitle
 
-    val targetBg = if (isHighlighted) {
-        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
-    } else {
-        Color.Transparent
-    }
-    val animatedBg by animateColorAsState(targetBg, animationSpec = tween(300), label = "heading_bg")
-
     when (heading.level) {
         1 -> {
             Box(
@@ -153,7 +146,7 @@ fun HeadingHeader(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(animatedBg)
+                            .jumpHighlight(active = isHighlighted, shape = RoundedCornerShape(16.dp))
                             .padding(horizontal = 16.dp, vertical = 14.dp)
                     ) {
                         Column(modifier = Modifier.fillMaxWidth()) {
@@ -195,7 +188,7 @@ fun HeadingHeader(
             Box(
                 modifier = modifier
                     .fillMaxWidth()
-                    .background(animatedBg)
+                    .jumpHighlight(active = isHighlighted)
                     .then(if (url != null) Modifier.clickable { onOpenUrl(url) } else Modifier)
                     .padding(
                         start = 16.dp,
@@ -239,7 +232,7 @@ fun HeadingHeader(
             Box(
                 modifier = modifier
                     .fillMaxWidth()
-                    .background(animatedBg)
+                    .jumpHighlight(active = isHighlighted)
                     .then(if (url != null) Modifier.clickable { onOpenUrl(url) } else Modifier)
                     .padding(
                         start = 28.dp,

@@ -4,6 +4,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -44,9 +45,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -70,7 +73,9 @@ import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
 import io.github.omeg4dev.fmhy.ui.common.showUndo
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -173,43 +178,45 @@ fun CategoryScreen(
     }
 
     // Scroll to focusEntryId or focusHeadingId on first composition and highlight
-    var hasScrolledToFocus by rememberSaveable { mutableStateOf(false) }
+    var hasScrolledToFocus by rememberSaveable(key.focusEntryId, key.focusHeadingId) { mutableStateOf(false) }
     LaunchedEffect(displayItems, key.focusHeadingId, key.focusEntryId) {
         if (!hasScrolledToFocus && displayItems.isNotEmpty()) {
-            val focusEntryId = key.focusEntryId
-            if (!focusEntryId.isNullOrEmpty()) {
-                val entryIdx = displayItems.indexOfFirst {
-                    when (it) {
-                        is SectionItem.EntryItem -> it.entry.id == focusEntryId || it.alternatives.any { a -> a.id == focusEntryId }
-                        is SectionItem.MoreGroup -> it.entries.any { e -> e.id == focusEntryId }
-                        else -> false
+            val target = resolveScrollTarget(displayItems, key.focusEntryId, key.focusHeadingId)
+            when (target) {
+                is ScrollTarget.Found -> {
+                    hasScrolledToFocus = true
+                    listState.jumpTo(target.index, viewportFraction = if (target.isHeading) HEADING_VIEWPORT_FRACTION else ENTRY_VIEWPORT_FRACTION)
+                    if (target.isHeading) {
+                        highlightedHeadingId = target.id
+                    } else {
+                        highlightedEntryId = target.id
                     }
                 }
-                if (entryIdx != -1) {
+                is ScrollTarget.MissingEntry -> {
                     hasScrolledToFocus = true
-                    listState.scrollToItem(entryIdx)
-                    highlightedEntryId = focusEntryId
-                    delay(1500)
-                    highlightedEntryId = null
-                    return@LaunchedEffect
+                    onShowSnackbar("This entry was moved or removed")
+                    if (target.fallbackHeadingIndex != null && target.fallbackHeadingId != null) {
+                        listState.jumpTo(target.fallbackHeadingIndex, viewportFraction = HEADING_VIEWPORT_FRACTION)
+                        highlightedHeadingId = target.fallbackHeadingId
+                    }
+                }
+                ScrollTarget.None -> {
+                    if (!key.focusEntryId.isNullOrEmpty() || !key.focusHeadingId.isNullOrEmpty()) {
+                        hasScrolledToFocus = true
+                    }
                 }
             }
+        }
+    }
 
-            val focusId = key.focusHeadingId
-            if (!focusId.isNullOrEmpty()) {
-                val targetIdx = displayItems.indexOfFirst {
-                    it is SectionItem.HeadingItem &&
-                        (it.heading.id == focusId || it.heading.anchor.equals(focusId, ignoreCase = true) || it.heading.id.endsWith(focusId))
-                }
-                if (targetIdx != -1) {
-                    hasScrolledToFocus = true
-                    listState.scrollToItem(targetIdx)
-                    val matchedHeading = (displayItems[targetIdx] as SectionItem.HeadingItem).heading
-                    highlightedHeadingId = matchedHeading.id
-                    delay(1200)
-                    highlightedHeadingId = null
-                }
+    LaunchedEffect(highlightedEntryId, highlightedHeadingId) {
+        if (highlightedEntryId != null || highlightedHeadingId != null) {
+            withTimeoutOrNull(20_000L) {
+                snapshotFlow { listState.isScrollInProgress }.first { !it }
+                snapshotFlow { listState.isScrollInProgress }.first { it }
             }
+            highlightedHeadingId = null
+            highlightedEntryId = null
         }
     }
 
@@ -453,7 +460,16 @@ fun CategoryScreen(
                         ),
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(MaterialTheme.colorScheme.surface),
+                            .background(MaterialTheme.colorScheme.surface)
+                            .pointerInput(highlightedHeadingId, highlightedEntryId) {
+                                if (highlightedHeadingId != null || highlightedEntryId != null) {
+                                    awaitPointerEventScope {
+                                        awaitFirstDown(requireUnconsumed = false)
+                                        highlightedHeadingId = null
+                                        highlightedEntryId = null
+                                    }
+                                }
+                            },
                     ) {
                         itemsIndexed(
                             displayItems,
@@ -491,13 +507,7 @@ fun CategoryScreen(
                                     }
                                     is SectionItem.EntryItem -> {
                                         val isEntryHighlighted = item.entry.id == highlightedEntryId || item.alternatives.any { it.id == highlightedEntryId }
-                                        val targetBg = if (isEntryHighlighted) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f) else Color.Transparent
-                                        val entryBg by animateColorAsState(
-                                            targetValue = targetBg,
-                                            animationSpec = tween(1500),
-                                            label = "category_entry_highlight",
-                                        )
-                                        Column(modifier = Modifier.background(entryBg)) {
+                                        Column(modifier = Modifier.jumpHighlight(active = isEntryHighlighted)) {
                                             SwipeToSave(entry = item.entry) {
                                                 EntryRow(
                                                     entry = item.entry,
