@@ -423,12 +423,9 @@ fun SubsectionBell(
 @Composable
 fun WebsiteSectionRow(
     currentTitle: String?,        // current subsection, with flag if any; null = none
-    isFollowed: Boolean,
-    onToggleFollow: (() -> Unit)?, // null = no bell
     onOpenMenu: () -> Unit,
     onOpenOnThisPage: () -> Unit,
     modifier: Modifier = Modifier,
-    bellTitle: String = currentTitle.orEmpty(),
 ) {
     Row(
         modifier = modifier
@@ -474,13 +471,6 @@ fun WebsiteSectionRow(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f, fill = false),
             )
-            if (onToggleFollow != null) {
-                SubsectionBell(
-                    isFollowed = isFollowed,
-                    subsectionTitle = bellTitle,
-                    onToggleFollow = onToggleFollow,
-                )
-            }
         }
 
         Row(

@@ -218,7 +218,7 @@ fun EntryRow(
                 if (range.first > cursor) {
                     append(baseDesc.subSequence(cursor, range.first))
                 }
-                appendInlineContent("platform:${platform.name}", alternateText = word)
+                appendInlineContent("platform:${platform.name}", alternateText = inlineAltText(word, "Platform"))
                 cursor = range.last + 1
             }
             if (cursor < baseDesc.length) {
@@ -253,7 +253,7 @@ fun EntryRow(
                 if (length > 0) {
                     append(" ")
                 }
-                appendInlineContent("link:$index", alternateText = link.label)
+                appendInlineContent("link:$index", alternateText = inlineAltText(link.label, "Link"))
             }
         }
 

@@ -341,6 +341,18 @@ fun SectionScreen(
     }
 
     val screen: @Composable () -> Unit = {
+        val showSubsection = websiteStyle && state.layout == SectionLayout.CONTINUOUS && state.structure.categories.isNotEmpty()
+        val currentCategory = if (showSubsection) {
+            val activeIndex = pendingSelection ?: derivedSelectedCategoryIndex
+            state.structure.categories.getOrNull(if (activeIndex in state.structure.categories.indices) activeIndex else 0)
+        } else null
+        val currentCleanTitle = if (websiteStyle) {
+            currentCategory?.let { CrossLinks.splitLinkTitle(it.heading.title).first }
+        } else null
+        val isCurrentFollowed = if (websiteStyle && currentCategory != null) {
+            FollowTree(follows).isSubsectionFollowed(currentSectionId, currentCategory.heading.id)
+        } else false
+
         Scaffold(
             snackbarHost = {
                 SnackbarHost(
@@ -432,6 +444,21 @@ fun SectionScreen(
                                             }
                                         },
                                     )
+                                    if (websiteStyle && currentCategory != null && currentCleanTitle != null) {
+                                        DropdownMenuItem(
+                                            text = {
+                                                Text(
+                                                    text = subsectionFollowMenuLabel(currentCleanTitle, isCurrentFollowed),
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                )
+                                            },
+                                            onClick = {
+                                                showOverflowMenu = false
+                                                toggleSubsectionFollow(currentCategory.heading.id, currentCleanTitle)
+                                            },
+                                        )
+                                    }
                                     if (homePrefs.personalHome) {
                                         if (isSectionPinned) {
                                             DropdownMenuItem(
@@ -482,31 +509,14 @@ fun SectionScreen(
                     )
 
                     if (websiteStyle) {
-                        val showSubsection = state.layout == SectionLayout.CONTINUOUS && state.structure.categories.isNotEmpty()
-                        val activeIndex = pendingSelection ?: derivedSelectedCategoryIndex
-                        val currentCategory = if (showSubsection) {
-                            state.structure.categories.getOrNull(if (activeIndex in state.structure.categories.indices) activeIndex else 0)
-                        } else null
-                        val tree = FollowTree(follows)
-                        val isCurrentFollowed = currentCategory != null && tree.isSubsectionFollowed(currentSectionId, currentCategory.heading.id)
                         val currentSecId = state.section?.id ?: viewModel.sectionId
-                        val currentCleanTitle = currentCategory?.let { CrossLinks.splitLinkTitle(it.heading.title).first }.orEmpty()
                         val currentTitle = currentCategory?.let { cat ->
                             val raw = CrossLinks.splitLinkTitle(cat.heading.title).first
                             flagFor(currentSecId, cat.heading.title)?.let { flag -> "$flag $raw" } ?: raw
                         }
-                        val onToggleFollow: (() -> Unit)? = if (currentCategory != null) {
-                            {
-                                val catTitle = currentCleanTitle
-                                toggleSubsectionFollow(currentCategory.heading.id, catTitle)
-                            }
-                        } else null
 
                         WebsiteSectionRow(
                             currentTitle = currentTitle,
-                            bellTitle = currentCleanTitle,
-                            isFollowed = isCurrentFollowed,
-                            onToggleFollow = onToggleFollow,
                             onOpenMenu = {
                                 scope.launch { drawerState.open() }
                             },

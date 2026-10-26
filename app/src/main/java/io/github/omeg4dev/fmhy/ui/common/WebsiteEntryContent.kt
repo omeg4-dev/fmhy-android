@@ -249,25 +249,15 @@ internal fun WebsiteEntryContent(
             }
 
             fun emitMarkers() {
-                if (isNew) {
+                for (m in websiteBadgeMarkers(
+                    isNew = isNew,
+                    alternativesCount = alternatives.size,
+                    isBase64 = entry.isBase64,
+                    isSaved = isSaved,
+                    isCrossLink = isCrossLink,
+                )) {
                     append(" ")
-                    appendInlineContent("badge:new", alternateText = "NEW")
-                }
-                if (alternatives.isNotEmpty()) {
-                    append(" ")
-                    appendInlineContent("badge:alternatives", alternateText = "+${alternatives.size}")
-                }
-                if (entry.isBase64) {
-                    append(" ")
-                    appendInlineContent("badge:base64", alternateText = "Hidden link, decoded")
-                }
-                if (isSaved) {
-                    append(" ")
-                    appendInlineContent("badge:saved", alternateText = "Saved")
-                }
-                if (isCrossLink) {
-                    append(" ")
-                    appendInlineContent("badge:crosslink", alternateText = "")
+                    appendInlineContent(m.id, alternateText = m.alternateText)
                 }
             }
 
@@ -304,7 +294,7 @@ internal fun WebsiteEntryContent(
                                     )
                                 }
                             }
-                            appendInlineContent(key, alternateText = seg.label)
+                            appendInlineContent(key, alternateText = inlineAltText(seg.label, "Link"))
                         } else {
                             withLink(
                                 LinkAnnotation.Clickable(
@@ -331,7 +321,7 @@ internal fun WebsiteEntryContent(
                             if (range.first > cursor) {
                                 append(baseDesc.subSequence(cursor, range.first))
                             }
-                            appendInlineContent("platform:${platform.name}", alternateText = word)
+                            appendInlineContent("platform:${platform.name}", alternateText = inlineAltText(word, "Platform"))
                             cursor = range.last + 1
                         }
                         if (cursor < baseDesc.length) {
@@ -372,7 +362,7 @@ internal fun WebsiteEntryContent(
                                 }
                             }
                         }
-                        appendInlineContent("link:${seg.index}", alternateText = seg.label)
+                        appendInlineContent("link:${seg.index}", alternateText = inlineAltText(seg.label, "Link"))
                     }
                 }
             }

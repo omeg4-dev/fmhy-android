@@ -256,3 +256,7 @@ fun findCategoryHeadingId(structure: SectionStructure, headingId: String): Strin
     return cat?.heading?.id ?: if (structure.overview.any { it is SectionItem.HeadingItem && it.heading.id == headingId }) "__overview" else null
 }
 
+internal fun subsectionFollowMenuLabel(title: String, isFollowed: Boolean): String =
+    if (isFollowed) "Unfollow $title" else "Follow $title"
+
+
