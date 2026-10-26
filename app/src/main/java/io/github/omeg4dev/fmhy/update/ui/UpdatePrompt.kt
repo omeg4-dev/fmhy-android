@@ -25,6 +25,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -37,6 +38,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.omeg4dev.fmhy.update.ReleaseInfo
 import io.github.omeg4dev.fmhy.update.UpdateController
 import io.github.omeg4dev.fmhy.update.UpdateState
+import kotlinx.coroutines.delay
+
+private const val UP_TO_DATE_VISIBLE_MS = 4_000L
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -52,6 +56,10 @@ fun UpdatePrompt(
     when (val s = state) {
         is UpdateState.Idle, is UpdateState.Checking, is UpdateState.UpToDate -> {
             if (s is UpdateState.UpToDate && s.manual) {
+                LaunchedEffect(s) {
+                    delay(UP_TO_DATE_VISIBLE_MS)
+                    controller.dismissMessage()
+                }
                 Card(
                     colors = CardDefaults.elevatedCardColors(
                         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
