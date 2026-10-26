@@ -15,6 +15,21 @@ android {
         targetSdk = 36
         versionCode = 10
         versionName = "0.5.4"
+
+        val releaseRepo = "omeg4-dev/fmhy-android"
+        buildConfigField("String", "RELEASE_REPO", "\"$releaseRepo\"")
+    }
+
+    flavorDimensions += "store"
+    productFlavors {
+        create("github") {
+            dimension = "store"
+            buildConfigField("boolean", "UPDATER_ENABLED", "true")
+        }
+        create("fdroid") {
+            dimension = "store"
+            buildConfigField("boolean", "UPDATER_ENABLED", "false")
+        }
     }
 
     // Release key lives outside the repo; without it (e.g. on F-Droid's build server) release builds are unsigned.

@@ -23,7 +23,7 @@ Source: the Obsidian note "FMHY 1.0.0 Changes" (2026-10-25). Each batch file hol
 | 17 | ONB-01 | [First-run artwork](BATCH-17-first-run-artwork.md) | Sonnet | `sonnet` | no | Done |
 | 18 | BRW-03 | [Wi-Fi only options](BATCH-18-wifi-only.md) | Sonnet | `sonnet` | yes | Done |
 | 19 | APP-02, APP-03 | [Problem and crash reports](BATCH-19-reports.md) | Sonnet | `sonnet` | no | Done |
-| 20 | APP-01 | [In-app updates](BATCH-20-in-app-updates.md) | Sonnet | `sonnet` | yes | To do |
+| 20 | APP-01 | [In-app updates](BATCH-20-in-app-updates.md) | Sonnet | `sonnet` | yes | Done |
 | 21a | BRW-02 | [Download Manager (core)](BATCH-21a-download-manager-core.md) | Opus | `opus` | yes | To do |
 | 21b | BRW-02 | [Download Manager (video and checks)](BATCH-21b-download-manager-checks.md) | Opus | `opus` | yes | To do |
 | 22 | BRW-06 | [Downloads tied to FMHY](BATCH-22-downloads-fmhy.md) | Sonnet | `sonnet` | yes | To do |

@@ -97,6 +97,7 @@ interface AppContainer : OnboardingActions {
     val browserHooks: BrowserHooks get() = error("Not supported")
     val statusNotices: StatusNotices get() = error("Not supported")
     val networkMonitor: NetworkMonitor get() = error("Not supported")
+    val updateController: io.github.omeg4dev.fmhy.update.UpdateController get() = io.github.omeg4dev.fmhy.update.NoOpUpdateController
     val firstWikiNeedsMobilePermission: MutableStateFlow<Boolean> get() = MutableStateFlow(false)
     val isSyncWaitingForWifi: MutableStateFlow<Boolean> get() = MutableStateFlow(false)
     val hasBuiltInWiki: Boolean get() = false
@@ -270,6 +271,10 @@ class DefaultAppContainer(
 
     override val networkMonitor: NetworkMonitor by lazy {
         NetworkMonitor(context)
+    }
+
+    override val updateController by lazy {
+        io.github.omeg4dev.fmhy.update.createUpdateController(context, appScope, okHttpClient, settingsRepository, networkMonitor)
     }
 
     override val firstWikiNeedsMobilePermission = MutableStateFlow(false)

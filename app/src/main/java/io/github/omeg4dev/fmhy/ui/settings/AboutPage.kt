@@ -18,6 +18,7 @@ import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Restore
+import androidx.compose.material3.Badge
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -25,10 +26,14 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.omeg4dev.fmhy.update.UpdateCheckPolicy
+import io.github.omeg4dev.fmhy.update.UpdateState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -39,6 +44,11 @@ fun AboutPage(
     extraRows: LazyListScope.() -> Unit = {},
 ) {
     val context = LocalContext.current
+    val updateController = viewModel.updateController
+    val updatePrefs by viewModel.updatePrefs.collectAsStateWithLifecycle()
+    val updateState by updateController.state.collectAsStateWithLifecycle()
+    val availableVersion by updateController.availableVersion.collectAsStateWithLifecycle()
+
     val versionName = remember(context) {
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -90,6 +100,34 @@ fun AboutPage(
                         value = versionName,
                         icon = Icons.Default.Info,
                     )
+                    if (updateController.enabled) {
+                        SettingsDivider(hasIcon = true)
+                        SwitchRow(
+                            title = "Check for updates automatically",
+                            summary = "Only asks the project's release page whether a newer version exists. Sends nothing about you.",
+                            checked = updatePrefs.autoCheck,
+                            onChange = { checked ->
+                                viewModel.updateUpdatePrefs { it.copy(autoCheck = checked) }
+                            },
+                        )
+                        SettingsDivider(hasIcon = true)
+                        val checkSummary = when {
+                            updateState is UpdateState.Checking -> "Checking…"
+                            updateState is UpdateState.WaitingForWifi -> "Waiting for Wi-Fi"
+                            availableVersion != null -> "Version $availableVersion is available"
+                            updateState is UpdateState.UpToDate -> "You have the latest version"
+                            else -> null
+                        }
+                        val showMarker = UpdateCheckPolicy.showSettingsMarker(availableVersion, versionName)
+                        NavRow(
+                            title = "Check for updates",
+                            summary = checkSummary,
+                            badge = if (showMarker) { { Badge() } } else null,
+                            onClick = {
+                                updateController.checkNow()
+                            },
+                        )
+                    }
                     SettingsDivider(hasIcon = true)
                     NavRow(
                         title = "Run setup again",

@@ -66,6 +66,10 @@ interface SettingsRepository {
         get() = kotlinx.coroutines.flow.flowOf(DataUsagePrefs())
     suspend fun updateDataUsage(f: (DataUsagePrefs) -> DataUsagePrefs) {}
 
+    val updatePrefs: Flow<UpdatePrefs>
+        get() = kotlinx.coroutines.flow.flowOf(UpdatePrefs())
+    suspend fun updateUpdatePrefs(f: (UpdatePrefs) -> UpdatePrefs) {}
+
     val followNotifyPromptShown: Flow<Boolean>
         get() = kotlinx.coroutines.flow.flowOf(false)
     suspend fun setFollowNotifyPromptShown(shown: Boolean) {}
@@ -199,6 +203,14 @@ class DefaultSettingsRepository(
 
         // Problem reports
         private val KEY_REPORT_OFFER_CRASHES = booleanPreferencesKey("report_offer_crashes")
+
+        // In-app update
+        private val KEY_UPDATE_AUTO_CHECK = booleanPreferencesKey("update_auto_check")
+        private val KEY_UPDATE_LAST_CHECK_MS = longPreferencesKey("update_last_check_ms")
+        private val KEY_UPDATE_LATER_UNTIL_MS = longPreferencesKey("update_later_until_ms")
+        private val KEY_UPDATE_SKIPPED_VERSION = stringPreferencesKey("update_skipped_version")
+        private val KEY_UPDATE_INSTALL_EXPLAINED = booleanPreferencesKey("update_install_explained")
+        private val KEY_UPDATE_KNOWN_AVAILABLE = stringPreferencesKey("update_known_available")
     }
 
     override val lastVisitTs: Flow<Long> = dataStore.data.map { prefs ->
@@ -711,6 +723,48 @@ class DefaultSettingsRepository(
             val current = readDataUsagePrefs(prefs)
             val updated = f(current)
             writeDataUsagePrefs(prefs, updated)
+        }
+    }
+
+    // --- UpdatePrefs ---
+    private fun readUpdatePrefs(prefs: Preferences): UpdatePrefs {
+        val default = UpdatePrefs()
+        return UpdatePrefs(
+            autoCheck = prefs[KEY_UPDATE_AUTO_CHECK] ?: default.autoCheck,
+            lastCheckMs = prefs[KEY_UPDATE_LAST_CHECK_MS] ?: default.lastCheckMs,
+            laterUntilMs = prefs[KEY_UPDATE_LATER_UNTIL_MS] ?: default.laterUntilMs,
+            skippedVersion = prefs[KEY_UPDATE_SKIPPED_VERSION] ?: default.skippedVersion,
+            installExplained = prefs[KEY_UPDATE_INSTALL_EXPLAINED] ?: default.installExplained,
+            knownAvailable = prefs[KEY_UPDATE_KNOWN_AVAILABLE] ?: default.knownAvailable,
+        )
+    }
+
+    private fun writeUpdatePrefs(prefs: MutablePreferences, p: UpdatePrefs) {
+        prefs[KEY_UPDATE_AUTO_CHECK] = p.autoCheck
+        prefs[KEY_UPDATE_LAST_CHECK_MS] = p.lastCheckMs
+        prefs[KEY_UPDATE_LATER_UNTIL_MS] = p.laterUntilMs
+        if (p.skippedVersion != null) {
+            prefs[KEY_UPDATE_SKIPPED_VERSION] = p.skippedVersion
+        } else {
+            prefs.remove(KEY_UPDATE_SKIPPED_VERSION)
+        }
+        prefs[KEY_UPDATE_INSTALL_EXPLAINED] = p.installExplained
+        if (p.knownAvailable != null) {
+            prefs[KEY_UPDATE_KNOWN_AVAILABLE] = p.knownAvailable
+        } else {
+            prefs.remove(KEY_UPDATE_KNOWN_AVAILABLE)
+        }
+    }
+
+    override val updatePrefs: Flow<UpdatePrefs> = dataStore.data.map { prefs ->
+        readUpdatePrefs(prefs)
+    }.distinctUntilChanged()
+
+    override suspend fun updateUpdatePrefs(f: (UpdatePrefs) -> UpdatePrefs) {
+        dataStore.edit { prefs ->
+            val current = readUpdatePrefs(prefs)
+            val updated = f(current)
+            writeUpdatePrefs(prefs, updated)
         }
     }
 

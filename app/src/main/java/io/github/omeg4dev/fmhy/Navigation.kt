@@ -809,6 +809,17 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                     }
                 }
 
+                // Update prompt overlay above bottom bar / system insets
+                if (!showOnboarding && container.updateController.enabled) {
+                    io.github.omeg4dev.fmhy.update.ui.UpdatePrompt(
+                        controller = container.updateController,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = if (shouldShowBar) bottomBarPadding else navBarInset)
+                            .zIndex(1.5f),
+                    )
+                }
+
                 // Sync / ad-block pills: an overlay at the top, takes no layout space
                 if (!showOnboarding) {
                     StatusNoticeOverlay(
@@ -848,6 +859,11 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
         }
         PasteDecodeUi(pasteDecoder)
         UnsafeWarningDialog(linkOpener)
+
+        if (container.updateController.enabled) {
+            io.github.omeg4dev.fmhy.update.ui.UpdateMobileDataDialog(controller = container.updateController)
+            io.github.omeg4dev.fmhy.update.ui.InstallPermissionDialog(controller = container.updateController)
+        }
 
         val firstWikiNeedsMobilePermission by container.firstWikiNeedsMobilePermission.collectAsStateWithLifecycle()
         if (firstWikiNeedsMobilePermission) {

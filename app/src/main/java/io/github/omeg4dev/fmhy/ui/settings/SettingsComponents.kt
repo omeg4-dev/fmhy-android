@@ -215,16 +215,23 @@ fun NavRow(
     title: String,
     summary: String? = null,
     icon: ImageVector? = null,
+    badge: (@Composable () -> Unit)? = null,
     enabled: Boolean = true,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
     ListItem(
         headlineContent = {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyLarge,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                if (badge != null) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    badge()
+                }
+            }
         },
         supportingContent = summary?.let {
             {

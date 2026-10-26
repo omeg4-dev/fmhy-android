@@ -23,7 +23,10 @@ import io.github.omeg4dev.fmhy.data.ThemeMode
 import io.github.omeg4dev.fmhy.di.AppContainer
 import io.github.omeg4dev.fmhy.theme.FMHYTheme
 import io.github.omeg4dev.fmhy.ui.common.GesturePrefs
+import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -34,6 +37,11 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         val container = (application as FmhyApp).container
+
+        lifecycleScope.launch {
+            container.isInitialized.first { it }
+            container.updateController.checkOnStartup()
+        }
 
         handleIntent(intent, container)
         intent?.let { intentFlow.tryEmit(it) }

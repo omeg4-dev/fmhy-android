@@ -387,6 +387,21 @@ class SettingsViewModel(
         DataUsagePrefs()
     )
 
+    val updatePrefs: StateFlow<io.github.omeg4dev.fmhy.data.UpdatePrefs> = settingsRepository.updatePrefs.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5000),
+        io.github.omeg4dev.fmhy.data.UpdatePrefs()
+    )
+
+    val updateController: io.github.omeg4dev.fmhy.update.UpdateController
+        get() = container.updateController
+
+    fun updateUpdatePrefs(f: (io.github.omeg4dev.fmhy.data.UpdatePrefs) -> io.github.omeg4dev.fmhy.data.UpdatePrefs) {
+        viewModelScope.launch {
+            settingsRepository.updateUpdatePrefs(f)
+        }
+    }
+
     val reportOfferCrashes: StateFlow<Boolean> = settingsRepository.reportOfferCrashes.stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5000),

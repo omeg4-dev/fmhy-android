@@ -163,6 +163,15 @@ data class DataUsagePrefs(
     val appDataWifiOnly: Boolean = false,
 )
 
+data class UpdatePrefs(
+    val autoCheck: Boolean = true,
+    val lastCheckMs: Long = 0,
+    val laterUntilMs: Long = 0,
+    val skippedVersion: String? = null,
+    val installExplained: Boolean = false,
+    val knownAvailable: String? = null,
+)
+
 data class DataPrefs(
     val syncOnLaunch: Boolean = true,
     val keepHistory: Boolean = true,

@@ -349,4 +349,27 @@ class SettingsRepositoryTest {
         assertTrue(updatedAppearance.websiteStyle)
         assertEquals(initialAppearance.copy(websiteStyle = true), updatedAppearance)
     }
+
+    @Test
+    fun testUpdatePrefsRoundTrip() = runTest {
+        val (repo, _) = createRepository(this)
+        val defaultPrefs = repo.updatePrefs.first()
+        assertEquals(UpdatePrefs(), defaultPrefs)
+
+        val expected = UpdatePrefs(
+            autoCheck = false,
+            lastCheckMs = 123456789L,
+            laterUntilMs = 987654321L,
+            skippedVersion = "0.6.0",
+            installExplained = true,
+            knownAvailable = "0.7.0",
+        )
+        repo.updateUpdatePrefs { expected }
+        assertEquals(expected, repo.updatePrefs.first())
+
+        // Test clearing skippedVersion and knownAvailable (null values)
+        repo.updateUpdatePrefs { it.copy(skippedVersion = null, knownAvailable = null) }
+        val cleared = repo.updatePrefs.first()
+        assertEquals(expected.copy(skippedVersion = null, knownAvailable = null), cleared)
+    }
 }
