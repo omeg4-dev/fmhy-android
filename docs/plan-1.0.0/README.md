@@ -20,7 +20,7 @@ Source: the Obsidian note "FMHY 1.0.0 Changes" (2026-10-25). Each batch file hol
 | 14 | UI-02, UI-03 | [Swipe and tap gestures](BATCH-14-gestures.md) | Sonnet | `sonnet` | no | Done |
 | 15 | UI-01 | [Website style](BATCH-15-website-style.md) | Opus | `opus` | yes | Done |
 | 16 | HOME-01, HOME-02, HOME-03 | [Home screen](BATCH-16-home-screen.md) | Sonnet | `sonnet` | no | Done |
-| 17 | ONB-01 | [First-run artwork](BATCH-17-first-run-artwork.md) | Sonnet | `sonnet` | no | To do |
+| 17 | ONB-01 | [First-run artwork](BATCH-17-first-run-artwork.md) | Sonnet | `sonnet` | no | Done |
 | 18 | BRW-03 | [Wi-Fi only options](BATCH-18-wifi-only.md) | Sonnet | `sonnet` | yes | To do |
 | 19 | APP-02, APP-03 | [Problem and crash reports](BATCH-19-reports.md) | Sonnet | `sonnet` | no | To do |
 | 20 | APP-01 | [In-app updates](BATCH-20-in-app-updates.md) | Sonnet | `sonnet` | yes | To do |

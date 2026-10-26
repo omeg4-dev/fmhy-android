@@ -381,11 +381,17 @@ private fun BrowsingPageContent(
                 .fillMaxWidth()
                 .enterStagger(index = 0, key = OnboardingPage.BROWSING),
         ) {
-            Text(
-                text = "Where should links open?",
-                style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.onSurface,
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                StepIcon()
+                Text(
+                    text = "Where should links open?",
+                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            }
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = "Choose how web pages and safety checks are handled.",
@@ -616,11 +622,17 @@ private fun FollowPageContent(
                 .fillMaxWidth()
                 .enterStagger(index = 0, key = OnboardingPage.FOLLOW),
         ) {
-            Text(
-                text = "Follow what you care about",
-                style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.onSurface,
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                StepIcon()
+                Text(
+                    text = "Follow what you care about",
+                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            }
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = "Get a quiet heads-up when FMHY adds sites there.",

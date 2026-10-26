@@ -71,6 +71,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -106,6 +107,7 @@ private fun rememberAnimationsOff(): Boolean {
 @Composable
 fun WelcomePageContent(modifier: Modifier = Modifier) {
     val key = OnboardingPage.WELCOME
+    val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
@@ -116,7 +118,7 @@ fun WelcomePageContent(modifier: Modifier = Modifier) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            // Hero: the FMHY logo over a soft logo-colour glow, name below (index 0)
+            // Hero: FMHY banner over a soft glow (index 0)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -126,18 +128,15 @@ fun WelcomePageContent(modifier: Modifier = Modifier) {
             ) {
                 WelcomeGlow(modifier = Modifier.fillMaxSize())
                 Image(
-                    painter = painterResource(R.drawable.fmhy_logo_hero),
-                    contentDescription = "FMHY logo",
-                    modifier = Modifier.size(120.dp),
+                    painter = painterResource(if (dark) R.drawable.fmhy_banner else R.drawable.fmhy_banner_light),
+                    contentDescription = "FMHY banner",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(176.dp),
                 )
             }
-            Text(
-                text = "FreeMediaHeckYeah",
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.enterStagger(index = 0, key = key),
-            )
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             // Headline + one-liner (index 1)
             Column(
@@ -194,6 +193,14 @@ fun WelcomePageContent(modifier: Modifier = Modifier) {
                     )
                 }
             }
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "Unofficial fan project. Not affiliated with FMHY.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.enterStagger(index = 5, key = key),
+            )
         }
     }
 }
@@ -314,12 +321,18 @@ fun HelloPageContent(
                 modifier = Modifier.enterStagger(index = 0, key = key),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text(
-                    text = "Make it yours",
-                    style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    textAlign = TextAlign.Center,
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    StepIcon()
+                    Text(
+                        text = "Make it yours",
+                        style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        textAlign = TextAlign.Center,
+                    )
+                }
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = "Pick a theme and an accent. You can change it any time in Settings.",
