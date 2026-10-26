@@ -12,100 +12,66 @@
 [![License](https://img.shields.io/github/license/omeg4-dev/fmhy-android)](https://github.com/omeg4-dev/fmhy-android/blob/main/LICENSE)
 
 
-**The whole FMHY wiki in your pocket: faster than the website, safer than a random browser, and it works offline.**
+**The whole FMHY wiki in your pocket: searchable, offline, with an ad-blocking browser and a link checker.**
 
-Over 21,000 hand-picked free sites for streaming, downloading, reading, gaming, ad blocking and more,
-in a native app that keeps up with every change for you.
-
-[**⬇ Download the latest APK**](https://github.com/omeg4-dev/fmhy-android/releases/latest) · Android 8.0+ · free & open source · no account · no ads · no tracking
+[**⬇ Download the APK**](https://github.com/omeg4-dev/fmhy-android/releases/latest) · Android 8.0+ · free & open source · no account · no ads · no tracking
 
 </div>
 
 <p align="center">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" width="160" alt="The whole wiki, in your pocket">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" width="160" alt="Find anything in a second">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" width="160" alt="The best sites, starred">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/4.png" width="160" alt="Check a link before you click">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/5.png" width="160" alt="Never miss what changed">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/6.png" width="160" alt="Make it yours">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" width="250" alt="The whole wiki, in your pocket">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" width="250" alt="Find anything in a second">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/4.png" width="250" alt="Check a link before you click">
 </p>
 
-## New in 1.0.0
+## Highlights
 
-- **Built-in download manager**: files from the in-app browser download inside the app, with progress, pause and resume, a "download this video" button, and optional VirusTotal / Hybrid Analysis checks (your own free key, off by default).
-- **In-app updates**: the app tells you about a new release and updates with one tap. Nothing installs without you.
-- **Wi-Fi only options** for downloads, browsing and updates, and a **Report a problem** button that never sends anything by itself.
-- **A calmer, faster browser**: smoother scrolling and pinch zoom, a hold menu on links, tab groups, a back-to-FMHY button and fixes for sites that never loaded.
-- **Ten vibrant accent palettes**, a proper light mode, a choice of bottom bar styles and swiping between screens.
-- **Pin sections to Home** from anywhere you can follow them, and **"Since last visit"** in What's new.
-- Settings re-sorted, with a search.
+- ⚡ **Instant offline search** over 21,000+ sites: typo-proof, with filters like `in:video anime`, `is:starred adblock`, `site:github.com`.
+- 🛡️ **Built-in browser with real ad blocking** (uBlock Origin and EasyList lists), pop-up and redirect shield, unsafe-site warnings, and a mirror or Wayback one tap away when a site is down.
+- 🔗 **Check any link before you open it**: paste or share from any app and see if it is on FMHY, starred, or a fake lookalike.
+- 🔔 **What's new**: every site added, starred, removed or moved, plus "Since last visit". Follow sections and get one quiet notification.
+- ⬇️ **Download manager** with pause and resume, and optional VirusTotal / Hybrid Analysis checks (your own free key, off by default).
+- 🎨 **Make it yours**: light, dark or pure black, ten accent palettes or Material You, pins on Home, a widget, saved folders you can share.
+- 🔒 **Private**: no account, no ads, no tracking, no server of ours. In-app updates, and nothing installs without a tap.
 
----
+<p align="center">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" width="250" alt="The best sites, starred">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/5.png" width="250" alt="Never miss what changed">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/6.png" width="250" alt="Make it yours">
+</p>
 
-## Why use the app instead of the website?
+## More
 
-### ⚡ Find anything in a second
-- **Instant search over every site on FMHY**, offline, as you type.
-- **Typo-proof**: fuzzy search finds `stremio` even when you type `stremo`. Switch to exact when you know what you want.
-- **Search like a pro**: `in:video anime`, `is:starred adblock` or `site:github.com`. Parameters turn into tidy pills, and the app suggests sections, filters and sites as soon as you type `in:`, `is:` or `site:`.
-- **The best matches first**: the 3 most fitting categories on top, starred picks ranked higher, and the matching words highlighted, even when they're in the link or the category.
+<details>
+<summary><b>Search and reading</b></summary>
 
-### 🛡️ Browse without the junk
-- **A built-in browser with real ad blocking**, powered by uBlock Origin's and EasyList's own filter lists.
-- **Pop-ups and forced redirects stopped** before they hijack your tab.
-- **Know where you are**: a small icon in the address bar tells you when a page is starred or listed on FMHY, so you can see at a glance that you're on the real site.
-- **Unsafe sites get a warning** before they load, based on FMHY's unsafe-sites list.
-- **Site down? One tap** gets you a mirror, the Wayback Machine or an alternative from the same category.
-- Tabs that stay organised (list or grid, private tabs kept apart), video in picture-in-picture, playback speed and double-tap to seek.
+- Fuzzy search finds `stremio` when you type `stremo`; switch to exact any time. The 3 best-fitting categories come first, starred picks rank higher, matches are highlighted.
+- Every section in fmhy.net's order with the same stars and icons. One row per wiki line: tap for all its mirrors and extra links, hold to open.
+- The beginner's guide, notes, FAQ and FMHY's posts are readable in the app. Hidden base64 links are decoded for you.
+</details>
 
-### 🔗 Check any link before you click it
-- Paste or share a link from **any app** and see right away whether it's on FMHY, starred, or a known fake lookalike.
-- Shows **exactly where on FMHY** the site is listed, with one tap to that spot.
+<details>
+<summary><b>Browser</b></summary>
 
-### 🔔 Never miss what changed
-- **What's new**: every site added, starred, removed, renamed or moved, by day, week or month, and searchable.
-- **Follow the sections you care about** and get one quiet notification when FMHY adds or stars something there.
-- **Your saved sites are watched**: you hear when one is starred, removed or moved, and removed ones come with replacements.
+- A small icon in the address bar shows whether the page is starred or listed on FMHY.
+- Tabs in list or grid, private tabs kept apart, tab groups, picture-in-picture video, playback speed, double-tap to seek, smooth scrolling and pinch zoom.
+- Wi-Fi only options for downloads, browsing and updates; "Report a problem" never sends anything by itself.
+</details>
 
-### 📌 Make it yours
-- **Save sites with one swipe**, sort them into folders and share a list with friends.
-- **Your look**: light, dark or pure black, Material You or your own accent colour, adjustable text size.
-- A home-screen widget, launcher shortcuts, a Random pick to discover something new, and several app icons.
+<details>
+<summary><b>Privacy details</b></summary>
 
-### 🔒 Private by design
-- **No account, no ads, no tracking, no server of ours.** The app reads the wiki straight from FMHY's own repository.
-- **Optional file checks.** If you turn on VirusTotal or Hybrid Analysis with your own free key, the app sends a link's web address when you tap "Check link first", and a file's fingerprint (SHA-256) for file checks. A file is only uploaded after you agree. Off by default; nothing is sent until you add a key.
-- **Works offline**: the release APK ships with the whole wiki built in, and updates only download what changed.
-- Hidden base64 links on FMHY are decoded for you.
+- The app reads the wiki straight from FMHY's own repository. Release APKs ship with a copy, so they work offline from the first launch and updates only download what changed.
+- If you add a VirusTotal or Hybrid Analysis key, the app sends a link's web address when you tap "Check link first" and a file's SHA-256 for file checks. A file is only uploaded after you agree. Nothing is sent until you add a key.
+</details>
 
----
+## Install
 
-## Everything FMHY has, the way FMHY has it
-
-- Every section in the same order as fmhy.net, with the same stars and icons.
-- One row per line of the wiki: tap for every site on that line with its mirrors and extra links, hold to open it.
-- The beginner's guide, notes, FAQ and FMHY's posts, readable in the app.
-
-
-## Download
-
-Get the APK from [**Releases**](https://github.com/omeg4-dev/fmhy-android/releases/latest) (Android 8.0 or newer).
-A short setup on first start lets you pick your look, how links open and which sections to follow.
-
-If you installed a build older than 0.4.0, uninstall it first: those were signed with a different key.
+Get the APK from [**Releases**](https://github.com/omeg4-dev/fmhy-android/releases/latest). A short setup on first start picks your look, how links open and which sections to follow. If you installed a build older than 0.4.0, uninstall it first: those used a different signing key.
 
 ## How it works
 
-There's no server of ours in between. The app downloads the wiki's markdown straight from
-[fmhy/edit](https://github.com/fmhy/edit) (jsDelivr as a fallback) and parses it on your phone. Each sync
-checks which files changed and only downloads those. Everything is stored locally.
-
-Change history comes from fmhy/edit itself and, for the last month, from
-[fmhy-tracker](https://fmhy-tracker.pages.dev/). The browser's filter lists come from uBlock Origin's and
-EasyList's own servers. Link checks use the same lists as [FMHY SafeGuard](https://github.com/fmhy/FMHY-SafeGuard).
-
-Release APKs include a copy of the wiki, so they work offline from the first launch. Builds made straight
-from this repo download the wiki the first time they start.
+No server in between: the app downloads the wiki's markdown from [fmhy/edit](https://github.com/fmhy/edit) (jsDelivr as fallback), parses it on your phone and syncs only changed files. Change history comes from fmhy/edit and [fmhy-tracker](https://fmhy-tracker.pages.dev/); filter lists from uBlock Origin and EasyList; link checks use the same lists as [FMHY SafeGuard](https://github.com/fmhy/FMHY-SafeGuard). Builds made straight from this repo download the wiki on first start.
 
 ## Building
 
@@ -114,24 +80,10 @@ from this repo download the wiki the first time they start.
 ./gradlew :core:data:test :app:testDebugUnitTest
 ```
 
-- `app/`: the Android app (Kotlin, Jetpack Compose)
-- `core/data/`: pure-JVM data layer (Kotlin parser, SQLite, sync, search, ad-block engine)
-- `schema/`: dataset schema
-- `pipeline/`: Python reference parser, only used for parity tests
-- `tools/`: icon conversion (`svg2vd.py`), store screenshot frames (`store-frames.py`); third-party assets are listed in `THIRD_PARTY.md`
-
-More detail on the architecture and build is in `STATUS.md`.
+`app/` Android app (Kotlin, Compose) · `core/data/` data layer (parser, SQLite, sync, search, ad-block) · `schema/` · `pipeline/` Python reference parser for parity tests · `tools/` icon and store-frame scripts. Third-party assets: `THIRD_PARTY.md`; architecture notes: `STATUS.md`.
 
 ## Not affiliated with FMHY
 
-This is a fan project, not made by the FMHY team. Which sites get listed is up to them: suggestions for the
-wiki go to [fmhy.net](https://fmhy.net/other/contributing), problems with the app go to the
-[issue tracker](https://github.com/omeg4-dev/fmhy-android/issues).
+A fan project, not made by the FMHY team. Which sites get listed is up to them: suggestions go to [fmhy.net](https://fmhy.net/other/contributing), app problems to the [issue tracker](https://github.com/omeg4-dev/fmhy-android/issues). License: GPL-3.0-or-later.
 
-License: GPL-3.0-or-later.
-
-## Made with AI
-
-This app was built with the help of AI coding assistants. I decide what it
-does and review the changes, but a large part of the code was written by AI.
-If you find a bug or something odd, please open an issue.
+Built with the help of AI coding assistants: I decide what the app does and review the changes, but a large part of the code was written by AI. If you find a bug, please open an issue.
