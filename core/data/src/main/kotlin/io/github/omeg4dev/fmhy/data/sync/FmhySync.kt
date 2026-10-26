@@ -3,6 +3,7 @@ package io.github.omeg4dev.fmhy.data.sync
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import io.github.omeg4dev.fmhy.data.DATASET_SCHEMA
 import io.github.omeg4dev.fmhy.data.DatasetStore
+import io.github.omeg4dev.fmhy.data.model.ChangeKind
 import io.github.omeg4dev.fmhy.data.model.Section
 import io.github.omeg4dev.fmhy.data.parse.Base64Map
 import io.github.omeg4dev.fmhy.data.parse.FmhyParser
@@ -66,7 +67,7 @@ open class FmhySync(
         }
     }
 
-    private fun saveState(state: SyncState) {
+    internal fun saveState(state: SyncState) {
         try {
             dir.mkdirs()
             stateFile.writeText(json.encodeToString(state))
@@ -378,12 +379,14 @@ open class FmhySync(
                 totalRemoved > 0 ||
                 totalUpdated > 0
 
+            val baseline = firstDownload || state.source == "bundled"
             var nextNum = store.maxNum()
             val currentVer = store.version()
 
             if (hasStructuralChanges) {
                 coroutineContext.ensureActive()
                 onProgress(SyncProgress.Saving)
+                val saveStartMs = System.currentTimeMillis()
                 store.withTransaction { conn ->
                     val commitSha = "sync:$now"
 
@@ -394,7 +397,13 @@ open class FmhySync(
                     nextNum = applySectionDiffs(conn, parsedSections, sectionDiffs, nextNum, now)
 
                     // C. Record changes into `changes` table per §3 & §4.3
-                    val changesToRecord = classifyChanges(absentSections, absentSectionEntries, sectionDiffs)
+                    val allChanges = classifyChanges(absentSections, absentSectionEntries, sectionDiffs)
+                    // Bundled snapshot / empty store: entries known at install are not "new".
+                    val changesToRecord = if (baseline) {
+                        allChanges.filter { it.kind != ChangeKind.ADDED.value }
+                    } else {
+                        allChanges
+                    }
 
                     insertChanges(conn, changesToRecord, now, commitSha)
 
@@ -420,6 +429,8 @@ open class FmhySync(
                     // E. Meta: version + 1 if anything changed, last_sync, source
                     writeMeta(conn, currentVer, now, sourceHost)
                 }
+                val ms = System.currentTimeMillis() - saveStartMs
+                log("FmhySync: saving took $ms ms (+$totalAdded \u2212$totalRemoved ~$totalUpdated, ${parsedSections.size} sections, baseline=$baseline)")
 
                 store.notifyChanged()
 

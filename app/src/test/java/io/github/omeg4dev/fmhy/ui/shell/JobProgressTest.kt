@@ -56,7 +56,7 @@ class JobProgressTest {
 
         val save = adblockStep(FilterListProgress.Saving)
         assertEquals(2, save.index)
-        assertEquals("Saving", save.label)
+        assertEquals("Saving the ad-block rules", save.label)
         assertEquals(0.90f, save.fraction, 0.001f)
         assertFalse(save.measured)
     }
@@ -101,7 +101,7 @@ class JobProgressTest {
 
         val save = wikiStep(SyncProgress.Saving)
         assertEquals(3, save.index)
-        assertEquals("Saving", save.label)
+        assertEquals("Saving the wiki update", save.label)
         assertEquals(0.90f, save.fraction, 0.001f)
         assertFalse(save.measured)
     }

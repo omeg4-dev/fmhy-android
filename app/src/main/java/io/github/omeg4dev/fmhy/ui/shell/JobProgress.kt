@@ -16,8 +16,8 @@ enum class JobKind { ADBLOCK, WIKI }
 data class JobStep(val index: Int, val label: String, val fraction: Float, val measured: Boolean)
 
 fun stepNames(kind: JobKind): List<String> = when (kind) {
-    JobKind.ADBLOCK -> listOf("Downloading ad-block lists", "Preparing the rules", "Saving")
-    JobKind.WIKI -> listOf("Checking for updates", "Updating the wiki", "Reading the changes", "Saving")
+    JobKind.ADBLOCK -> listOf("Downloading ad-block lists", "Preparing the rules", "Saving the ad-block rules")
+    JobKind.WIKI -> listOf("Checking for updates", "Updating the wiki", "Reading the changes", "Saving the wiki update")
 }
 
 fun jobTitle(kind: JobKind): String = when (kind) {
@@ -47,7 +47,7 @@ fun adblockStep(p: FilterListProgress): JobStep = when (p) {
     )
     FilterListProgress.Saving -> JobStep(
         index = 2,
-        label = "Saving",
+        label = "Saving the ad-block rules",
         fraction = 0.90f,
         measured = false,
     )
@@ -83,7 +83,7 @@ fun wikiStep(p: SyncProgress): JobStep = when (p) {
     }
     SyncProgress.Saving -> JobStep(
         index = 3,
-        label = "Saving",
+        label = "Saving the wiki update",
         fraction = 0.90f,
         measured = false,
     )

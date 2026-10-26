@@ -1,7 +1,9 @@
 package io.github.omeg4dev.fmhy.data.sync
 
+import androidx.sqlite.execSQL
 import io.github.omeg4dev.fmhy.data.DatasetStore
 import io.github.omeg4dev.fmhy.data.DatasetStoreTest
+import io.github.omeg4dev.fmhy.data.model.ChangeKind
 import io.github.omeg4dev.fmhy.data.model.Tier
 import io.github.omeg4dev.fmhy.data.search.SearchEngine
 import java.io.File
@@ -156,7 +158,8 @@ class FmhySyncTest {
         val v1 = store.version()
         assertTrue(v1 > 1L)
         val changes1 = store.changes().size
-        assertTrue(changes1 > 0)
+        // first sync is a silent baseline: no added rows
+        assertEquals(0, changes1)
 
         // Second sync: server returns 304 for all
         clockTime += 700L
@@ -992,6 +995,160 @@ class FmhySyncTest {
         assertTrue(syncJob.isCancelled)
         assertTrue(caughtCancellation)
         assertNull(syncResult)
+        store.close()
+    }
+
+    @Test
+    fun testFirstSyncAfterSnapshotWritesNoAddedRows() = runTest {
+        val syncDir = tempFolder.newFolder("sync_snapshot")
+        val dbFile = File(syncDir, "current.db")
+        val store = DatasetStoreTest.createSampleDb(dbFile, version = 1L)
+
+        val files = mutableMapOf(
+            "/docs/.vitepress/transformer/constants.ts" to sampleConstants,
+            "/rentry" to sampleRentry,
+            "/unsafe-domains.txt" to sampleUnsafeDomains,
+            "/unsafe-reasons.json" to sampleUnsafeReasons,
+            "/docs/audio.md" to sampleAudioMd,
+            "/docs/video.md" to sampleVideoMd,
+        )
+
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                val path = request.url.encodedPath
+                val content = files[path] ?: return MockResponse.Builder().code(404).build()
+                val etag = "\"${sha256(content)}\""
+                val ifNoneMatch = request.headers["If-None-Match"]
+                if (ifNoneMatch == etag) {
+                    return MockResponse.Builder().code(304).build()
+                }
+                return MockResponse.Builder()
+                    .code(200)
+                    .setHeader("ETag", etag)
+                    .body(content)
+                    .build()
+            }
+        }
+
+        var clockTime = 1000L
+        val logs = mutableListOf<String>()
+        val sync = FmhySync(
+            store = store,
+            dir = syncDir,
+            client = client,
+            sources = createSources(),
+            clock = { clockTime },
+            log = { logs.add(it) },
+        )
+
+        // Seed initial store content (like a bundled snapshot)
+        val initialRes = sync.sync(force = true)
+        assertTrue(initialRes is SyncResult.Updated)
+        // Bundled snapshot has an empty changes table
+        store.withConnection { conn -> conn.execSQL("DELETE FROM changes;") }
+
+        // Seed sync state as the snapshot would (source = "bundled", lastCheck = 0)
+        val bundledState = SyncState(
+            source = "bundled",
+            lastCheck = 0L,
+            lastSuccess = clockTime,
+            files = mapOf(
+                "docs/.vitepress/transformer/constants.ts" to FileState(sha256 = sha256(sampleConstants)),
+                "rentry" to FileState(sha256 = sha256(sampleRentry)),
+                "filterlist-domains.txt" to FileState(sha256 = sha256(sampleUnsafeDomains)),
+                "filterlists-reasons.json" to FileState(sha256 = sha256(sampleUnsafeReasons)),
+                "docs/audio.md" to FileState(sha256 = sha256(sampleAudioMd)),
+                "docs/video.md" to FileState(sha256 = sha256(sampleVideoMd)),
+            ),
+            version = store.version(),
+        )
+        sync.saveState(bundledState)
+
+        // Serve a live wiki with one extra entry vs the store
+        val videoWithExtra = """
+            # Video Streaming
+            * [Video Stream](https://video-stream.com) - Top video streaming
+            * [Extra Stream](https://extra-stream.com) - Extra video streaming
+        """.trimIndent()
+        files["/docs/video.md"] = videoWithExtra
+
+        // First sync (baseline): store.changes().filter { it.kind == "added" } is empty
+        clockTime += 700L
+        val res1 = sync.sync(force = true)
+        assertTrue("First sync should be Updated, was $res1", res1 is SyncResult.Updated)
+        val addedChanges1 = store.changes().filter { it.kind == ChangeKind.ADDED }
+        assertEquals("Baseline sync after snapshot should write no added rows", 0, addedChanges1.size)
+        assertTrue(logs.any { it.startsWith("FmhySync: saving took") && it.contains("baseline=true") })
+
+        // Second sync where server adds exactly one new entry: exactly ONE 'added' row, for that entry
+        val videoWithSecondExtra = """
+            # Video Streaming
+            * [Video Stream](https://video-stream.com) - Top video streaming
+            * [Extra Stream](https://extra-stream.com) - Extra video streaming
+            * [Second Stream](https://second-stream.com) - Second new stream
+        """.trimIndent()
+        files["/docs/video.md"] = videoWithSecondExtra
+
+        clockTime += 700L
+        val res2 = sync.sync(force = true)
+        assertTrue("Second sync should be Updated, was $res2", res2 is SyncResult.Updated)
+        val addedChanges2 = store.changes().filter { it.kind == ChangeKind.ADDED }
+        assertEquals(1, addedChanges2.size)
+        assertEquals("Second Stream", addedChanges2[0].name)
+        assertEquals("https://second-stream.com", addedChanges2[0].url)
+        assertTrue(logs.any { it.startsWith("FmhySync: saving took") && it.contains("baseline=false") })
+
+        store.close()
+    }
+
+    @Test
+    fun testFirstSyncOnEmptyStoreWritesNoAddedRows() = runTest {
+        val syncDir = tempFolder.newFolder("sync_empty_store")
+        val dbFile = File(syncDir, "current.db")
+        val store = DatasetStoreTest.createSampleDb(dbFile, version = 1L)
+
+        val files = mutableMapOf(
+            "/docs/.vitepress/transformer/constants.ts" to sampleConstants,
+            "/rentry" to sampleRentry,
+            "/unsafe-domains.txt" to sampleUnsafeDomains,
+            "/unsafe-reasons.json" to sampleUnsafeReasons,
+            "/docs/audio.md" to sampleAudioMd,
+            "/docs/video.md" to sampleVideoMd,
+        )
+
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                val path = request.url.encodedPath
+                val content = files[path] ?: return MockResponse.Builder().code(404).build()
+                val etag = "\"${sha256(content)}\""
+                return MockResponse.Builder()
+                    .code(200)
+                    .setHeader("ETag", etag)
+                    .body(content)
+                    .build()
+            }
+        }
+
+        val sync = FmhySync(
+            store = store,
+            dir = syncDir,
+            client = client,
+            sources = createSources(),
+            clock = { 1000L },
+            log = {},
+        )
+
+        // Store has no sections and default state (SyncState())
+        assertTrue(store.sections().isEmpty())
+        val res = sync.sync(force = true)
+        assertTrue("Sync should be Updated, was $res", res is SyncResult.Updated)
+
+        // After sync entries exist, zero 'added' rows
+        assertTrue(store.sections().isNotEmpty())
+        assertTrue(store.entriesForSection("audio").isNotEmpty())
+        val addedRows = store.changes().filter { it.kind == ChangeKind.ADDED }
+        assertEquals("Empty store first sync should write zero added rows", 0, addedRows.size)
+
         store.close()
     }
 }
