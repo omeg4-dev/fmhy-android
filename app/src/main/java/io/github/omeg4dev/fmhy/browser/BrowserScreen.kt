@@ -1,15 +1,20 @@
 package io.github.omeg4dev.fmhy.browser
 
+import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.view.MotionEvent
 import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.webkit.WebView
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.fadeIn
@@ -67,13 +72,17 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.zIndex
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.omeg4dev.fmhy.FmhyApp
+import io.github.omeg4dev.fmhy.browser.download.DownloadsSheet
 import io.github.omeg4dev.fmhy.browser.adblock.AdblockService
 import io.github.omeg4dev.fmhy.browser.adblock.SelectorPicker
 import io.github.omeg4dev.fmhy.data.BookmarksRepository
 import io.github.omeg4dev.fmhy.data.DatasetStore
 import io.github.omeg4dev.fmhy.data.SettingsRepository
 import io.github.omeg4dev.fmhy.data.ToolbarPosition
+import io.github.omeg4dev.fmhy.data.UpdatePrefs
 import io.github.omeg4dev.fmhy.data.search.SearchEngine as DatasetSearchEngine
 import io.github.omeg4dev.fmhy.data.user.UserBookmark
 import io.github.omeg4dev.fmhy.ui.common.BookmarksState
@@ -129,11 +138,19 @@ fun BrowserScreen(
     }
     var showShieldSheet by remember { mutableStateOf(false) }
     var showTabsSheet by remember { mutableStateOf(false) }
+    var showDownloadsSheet by remember { mutableStateOf(false) }
     val showTabsRequested by tabManager.showTabsRequested.collectAsStateWithLifecycle()
     LaunchedEffect(showTabsRequested) {
         if (showTabsRequested) {
             showTabsSheet = true
             tabManager.consumeShowTabs()
+        }
+    }
+    val showDownloadsRequested by tabManager.showDownloadsRequested.collectAsStateWithLifecycle()
+    LaunchedEffect(showDownloadsRequested) {
+        if (showDownloadsRequested) {
+            showDownloadsSheet = true
+            tabManager.consumeShowDownloads()
         }
     }
 
@@ -153,6 +170,39 @@ fun BrowserScreen(
     val hooks = browserHooks as? DefaultBrowserHooks
     val snackbarHostState = remember { SnackbarHostState() }
     val customView = hooks?.customView
+
+    val container = remember(context) { (context.applicationContext as FmhyApp).container }
+    val downloadController = container.downloads
+    val downloadSummary by downloadController.activeSummary.collectAsStateWithLifecycle()
+    val updatePrefs by settingsRepository.updatePrefs.collectAsStateWithLifecycle(initialValue = UpdatePrefs())
+
+    LaunchedEffect(downloadController) {
+        downloadController.notices.collect { notice ->
+            snackbarHostState.showSnackbar(notice)
+        }
+    }
+
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { /* ignore result */ }
+    var notificationPermissionRequestedThisSession by remember { mutableStateOf(false) }
+    LaunchedEffect(hooks) {
+        hooks?.downloadStarted?.collect {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !notificationPermissionRequestedThisSession) {
+                notificationPermissionRequestedThisSession = true
+                val granted = ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) == PackageManager.PERMISSION_GRANTED
+                if (!granted) {
+                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+            }
+        }
+    }
+
+    val pendingDownload = hooks?.pendingDownload
+    var offerAccepted by remember(pendingDownload) { mutableStateOf(false) }
 
     val bookmarkList by bookmarksRepository.bookmarks.collectAsStateWithLifecycle(initialValue = emptyList())
     val folderList by bookmarksRepository.folders.collectAsStateWithLifecycle(initialValue = emptyList())
@@ -471,6 +521,7 @@ fun BrowserScreen(
                                 webView.setOnTouchListener { _, event ->
                                     when (event.actionMasked) {
                                         MotionEvent.ACTION_DOWN -> {
+                                            currentTab?.let { tabManager.getTabRecord(it.id)?.lastTouchAt = System.currentTimeMillis() }
                                             barTracker.onPointerDown()
                                             webView.removeCallbacks(idle)
                                             startY = event.rawY
@@ -677,6 +728,9 @@ fun BrowserScreen(
                                         )
                                     }
                                 },
+                                onDownloadsClick = { showDownloadsSheet = true },
+                                downloadSummary = downloadSummary,
+                                onDownloadsRingClick = { showDownloadsSheet = true },
                             )
                         }
                     }
@@ -805,6 +859,27 @@ fun BrowserScreen(
                         modifier = Modifier.zIndex(7f),
                     )
                 }
+
+                // Download interstitial overlay
+                if (pendingDownload?.interstitial != null && !offerAccepted) {
+                    InterstitialOverlay(
+                        state = pendingDownload.interstitial,
+                        onGoBack = { hooks?.pendingDownload = null },
+                        onContinue = { offerAccepted = true },
+                        onReport = {
+                            val app = context.applicationContext as? io.github.omeg4dev.fmhy.FmhyApp
+                            app?.container?.openReport(
+                                io.github.omeg4dev.fmhy.report.ReportRequest(
+                                    defaultArea = io.github.omeg4dev.fmhy.report.ReportArea.OTHER,
+                                    pageUrl = pendingDownload.url,
+                                    isPrivateTab = pendingDownload.isPrivate,
+                                    crash = null,
+                                )
+                            )
+                        },
+                        modifier = Modifier.zIndex(7f),
+                    )
+                }
             }
 
             // Full-screen video (WebChromeClient custom view)
@@ -838,19 +913,26 @@ fun BrowserScreen(
     }
 
     // Download confirmation
-    if (hooks != null) {
-        val pendingDownload = hooks.pendingDownloadDialog
-        if (pendingDownload != null) {
-            DownloadDialog(
-                state = pendingDownload,
-                onConfirm = {
-                    hooks.pendingDownloadDialog = null
-                    hooks.executeDownload(context, pendingDownload.url, pendingDownload.filename, pendingDownload.userAgent, pendingDownload.mimeType)
-                },
-                onCancel = { hooks.pendingDownloadDialog = null },
-            )
+    if (hooks != null && pendingDownload != null) {
+        val showDialogOrConfirm = pendingDownload.interstitial == null || offerAccepted
+        if (showDialogOrConfirm) {
+            if (pendingDownload.needsConfirmation) {
+                DownloadDialog(
+                    offer = pendingDownload,
+                    onConfirm = { allowMobile ->
+                        hooks.confirmDownload(pendingDownload, allowMobile)
+                    },
+                    onCancel = { hooks.pendingDownload = null },
+                )
+            } else {
+                LaunchedEffect(pendingDownload, offerAccepted) {
+                    hooks.confirmDownload(pendingDownload, allowMobile = false)
+                }
+            }
         }
+    }
 
+    if (hooks != null) {
         // "Open in another app?" from the redirect/app-link guard (call site 1)
         val appDialog = hooks.pendingExternalAppDialog
         if (appDialog != null) {
@@ -927,6 +1009,19 @@ fun BrowserScreen(
                 tabManager.closeAllTabs()
                 onFinishActivity()
             },
+        )
+    }
+
+    // Downloads Sheet
+    if (showDownloadsSheet) {
+        DownloadsSheet(
+            controller = downloadController,
+            isPrivateTab = currentTab?.isPrivate == true,
+            onPasteLink = { hooks?.offerPastedLink(context, it, currentTab?.isPrivate == true) },
+            onDismiss = { showDownloadsSheet = false },
+            onMessage = { msg -> scope.launch { snackbarHostState.showSnackbar(msg) } },
+            installExplained = updatePrefs.installExplained,
+            onInstallExplained = { scope.launch { settingsRepository.updateUpdatePrefs { it.copy(installExplained = true) } } },
         )
     }
 

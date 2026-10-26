@@ -1,5 +1,9 @@
 package io.github.omeg4dev.fmhy.ui.settings
 
+import android.content.Intent
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -38,12 +42,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.omeg4dev.fmhy.browser.download.DownloadStorage
 import io.github.omeg4dev.fmhy.browser.formatRelativeTime
 import io.github.omeg4dev.fmhy.data.adblock.FilterList
 import io.github.omeg4dev.fmhy.data.adblock.FilterListCatalog
@@ -59,8 +65,10 @@ fun BlockingPage(
     modifier: Modifier = Modifier,
     extraRows: LazyListScope.() -> Unit = {},
 ) {
+    val context = LocalContext.current
     val blockingPrefs by viewModel.blockingPrefs.collectAsStateWithLifecycle()
     val protectionPrefs by viewModel.protectionPrefs.collectAsStateWithLifecycle()
+    val downloadPrefs by viewModel.downloadPrefs.collectAsStateWithLifecycle()
     val adblockStatus by viewModel.adblockStatus.collectAsStateWithLifecycle()
     val listStates by viewModel.listStates.collectAsStateWithLifecycle()
     val jobs by viewModel.jobs.collectAsStateWithLifecycle()
@@ -75,6 +83,52 @@ fun BlockingPage(
 
     var showCustomRulesDialog by remember { mutableStateOf(false) }
     var showAllowedSitesDialog by remember { mutableStateOf(false) }
+    var showDownloadFolderDialog by remember { mutableStateOf(false) }
+
+    val folderPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                )
+            } catch (_: Exception) {
+                return@rememberLauncherForActivityResult
+            }
+
+            val oldUriString = downloadPrefs.folderUri
+            if (oldUriString != null && oldUriString != uri.toString()) {
+                try {
+                    context.contentResolver.releasePersistableUriPermission(
+                        Uri.parse(oldUriString),
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                    )
+                } catch (_: Exception) {
+                }
+            }
+
+            viewModel.updateDownloadPrefs {
+                it.copy(folderUri = uri.toString(), folderFallbackNotified = false)
+            }
+        }
+    }
+
+    val downloadFolderSummary = remember(downloadPrefs.folderUri) {
+        val folderUri = downloadPrefs.folderUri
+        if (folderUri == null) {
+            "Downloads (default)"
+        } else {
+            val uri = Uri.parse(folderUri)
+            val baseLabel = DownloadStorage.folderLabel(context, uri) ?: "Chosen folder"
+            if (!DownloadStorage.isTreeAvailable(context, uri)) {
+                "$baseLabel · not available, using Downloads"
+            } else {
+                baseLabel
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -205,6 +259,12 @@ fun BlockingPage(
                         onChange = { checked ->
                             viewModel.updateProtection { it.copy(warnRiskyDownloads = checked) }
                         },
+                    )
+                    SettingsDivider()
+                    NavRow(
+                        title = "Download folder",
+                        summary = downloadFolderSummary,
+                        onClick = { showDownloadFolderDialog = true },
                     )
                     SettingsDivider()
                     SwitchRow(
@@ -412,6 +472,55 @@ fun BlockingPage(
             },
             onRemove = { site ->
                 viewModel.updateBlocking { it.copy(allowlist = it.allowlist - site) }
+            },
+        )
+    }
+
+    if (showDownloadFolderDialog) {
+        AlertDialog(
+            onDismissRequest = { showDownloadFolderDialog = false },
+            title = { Text("Download folder") },
+            text = {
+                Text("New downloads are saved here. Files already downloaded stay where they are.")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDownloadFolderDialog = false
+                        folderPickerLauncher.launch(downloadPrefs.folderUri?.let { Uri.parse(it) })
+                    }
+                ) {
+                    Text("Choose folder")
+                }
+            },
+            dismissButton = {
+                Row {
+                    if (downloadPrefs.folderUri != null) {
+                        TextButton(
+                            onClick = {
+                                val oldUriString = downloadPrefs.folderUri
+                                if (oldUriString != null) {
+                                    try {
+                                        context.contentResolver.releasePersistableUriPermission(
+                                            Uri.parse(oldUriString),
+                                            Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                                        )
+                                    } catch (_: Exception) {
+                                    }
+                                }
+                                viewModel.updateDownloadPrefs {
+                                    it.copy(folderUri = null, folderFallbackNotified = false)
+                                }
+                                showDownloadFolderDialog = false
+                            }
+                        ) {
+                            Text("Use default")
+                        }
+                    }
+                    TextButton(onClick = { showDownloadFolderDialog = false }) {
+                        Text("Cancel")
+                    }
+                }
             },
         )
     }

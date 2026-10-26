@@ -48,6 +48,7 @@ import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DesktopWindows
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MoreVert
@@ -63,6 +64,7 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -98,6 +100,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import io.github.omeg4dev.fmhy.browser.download.ActiveSummary
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -144,6 +147,9 @@ fun BrowserToolbar(
     onSelectTab: (Long) -> Unit = {},
     onCopyLink: () -> Unit = {},
     onReportProblem: () -> Unit = {},
+    onDownloadsClick: () -> Unit = {},
+    downloadSummary: ActiveSummary? = null,
+    onDownloadsRingClick: () -> Unit = {},
     /** FMHY status icon (drawn at the start of the address pill); empty when the tab has no state. */
     statusIcon: @Composable () -> Unit = {},
     modifier: Modifier = Modifier,
@@ -204,6 +210,8 @@ fun BrowserToolbar(
                     tab = tab,
                     tabs = tabs,
                     showBlockedCount = showBlockedCount,
+                    downloadSummary = downloadSummary,
+                    onDownloadsRingClick = onDownloadsRingClick,
                     onAddressClick = onAddressClick,
                     onShieldClick = onShieldClick,
                     onSelectTab = onSelectTab,
@@ -265,6 +273,10 @@ fun BrowserToolbar(
             isSaved = isSaved,
             hasPage = !isBlank,
             onDismiss = { showMenuSheet = false },
+            onDownloads = {
+                showMenuSheet = false
+                onDownloadsClick()
+            },
             onBackToFmhy = {
                 showMenuSheet = false
                 onBackToFmhyClick()
@@ -348,6 +360,8 @@ private fun AddressPill(
     tab: TabState?,
     tabs: List<TabState>,
     showBlockedCount: Boolean,
+    downloadSummary: ActiveSummary? = null,
+    onDownloadsRingClick: () -> Unit = {},
     onAddressClick: () -> Unit,
     onShieldClick: () -> Unit,
     onSelectTab: (Long) -> Unit,
@@ -547,6 +561,34 @@ private fun AddressPill(
                 }
             }
 
+            AnimatedVisibility(
+                visible = downloadSummary != null,
+                enter = fadeIn(),
+                exit = fadeOut(),
+            ) {
+                val fraction = downloadSummary?.fraction
+                Box(
+                    modifier = Modifier
+                        .minimumInteractiveComponentSize()
+                        .clickable(onClick = onDownloadsRingClick)
+                        .semantics { contentDescription = "Downloads" },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (fraction != null) {
+                        CircularProgressIndicator(
+                            progress = { fraction },
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                        )
+                    } else {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                        )
+                    }
+                }
+            }
+
             // Shield with blocked count badge INSIDE the pill on the right
             if (!isBlank) {
                 val isBlockingOn = tab?.sitePrefs?.adblock ?: true
@@ -706,6 +748,7 @@ fun BrowserMenuSheet(
     isSaved: Boolean,
     hasPage: Boolean = true,
     onDismiss: () -> Unit,
+    onDownloads: () -> Unit,
     onBackToFmhy: () -> Unit,
     onBack: () -> Unit,
     onForward: () -> Unit,
@@ -843,6 +886,14 @@ fun BrowserMenuSheet(
                 enabled = hasPage,
                 onClick = {
                     onFindInPage()
+                },
+            )
+
+            MenuActionRow(
+                icon = Icons.Default.Download,
+                title = "Downloads",
+                onClick = {
+                    onDownloads()
                 },
             )
 

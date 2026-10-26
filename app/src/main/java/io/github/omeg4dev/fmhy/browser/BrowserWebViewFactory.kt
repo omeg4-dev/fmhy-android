@@ -290,7 +290,7 @@ class BrowserWebViewFactory(
         }
 
         webView.setDownloadListener { url, userAgent, contentDisposition, mimetype, contentLength ->
-            browserHooks.onDownloadStart(context, url, userAgent, contentDisposition, mimetype, contentLength)
+            browserHooks.onDownloadStart(context, record, url, userAgent, contentDisposition, mimetype, contentLength)
         }
 
         return webView

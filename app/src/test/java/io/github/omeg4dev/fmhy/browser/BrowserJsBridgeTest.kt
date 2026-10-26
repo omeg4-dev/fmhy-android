@@ -105,7 +105,7 @@ class BrowserJsBridgeTest {
         val hooks = object : BrowserHooks {
             override val siteStatusIcon: @androidx.compose.runtime.Composable (TabState) -> Unit = {}
             override fun handleCreateWindow(context: Context, tab: TabState, isUserGesture: Boolean, resultMsg: Message?, openNewTab: (url: String) -> Unit) = false
-            override fun onDownloadStart(context: Context, url: String, userAgent: String, contentDisposition: String, mimeType: String, contentLength: Long) {}
+            override fun onDownloadStart(context: Context, record: TabRecord, url: String, userAgent: String, contentDisposition: String, mimeType: String, contentLength: Long) {}
             override fun shouldOverrideNavigation(context: Context, tab: TabState, request: WebResourceRequest, onAskOpenExternal: (Intent, String) -> Unit) = false
         }
         return TabManager(

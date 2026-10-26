@@ -1,15 +1,12 @@
 package io.github.omeg4dev.fmhy.browser
 
-import android.app.DownloadManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Build
-import android.os.Environment
 import android.os.Message
 import android.view.View
-import android.webkit.URLUtil
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
@@ -39,6 +36,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import io.github.omeg4dev.fmhy.FmhyApp
+import io.github.omeg4dev.fmhy.browser.download.DownloadOffer
+import io.github.omeg4dev.fmhy.browser.download.DownloadOfferText
+import io.github.omeg4dev.fmhy.browser.download.DownloadPolicy
+import io.github.omeg4dev.fmhy.browser.download.DownloadRequest
+import io.github.omeg4dev.fmhy.browser.download.NewDownload
+import io.github.omeg4dev.fmhy.browser.download.buildOffer
 import io.github.omeg4dev.fmhy.ui.common.Motion
 import io.github.omeg4dev.fmhy.ui.common.PasteAction
 import io.github.omeg4dev.fmhy.ui.common.PasteDecodeUi
@@ -70,18 +73,6 @@ data class BrowserSnackbarEvent(
     val onAction: (() -> Unit)? = null
 )
 
-data class DownloadDialogState(
-    val url: String,
-    val filename: String,
-    val sizeText: String,
-    val mimeType: String,
-    val host: String,
-    val userAgent: String,
-    val isRisky: Boolean,
-    val riskWarning: String?,
-    val safeGuardVerdict: Verdict?,
-)
-
 data class ExternalAppDialogState(
     val intent: Intent,
     val appName: String,
@@ -104,6 +95,7 @@ interface BrowserHooks {
 
     fun onDownloadStart(
         context: Context,
+        record: TabRecord,
         url: String,
         userAgent: String,
         contentDisposition: String,
@@ -138,7 +130,9 @@ class DefaultBrowserHooks(
     }
 
     val snackbarFlow = MutableSharedFlow<BrowserSnackbarEvent>(extraBufferCapacity = 10)
-    var pendingDownloadDialog by mutableStateOf<DownloadDialogState?>(null)
+    var pendingDownload by mutableStateOf<DownloadOffer?>(null)
+    val downloadStarted = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    private var appContext: Context? = null
     var pendingExternalAppDialog by mutableStateOf<ExternalAppDialogState?>(null)
     var customView by mutableStateOf<View?>(null)
     var customViewCallback: WebChromeClient.CustomViewCallback? = null
@@ -357,81 +351,196 @@ class DefaultBrowserHooks(
 
     override fun onDownloadStart(
         context: Context,
+        record: TabRecord,
         url: String,
         userAgent: String,
         contentDisposition: String,
         mimeType: String,
         contentLength: Long
     ) {
-        val filename = URLUtil.guessFileName(url, contentDisposition, mimeType)
-        val host = try { Uri.parse(url).host.orEmpty() } catch (_: Exception) { "" }
-        val sizeText = if (contentLength > 0) android.text.format.Formatter.formatFileSize(context, contentLength) else "unknown size"
-        val isRisky = RiskyDownload.isRiskyExtension(filename)
-        val protectionPrefs = tabManager?.currentProtectionPrefs ?: ProtectionPrefs()
-        val warnRisky = isRisky && protectionPrefs.warnRiskyDownloads
+        appContext = context.applicationContext
+        val tm = tabManager ?: return
+        val app = context.applicationContext as? FmhyApp ?: return
+        val controller = app.container.downloads
 
-        fun doDownload() {
-            executeDownload(context, url, filename, userAgent, mimeType)
-        }
+        val fileName = DownloadRequest.fileName(url, contentDisposition, mimeType)
+        val host = DownloadRequest.hostOf(url)
+        val referer = record.url.takeIf { DownloadRequest.isHttpUrl(it) }
+        val isPrivate = record.isPrivate
 
-        if (protectionPrefs.askBeforeDownload || warnRisky) {
-            val record = tabManager?.getActiveTabRecord()
-            val currentTabUrl = record?.url.orEmpty()
-            tabManager?.appScope?.launch(Dispatchers.IO) {
-                val verdict = if (warnRisky && currentTabUrl.isNotEmpty()) {
-                    safeGuard?.check(currentTabUrl)
-                } else null
+        val protectionPrefs = tm.currentProtectionPrefs
+        val dataUsagePrefs = tm.currentDataUsagePrefs
+        val networkKind = tm.currentNetworkKind
 
-                val riskWarning = if (warnRisky) {
-                    RiskyDownload.warningMessage(host.ifEmpty { "this site" })
-                } else null
+        tm.appScope.launch(Dispatchers.IO) {
+            val sg = safeGuard
+            suspend fun getVerdict(checkUrl: String): Verdict? {
+                if (sg == null) return null
+                val key = checkUrl.substringBefore('#')
+                return synchronized(verdictCache) { verdictCache[key] }
+                    ?: sg.check(checkUrl).also { synchronized(verdictCache) { verdictCache[key] = it } }
+            }
 
-                withContext(Dispatchers.Main) {
-                    pendingDownloadDialog = DownloadDialogState(
-                        url = url,
-                        filename = filename,
-                        sizeText = sizeText,
-                        mimeType = mimeType,
-                        host = host,
-                        userAgent = userAgent,
-                        isRisky = isRisky,
-                        riskWarning = riskWarning,
-                        safeGuardVerdict = verdict,
-                    )
+            var verdict = getVerdict(url)
+            if (verdict?.status == SafetyStatus.NO_DATA && referer != null) {
+                val refererVerdict = getVerdict(referer)
+                if (refererVerdict != null) {
+                    verdict = refererVerdict
                 }
             }
-        } else {
-            doDownload()
+
+            val rule = (tm.adblockService.currentEngine?.match(
+                FilterRequest(url = url, sourceUrl = referer ?: url, type = ResourceType.DOCUMENT)
+            ) as? MatchResult.Block)?.rule
+
+            val interstitial = InterstitialMerge.combine(
+                host = host,
+                url = url,
+                verdict = verdict,
+                unsafeWarning = protectionPrefs.unsafeWarning,
+                potentiallyUnsafeWarning = protectionPrefs.potentiallyUnsafeWarning,
+                hostAllowed = record.allowedHosts.contains(host),
+                filterRule = rule,
+            )
+
+            val folderLabel = controller.targetLabel()
+
+            val offer = buildOffer(
+                url = url,
+                fileName = fileName,
+                totalBytes = contentLength,
+                mimeType = mimeType,
+                host = host,
+                referer = referer,
+                userAgent = userAgent,
+                isPrivate = isPrivate,
+                warnRiskyDownloads = protectionPrefs.warnRiskyDownloads,
+                downloadWifiOnly = dataUsagePrefs.downloadWifiOnly,
+                networkKind = networkKind,
+                folderLabel = folderLabel,
+                interstitial = interstitial,
+                askBeforeDownload = protectionPrefs.askBeforeDownload,
+                lastTouchAt = record.lastTouchAt,
+                nowMs = System.currentTimeMillis(),
+            )
+
+            if (offer.interstitial != null || offer.needsConfirmation) {
+                withContext(Dispatchers.Main) {
+                    pendingDownload = offer
+                }
+            } else {
+                controller.enqueue(
+                    NewDownload(
+                        url = offer.url,
+                        fileName = offer.fileName,
+                        mimeType = offer.mimeType,
+                        totalBytes = offer.totalBytes,
+                        sourceHost = offer.host,
+                        referer = offer.referer,
+                        userAgent = offer.userAgent,
+                        isPrivate = offer.isPrivate,
+                        allowMobile = false,
+                    )
+                )
+                downloadStarted.tryEmit(Unit)
+                snackbarFlow.tryEmit(
+                    BrowserSnackbarEvent(
+                        message = DownloadOfferText.started(offer.fileName, offer.waitsForWifi)
+                    )
+                )
+            }
         }
     }
 
-    fun executeDownload(
-        context: Context,
-        url: String,
-        filename: String,
-        userAgent: String,
-        mimeType: String,
-    ) {
-        val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as? DownloadManager ?: return
-        try {
-            val uri = Uri.parse(url)
-            val cookies = android.webkit.CookieManager.getInstance().getCookie(url)
-            val req = DownloadManager.Request(uri).apply {
-                if (mimeType.isNotBlank()) setMimeType(mimeType)
-                if (userAgent.isNotBlank()) addRequestHeader("User-Agent", userAgent)
-                if (!cookies.isNullOrBlank()) addRequestHeader("Cookie", cookies)
-                setDescription("Downloading file…")
-                setTitle(filename)
-                setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, filename)
-                } else {
-                    setDestinationInExternalFilesDir(context, Environment.DIRECTORY_DOWNLOADS, filename)
-                }
+    fun offerPastedLink(context: Context, url: String, isPrivate: Boolean) {
+        appContext = context.applicationContext
+        val tm = tabManager ?: return
+        val app = context.applicationContext as? FmhyApp ?: return
+        val controller = app.container.downloads
+
+        val fileName = DownloadRequest.fileName(url, null, null)
+        val host = DownloadRequest.hostOf(url)
+        val protectionPrefs = tm.currentProtectionPrefs
+        val dataUsagePrefs = tm.currentDataUsagePrefs
+        val networkKind = tm.currentNetworkKind
+
+        tm.appScope.launch(Dispatchers.IO) {
+            val sg = safeGuard
+            suspend fun getVerdict(checkUrl: String): Verdict? {
+                if (sg == null) return null
+                val key = checkUrl.substringBefore('#')
+                return synchronized(verdictCache) { verdictCache[key] }
+                    ?: sg.check(checkUrl).also { synchronized(verdictCache) { verdictCache[key] = it } }
             }
-            dm.enqueue(req)
-            snackbarFlow.tryEmit(BrowserSnackbarEvent(message = "Downloading $filename"))
-        } catch (_: Exception) {}
+
+            val verdict = getVerdict(url)
+            val rule = (tm.adblockService.currentEngine?.match(
+                FilterRequest(url = url, sourceUrl = url, type = ResourceType.DOCUMENT)
+            ) as? MatchResult.Block)?.rule
+
+            val interstitial = InterstitialMerge.combine(
+                host = host,
+                url = url,
+                verdict = verdict,
+                unsafeWarning = protectionPrefs.unsafeWarning,
+                potentiallyUnsafeWarning = protectionPrefs.potentiallyUnsafeWarning,
+                hostAllowed = false,
+                filterRule = rule,
+            )
+
+            val folderLabel = controller.targetLabel()
+
+            val offer = buildOffer(
+                url = url,
+                fileName = fileName,
+                totalBytes = -1L,
+                mimeType = "",
+                host = host,
+                referer = null,
+                userAgent = null,
+                isPrivate = isPrivate,
+                warnRiskyDownloads = protectionPrefs.warnRiskyDownloads,
+                downloadWifiOnly = dataUsagePrefs.downloadWifiOnly,
+                networkKind = networkKind,
+                folderLabel = folderLabel,
+                interstitial = interstitial,
+                askBeforeDownload = protectionPrefs.askBeforeDownload,
+                lastTouchAt = 0L,
+                nowMs = System.currentTimeMillis(),
+                forceConfirmation = true,
+            )
+
+            withContext(Dispatchers.Main) {
+                pendingDownload = offer
+            }
+        }
+    }
+
+    fun confirmDownload(offer: DownloadOffer, allowMobile: Boolean) {
+        pendingDownload = null
+        val app = appContext as? FmhyApp ?: return
+        val controller = app.container.downloads
+        tabManager?.appScope?.launch(Dispatchers.IO) {
+            controller.enqueue(
+                NewDownload(
+                    url = offer.url,
+                    fileName = offer.fileName,
+                    mimeType = offer.mimeType,
+                    totalBytes = offer.totalBytes,
+                    sourceHost = offer.host,
+                    referer = offer.referer,
+                    userAgent = offer.userAgent,
+                    isPrivate = offer.isPrivate,
+                    allowMobile = allowMobile,
+                )
+            )
+            downloadStarted.tryEmit(Unit)
+        }
+        snackbarFlow.tryEmit(
+            BrowserSnackbarEvent(
+                message = DownloadOfferText.started(offer.fileName, offer.waitsForWifi && !allowMobile)
+            )
+        )
     }
 
     override fun onShowCustomView(view: View, callback: WebChromeClient.CustomViewCallback) {

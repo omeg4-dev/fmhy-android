@@ -22,6 +22,7 @@ import io.github.omeg4dev.fmhy.report.ReportRequest
 import io.github.omeg4dev.fmhy.browser.BrowserHooks
 import io.github.omeg4dev.fmhy.browser.DefaultBrowserHooks
 import io.github.omeg4dev.fmhy.browser.TabManager
+import io.github.omeg4dev.fmhy.browser.download.DownloadController
 import io.github.omeg4dev.fmhy.browser.adblock.AdblockService
 import io.github.omeg4dev.fmhy.browser.adblock.DefaultAdblockUpdater
 import io.github.omeg4dev.fmhy.browser.adblock.ScriptletLibrary
@@ -98,6 +99,7 @@ interface AppContainer : OnboardingActions {
     val statusNotices: StatusNotices get() = error("Not supported")
     val networkMonitor: NetworkMonitor get() = error("Not supported")
     val updateController: io.github.omeg4dev.fmhy.update.UpdateController get() = io.github.omeg4dev.fmhy.update.NoOpUpdateController
+    val downloads: DownloadController get() = error("Not supported")
     val firstWikiNeedsMobilePermission: MutableStateFlow<Boolean> get() = MutableStateFlow(false)
     val isSyncWaitingForWifi: MutableStateFlow<Boolean> get() = MutableStateFlow(false)
     val hasBuiltInWiki: Boolean get() = false
@@ -277,6 +279,17 @@ class DefaultAppContainer(
         io.github.omeg4dev.fmhy.update.createUpdateController(context, appScope, okHttpClient, settingsRepository, networkMonitor)
     }
 
+    override val downloads by lazy {
+        DownloadController(
+            context.applicationContext,
+            appScope,
+            userStore,
+            okHttpClient,
+            networkMonitor,
+            settingsRepository,
+        )
+    }
+
     override val firstWikiNeedsMobilePermission = MutableStateFlow(false)
     override val isSyncWaitingForWifi = MutableStateFlow(false)
 
@@ -440,6 +453,7 @@ class DefaultAppContainer(
     override fun initialize() {
         appScope.launch(Dispatchers.IO) {
             try {
+                downloads.start()
                 bookmarks.migrateLegacyIfNeeded()
                 if (!dbFile.exists() || !datasetStore.isSchemaCurrent()) {
                     datasetStore.close()

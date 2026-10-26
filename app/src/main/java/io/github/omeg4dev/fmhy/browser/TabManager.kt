@@ -101,6 +101,12 @@ class TabManager(
     fun requestShowTabs() { _showTabsRequested.value = true }
     fun consumeShowTabs() { _showTabsRequested.value = false }
 
+    private val _showDownloadsRequested = MutableStateFlow(false)
+    val showDownloadsRequested: StateFlow<Boolean> = _showDownloadsRequested.asStateFlow()
+
+    fun requestShowDownloads() { _showDownloadsRequested.value = true }
+    fun consumeShowDownloads() { _showDownloadsRequested.value = false }
+
     private val _currentTabId = MutableStateFlow<Long?>(null)
     val currentTabId: StateFlow<Long?> = _currentTabId.asStateFlow()
 

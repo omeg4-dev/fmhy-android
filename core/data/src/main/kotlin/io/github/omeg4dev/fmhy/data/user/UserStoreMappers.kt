@@ -66,6 +66,17 @@ internal fun executeDefaultMigration(conn: SQLiteConnection, fromVersion: Int, t
             conn.execSQL("ALTER TABLE follows ADD COLUMN excluded INTEGER NOT NULL DEFAULT 0;")
         }
     }
+    if (fromVersion == 2 && toVersion == 3) {
+        conn.execSQL("""
+            CREATE TABLE IF NOT EXISTS downloads (
+              id INTEGER PRIMARY KEY AUTOINCREMENT, url TEXT NOT NULL, file_name TEXT NOT NULL, mime_type TEXT NOT NULL DEFAULT '',
+              source_host TEXT NOT NULL DEFAULT '', referer TEXT, user_agent TEXT, total_bytes INTEGER NOT NULL DEFAULT -1,
+              downloaded_bytes INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL, resumable INTEGER NOT NULL DEFAULT 1,
+              restart_note INTEGER NOT NULL DEFAULT 0, allow_mobile INTEGER NOT NULL DEFAULT 0, error TEXT, file_uri TEXT,
+              folder_label TEXT NOT NULL DEFAULT '', etag TEXT, last_modified TEXT, created_at INTEGER NOT NULL, finished_at INTEGER);
+        """.trimIndent())
+        conn.execSQL("CREATE INDEX IF NOT EXISTS downloads_created ON downloads(created_at DESC);")
+    }
 }
 
 internal fun readBookmarksInternal(conn: SQLiteConnection): List<UserBookmark> {

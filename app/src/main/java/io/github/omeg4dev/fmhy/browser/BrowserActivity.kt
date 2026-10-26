@@ -30,6 +30,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import io.github.omeg4dev.fmhy.FmhyApp
+import io.github.omeg4dev.fmhy.browser.download.DownloadService
 import io.github.omeg4dev.fmhy.browser.media.BackgroundMediaService
 import io.github.omeg4dev.fmhy.browser.media.shouldKeepPlaying
 import io.github.omeg4dev.fmhy.data.Appearance
@@ -272,6 +273,12 @@ class BrowserActivity : ComponentActivity() {
         enterBackground()
     }
 
+    override fun onStart() {
+        super.onStart()
+        val container = (application as FmhyApp).container
+        container.downloads.ensureService()
+    }
+
     override fun onResume() {
         super.onResume()
         val container = (application as FmhyApp).container
@@ -328,6 +335,10 @@ class BrowserActivity : ComponentActivity() {
         if (intent.getBooleanExtra(EXTRA_SHOW_TABS, false)) {
             intent.removeExtra(EXTRA_SHOW_TABS)
             tabManager.requestShowTabs()
+        }
+        if (intent.getBooleanExtra(DownloadService.EXTRA_OPEN_DOWNLOADS, false)) {
+            intent.removeExtra(DownloadService.EXTRA_OPEN_DOWNLOADS)
+            tabManager.requestShowDownloads()
         }
         if (intent.getBooleanExtra(EXTRA_NEW_TAB_PAGE, false)) {
             val private = intent.getBooleanExtra(EXTRA_PRIVATE_TAB, false)

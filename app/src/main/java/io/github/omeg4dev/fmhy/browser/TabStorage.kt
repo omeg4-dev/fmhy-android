@@ -37,6 +37,7 @@ class TabRecord(
     var entryHost: String? = null,
     var lastLoadedHost: String? = null,
     var lastActiveTime: Long = System.currentTimeMillis(),
+    @Volatile var lastTouchAt: Long = 0L,
     val allowedOnceUrls: MutableSet<String> = mutableSetOf(),
     val allowedHosts: MutableSet<String> = mutableSetOf(),
     val dismissedSiteBarHosts: MutableSet<String> = mutableSetOf(),

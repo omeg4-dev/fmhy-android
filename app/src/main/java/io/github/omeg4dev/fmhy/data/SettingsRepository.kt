@@ -70,6 +70,10 @@ interface SettingsRepository {
         get() = kotlinx.coroutines.flow.flowOf(UpdatePrefs())
     suspend fun updateUpdatePrefs(f: (UpdatePrefs) -> UpdatePrefs) {}
 
+    val downloadPrefs: Flow<DownloadPrefs>
+        get() = kotlinx.coroutines.flow.flowOf(DownloadPrefs())
+    suspend fun updateDownloadPrefs(f: (DownloadPrefs) -> DownloadPrefs) {}
+
     val followNotifyPromptShown: Flow<Boolean>
         get() = kotlinx.coroutines.flow.flowOf(false)
     suspend fun setFollowNotifyPromptShown(shown: Boolean) {}
@@ -211,6 +215,10 @@ class DefaultSettingsRepository(
         private val KEY_UPDATE_SKIPPED_VERSION = stringPreferencesKey("update_skipped_version")
         private val KEY_UPDATE_INSTALL_EXPLAINED = booleanPreferencesKey("update_install_explained")
         private val KEY_UPDATE_KNOWN_AVAILABLE = stringPreferencesKey("update_known_available")
+
+        // Downloads
+        private val KEY_DOWNLOAD_FOLDER_URI = stringPreferencesKey("download_folder_uri")
+        private val KEY_DOWNLOAD_FOLDER_FALLBACK_NOTIFIED = booleanPreferencesKey("download_folder_fallback_notified")
     }
 
     override val lastVisitTs: Flow<Long> = dataStore.data.map { prefs ->
@@ -765,6 +773,36 @@ class DefaultSettingsRepository(
             val current = readUpdatePrefs(prefs)
             val updated = f(current)
             writeUpdatePrefs(prefs, updated)
+        }
+    }
+
+    // --- DownloadPrefs ---
+    private fun readDownloadPrefs(prefs: Preferences): DownloadPrefs {
+        val default = DownloadPrefs()
+        return DownloadPrefs(
+            folderUri = prefs[KEY_DOWNLOAD_FOLDER_URI] ?: default.folderUri,
+            folderFallbackNotified = prefs[KEY_DOWNLOAD_FOLDER_FALLBACK_NOTIFIED] ?: default.folderFallbackNotified,
+        )
+    }
+
+    private fun writeDownloadPrefs(prefs: MutablePreferences, p: DownloadPrefs) {
+        if (p.folderUri != null) {
+            prefs[KEY_DOWNLOAD_FOLDER_URI] = p.folderUri
+        } else {
+            prefs.remove(KEY_DOWNLOAD_FOLDER_URI)
+        }
+        prefs[KEY_DOWNLOAD_FOLDER_FALLBACK_NOTIFIED] = p.folderFallbackNotified
+    }
+
+    override val downloadPrefs: Flow<DownloadPrefs> = dataStore.data.map { prefs ->
+        readDownloadPrefs(prefs)
+    }.distinctUntilChanged()
+
+    override suspend fun updateDownloadPrefs(f: (DownloadPrefs) -> DownloadPrefs) {
+        dataStore.edit { prefs ->
+            val current = readDownloadPrefs(prefs)
+            val updated = f(current)
+            writeDownloadPrefs(prefs, updated)
         }
     }
 

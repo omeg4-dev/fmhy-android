@@ -172,6 +172,11 @@ data class UpdatePrefs(
     val knownAvailable: String? = null,
 )
 
+data class DownloadPrefs(
+    val folderUri: String? = null,
+    val folderFallbackNotified: Boolean = false,
+)
+
 data class DataPrefs(
     val syncOnLaunch: Boolean = true,
     val keepHistory: Boolean = true,

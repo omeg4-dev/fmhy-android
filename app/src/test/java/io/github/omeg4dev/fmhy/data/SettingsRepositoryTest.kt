@@ -372,4 +372,23 @@ class SettingsRepositoryTest {
         val cleared = repo.updatePrefs.first()
         assertEquals(expected.copy(skippedVersion = null, knownAvailable = null), cleared)
     }
+
+    @Test
+    fun testDownloadPrefsRoundTrip() = runTest {
+        val (repo, _) = createRepository(this)
+        val defaultPrefs = repo.downloadPrefs.first()
+        assertEquals(DownloadPrefs(), defaultPrefs)
+
+        val expected = DownloadPrefs(
+            folderUri = "content://com.android.externalstorage.documents/tree/primary%3ADownload",
+            folderFallbackNotified = true,
+        )
+        repo.updateDownloadPrefs { expected }
+        assertEquals(expected, repo.downloadPrefs.first())
+
+        // Set uri null -> reads null
+        repo.updateDownloadPrefs { it.copy(folderUri = null) }
+        val cleared = repo.downloadPrefs.first()
+        assertEquals(expected.copy(folderUri = null), cleared)
+    }
 }

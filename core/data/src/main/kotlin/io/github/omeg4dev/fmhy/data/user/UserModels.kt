@@ -113,3 +113,12 @@ internal data class BackupHistoryItem(
     val title: String,
     val ts: Long,
 )
+
+data class DownloadRecord(
+    val id: Long = 0, val url: String, val fileName: String, val mimeType: String = "",
+    val sourceHost: String = "", val referer: String? = null, val userAgent: String? = null,
+    val totalBytes: Long = -1, val downloadedBytes: Long = 0, val status: String,
+    val resumable: Boolean = true, val restartNote: Boolean = false, val allowMobile: Boolean = false,
+    val error: String? = null, val fileUri: String? = null, val folderLabel: String = "",
+    val etag: String? = null, val lastModified: String? = null, val createdAt: Long, val finishedAt: Long? = null,
+)

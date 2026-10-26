@@ -126,6 +126,7 @@ class TabManagerTest {
 
             override fun onDownloadStart(
                 context: Context,
+                record: TabRecord,
                 url: String,
                 userAgent: String,
                 contentDisposition: String,

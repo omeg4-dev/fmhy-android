@@ -14,6 +14,7 @@ import io.github.omeg4dev.fmhy.data.ColorSource
 import io.github.omeg4dev.fmhy.data.DataPrefs
 import io.github.omeg4dev.fmhy.data.DataUsagePrefs
 import io.github.omeg4dev.fmhy.data.DatasetStore
+import io.github.omeg4dev.fmhy.data.DownloadPrefs
 import io.github.omeg4dev.fmhy.data.HomePrefs
 import io.github.omeg4dev.fmhy.data.NotificationPrefs
 import io.github.omeg4dev.fmhy.data.PrivacyPrefs
@@ -393,12 +394,24 @@ class SettingsViewModel(
         io.github.omeg4dev.fmhy.data.UpdatePrefs()
     )
 
+    val downloadPrefs: StateFlow<DownloadPrefs> = settingsRepository.downloadPrefs.stateIn(
+        viewModelScope,
+        SharingStarted.Eagerly,
+        DownloadPrefs()
+    )
+
     val updateController: io.github.omeg4dev.fmhy.update.UpdateController
         get() = container.updateController
 
     fun updateUpdatePrefs(f: (io.github.omeg4dev.fmhy.data.UpdatePrefs) -> io.github.omeg4dev.fmhy.data.UpdatePrefs) {
         viewModelScope.launch {
             settingsRepository.updateUpdatePrefs(f)
+        }
+    }
+
+    fun updateDownloadPrefs(f: (DownloadPrefs) -> DownloadPrefs) {
+        viewModelScope.launch {
+            settingsRepository.updateDownloadPrefs(f)
         }
     }
 

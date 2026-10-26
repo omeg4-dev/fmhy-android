@@ -1018,13 +1018,156 @@ open class UserStore(
         }
     }
 
+    // --- Downloads ---
+
+    suspend fun insertDownload(r: DownloadRecord): Long = withTransaction { conn ->
+        val sql = """
+            INSERT INTO downloads (
+                url, file_name, mime_type, source_host, referer, user_agent,
+                total_bytes, downloaded_bytes, status, resumable, restart_note,
+                allow_mobile, error, file_uri, folder_label, etag, last_modified,
+                created_at, finished_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """.trimIndent()
+        conn.prepare(sql).use { stmt ->
+            stmt.bindText(1, r.url)
+            stmt.bindText(2, r.fileName)
+            stmt.bindText(3, r.mimeType)
+            stmt.bindText(4, r.sourceHost)
+            if (r.referer != null) stmt.bindText(5, r.referer) else stmt.bindNull(5)
+            if (r.userAgent != null) stmt.bindText(6, r.userAgent) else stmt.bindNull(6)
+            stmt.bindLong(7, r.totalBytes)
+            stmt.bindLong(8, r.downloadedBytes)
+            stmt.bindText(9, r.status)
+            stmt.bindLong(10, if (r.resumable) 1L else 0L)
+            stmt.bindLong(11, if (r.restartNote) 1L else 0L)
+            stmt.bindLong(12, if (r.allowMobile) 1L else 0L)
+            if (r.error != null) stmt.bindText(13, r.error) else stmt.bindNull(13)
+            if (r.fileUri != null) stmt.bindText(14, r.fileUri) else stmt.bindNull(14)
+            stmt.bindText(15, r.folderLabel)
+            if (r.etag != null) stmt.bindText(16, r.etag) else stmt.bindNull(16)
+            if (r.lastModified != null) stmt.bindText(17, r.lastModified) else stmt.bindNull(17)
+            stmt.bindLong(18, r.createdAt)
+            if (r.finishedAt != null) stmt.bindLong(19, r.finishedAt) else stmt.bindNull(19)
+            stmt.step()
+        }
+        val id = conn.prepare("SELECT last_insert_rowid()").use { stmt ->
+            if (stmt.step()) stmt.getLong(0) else 0L
+        }
+        id
+    }
+
+    suspend fun updateDownload(r: DownloadRecord) = withConnection { conn ->
+        val sql = """
+            UPDATE downloads SET
+                file_name = ?,
+                mime_type = ?,
+                source_host = ?,
+                referer = ?,
+                user_agent = ?,
+                total_bytes = ?,
+                downloaded_bytes = ?,
+                status = ?,
+                resumable = ?,
+                restart_note = ?,
+                allow_mobile = ?,
+                error = ?,
+                file_uri = ?,
+                folder_label = ?,
+                etag = ?,
+                last_modified = ?,
+                finished_at = ?
+            WHERE id = ?
+        """.trimIndent()
+        conn.prepare(sql).use { stmt ->
+            stmt.bindText(1, r.fileName)
+            stmt.bindText(2, r.mimeType)
+            stmt.bindText(3, r.sourceHost)
+            if (r.referer != null) stmt.bindText(4, r.referer) else stmt.bindNull(4)
+            if (r.userAgent != null) stmt.bindText(5, r.userAgent) else stmt.bindNull(5)
+            stmt.bindLong(6, r.totalBytes)
+            stmt.bindLong(7, r.downloadedBytes)
+            stmt.bindText(8, r.status)
+            stmt.bindLong(9, if (r.resumable) 1L else 0L)
+            stmt.bindLong(10, if (r.restartNote) 1L else 0L)
+            stmt.bindLong(11, if (r.allowMobile) 1L else 0L)
+            if (r.error != null) stmt.bindText(12, r.error) else stmt.bindNull(12)
+            if (r.fileUri != null) stmt.bindText(13, r.fileUri) else stmt.bindNull(13)
+            stmt.bindText(14, r.folderLabel)
+            if (r.etag != null) stmt.bindText(15, r.etag) else stmt.bindNull(15)
+            if (r.lastModified != null) stmt.bindText(16, r.lastModified) else stmt.bindNull(16)
+            if (r.finishedAt != null) stmt.bindLong(17, r.finishedAt) else stmt.bindNull(17)
+            stmt.bindLong(18, r.id)
+            stmt.step()
+        }
+    }
+
+    suspend fun downloads(): List<DownloadRecord> = withConnection { conn ->
+        val result = mutableListOf<DownloadRecord>()
+        val sql = """
+            SELECT
+                id, url, file_name, mime_type, source_host, referer, user_agent,
+                total_bytes, downloaded_bytes, status, resumable, restart_note,
+                allow_mobile, error, file_uri, folder_label, etag, last_modified,
+                created_at, finished_at
+            FROM downloads
+            ORDER BY created_at DESC, id DESC
+        """.trimIndent()
+        conn.prepare(sql).use { stmt ->
+            while (stmt.step()) {
+                result.add(
+                    DownloadRecord(
+                        id = stmt.getLong(0),
+                        url = stmt.getText(1),
+                        fileName = stmt.getText(2),
+                        mimeType = stmt.getText(3),
+                        sourceHost = stmt.getText(4),
+                        referer = if (stmt.isNull(5)) null else stmt.getText(5),
+                        userAgent = if (stmt.isNull(6)) null else stmt.getText(6),
+                        totalBytes = stmt.getLong(7),
+                        downloadedBytes = stmt.getLong(8),
+                        status = stmt.getText(9),
+                        resumable = stmt.getLong(10) != 0L,
+                        restartNote = stmt.getLong(11) != 0L,
+                        allowMobile = stmt.getLong(12) != 0L,
+                        error = if (stmt.isNull(13)) null else stmt.getText(13),
+                        fileUri = if (stmt.isNull(14)) null else stmt.getText(14),
+                        folderLabel = stmt.getText(15),
+                        etag = if (stmt.isNull(16)) null else stmt.getText(16),
+                        lastModified = if (stmt.isNull(17)) null else stmt.getText(17),
+                        createdAt = stmt.getLong(18),
+                        finishedAt = if (stmt.isNull(19)) null else stmt.getLong(19),
+                    )
+                )
+            }
+        }
+        result
+    }
+
+    suspend fun deleteDownload(id: Long) = withConnection { conn ->
+        conn.prepare("DELETE FROM downloads WHERE id = ?").use { stmt ->
+            stmt.bindLong(1, id)
+            stmt.step()
+        }
+    }
+
+    suspend fun deleteDownloadsWithStatus(status: String): Int = withTransaction { conn ->
+        conn.prepare("DELETE FROM downloads WHERE status = ?").use { stmt ->
+            stmt.bindText(1, status)
+            stmt.step()
+        }
+        conn.prepare("SELECT changes()").use { stmt ->
+            if (stmt.step()) stmt.getLong(0).toInt() else 0
+        }
+    }
+
     override fun close() {
         connection?.close()
         connection = null
     }
 
     companion object {
-        const val USER_DB_VERSION = 2
+        const val USER_DB_VERSION = 3
         const val BACKUP_FORMAT = "fmhy-backup"
         const val BACKUP_VERSION = 1
 

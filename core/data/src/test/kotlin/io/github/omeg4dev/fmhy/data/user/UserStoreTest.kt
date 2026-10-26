@@ -825,7 +825,7 @@ class UserStoreTest {
         rawConn.execSQL("INSERT INTO follows (section_id, heading_id, title, created_at) VALUES ('audio', 'podcasts', 'Podcasts', 2000);")
         rawConn.close()
 
-        // Opening with default targetVersion (= 2) will run migration 1 -> 2
+        // Opening with default targetVersion (= 3) will run migration 1 -> 2
         val store = UserStore(dbFile)
         val follows = store.follows()
         assertEquals(2, follows.size)
@@ -845,7 +845,7 @@ class UserStoreTest {
         store.withConnection { conn ->
             conn.prepare("PRAGMA user_version;").use { stmt ->
                 assertTrue(stmt.step())
-                assertEquals(2L, stmt.getLong(0))
+                assertEquals(3L, stmt.getLong(0))
             }
         }
         store.close()
@@ -901,6 +901,250 @@ class UserStoreTest {
         assertEquals(1, follows.size)
         assertEquals("movies", follows[0].headingId)
         assertFalse(follows[0].excluded)
+
+        store.close()
+    }
+
+    @Test
+    fun testInsertDownloadsAndOrder() = runTest {
+        val store = createStore()
+        val r1 = DownloadRecord(
+            url = "https://example.com/file1.apk",
+            fileName = "file1.apk",
+            mimeType = "application/vnd.android.package-archive",
+            sourceHost = "example.com",
+            referer = "https://example.com",
+            userAgent = "CustomUA",
+            totalBytes = 1000L,
+            downloadedBytes = 500L,
+            status = "RUNNING",
+            resumable = true,
+            restartNote = false,
+            allowMobile = true,
+            error = null,
+            fileUri = "content://downloads/1",
+            folderLabel = "Downloads",
+            etag = "\"etag1\"",
+            lastModified = "Wed, 21 Oct 2025 07:28:00 GMT",
+            createdAt = 1000L,
+            finishedAt = null,
+        )
+        val id1 = store.insertDownload(r1)
+        assertTrue(id1 > 0)
+
+        val list1 = store.downloads()
+        assertEquals(1, list1.size)
+        assertEquals(r1.copy(id = id1), list1[0])
+
+        val r2 = DownloadRecord(
+            url = "https://example.com/file2.zip",
+            fileName = "file2.zip",
+            mimeType = "application/zip",
+            sourceHost = "example.com",
+            referer = null,
+            userAgent = null,
+            totalBytes = 2000L,
+            downloadedBytes = 2000L,
+            status = "FINISHED",
+            resumable = false,
+            restartNote = true,
+            allowMobile = false,
+            error = "some error",
+            fileUri = "content://downloads/2",
+            folderLabel = "Other",
+            etag = null,
+            lastModified = null,
+            createdAt = 2000L,
+            finishedAt = 2500L,
+        )
+        val id2 = store.insertDownload(r2)
+        assertTrue(id2 > id1)
+
+        val list2 = store.downloads()
+        assertEquals(2, list2.size)
+        assertEquals(id2, list2[0].id)
+        assertEquals(r2.copy(id = id2), list2[0])
+        assertEquals(id1, list2[1].id)
+        assertEquals(r1.copy(id = id1), list2[1])
+
+        store.close()
+    }
+
+    @Test
+    fun testUpdateDownload() = runTest {
+        val store = createStore()
+        val original = DownloadRecord(
+            url = "https://example.com/test.bin",
+            fileName = "original.bin",
+            mimeType = "application/octet-stream",
+            sourceHost = "example.com",
+            referer = "https://example.com/ref",
+            userAgent = "UA",
+            totalBytes = 5000L,
+            downloadedBytes = 100L,
+            status = "RUNNING",
+            resumable = true,
+            restartNote = false,
+            allowMobile = false,
+            error = null,
+            fileUri = null,
+            folderLabel = "Downloads",
+            etag = null,
+            lastModified = null,
+            createdAt = 1000L,
+            finishedAt = null,
+        )
+        val id = store.insertDownload(original)
+
+        val updated = original.copy(
+            id = id,
+            url = "https://example.com/CHANGED_URL_IGNORED",
+            createdAt = 999999L,
+            fileName = "renamed.bin",
+            mimeType = "application/pdf",
+            sourceHost = "other.com",
+            referer = "https://other.com/ref",
+            userAgent = "NewUA",
+            totalBytes = 6000L,
+            downloadedBytes = 5000L,
+            status = "FINISHED",
+            resumable = false,
+            restartNote = true,
+            allowMobile = true,
+            error = "no error",
+            fileUri = "content://new/uri",
+            folderLabel = "Docs",
+            etag = "\"etag2\"",
+            lastModified = "new date",
+            finishedAt = 5000L,
+        )
+        store.updateDownload(updated)
+
+        val records = store.downloads()
+        assertEquals(1, records.size)
+        val r = records[0]
+        assertEquals(id, r.id)
+        assertEquals("https://example.com/test.bin", r.url)
+        assertEquals(1000L, r.createdAt)
+        assertEquals("renamed.bin", r.fileName)
+        assertEquals("application/pdf", r.mimeType)
+        assertEquals("other.com", r.sourceHost)
+        assertEquals("https://other.com/ref", r.referer)
+        assertEquals("NewUA", r.userAgent)
+        assertEquals(6000L, r.totalBytes)
+        assertEquals(5000L, r.downloadedBytes)
+        assertEquals("FINISHED", r.status)
+        assertFalse(r.resumable)
+        assertTrue(r.restartNote)
+        assertTrue(r.allowMobile)
+        assertEquals("no error", r.error)
+        assertEquals("content://new/uri", r.fileUri)
+        assertEquals("Docs", r.folderLabel)
+        assertEquals("\"etag2\"", r.etag)
+        assertEquals("new date", r.lastModified)
+        assertEquals(5000L, r.finishedAt)
+
+        store.close()
+    }
+
+    @Test
+    fun testDeleteDownloads() = runTest {
+        val store = createStore()
+        val id1 = store.insertDownload(DownloadRecord(url = "https://a.com/1", fileName = "1", status = "FINISHED", createdAt = 1))
+        val id2 = store.insertDownload(DownloadRecord(url = "https://a.com/2", fileName = "2", status = "FINISHED", createdAt = 2))
+        val id3 = store.insertDownload(DownloadRecord(url = "https://a.com/3", fileName = "3", status = "RUNNING", createdAt = 3))
+        val id4 = store.insertDownload(DownloadRecord(url = "https://a.com/4", fileName = "4", status = "FAILED", createdAt = 4))
+
+        val deletedCount = store.deleteDownloadsWithStatus("FINISHED")
+        assertEquals(2, deletedCount)
+
+        val remaining = store.downloads()
+        assertEquals(2, remaining.size)
+        assertEquals(setOf(id3, id4), remaining.map { it.id }.toSet())
+
+        store.deleteDownload(id3)
+        val remainingAfterSingle = store.downloads()
+        assertEquals(1, remainingAfterSingle.size)
+        assertEquals(id4, remainingAfterSingle[0].id)
+
+        store.close()
+    }
+
+    @Test
+    fun testMigration2To3() = runTest {
+        val dbFile = tempFolder.newFile("legacy_v2.db")
+        val rawConn = BundledSQLiteDriver().open(dbFile.absolutePath)
+        rawConn.execSQL("PRAGMA user_version = 2;")
+        rawConn.execSQL("""
+            CREATE TABLE follows (
+                section_id TEXT NOT NULL,
+                heading_id TEXT NOT NULL DEFAULT '',
+                title TEXT NOT NULL,
+                created_at INTEGER NOT NULL,
+                excluded INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (section_id, heading_id)
+            ) WITHOUT ROWID;
+        """.trimIndent())
+        rawConn.execSQL("INSERT INTO follows (section_id, heading_id, title, created_at, excluded) VALUES ('video', '', 'Video', 1000, 0);")
+        rawConn.close()
+
+        val store = UserStore(dbFile)
+        val downloadId = store.insertDownload(
+            DownloadRecord(
+                url = "https://example.com/file.apk",
+                fileName = "file.apk",
+                status = "RUNNING",
+                createdAt = 12345L,
+            )
+        )
+        assertTrue(downloadId > 0)
+        val dl = store.downloads()
+        assertEquals(1, dl.size)
+        assertEquals("file.apk", dl[0].fileName)
+
+        store.withConnection { conn ->
+            conn.prepare("PRAGMA user_version;").use { stmt ->
+                assertTrue(stmt.step())
+                assertEquals(3L, stmt.getLong(0))
+            }
+        }
+        store.close()
+    }
+
+    @Test
+    fun testDownloadsDoNotChangeChangesFlow() = runTest {
+        val store = createStore()
+        val initialChanges = store.changes.value
+
+        val id = store.insertDownload(
+            DownloadRecord(
+                url = "https://example.com/test",
+                fileName = "test",
+                status = "RUNNING",
+                createdAt = 1000L,
+            )
+        )
+        assertEquals(initialChanges, store.changes.value)
+
+        store.updateDownload(
+            DownloadRecord(
+                id = id,
+                url = "https://example.com/test",
+                fileName = "test2",
+                status = "FINISHED",
+                createdAt = 1000L,
+            )
+        )
+        assertEquals(initialChanges, store.changes.value)
+
+        store.downloads()
+        assertEquals(initialChanges, store.changes.value)
+
+        store.deleteDownload(id)
+        assertEquals(initialChanges, store.changes.value)
+
+        store.deleteDownloadsWithStatus("FINISHED")
+        assertEquals(initialChanges, store.changes.value)
 
         store.close()
     }

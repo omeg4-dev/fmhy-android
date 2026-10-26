@@ -38,13 +38,17 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import io.github.omeg4dev.fmhy.browser.download.DownloadOffer
+import io.github.omeg4dev.fmhy.browser.download.DownloadOfferText
 import io.github.omeg4dev.fmhy.ui.common.enterStagger
 
 /**
@@ -292,67 +296,129 @@ fun InterstitialOverlay(
 
 @Composable
 fun DownloadDialog(
-    state: DownloadDialogState,
-    onConfirm: () -> Unit,
+    offer: DownloadOffer,
+    onConfirm: (allowMobile: Boolean) -> Unit,
     onCancel: () -> Unit,
 ) {
-    AlertDialog(
-        onDismissRequest = onCancel,
-        icon = {
-            Icon(
-                imageVector = Icons.Default.Download,
-                contentDescription = null,
-                modifier = Modifier.size(24.dp),
-            )
-        },
-        title = { Text("Download file") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    text = state.filename,
-                    style = MaterialTheme.typography.titleMedium,
+    var riskStep by remember(offer) { mutableStateOf(false) }
+    var chosenAllowMobile by remember(offer) { mutableStateOf(false) }
+
+    if (!riskStep) {
+        AlertDialog(
+            onDismissRequest = onCancel,
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Download,
+                    contentDescription = null,
+                    modifier = Modifier.size(24.dp),
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (state.sizeText.isNotBlank()) {
-                        AssistChip(
-                            onClick = {},
-                            label = { Text(state.sizeText) },
+            },
+            title = { Text("Download file") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = offer.fileName,
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    val sizeText = DownloadOfferText.sizeText(offer.totalBytes)
+                    if (sizeText != null) {
+                        Text(
+                            text = "Size: $sizeText",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    if (state.mimeType.isNotBlank()) {
-                        AssistChip(
-                            onClick = {},
-                            label = { Text(state.mimeType) },
+                    Text(
+                        text = "From: ${offer.host.ifBlank { "unknown site" }}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        text = "Save to: ${offer.folderLabel}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    if (offer.waitsForWifi) {
+                        Text(
+                            text = DownloadOfferText.WIFI_NOTE,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary,
                         )
                     }
                 }
+            },
+            confirmButton = {
+                fun handleConfirm(allowMobile: Boolean) {
+                    if (offer.isRisky && !riskStep) {
+                        chosenAllowMobile = allowMobile
+                        riskStep = true
+                    } else {
+                        onConfirm(allowMobile)
+                    }
+                }
+
+                Column(
+                    horizontalAlignment = Alignment.End,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    if (offer.waitsForWifi) {
+                        TextButton(onClick = { handleConfirm(true) }) {
+                            Text("Download now using mobile data")
+                        }
+                    }
+                    Row(
+                        horizontalArrangement = Arrangement.End,
+                    ) {
+                        TextButton(onClick = onCancel) {
+                            Text("Cancel")
+                        }
+                        Spacer(modifier = Modifier.size(8.dp))
+                        TextButton(onClick = { handleConfirm(false) }) {
+                            Text("Download")
+                        }
+                    }
+                }
+            },
+        )
+    } else {
+        AlertDialog(
+            onDismissRequest = onCancel,
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Warning,
+                    contentDescription = null,
+                    modifier = Modifier.size(24.dp),
+                    tint = MaterialTheme.colorScheme.error,
+                )
+            },
+            title = { Text(DownloadOfferText.RISK_TITLE) },
+            text = {
                 Text(
-                    text = "From: ${state.host.ifBlank { "unknown host" }}",
+                    text = RiskyDownload.warningMessage(offer.host.ifBlank { "this site" }),
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                if (state.riskWarning != null) {
-                    Text(
-                        state.riskWarning,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
+            },
+            confirmButton = {
+                Row(
+                    horizontalArrangement = Arrangement.End,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    TextButton(onClick = onCancel) {
+                        Text("Cancel")
+                    }
+                    Spacer(modifier = Modifier.size(8.dp))
+                    TextButton(
+                        onClick = { onConfirm(chosenAllowMobile) },
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                    ) {
+                        Text("Download anyway")
+                    }
                 }
-                val v = state.safeGuardVerdict
-                if (v != null && (v.status == io.github.omeg4dev.fmhy.data.safety.SafetyStatus.UNSAFE ||
-                        v.status == io.github.omeg4dev.fmhy.data.safety.SafetyStatus.POTENTIALLY_UNSAFE)) {
-                    val label = if (v.status == io.github.omeg4dev.fmhy.data.safety.SafetyStatus.UNSAFE) "Unsafe on FMHY" else "Potentially unsafe on FMHY"
-                    Text(
-                        listOfNotNull(label, v.reason).joinToString(": "),
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
-            }
-        },
-        confirmButton = { TextButton(onClick = onConfirm) { Text("Download") } },
-        dismissButton = { TextButton(onClick = onCancel) { Text("Cancel") } },
-    )
+            },
+        )
+    }
 }
 
 /** Shared dialog for opening URLs in external applications. */
