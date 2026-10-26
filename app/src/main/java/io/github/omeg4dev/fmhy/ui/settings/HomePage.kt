@@ -28,22 +28,21 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import io.github.omeg4dev.fmhy.data.SectionLayout
 import io.github.omeg4dev.fmhy.data.SectionOrder
 import io.github.omeg4dev.fmhy.ui.common.sectionIcon
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeListsPage(
+fun HomePage(
     viewModel: SettingsViewModel,
     onBack: () -> Unit,
-    onNavigateToLegend: () -> Unit,
     modifier: Modifier = Modifier,
     extraRows: LazyListScope.() -> Unit = {},
 ) {
@@ -54,21 +53,38 @@ fun HomeListsPage(
     val allSections by viewModel.allSections.collectAsStateWithLifecycle()
     val appearance = state.appearance
 
+    val ePersonalHome = SettingsCatalog.homePersonalHome
+    val eRandomPick = SettingsCatalog.homeRandomPick
+    val eSectionOrder = SettingsCatalog.homeSectionOrder
+    val ePinned = SettingsCatalog.homePinnedSections
+    val eHidden = SettingsCatalog.homeHiddenSections
+
+    val sectionSettingIds = remember(homePrefs.personalHome) {
+        val base = listOf(listOf(ePersonalHome.id, eRandomPick.id, eSectionOrder.id))
+        if (homePrefs.personalHome) {
+            base + listOf(listOf(ePinned.id), listOf(eHidden.id))
+        } else {
+            base
+        }
+    }
+    val listState = rememberFocusedListState(sectionSettingIds)
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Home & lists") },
+                title = { Text("Home") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
-                }
+                },
             )
         },
         contentWindowInsets = WindowInsets.navigationBars,
         modifier = modifier,
     ) { innerPadding ->
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
                 top = innerPadding.calculateTopPadding() + 8.dp,
@@ -76,116 +92,47 @@ fun HomeListsPage(
             ),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            // Group: Home
+            // General Home section
             item {
                 SettingsSection(title = "Home") {
                     SwitchRow(
-                        title = "Personal Home",
-                        summary = "Pin categories and hide sections you don't use",
+                        title = ePersonalHome.title,
+                        summary = ePersonalHome.description,
                         checked = homePrefs.personalHome,
+                        settingId = ePersonalHome.id,
                         onChange = { vmVal ->
                             viewModel.updateHome { it.copy(personalHome = vmVal) }
                         },
                     )
                     SettingsDivider()
                     SwitchRow(
-                        title = "Show random pick",
-                        summary = "A random recommended site on the Browse tab",
+                        title = eRandomPick.title,
+                        summary = eRandomPick.description,
                         checked = appearance.showRandomPick,
+                        settingId = eRandomPick.id,
                         onChange = { viewModel.setShowRandomPick(it) },
                     )
                     SettingsDivider()
                     ChoiceRow(
-                        title = "Section order",
+                        title = eSectionOrder.title,
                         options = listOf(
                             SectionOrder.WEBSITE to "Website",
                             SectionOrder.ALPHABETICAL to "A–Z",
                         ),
                         selected = appearance.sectionOrder,
+                        settingId = eSectionOrder.id,
                         onSelect = { viewModel.setSectionOrder(it) },
                     )
                 }
             }
 
-            // Group: Lists
-            item {
-                SettingsSection(title = "Lists") {
-                    ChoiceRow(
-                        title = "Section layout",
-                        options = listOf(
-                            SectionLayout.CONTINUOUS to "Continuous",
-                            SectionLayout.CATEGORIES to "Categories",
-                        ),
-                        selected = appearance.sectionLayout,
-                        onSelect = { viewModel.setSectionLayout(it) },
-                    )
-                    SettingsDivider()
-                    SwitchRow(
-                        title = "Starred only",
-                        summary = "Show only sites FMHY recommends (⭐ / 🌟)",
-                        checked = appearance.starredOnly,
-                        onChange = { viewModel.setStarredOnly(it) },
-                    )
-                    SettingsDivider()
-                    SwitchRow(
-                        title = "Show indexes",
-                        summary = "Include 🌐 index sites that list other sites",
-                        checked = appearance.showIndexes,
-                        onChange = { viewModel.setShowIndexes(it) },
-                    )
-                    SettingsDivider()
-                    SwitchRow(
-                        title = "Swipe to bookmark",
-                        summary = "On: swipe an entry to save it. Off: sideways swipes on a list do nothing.",
-                        checked = homePrefs.swipeToBookmark,
-                        onChange = { checked ->
-                            viewModel.updateHome { it.copy(swipeToBookmark = checked) }
-                        },
-                    )
-                    SettingsDivider()
-                    SwitchRow(
-                        title = "Swipe between screens",
-                        summary = "Swipe left or right to move between Browse, Search and Saved.",
-                        checked = homePrefs.swipeBetweenScreens,
-                        onChange = { checked ->
-                            viewModel.updateHome { it.copy(swipeBetweenScreens = checked) }
-                        },
-                    )
-                    SettingsDivider()
-                    SwitchRow(
-                        title = "Swap tap and hold",
-                        summary = "Default: tap opens the site, hold opens the menu. Swapped: tap opens the menu, hold opens the site.",
-                        checked = homePrefs.swapTapHold,
-                        onChange = { checked ->
-                            viewModel.updateHome { it.copy(swapTapHold = checked) }
-                        },
-                    )
-                    SettingsDivider()
-                    ChoiceRow(
-                        title = "NEW badges",
-                        options = listOf(
-                            0 to "Off",
-                            3 to "3 days",
-                            7 to "7 days",
-                            14 to "14 days",
-                        ),
-                        selected = homePrefs.newBadgeDays,
-                        onSelect = { days ->
-                            viewModel.updateHome { it.copy(newBadgeDays = days) }
-                        },
-                    )
-                    SettingsDivider()
-                    NavRow(
-                        title = "Icon legend",
-                        summary = "What every icon means",
-                        onClick = onNavigateToLegend,
-                    )
-                }
-            }
-
             if (homePrefs.personalHome) {
+                // Pinned sections
                 item {
-                    SettingsSection(title = "Pinned") {
+                    SettingsSection(
+                        title = ePinned.title,
+                        modifier = Modifier.settingHighlight(ePinned.id),
+                    ) {
                         if (pins.isEmpty()) {
                             InfoRow(
                                 title = "No pins yet",
@@ -255,8 +202,12 @@ fun HomeListsPage(
                     }
                 }
 
+                // Hidden sections
                 item {
-                    SettingsSection(title = "Hidden sections") {
+                    SettingsSection(
+                        title = eHidden.title,
+                        modifier = Modifier.settingHighlight(eHidden.id),
+                    ) {
                         allSections.forEachIndexed { index, section ->
                             if (index > 0) SettingsDivider()
                             val isHidden = section.id in hiddenSections

@@ -131,7 +131,26 @@ fun AppearancePage(
         contentWindowInsets = WindowInsets.navigationBars,
         modifier = modifier,
     ) { innerPadding ->
+        val eTheme = SettingsCatalog.appearanceTheme
+        val ePureBlack = SettingsCatalog.appearancePureBlack
+        val eAccent = SettingsCatalog.appearanceAccentColor
+        val eBottomBar = SettingsCatalog.appearanceBottomBarStyle
+        val eTextSize = SettingsCatalog.appearanceTextSize
+        val eAppIcon = SettingsCatalog.appearanceAppIcon
+
+        val sectionSettingIds = remember {
+            listOf(
+                listOf(eTheme.id, ePureBlack.id),
+                listOf(eAccent.id),
+                listOf(eBottomBar.id),
+                listOf(eTextSize.id),
+                listOf(eAppIcon.id),
+            )
+        }
+        val listState = rememberFocusedListState(sectionSettingIds)
+
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
                 top = innerPadding.calculateTopPadding() + 8.dp,
@@ -141,44 +160,27 @@ fun AppearancePage(
         ) {
             // Theme section
             item {
-                SettingsSection(title = "Theme") {
+                SettingsSection(title = eTheme.title) {
                     ChoiceRow(
-                        title = "Theme",
+                        title = eTheme.title,
                         options = listOf(
                             ThemeMode.SYSTEM to "System",
                             ThemeMode.LIGHT to "Light",
                             ThemeMode.DARK to "Dark",
                         ),
                         selected = appearance.themeMode,
+                        settingId = eTheme.id,
                         onSelect = { viewModel.setThemeMode(it) },
                     )
                     SettingsDivider()
                     SwitchRow(
-                        title = "Pure black",
-                        summary = if (isDark) "Black background in dark mode (saves battery on OLED)" else "Only in dark mode",
+                        title = ePureBlack.title,
+                        summary = if (isDark) ePureBlack.description else "Only in dark mode",
                         checked = appearance.pureBlack,
                         enabled = isDark,
+                        settingId = ePureBlack.id,
                         onChange = { viewModel.setPureBlack(it) },
                     )
-                }
-            }
-
-            // Bottom bar section
-            item {
-                SettingsSection(title = "Bottom bar") {
-                    ListItem(
-                        headlineContent = {
-                            Text("Bottom bar style", style = MaterialTheme.typography.bodyLarge)
-                        },
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                    )
-                    BottomBarStyle.entries.forEach { style ->
-                        BottomBarStyleRow(
-                            style = style,
-                            selected = appearance.bottomBarStyle == style,
-                            onClick = { viewModel.setBottomBarStyle(style) },
-                        )
-                    }
                 }
             }
 
@@ -200,7 +202,10 @@ fun AppearancePage(
                     materialYouPreviewScheme?.let { materialYouDots(it, isDark) } ?: fmhyDots
                 }
 
-                SettingsSection(title = "Accent colour") {
+                SettingsSection(
+                    title = eAccent.title,
+                    modifier = Modifier.settingHighlight(eAccent.id),
+                ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -449,27 +454,43 @@ fun AppearancePage(
                 }
             }
 
-            // Display & interaction section
+            // Bottom bar section
             item {
                 SettingsSection(
-                    title = "Display & interaction",
+                    title = "Bottom bar",
+                    modifier = Modifier.settingHighlight(eBottomBar.id),
                 ) {
-                    SwitchRow(
-                        title = "Website style",
-                        summary = "Lists look like fmhy.net",
-                        checked = appearance.websiteStyle,
-                        onChange = { viewModel.setWebsiteStyle(it) },
+                    ListItem(
+                        headlineContent = {
+                            Text(eBottomBar.title, style = MaterialTheme.typography.bodyLarge)
+                        },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                     )
-                    SettingsDivider()
+                    BottomBarStyle.entries.forEach { style ->
+                        BottomBarStyleRow(
+                            style = style,
+                            selected = appearance.bottomBarStyle == style,
+                            onClick = { viewModel.setBottomBarStyle(style) },
+                        )
+                    }
+                }
+            }
+
+            // Text size section
+            item {
+                SettingsSection(
+                    title = eTextSize.title,
+                ) {
                     var textScaleSliderValue by remember(appearance.textScale) {
                         mutableFloatStateOf(appearance.textScale)
                     }
                     SliderRow(
-                        title = "Text size",
+                        title = eTextSize.title,
                         value = textScaleSliderValue,
                         valueRange = 0.85f..1.30f,
                         steps = 8,
                         valueLabel = "${(textScaleSliderValue * 100).roundToInt()} %",
+                        settingId = eTextSize.id,
                         onValueChange = { textScaleSliderValue = it },
                         onValueChangeFinished = { viewModel.setTextScale(textScaleSliderValue) },
                     )
@@ -516,13 +537,6 @@ fun AppearancePage(
                             }
                         }
                     }
-                    SettingsDivider()
-                    SwitchRow(
-                        title = "Haptic feedback",
-                        summary = "Vibrate on taps and actions",
-                        checked = appearance.hapticFeedback,
-                        onChange = { viewModel.setHapticFeedback(it) },
-                    )
                 }
             }
 
@@ -533,7 +547,10 @@ fun AppearancePage(
                 }
                 val hasChanged = selectedIcon != appearance.appIcon
 
-                SettingsSection(title = "App icon") {
+                SettingsSection(
+                    title = eAppIcon.title,
+                    modifier = Modifier.settingHighlight(eAppIcon.id),
+                ) {
                     FlowRow(
                         modifier = Modifier
                             .fillMaxWidth()

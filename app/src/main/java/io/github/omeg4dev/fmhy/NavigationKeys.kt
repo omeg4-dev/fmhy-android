@@ -26,21 +26,28 @@ data object SettingsNavKey : NavKey
 @Serializable
 enum class SettingsPage {
     APPEARANCE,
-    HOME_LISTS,
+    HOME,
+    LISTS,
     BROWSER,
-    BLOCKING,
+    VIDEO,
+    DOWNLOADS,
+    AD_BLOCKING,
     PROTECTION,
     PRIVACY,
-    VIDEO,
     NOTIFICATIONS,
+    APP_UPDATES,
+    SYNC,
     DATA_USAGE,
-    DATA,
-    SAVED,
+    BACKUP,
+    REPORT,
     ABOUT,
 }
 
 @Serializable
-data class SettingsPageNavKey(val page: SettingsPage) : NavKey
+data class SettingsPageNavKey(
+    val page: SettingsPage,
+    val focusSetting: String? = null,
+) : NavKey
 
 @Serializable
 data object SavedNavKey : NavKey

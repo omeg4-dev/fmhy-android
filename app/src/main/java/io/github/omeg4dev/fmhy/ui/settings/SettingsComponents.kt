@@ -171,6 +171,7 @@ fun SwitchRow(
     enabled: Boolean = true,
     icon: ImageVector? = null,
     modifier: Modifier = Modifier,
+    settingId: String? = null,
     onChange: (Boolean) -> Unit,
 ) {
     val haptics = rememberHaptics()
@@ -195,6 +196,7 @@ fun SwitchRow(
         },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
         modifier = modifier
+            .settingHighlight(settingId)
             .fillMaxWidth()
             .defaultMinSize(minHeight = 48.dp)
             .then(if (!enabled) Modifier.alpha(0.38f) else Modifier)
@@ -218,6 +220,7 @@ fun NavRow(
     badge: (@Composable () -> Unit)? = null,
     enabled: Boolean = true,
     modifier: Modifier = Modifier,
+    settingId: String? = null,
     onClick: () -> Unit,
 ) {
     ListItem(
@@ -256,6 +259,7 @@ fun NavRow(
         },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
         modifier = modifier
+            .settingHighlight(settingId)
             .fillMaxWidth()
             .defaultMinSize(minHeight = 48.dp)
             .then(if (!enabled) Modifier.alpha(0.38f) else Modifier)
@@ -275,6 +279,7 @@ fun InfoRow(
     value: String,
     icon: ImageVector? = null,
     modifier: Modifier = Modifier,
+    settingId: String? = null,
 ) {
     ListItem(
         headlineContent = { Text(title, style = MaterialTheme.typography.bodyLarge) },
@@ -288,6 +293,7 @@ fun InfoRow(
         leadingContent = icon?.let { { RowIcon(icon = it) } },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
         modifier = modifier
+            .settingHighlight(settingId)
             .fillMaxWidth()
             .defaultMinSize(minHeight = 48.dp),
     )
@@ -347,9 +353,11 @@ fun ButtonRow(
     icon: ImageVector? = null,
     enabled: Boolean = true,
     loading: Boolean = false,
+    settingId: String? = null,
 ) {
     Box(
         modifier = modifier
+            .settingHighlight(settingId)
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),
     ) {
@@ -389,10 +397,13 @@ fun ExpandableSection(
     initiallyExpanded: Boolean = false,
     expanded: Boolean? = null,
     onExpandedChange: ((Boolean) -> Unit)? = null,
+    settingIds: List<String> = emptyList(),
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    var internalExpanded by remember { mutableStateOf(initiallyExpanded) }
+    val focus = LocalSettingFocus.current
+    val shouldStartExpanded = initiallyExpanded || (focus != null && focus in settingIds)
+    var internalExpanded by remember { mutableStateOf(shouldStartExpanded) }
     val isExpanded = expanded ?: internalExpanded
     val rotation by animateFloatAsState(
         targetValue = if (isExpanded) 180f else 0f,
@@ -561,9 +572,11 @@ fun <T> OptionCardRow(
     modifier: Modifier = Modifier,
     title: String? = null,
     enabled: Boolean = true,
+    settingId: String? = null,
 ) {
     Column(
         modifier = modifier
+            .settingHighlight(settingId)
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -598,11 +611,13 @@ fun <T> ChoiceRow(
     onSelect: (T) -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    settingId: String? = null,
 ) {
     val haptics = rememberHaptics()
+    val rowModifier = modifier.settingHighlight(settingId)
     if (options.size <= 3) {
         Column(
-            modifier = modifier
+            modifier = rowModifier
                 .fillMaxWidth()
                 .then(if (!enabled) Modifier.alpha(0.38f) else Modifier)
         ) {
@@ -637,7 +652,7 @@ fun <T> ChoiceRow(
             headlineContent = { Text(title, style = MaterialTheme.typography.bodyLarge) },
             supportingContent = { Text(selectedLabel) },
             colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-            modifier = modifier
+            modifier = rowModifier
                 .fillMaxWidth()
                 .defaultMinSize(minHeight = 48.dp)
                 .then(if (!enabled) Modifier.alpha(0.38f) else Modifier)
@@ -701,12 +716,14 @@ fun SliderRow(
     onValueChange: (Float) -> Unit,
     onValueChangeFinished: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
+    settingId: String? = null,
 ) {
     val haptics = rememberHaptics()
     var sliderValue by remember(value) { mutableFloatStateOf(value) }
 
     Column(
         modifier = modifier
+            .settingHighlight(settingId)
             .fillMaxWidth()
             .then(if (!enabled) Modifier.alpha(0.38f) else Modifier)
     ) {

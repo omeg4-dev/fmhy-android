@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.material.icons.Icons
@@ -13,13 +12,12 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -40,6 +38,26 @@ fun VideoPage(
 ) {
     val prefs by viewModel.browserPrefs.collectAsStateWithLifecycle()
 
+    val eFullscreenOrientation = SettingsCatalog.videoFullscreenOrientation
+    val eDoubleTapSeek = SettingsCatalog.videoDoubleTapSeek
+    val eKeepScreenOn = SettingsCatalog.videoKeepScreenOn
+    val ePictureInPicture = SettingsCatalog.videoPictureInPicture
+    val eAutoPip = SettingsCatalog.videoAutoPip
+    val eAutoplay = SettingsCatalog.videoAutoplay
+    val eBackgroundPlayback = SettingsCatalog.videoBackgroundPlayback
+    val eDefaultSpeed = SettingsCatalog.videoDefaultSpeed
+    val eForgetSiteSpeeds = SettingsCatalog.videoForgetSiteSpeeds
+
+    val fullscreenIds = listOf(eFullscreenOrientation.id, eDoubleTapSeek.id, eKeepScreenOn.id)
+    val pipIds = listOf(ePictureInPicture.id, eAutoPip.id)
+    val playbackIds = listOf(eAutoplay.id, eBackgroundPlayback.id, eDefaultSpeed.id)
+    val advancedIds = listOf(eForgetSiteSpeeds.id)
+
+    val sectionSettingIds = remember {
+        listOf(fullscreenIds, pipIds, playbackIds, advancedIds)
+    }
+    val listState = rememberFocusedListState(sectionSettingIds)
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -55,6 +73,7 @@ fun VideoPage(
         modifier = modifier,
     ) { innerPadding ->
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
                 top = innerPadding.calculateTopPadding() + 8.dp,
@@ -62,92 +81,103 @@ fun VideoPage(
             ),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            // Fullscreen section
             item {
                 SettingsSection(title = "Fullscreen") {
                     ChoiceRow(
-                        title = "Fullscreen orientation",
+                        title = eFullscreenOrientation.title,
                         options = FullscreenOrientation.entries.map { it to it.label },
                         selected = prefs.fullscreenOrientation,
+                        settingId = eFullscreenOrientation.id,
                         onSelect = { choice -> viewModel.updateBrowser { it.copy(fullscreenOrientation = choice) } },
                     )
                     SettingsDivider()
                     SwitchRow(
-                        title = "Double-tap to seek",
-                        summary = "Double-tap the left or right side of a fullscreen video to skip 10 seconds",
+                        title = eDoubleTapSeek.title,
+                        summary = eDoubleTapSeek.description,
                         checked = prefs.doubleTapSeek,
+                        settingId = eDoubleTapSeek.id,
                         onChange = { checked -> viewModel.updateBrowser { it.copy(doubleTapSeek = checked) } },
                     )
                     SettingsDivider()
                     SwitchRow(
-                        title = "Keep screen on while playing",
+                        title = eKeepScreenOn.title,
+                        summary = eKeepScreenOn.description,
                         checked = prefs.keepScreenOn,
+                        settingId = eKeepScreenOn.id,
                         onChange = { checked -> viewModel.updateBrowser { it.copy(keepScreenOn = checked) } },
                     )
                 }
             }
+
+            // Picture-in-picture section
             item {
                 SettingsSection(title = "Picture-in-picture") {
                     SwitchRow(
-                        title = "Picture-in-picture",
+                        title = ePictureInPicture.title,
+                        summary = ePictureInPicture.description,
                         checked = prefs.pictureInPicture,
+                        settingId = ePictureInPicture.id,
                         onChange = { checked -> viewModel.updateBrowser { it.copy(pictureInPicture = checked) } },
                     )
                     SettingsDivider()
                     SwitchRow(
-                        title = "Start automatically",
-                        summary = "Shrink the video into a window when you leave the app",
+                        title = eAutoPip.title,
+                        summary = eAutoPip.description,
                         checked = prefs.autoPip,
                         enabled = prefs.pictureInPicture,
+                        settingId = eAutoPip.id,
                         onChange = { checked -> viewModel.updateBrowser { it.copy(autoPip = checked) } },
                     )
                 }
             }
+
+            // Playback section
             item {
                 SettingsSection(title = "Playback") {
                     ChoiceRow(
-                        title = "Autoplay",
+                        title = eAutoplay.title,
                         options = AutoplayMode.entries.map { it to it.label },
                         selected = prefs.autoplay,
+                        settingId = eAutoplay.id,
                         onSelect = { mode -> viewModel.updateBrowser { it.copy(autoplay = mode) } },
                     )
                     SettingsDivider()
                     SwitchRow(
-                        title = "Play in background",
-                        summary = "Keep audio playing when you leave the app or lock the screen",
+                        title = eBackgroundPlayback.title,
+                        summary = eBackgroundPlayback.description,
                         checked = prefs.backgroundPlayback,
+                        settingId = eBackgroundPlayback.id,
                         onChange = { checked -> viewModel.updateBrowser { it.copy(backgroundPlayback = checked) } },
                     )
                     SettingsDivider()
-                    SwitchRow(
-                        title = "Video download button",
-                        summary = "Show a button in the address bar when a page has a video you can save",
-                        checked = prefs.videoDownloadButton,
-                        onChange = { checked -> viewModel.updateBrowser { it.copy(videoDownloadButton = checked) } },
-                    )
-                    SettingsDivider()
                     ChoiceRow(
-                        title = "Default speed",
+                        title = eDefaultSpeed.title,
                         options = PLAYBACK_SPEEDS.map { it to speedLabel(it) },
                         selected = prefs.defaultSpeed,
+                        settingId = eDefaultSpeed.id,
                         onSelect = { speed -> viewModel.updateBrowser { it.copy(defaultSpeed = speed) } },
                     )
-                    SettingsDivider()
-                    Text(
-                        text = "Speeds set from the browser menu are remembered per site.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                    )
-                    TextButton(
+                }
+            }
+
+            // Advanced group
+            item {
+                ExpandableSection(
+                    title = "Advanced",
+                    settingIds = advancedIds,
+                ) {
+                    NavRow(
+                        title = eForgetSiteSpeeds.title,
+                        summary = eForgetSiteSpeeds.description,
+                        settingId = eForgetSiteSpeeds.id,
                         onClick = {
                             viewModel.clearSiteSpeeds { onShowSnackbar("Per-site speeds cleared") }
                         },
-                        modifier = Modifier.padding(horizontal = 8.dp),
-                    ) {
-                        Text("Forget per-site speeds")
-                    }
+                    )
                 }
             }
+
             extraRows()
         }
     }

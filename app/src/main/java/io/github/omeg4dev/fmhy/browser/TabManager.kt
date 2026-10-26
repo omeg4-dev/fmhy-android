@@ -933,7 +933,7 @@ class TabManager(
 
     fun openFileCheckSettings() {
         val container = (appContext as? FmhyApp)?.container
-        container?.pushNavigation(SettingsPageNavKey(SettingsPage.PROTECTION))
+        container?.pushNavigation(SettingsPageNavKey(SettingsPage.DOWNLOADS))
         bringFmhyToFront(appContext)
     }
 

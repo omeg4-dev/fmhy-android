@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
@@ -40,7 +39,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -48,20 +46,25 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SavedPage(
+fun BackupPage(
     viewModel: SettingsViewModel,
     onBack: () -> Unit,
-    onShowSnackbar: (String) -> Unit = {},
+    onShowSnackbar: (String) -> Unit,
     modifier: Modifier = Modifier,
     extraRows: LazyListScope.() -> Unit = {},
 ) {
-    val dataPrefs by viewModel.dataPrefs.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
+    val eExportBackup = SettingsCatalog.backupExportBackup
+    val eImportBackup = SettingsCatalog.backupImportBackup
+
+    val backupIds = listOf(eExportBackup.id, eImportBackup.id)
+    val sectionSettingIds = remember { listOf(backupIds) }
+    val listState = rememberFocusedListState(sectionSettingIds)
+
     var showExportConfirmDialog by remember { mutableStateOf(false) }
     var exportIncludeHistory by remember { mutableStateOf(false) }
-    var showClearHistoryConfirmDialog by remember { mutableStateOf(false) }
 
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
@@ -102,18 +105,19 @@ fun SavedPage(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Saved & history") },
+                title = { Text("Backup & restore") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
-                }
+                },
             )
         },
         contentWindowInsets = WindowInsets.navigationBars,
         modifier = modifier,
     ) { innerPadding ->
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
                 top = innerPadding.calculateTopPadding() + 8.dp,
@@ -121,44 +125,22 @@ fun SavedPage(
             ),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            // History section
-            item {
-                SettingsSection(title = "History") {
-                    SwitchRow(
-                        title = "Keep history of opened sites",
-                        checked = dataPrefs.keepHistory,
-                        onChange = { checked ->
-                            viewModel.updateData { it.copy(keepHistory = checked) }
-                        },
-                    )
-                    SettingsDivider()
-                    NavRow(
-                        title = "Clear history",
-                        summary = "Remove all recorded browsing history",
-                        onClick = {
-                            showClearHistoryConfirmDialog = true
-                        }
-                    )
-                }
-            }
-
-            // Backup & restore section
             item {
                 SettingsSection(title = "Backup & restore") {
                     NavRow(
-                        title = "Export backup",
-                        summary = "Save bookmarks, folders, and preferences as JSON",
-                        onClick = {
-                            showExportConfirmDialog = true
-                        }
+                        title = eExportBackup.title,
+                        summary = eExportBackup.description,
+                        settingId = eExportBackup.id,
+                        onClick = { showExportConfirmDialog = true },
                     )
                     SettingsDivider()
                     NavRow(
-                        title = "Import backup",
-                        summary = "Restore bookmarks, folders, and preferences from JSON",
+                        title = eImportBackup.title,
+                        summary = eImportBackup.description,
+                        settingId = eImportBackup.id,
                         onClick = {
                             importLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
-                        }
+                        },
                     )
                 }
             }
@@ -203,32 +185,6 @@ fun SavedPage(
             },
             dismissButton = {
                 TextButton(onClick = { showExportConfirmDialog = false }) {
-                    Text("Cancel")
-                }
-            }
-        )
-    }
-
-    if (showClearHistoryConfirmDialog) {
-        AlertDialog(
-            onDismissRequest = { showClearHistoryConfirmDialog = false },
-            title = { Text("Clear history") },
-            text = { Text("Clear all recorded browsing history?") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showClearHistoryConfirmDialog = false
-                        scope.launch {
-                            viewModel.clearHistory()
-                            onShowSnackbar("History cleared")
-                        }
-                    }
-                ) {
-                    Text("Clear")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showClearHistoryConfirmDialog = false }) {
                     Text("Cancel")
                 }
             }

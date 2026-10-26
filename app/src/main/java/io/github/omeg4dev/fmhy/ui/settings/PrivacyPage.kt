@@ -31,12 +31,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -48,25 +50,51 @@ fun PrivacyPage(
     extraRows: LazyListScope.() -> Unit = {},
 ) {
     val privacyPrefs by viewModel.privacyPrefs.collectAsStateWithLifecycle()
-    val reportOfferCrashes by viewModel.reportOfferCrashes.collectAsStateWithLifecycle()
+    val dataPrefs by viewModel.dataPrefs.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    val eBlockThirdPartyCookies = SettingsCatalog.privacyBlockThirdPartyCookies
+    val eHideCookieBanners = SettingsCatalog.privacyHideCookieBanners
+    val eSendGpc = SettingsCatalog.privacySendGpc
+    val ePrivateTabsByDefault = SettingsCatalog.privacyPrivateTabsByDefault
+    val eClearDataOnExit = SettingsCatalog.privacyClearDataOnExit
+    val eKeepHistory = SettingsCatalog.privacyKeepHistory
+    val eClearHistory = SettingsCatalog.privacyClearHistory
+    val eClearBrowsingData = SettingsCatalog.privacyClearBrowsingData
+
+    val privacyIds = listOf(
+        eBlockThirdPartyCookies.id,
+        eHideCookieBanners.id,
+        eSendGpc.id,
+        ePrivateTabsByDefault.id,
+        eClearDataOnExit.id,
+    )
+    val historyIds = listOf(eKeepHistory.id, eClearHistory.id)
+    val browsingDataIds = listOf(eClearBrowsingData.id)
+
+    val sectionSettingIds = remember { listOf(privacyIds, historyIds, browsingDataIds) }
+    val listState = rememberFocusedListState(sectionSettingIds)
+
     var showClearDataDialog by remember { mutableStateOf(false) }
+    var showClearHistoryConfirmDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Privacy") },
+                title = { Text("Privacy & history") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
-                }
+                },
             )
         },
         contentWindowInsets = WindowInsets.navigationBars,
         modifier = modifier,
     ) { innerPadding ->
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
                 top = innerPadding.calculateTopPadding() + 8.dp,
@@ -74,76 +102,123 @@ fun PrivacyPage(
             ),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            // Privacy section
             item {
                 SettingsSection(title = "Privacy") {
                     SwitchRow(
-                        title = "Block third-party cookies",
+                        title = eBlockThirdPartyCookies.title,
+                        summary = eBlockThirdPartyCookies.description,
                         checked = privacyPrefs.blockThirdPartyCookies,
+                        settingId = eBlockThirdPartyCookies.id,
                         onChange = { checked ->
                             viewModel.updatePrivacy { it.copy(blockThirdPartyCookies = checked) }
                         },
                     )
                     SettingsDivider()
                     SwitchRow(
-                        title = "Hide cookie banners",
+                        title = eHideCookieBanners.title,
+                        summary = eHideCookieBanners.description,
                         checked = privacyPrefs.hideCookieBanners,
+                        settingId = eHideCookieBanners.id,
                         onChange = { checked ->
                             viewModel.updatePrivacy { it.copy(hideCookieBanners = checked) }
                         },
                     )
                     SettingsDivider()
                     SwitchRow(
-                        title = "Clear site data on exit",
-                        checked = privacyPrefs.clearDataOnExit,
+                        title = eSendGpc.title,
+                        summary = eSendGpc.description,
+                        checked = privacyPrefs.sendGpc,
+                        settingId = eSendGpc.id,
                         onChange = { checked ->
-                            viewModel.updatePrivacy { it.copy(clearDataOnExit = checked) }
+                            viewModel.updatePrivacy { it.copy(sendGpc = checked) }
                         },
                     )
                     SettingsDivider()
                     SwitchRow(
-                        title = "Open new tabs as private",
+                        title = ePrivateTabsByDefault.title,
+                        summary = ePrivateTabsByDefault.description,
                         checked = privacyPrefs.privateTabsByDefault,
+                        settingId = ePrivateTabsByDefault.id,
                         onChange = { checked ->
                             viewModel.updatePrivacy { it.copy(privateTabsByDefault = checked) }
                         },
                     )
                     SettingsDivider()
                     SwitchRow(
-                        title = "Ask sites not to track me",
-                        summary = "Sends Global Privacy Control",
-                        checked = privacyPrefs.sendGpc,
+                        title = eClearDataOnExit.title,
+                        summary = eClearDataOnExit.description,
+                        checked = privacyPrefs.clearDataOnExit,
+                        settingId = eClearDataOnExit.id,
                         onChange = { checked ->
-                            viewModel.updatePrivacy { it.copy(sendGpc = checked) }
+                            viewModel.updatePrivacy { it.copy(clearDataOnExit = checked) }
                         },
                     )
                 }
             }
 
+            // History section
+            item {
+                SettingsSection(title = "History") {
+                    SwitchRow(
+                        title = eKeepHistory.title,
+                        summary = eKeepHistory.description,
+                        checked = dataPrefs.keepHistory,
+                        settingId = eKeepHistory.id,
+                        onChange = { checked ->
+                            viewModel.updateData { it.copy(keepHistory = checked) }
+                        },
+                    )
+                    SettingsDivider()
+                    NavRow(
+                        title = eClearHistory.title,
+                        summary = eClearHistory.description,
+                        settingId = eClearHistory.id,
+                        onClick = { showClearHistoryConfirmDialog = true },
+                    )
+                }
+            }
+
+            // Browsing data section
             item {
                 SettingsSection(title = "Browsing data") {
                     NavRow(
-                        title = "Clear browsing data",
-                        summary = "Cookies, cache, and history",
+                        title = eClearBrowsingData.title,
+                        summary = eClearBrowsingData.description,
+                        settingId = eClearBrowsingData.id,
                         onClick = { showClearDataDialog = true },
-                    )
-                }
-            }
-
-            item {
-                SettingsSection(title = "Problem reports") {
-                    SwitchRow(
-                        title = "Offer to report crashes",
-                        summary = "Show a card after a crash so you can report it. Nothing is sent by the app.",
-                        checked = reportOfferCrashes,
-                        onChange = { checked ->
-                            viewModel.setReportOfferCrashes(checked)
-                        },
                     )
                 }
             }
 
             extraRows()
         }
+    }
+
+    if (showClearHistoryConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearHistoryConfirmDialog = false },
+            title = { Text("Clear history") },
+            text = { Text("Clear all recorded browsing history?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showClearHistoryConfirmDialog = false
+                        scope.launch {
+                            viewModel.clearHistory()
+                            onShowSnackbar("History cleared")
+                        }
+                    }
+                ) {
+                    Text("Clear")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearHistoryConfirmDialog = false }) {
+                    Text("Cancel")
+                }
+            },
+        )
     }
 
     if (showClearDataDialog) {

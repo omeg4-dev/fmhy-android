@@ -1,7 +1,10 @@
 package io.github.omeg4dev.fmhy.ui.settings
 
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
@@ -18,7 +21,6 @@ import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Restore
-import androidx.compose.material3.Badge
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -26,28 +28,47 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import io.github.omeg4dev.fmhy.update.UpdateCheckPolicy
-import io.github.omeg4dev.fmhy.update.UpdateState
+import io.github.omeg4dev.fmhy.di.AppContainer
+import io.github.omeg4dev.fmhy.R
+import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AboutPage(
     viewModel: SettingsViewModel,
+    container: AppContainer,
     onBack: () -> Unit,
+    onShowSnackbar: (String) -> Unit = {},
     modifier: Modifier = Modifier,
     extraRows: LazyListScope.() -> Unit = {},
 ) {
     val context = LocalContext.current
-    val updateController = viewModel.updateController
-    val updatePrefs by viewModel.updatePrefs.collectAsStateWithLifecycle()
-    val updateState by updateController.state.collectAsStateWithLifecycle()
-    val availableVersion by updateController.availableVersion.collectAsStateWithLifecycle()
+    val linkOpener = rememberLinkOpener(container, onShowSnackbar)
+
+    val eAboutFmhy = SettingsCatalog.aboutAboutFmhy
+    val eVersion = SettingsCatalog.aboutVersion
+    val eRunSetupAgain = SettingsCatalog.aboutRunSetupAgain
+    val eOpenFmhyLinks = SettingsCatalog.aboutOpenFmhyLinks
+    val eGithubRepo = SettingsCatalog.aboutGithubRepo
+
+    val sectionSettingIds = remember {
+        listOf(
+            listOf(
+                eAboutFmhy.id,
+                eVersion.id,
+                eRunSetupAgain.id,
+                eOpenFmhyLinks.id,
+                eGithubRepo.id,
+            )
+        )
+    }
+    val listState = rememberFocusedListState(sectionSettingIds)
 
     val versionName = remember(context) {
         try {
@@ -80,6 +101,7 @@ fun AboutPage(
         modifier = modifier,
     ) { innerPadding ->
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
                 top = innerPadding.calculateTopPadding() + 8.dp,
@@ -90,49 +112,24 @@ fun AboutPage(
             item {
                 SettingsSection(title = "About") {
                     InfoRow(
-                        title = "About FMHY",
+                        title = eAboutFmhy.title,
                         value = "Unofficial client for FMHY. Data: github.com/fmhy/edit. GPL-3.0.",
                         icon = Icons.Default.Code,
+                        settingId = eAboutFmhy.id,
                     )
                     SettingsDivider(hasIcon = true)
                     InfoRow(
-                        title = "Version",
+                        title = eVersion.title,
                         value = versionName,
                         icon = Icons.Default.Info,
+                        settingId = eVersion.id,
                     )
-                    if (updateController.enabled) {
-                        SettingsDivider(hasIcon = true)
-                        SwitchRow(
-                            title = "Check for updates automatically",
-                            summary = "Only asks the project's release page whether a newer version exists. Sends nothing about you.",
-                            checked = updatePrefs.autoCheck,
-                            onChange = { checked ->
-                                viewModel.updateUpdatePrefs { it.copy(autoCheck = checked) }
-                            },
-                        )
-                        SettingsDivider(hasIcon = true)
-                        val checkSummary = when {
-                            updateState is UpdateState.Checking -> "Checking…"
-                            updateState is UpdateState.WaitingForWifi -> "Waiting for Wi-Fi"
-                            availableVersion != null -> "Version $availableVersion is available"
-                            updateState is UpdateState.UpToDate -> "You have the latest version"
-                            else -> null
-                        }
-                        val showMarker = UpdateCheckPolicy.showSettingsMarker(availableVersion, versionName)
-                        NavRow(
-                            title = "Check for updates",
-                            summary = checkSummary,
-                            badge = if (showMarker) { { Badge() } } else null,
-                            onClick = {
-                                updateController.checkNow()
-                            },
-                        )
-                    }
                     SettingsDivider(hasIcon = true)
                     NavRow(
-                        title = "Run setup again",
-                        summary = "Restart onboarding walkthrough",
+                        title = eRunSetupAgain.title,
+                        summary = eRunSetupAgain.description,
                         icon = Icons.Default.Restore,
+                        settingId = eRunSetupAgain.id,
                         onClick = {
                             viewModel.setOnboardingVersion(0)
                         },
@@ -140,8 +137,10 @@ fun AboutPage(
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                         SettingsDivider(hasIcon = true)
                         NavRow(
-                            title = "Open fmhy.net links in the app",
+                            title = eOpenFmhyLinks.title,
+                            summary = eOpenFmhyLinks.description,
                             icon = Icons.AutoMirrored.Filled.OpenInNew,
+                            settingId = eOpenFmhyLinks.id,
                             onClick = {
                                 try {
                                     val intent = Intent(
@@ -156,6 +155,27 @@ fun AboutPage(
                             },
                         )
                     }
+                    SettingsDivider(hasIcon = true)
+                    NavRow(
+                        title = eGithubRepo.title,
+                        summary = eGithubRepo.description,
+                        icon = ImageVector.vectorResource(R.drawable.ic_github),
+                        settingId = eGithubRepo.id,
+                        onClick = {
+                            val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+                            val activeNetwork = connectivityManager?.activeNetwork
+                            val caps = activeNetwork?.let { connectivityManager.getNetworkCapabilities(it) }
+                            val hasInternet = caps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+                            if (!hasInternet) {
+                                onShowSnackbar("You're offline. Connect to the internet to open the GitHub page.")
+                            } else {
+                                linkOpener.openUrlDirectly(
+                                    "https://github.com/omeg4-dev/fmhy-android",
+                                    recordHistory = false,
+                                )
+                            }
+                        },
+                    )
                 }
             }
 

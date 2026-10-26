@@ -155,7 +155,7 @@ fun HomeScreen(
             },
             title = { Text("New: swipe between screens") },
             text = {
-                Text("You can now swipe between screens. Swipe left or right to move between Browse, Search and Saved. You can turn this off in Settings > Home & lists.")
+                Text("You can now swipe between screens. Swipe left or right to move between Browse, Search and Saved. You can turn this off in Settings > Lists & gestures.")
             },
             confirmButton = {
                 TextButton(

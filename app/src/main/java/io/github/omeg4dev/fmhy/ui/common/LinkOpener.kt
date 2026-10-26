@@ -155,9 +155,14 @@ class LinkOpener(
         pendingUnsafeBounds = null
     }
 
-    private fun openUrlDirectly(url: String, entryId: String? = null, originBounds: OriginBounds? = null) {
+    internal fun openUrlDirectly(
+        url: String,
+        entryId: String? = null,
+        originBounds: OriginBounds? = null,
+        recordHistory: Boolean = true,
+    ) {
         coroutineScope.launch {
-            if (userStore != null) {
+            if (userStore != null && recordHistory) {
                 try {
                     if (settingsRepository.dataPrefs.first().keepHistory) {
                         val host = try { url.toUri().host?.removePrefix("www.").orEmpty().ifEmpty { url } } catch (_: Exception) { url }

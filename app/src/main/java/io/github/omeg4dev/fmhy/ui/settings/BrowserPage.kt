@@ -1,16 +1,9 @@
 package io.github.omeg4dev.fmhy.ui.settings
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -26,47 +19,60 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import io.github.omeg4dev.fmhy.SettingsPage
 import io.github.omeg4dev.fmhy.data.OpenLinksWith
 import io.github.omeg4dev.fmhy.data.SearchEngine
-import io.github.omeg4dev.fmhy.data.BrowserButtonStyle
 import io.github.omeg4dev.fmhy.data.ToolbarPosition
-import io.github.omeg4dev.fmhy.data.adblock.FilterListCatalog
-import io.github.omeg4dev.fmhy.ui.common.Motion
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BrowserPage(
     viewModel: SettingsViewModel,
     onBack: () -> Unit,
-    onNavigateToPage: (SettingsPage) -> Unit = {},
     onNavigateToSiteSettings: () -> Unit = {},
     modifier: Modifier = Modifier,
     extraRows: LazyListScope.() -> Unit = {},
 ) {
     val browserPrefs by viewModel.browserPrefs.collectAsStateWithLifecycle()
-    val blockingPrefs by viewModel.blockingPrefs.collectAsStateWithLifecycle()
-    val privacyPrefs by viewModel.privacyPrefs.collectAsStateWithLifecycle()
     val inApp = browserPrefs.openLinksWith == OpenLinksWith.IN_APP
 
-    val adblockStr = when {
-        !blockingPrefs.adblock -> "Off"
-        blockingPrefs.enabledLists == FilterListCatalog.balancedIds -> "Balanced"
-        blockingPrefs.enabledLists == FilterListCatalog.strictIds -> "Strict"
-        else -> "Custom"
-    }
+    val eOpenLinksWith = SettingsCatalog.browserOpenLinksWith
+    val eSearchEngine = SettingsCatalog.browserSearchEngine
+    val eAddressBar = SettingsCatalog.browserAddressBar
+    val eSiteBar = SettingsCatalog.browserSiteBar
+    // Dead-site rescue
+    val eDeadSiteRescue = SettingsCatalog.browserDeadSiteRescue
+    val eMaxTabs = SettingsCatalog.browserMaxTabs
+    val eRestoreTabs = SettingsCatalog.browserRestoreTabs
+    val eForceDark = SettingsCatalog.browserForceDark
+    val eTextZoomFollowsApp = SettingsCatalog.browserTextZoomFollowsApp
+    // Allow zoom on every site
+    val eForceZoom = SettingsCatalog.browserForceZoom
+    val eSiteSettings = SettingsCatalog.browserSiteSettings
+    val eJavascript = SettingsCatalog.browserJavascript
+    val eDesktopDefault = SettingsCatalog.browserDesktopDefault
 
-    val privacyOnCount = listOf(
-        privacyPrefs.blockThirdPartyCookies,
-        privacyPrefs.hideCookieBanners,
-        privacyPrefs.clearDataOnExit,
-        privacyPrefs.privateTabsByDefault,
-        privacyPrefs.sendGpc,
-    ).count { it }
-    val privacyStr = if (privacyOnCount >= 3) "Strict" else "Standard"
+    val generalIds = if (inApp) {
+        listOf(eOpenLinksWith.id, eSearchEngine.id, eAddressBar.id)
+    } else {
+        listOf(eOpenLinksWith.id)
+    }
+    val helpersIds = listOf(eSiteBar.id, eDeadSiteRescue.id)
+    val tabsIds = listOf(eMaxTabs.id, eRestoreTabs.id)
+    val pagesIds = listOf(eForceDark.id, eTextZoomFollowsApp.id, eForceZoom.id, eSiteSettings.id)
+    val advancedIds = listOf(eJavascript.id, eDesktopDefault.id)
+
+    val sectionSettingIds = remember(inApp) {
+        if (inApp) {
+            listOf(generalIds, helpersIds, tabsIds, pagesIds, advancedIds)
+        } else {
+            listOf(generalIds)
+        }
+    }
+    val listState = rememberFocusedListState(sectionSettingIds)
 
     Scaffold(
         topBar = {
@@ -76,13 +82,14 @@ fun BrowserPage(
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
-                }
+                },
             )
         },
         contentWindowInsets = WindowInsets.navigationBars,
         modifier = modifier,
     ) { innerPadding ->
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
                 top = innerPadding.calculateTopPadding() + 8.dp,
@@ -94,7 +101,7 @@ fun BrowserPage(
             item {
                 SettingsSection(title = "General") {
                     OptionCardRow(
-                        title = "Open links with",
+                        title = eOpenLinksWith.title,
                         options = listOf(
                             OptionCardItem(
                                 value = OpenLinksWith.IN_APP,
@@ -114,6 +121,7 @@ fun BrowserPage(
                             ),
                         ),
                         selected = browserPrefs.openLinksWith,
+                        settingId = eOpenLinksWith.id,
                         onSelect = { option ->
                             viewModel.updateBrowser { it.copy(openLinksWith = option) }
                         },
@@ -122,21 +130,23 @@ fun BrowserPage(
                     if (inApp) {
                         SettingsDivider()
                         ChoiceRow(
-                            title = "Search engine",
+                            title = eSearchEngine.title,
                             options = SearchEngine.entries.map { it to it.label },
                             selected = browserPrefs.searchEngine,
+                            settingId = eSearchEngine.id,
                             onSelect = { engine ->
                                 viewModel.updateBrowser { it.copy(searchEngine = engine) }
                             },
                         )
                         SettingsDivider()
                         ChoiceRow(
-                            title = "Address bar",
+                            title = eAddressBar.title,
                             options = listOf(
                                 ToolbarPosition.TOP to "Top",
                                 ToolbarPosition.BOTTOM to "Bottom",
                             ),
                             selected = browserPrefs.toolbarPosition,
+                            settingId = eAddressBar.id,
                             onSelect = { pos ->
                                 viewModel.updateBrowser { it.copy(toolbarPosition = pos) }
                             },
@@ -154,133 +164,128 @@ fun BrowserPage(
                         modifier = Modifier.padding(horizontal = 32.dp, vertical = 8.dp),
                     )
                 }
-            }
+            } else {
+                // FMHY helpers
+                item {
+                    SettingsSection(title = "FMHY helpers") {
+                        SwitchRow(
+                            title = eSiteBar.title,
+                            summary = eSiteBar.description,
+                            checked = browserPrefs.siteBar,
+                            settingId = eSiteBar.id,
+                            onChange = { checked ->
+                                viewModel.updateBrowser { it.copy(siteBar = checked) }
+                            },
+                        )
+                        SettingsDivider()
+                        SwitchRow(
+                            title = eDeadSiteRescue.title,
+                            summary = eDeadSiteRescue.description,
+                            checked = browserPrefs.deadSiteRescue,
+                            settingId = eDeadSiteRescue.id,
+                            onChange = { checked ->
+                                viewModel.updateBrowser { it.copy(deadSiteRescue = checked) }
+                            },
+                        )
+                    }
+                }
 
-            // In-app only sections
-            item {
-                AnimatedVisibility(
-                    visible = inApp,
-                    enter = expandVertically(animationSpec = Motion.enter()) + fadeIn(animationSpec = Motion.enter()),
-                    exit = shrinkVertically(animationSpec = Motion.exit()) + fadeOut(animationSpec = Motion.exit()),
-                ) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                // Tabs
+                item {
+                    SettingsSection(title = "Tabs") {
+                        ChoiceRow(
+                            title = eMaxTabs.title,
+                            options = listOf(
+                                5 to "5",
+                                10 to "10",
+                                20 to "20",
+                            ),
+                            selected = browserPrefs.maxTabs,
+                            settingId = eMaxTabs.id,
+                            onSelect = { tabs ->
+                                viewModel.updateBrowser { it.copy(maxTabs = tabs) }
+                            },
+                        )
+                        SettingsDivider()
+                        SwitchRow(
+                            title = eRestoreTabs.title,
+                            summary = eRestoreTabs.description,
+                            checked = browserPrefs.restoreTabs,
+                            settingId = eRestoreTabs.id,
+                            onChange = { checked ->
+                                viewModel.updateBrowser { it.copy(restoreTabs = checked) }
+                            },
+                        )
+                    }
+                }
+
+                // Pages
+                item {
+                    SettingsSection(title = "Pages") {
+                        SwitchRow(
+                            title = eForceDark.title,
+                            summary = eForceDark.description,
+                            checked = browserPrefs.forceDark,
+                            settingId = eForceDark.id,
+                            onChange = { checked ->
+                                viewModel.updateBrowser { it.copy(forceDark = checked) }
+                            },
+                        )
+                        SettingsDivider()
+                        SwitchRow(
+                            title = eTextZoomFollowsApp.title,
+                            summary = eTextZoomFollowsApp.description,
+                            checked = browserPrefs.textZoomFollowsApp,
+                            settingId = eTextZoomFollowsApp.id,
+                            onChange = { checked ->
+                                viewModel.updateBrowser { it.copy(textZoomFollowsApp = checked) }
+                            },
+                        )
+                        SettingsDivider()
+                        SwitchRow(
+                            title = eForceZoom.title,
+                            summary = eForceZoom.description,
+                            checked = browserPrefs.forceZoom,
+                            settingId = eForceZoom.id,
+                            onChange = { checked ->
+                                viewModel.updateBrowser { it.copy(forceZoom = checked) }
+                            },
+                        )
+                        SettingsDivider()
+                        NavRow(
+                            title = eSiteSettings.title,
+                            summary = eSiteSettings.description,
+                            settingId = eSiteSettings.id,
+                            onClick = onNavigateToSiteSettings,
+                        )
+                    }
+                }
+
+                // Advanced group
+                item {
+                    ExpandableSection(
+                        title = "Advanced",
+                        settingIds = advancedIds,
                     ) {
-                        // Tabs
-                        SettingsSection(title = "Tabs") {
-                            ChoiceRow(
-                                title = "Maximum tabs",
-                                options = listOf(
-                                    5 to "5",
-                                    10 to "10",
-                                    20 to "20",
-                                ),
-                                selected = browserPrefs.maxTabs,
-                                onSelect = { tabs ->
-                                    viewModel.updateBrowser { it.copy(maxTabs = tabs) }
-                                },
-                            )
-                            SettingsDivider()
-                            SwitchRow(
-                                title = "Restore tabs on start",
-                                checked = browserPrefs.restoreTabs,
-                                onChange = { checked ->
-                                    viewModel.updateBrowser { it.copy(restoreTabs = checked) }
-                                },
-                            )
-                        }
-
-                        // FMHY helpers
-                        SettingsSection(title = "FMHY helpers") {
-                            SwitchRow(
-                                title = "FMHY status icon",
-                                summary = "Small icon in the address bar showing if a site is on FMHY",
-                                checked = browserPrefs.siteBar,
-                                onChange = { checked ->
-                                    viewModel.updateBrowser { it.copy(siteBar = checked) }
-                                },
-                            )
-                            SettingsDivider()
-                            SwitchRow(
-                                title = "Dead-site rescue",
-                                summary = "Offers mirrors and alternatives when a site doesn't load",
-                                checked = browserPrefs.deadSiteRescue,
-                                onChange = { checked ->
-                                    viewModel.updateBrowser { it.copy(deadSiteRescue = checked) }
-                                },
-                            )
-                        }
-
-                        // Pages
-                        SettingsSection(title = "Pages") {
-                            SwitchRow(
-                                title = "JavaScript",
-                                checked = browserPrefs.javascript,
-                                onChange = { checked ->
-                                    viewModel.updateBrowser { it.copy(javascript = checked) }
-                                },
-                            )
-                            SettingsDivider()
-                            SwitchRow(
-                                title = "Dark pages in dark theme",
-                                checked = browserPrefs.forceDark,
-                                onChange = { checked ->
-                                    viewModel.updateBrowser { it.copy(forceDark = checked) }
-                                },
-                            )
-                            SettingsDivider()
-                            SwitchRow(
-                                title = "Desktop site by default",
-                                checked = browserPrefs.desktopByDefault,
-                                onChange = { checked ->
-                                    viewModel.updateBrowser { it.copy(desktopByDefault = checked) }
-                                },
-                            )
-                            SettingsDivider()
-                            SwitchRow(
-                                title = "Text size follows app",
-                                checked = browserPrefs.textZoomFollowsApp,
-                                onChange = { checked ->
-                                    viewModel.updateBrowser { it.copy(textZoomFollowsApp = checked) }
-                                },
-                            )
-                            SettingsDivider()
-                            SwitchRow(
-                                title = "Allow zoom on every site",
-                                checked = browserPrefs.forceZoom,
-                                onChange = { checked ->
-                                    viewModel.updateBrowser { it.copy(forceZoom = checked) }
-                                },
-                            )
-                        }
-
-                        // More / NavRows
-                        SettingsSection {
-                            NavRow(
-                                title = "Video",
-                                summary = "Fullscreen, picture-in-picture, speed",
-                                onClick = { onNavigateToPage(SettingsPage.VIDEO) },
-                            )
-                            SettingsDivider()
-                            NavRow(
-                                title = "Ad blocking & protection",
-                                summary = adblockStr,
-                                onClick = { onNavigateToPage(SettingsPage.BLOCKING) },
-                            )
-                            SettingsDivider()
-                            NavRow(
-                                title = "Privacy",
-                                summary = privacyStr,
-                                onClick = { onNavigateToPage(SettingsPage.PRIVACY) },
-                            )
-                            SettingsDivider()
-                            NavRow(
-                                title = "Site settings",
-                                summary = "Manage permissions and overrides per site",
-                                onClick = onNavigateToSiteSettings,
-                            )
-                        }
+                        SwitchRow(
+                            title = eJavascript.title,
+                            summary = eJavascript.description,
+                            checked = browserPrefs.javascript,
+                            settingId = eJavascript.id,
+                            onChange = { checked ->
+                                viewModel.updateBrowser { it.copy(javascript = checked) }
+                            },
+                        )
+                        SettingsDivider()
+                        SwitchRow(
+                            title = eDesktopDefault.title,
+                            summary = eDesktopDefault.description,
+                            checked = browserPrefs.desktopByDefault,
+                            settingId = eDesktopDefault.id,
+                            onChange = { checked ->
+                                viewModel.updateBrowser { it.copy(desktopByDefault = checked) }
+                            },
+                        )
                     }
                 }
             }

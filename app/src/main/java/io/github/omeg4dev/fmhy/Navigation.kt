@@ -144,20 +144,25 @@ import io.github.omeg4dev.fmhy.ui.check.CheckLinkScreen
 import io.github.omeg4dev.fmhy.ui.reader.ReaderScreen
 import io.github.omeg4dev.fmhy.ui.posts.PostsScreen
 import io.github.omeg4dev.fmhy.ui.settings.AboutPage
+import io.github.omeg4dev.fmhy.ui.settings.AdBlockingPage
 import io.github.omeg4dev.fmhy.ui.settings.AppearancePage
-import io.github.omeg4dev.fmhy.ui.settings.BlockingPage
+import io.github.omeg4dev.fmhy.ui.settings.AppUpdatesPage
+import io.github.omeg4dev.fmhy.ui.settings.BackupPage
 import io.github.omeg4dev.fmhy.ui.settings.BrowserPage
-import io.github.omeg4dev.fmhy.ui.settings.DataPage
 import io.github.omeg4dev.fmhy.ui.settings.DataUsagePage
+import io.github.omeg4dev.fmhy.ui.settings.DownloadsPage
 import io.github.omeg4dev.fmhy.ui.settings.FollowingScreen
-import io.github.omeg4dev.fmhy.ui.settings.HomeListsPage
+import io.github.omeg4dev.fmhy.ui.settings.HomePage
+import io.github.omeg4dev.fmhy.ui.settings.ListsPage
 import io.github.omeg4dev.fmhy.ui.settings.NavRow
 import io.github.omeg4dev.fmhy.ui.settings.NotificationsPage
 import io.github.omeg4dev.fmhy.ui.settings.PrivacyPage
 import io.github.omeg4dev.fmhy.ui.settings.ProtectionPage
-import io.github.omeg4dev.fmhy.ui.settings.SavedPage
+import io.github.omeg4dev.fmhy.ui.settings.ProvideSettingFocus
+import io.github.omeg4dev.fmhy.ui.settings.ReportPage
 import io.github.omeg4dev.fmhy.ui.settings.SettingsHub
 import io.github.omeg4dev.fmhy.ui.settings.SettingsViewModel
+import io.github.omeg4dev.fmhy.ui.settings.SyncPage
 import io.github.omeg4dev.fmhy.ui.settings.VideoPage
 import io.github.omeg4dev.fmhy.ui.onboarding.ONBOARDING_VERSION
 import io.github.omeg4dev.fmhy.ui.onboarding.OnboardingScreen
@@ -556,16 +561,9 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                 viewModel = settingsViewModel,
                 onBack = { if (!nav.back()) activity?.finish() },
                 onNavigateToPage = { page -> nav.push(SettingsPageNavKey(page)) },
-                onReportProblem = {
-                    container.openReport(
-                        io.github.omeg4dev.fmhy.report.ReportRequest(
-                            defaultArea = io.github.omeg4dev.fmhy.report.ReportArea.OTHER,
-                            pageUrl = null,
-                            isPrivateTab = false,
-                            crash = null,
-                        )
-                    )
-                },
+                onNavigateToSetting = { page, id -> nav.push(SettingsPageNavKey(page, focusSetting = id)) },
+                onNavigateToFollowing = { nav.push(FollowingNavKey) },
+                onNavigateToWhatsNew = { nav.push(WhatsNewNavKey()) },
             )
         }
 
@@ -577,69 +575,104 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                     container,
                 )
             }
-            when (key.page) {
-                SettingsPage.APPEARANCE -> AppearancePage(
-                    viewModel = settingsViewModel,
-                    onBack = { if (!nav.back()) activity?.finish() },
-                )
-                SettingsPage.HOME_LISTS -> HomeListsPage(
-                    viewModel = settingsViewModel,
-                    onBack = { if (!nav.back()) activity?.finish() },
-                    onNavigateToLegend = { nav.push(LegendNavKey) },
-                )
-                SettingsPage.BROWSER -> BrowserPage(
-                    viewModel = settingsViewModel,
-                    onBack = { if (!nav.back()) activity?.finish() },
-                    onNavigateToPage = { page -> nav.push(SettingsPageNavKey(page)) },
-                    onNavigateToSiteSettings = { nav.push(SiteSettingsNavKey) },
-                )
-                SettingsPage.VIDEO -> VideoPage(
-                    viewModel = settingsViewModel,
-                    onBack = { if (!nav.back()) activity?.finish() },
-                    onShowSnackbar = { msg ->
-                        scope.launch { snackbarHostState.showSnackbar(msg) }
-                    },
-                )
-                SettingsPage.BLOCKING,
-                SettingsPage.PROTECTION -> BlockingPage(
-                    viewModel = settingsViewModel,
-                    onBack = { if (!nav.back()) activity?.finish() },
-                )
-                SettingsPage.PRIVACY -> PrivacyPage(
-                    viewModel = settingsViewModel,
-                    onBack = { if (!nav.back()) activity?.finish() },
-                    onShowSnackbar = { msg ->
-                        scope.launch { snackbarHostState.showSnackbar(msg) }
-                    },
-                )
-                SettingsPage.NOTIFICATIONS -> NotificationsPage(
-                    viewModel = settingsViewModel,
-                    onBack = { if (!nav.back()) activity?.finish() },
-                    onShowSnackbar = { msg ->
-                        scope.launch { snackbarHostState.showSnackbar(msg) }
-                    },
-                    onNavigateToWhatsNew = { nav.push(WhatsNewNavKey()) },
-                    onNavigateToFollowing = { nav.push(FollowingNavKey) },
-                )
-                SettingsPage.DATA_USAGE -> DataUsagePage(
-                    viewModel = settingsViewModel,
-                    onBack = { if (!nav.back()) activity?.finish() },
-                )
-                SettingsPage.DATA -> DataPage(
-                    viewModel = settingsViewModel,
-                    onBack = { if (!nav.back()) activity?.finish() },
-                )
-                SettingsPage.SAVED -> SavedPage(
-                    viewModel = settingsViewModel,
-                    onBack = { if (!nav.back()) activity?.finish() },
-                    onShowSnackbar = { msg ->
-                        scope.launch { snackbarHostState.showSnackbar(msg) }
-                    },
-                )
-                SettingsPage.ABOUT -> AboutPage(
-                    viewModel = settingsViewModel,
-                    onBack = { if (!nav.back()) activity?.finish() },
-                )
+            ProvideSettingFocus(key.focusSetting) {
+                when (key.page) {
+                    SettingsPage.APPEARANCE -> AppearancePage(
+                        viewModel = settingsViewModel,
+                        onBack = { if (!nav.back()) activity?.finish() },
+                    )
+                    SettingsPage.HOME -> HomePage(
+                        viewModel = settingsViewModel,
+                        onBack = { if (!nav.back()) activity?.finish() },
+                    )
+                    SettingsPage.LISTS -> ListsPage(
+                        viewModel = settingsViewModel,
+                        onBack = { if (!nav.back()) activity?.finish() },
+                        onNavigateToLegend = { nav.push(LegendNavKey) },
+                    )
+                    SettingsPage.BROWSER -> BrowserPage(
+                        viewModel = settingsViewModel,
+                        onBack = { if (!nav.back()) activity?.finish() },
+                        onNavigateToSiteSettings = { nav.push(SiteSettingsNavKey) },
+                    )
+                    SettingsPage.VIDEO -> VideoPage(
+                        viewModel = settingsViewModel,
+                        onBack = { if (!nav.back()) activity?.finish() },
+                        onShowSnackbar = { msg ->
+                            scope.launch { snackbarHostState.showSnackbar(msg) }
+                        },
+                    )
+                    SettingsPage.DOWNLOADS -> DownloadsPage(
+                        viewModel = settingsViewModel,
+                        onBack = { if (!nav.back()) activity?.finish() },
+                        onShowSnackbar = { msg ->
+                            scope.launch { snackbarHostState.showSnackbar(msg) }
+                        },
+                    )
+                    SettingsPage.AD_BLOCKING -> AdBlockingPage(
+                        viewModel = settingsViewModel,
+                        onBack = { if (!nav.back()) activity?.finish() },
+                    )
+                    SettingsPage.PROTECTION -> ProtectionPage(
+                        viewModel = settingsViewModel,
+                        onBack = { if (!nav.back()) activity?.finish() },
+                    )
+                    SettingsPage.PRIVACY -> PrivacyPage(
+                        viewModel = settingsViewModel,
+                        onBack = { if (!nav.back()) activity?.finish() },
+                        onShowSnackbar = { msg ->
+                            scope.launch { snackbarHostState.showSnackbar(msg) }
+                        },
+                    )
+                    SettingsPage.NOTIFICATIONS -> NotificationsPage(
+                        viewModel = settingsViewModel,
+                        onBack = { if (!nav.back()) activity?.finish() },
+                        onShowSnackbar = { msg ->
+                            scope.launch { snackbarHostState.showSnackbar(msg) }
+                        },
+                    )
+                    SettingsPage.APP_UPDATES -> AppUpdatesPage(
+                        viewModel = settingsViewModel,
+                        onBack = { if (!nav.back()) activity?.finish() },
+                    )
+                    SettingsPage.SYNC -> SyncPage(
+                        viewModel = settingsViewModel,
+                        onBack = { if (!nav.back()) activity?.finish() },
+                    )
+                    SettingsPage.DATA_USAGE -> DataUsagePage(
+                        viewModel = settingsViewModel,
+                        onBack = { if (!nav.back()) activity?.finish() },
+                    )
+                    SettingsPage.BACKUP -> BackupPage(
+                        viewModel = settingsViewModel,
+                        onBack = { if (!nav.back()) activity?.finish() },
+                        onShowSnackbar = { msg ->
+                            scope.launch { snackbarHostState.showSnackbar(msg) }
+                        },
+                    )
+                    SettingsPage.REPORT -> ReportPage(
+                        viewModel = settingsViewModel,
+                        onBack = { if (!nav.back()) activity?.finish() },
+                        onReportProblem = {
+                            container.openReport(
+                                io.github.omeg4dev.fmhy.report.ReportRequest(
+                                    defaultArea = io.github.omeg4dev.fmhy.report.ReportArea.OTHER,
+                                    pageUrl = null,
+                                    isPrivateTab = false,
+                                    crash = null,
+                                )
+                            )
+                        },
+                    )
+                    SettingsPage.ABOUT -> AboutPage(
+                        viewModel = settingsViewModel,
+                        container = container,
+                        onBack = { if (!nav.back()) activity?.finish() },
+                        onShowSnackbar = { msg ->
+                            scope.launch { snackbarHostState.showSnackbar(msg) }
+                        },
+                    )
+                }
             }
         }
 

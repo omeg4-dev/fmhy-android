@@ -17,6 +17,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -30,6 +31,18 @@ fun DataUsagePage(
     extraRows: LazyListScope.() -> Unit = {},
 ) {
     val prefs by viewModel.dataUsagePrefs.collectAsStateWithLifecycle()
+
+    val eDownloadWifiOnly = SettingsCatalog.dataUsageDownloadWifiOnly
+    val eBrowseWifiOnly = SettingsCatalog.dataUsageBrowseWifiOnly
+    val eAppDataWifiOnly = SettingsCatalog.dataUsageAppDataWifiOnly
+
+    val dataUsageIds = listOf(
+        eDownloadWifiOnly.id,
+        eBrowseWifiOnly.id,
+        eAppDataWifiOnly.id,
+    )
+    val sectionSettingIds = remember { listOf(dataUsageIds) }
+    val listState = rememberFocusedListState(sectionSettingIds)
 
     Scaffold(
         topBar = {
@@ -46,6 +59,7 @@ fun DataUsagePage(
         modifier = modifier,
     ) { innerPadding ->
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
                 top = innerPadding.calculateTopPadding() + 8.dp,
@@ -56,24 +70,30 @@ fun DataUsagePage(
             item {
                 SettingsSection {
                     SwitchRow(
-                        title = "Download only on Wi-Fi",
+                        title = eDownloadWifiOnly.title,
+                        summary = eDownloadWifiOnly.description,
                         checked = prefs.downloadWifiOnly,
+                        settingId = eDownloadWifiOnly.id,
                         onChange = { checked ->
                             viewModel.updateDataUsage { it.copy(downloadWifiOnly = checked) }
                         },
                     )
                     SettingsDivider()
                     SwitchRow(
-                        title = "Browse only on Wi-Fi",
+                        title = eBrowseWifiOnly.title,
+                        summary = eBrowseWifiOnly.description,
                         checked = prefs.browseWifiOnly,
+                        settingId = eBrowseWifiOnly.id,
                         onChange = { checked ->
                             viewModel.updateDataUsage { it.copy(browseWifiOnly = checked) }
                         },
                     )
                     SettingsDivider()
                     SwitchRow(
-                        title = "App data and updates only on Wi-Fi",
+                        title = eAppDataWifiOnly.title,
+                        summary = eAppDataWifiOnly.description,
                         checked = prefs.appDataWifiOnly,
+                        settingId = eAppDataWifiOnly.id,
                         onChange = { checked ->
                             viewModel.updateDataUsage { it.copy(appDataWifiOnly = checked) }
                         },
