@@ -145,22 +145,22 @@ fun HomeScreen(
         }
     }
 
-    val gestureHintShown by container.settingsRepository.gestureHintShown.collectAsStateWithLifecycle(initialValue = true)
+    val screenSwipeHintShown by container.settingsRepository.screenSwipeHintShown.collectAsStateWithLifecycle(initialValue = true)
     val onboardingVersion by container.settingsRepository.onboardingVersion.collectAsStateWithLifecycle(initialValue = -1)
 
-    if (!gestureHintShown && onboardingVersion >= ONBOARDING_VERSION) {
+    if (!screenSwipeHintShown && onboardingVersion >= ONBOARDING_VERSION) {
         AlertDialog(
             onDismissRequest = {
-                scope.launch { container.settingsRepository.setGestureHintShown(true) }
+                scope.launch { container.settingsRepository.setScreenSwipeHintShown(true) }
             },
-            title = { Text("Gestures changed") },
+            title = { Text("New: swipe between screens") },
             text = {
-                Text("Tap now opens a site and hold opens its menu. Swipe to bookmark is now optional and off by default; swiping a list moves between subsections instead. Change both in Settings > Home & lists.")
+                Text("You can now swipe between screens. Swipe left or right to move between Browse, Search and Saved. You can turn this off in Settings > Home & lists.")
             },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        scope.launch { container.settingsRepository.setGestureHintShown(true) }
+                        scope.launch { container.settingsRepository.setScreenSwipeHintShown(true) }
                     }
                 ) {
                     Text("Got it")

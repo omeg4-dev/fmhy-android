@@ -71,6 +71,7 @@ data class HomePrefs(
     val searchExact: Boolean = false,
     val swipeToBookmark: Boolean = false,
     val swapTapHold: Boolean = false,
+    val swipeBetweenScreens: Boolean = true,
 )
 
 data class BrowserPrefs(

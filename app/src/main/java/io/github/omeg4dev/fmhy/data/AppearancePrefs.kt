@@ -1,5 +1,7 @@
 package io.github.omeg4dev.fmhy.data
 
+import io.github.omeg4dev.fmhy.nav.BottomBarStyle
+
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 enum class ColorSource { FMHY, MATERIAL_YOU }   // later: CUSTOM
 enum class SectionLayout { CONTINUOUS, CATEGORIES }
@@ -18,4 +20,5 @@ data class Appearance(
     val hapticFeedback: Boolean = true,
     val websiteStyle: Boolean = false,
     val appIcon: AppIcon = AppIcon.DEFAULT,
+    val bottomBarStyle: BottomBarStyle = BottomBarStyle.CLASSIC,
 )

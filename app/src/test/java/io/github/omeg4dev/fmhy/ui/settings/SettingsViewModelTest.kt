@@ -150,6 +150,7 @@ class SettingsViewModelTest {
         override suspend fun setHapticFeedback(enabled: Boolean) { _appearance.value = _appearance.value.copy(hapticFeedback = enabled) }
         override suspend fun setWebsiteStyle(enabled: Boolean) { _appearance.value = _appearance.value.copy(websiteStyle = enabled) }
         override suspend fun setAppIcon(icon: AppIcon) { _appearance.value = _appearance.value.copy(appIcon = icon) }
+        override suspend fun setBottomBarStyle(style: io.github.omeg4dev.fmhy.nav.BottomBarStyle) { _appearance.value = _appearance.value.copy(bottomBarStyle = style) }
 
         private val _home = MutableStateFlow(HomePrefs())
         override val homePrefs: Flow<HomePrefs> = _home.asStateFlow()

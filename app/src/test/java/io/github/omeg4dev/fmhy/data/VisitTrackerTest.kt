@@ -140,6 +140,7 @@ class VisitTrackerTest {
         override suspend fun setHapticFeedback(enabled: Boolean) {}
         override suspend fun setWebsiteStyle(enabled: Boolean) {}
         override suspend fun setAppIcon(icon: AppIcon) {}
+        override suspend fun setBottomBarStyle(style: io.github.omeg4dev.fmhy.nav.BottomBarStyle) {}
 
         override val homePrefs: Flow<HomePrefs> get() = error("Not needed")
         override suspend fun updateHome(f: (HomePrefs) -> HomePrefs) {}

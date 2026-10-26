@@ -327,6 +327,7 @@ class OnboardingModel(
             startFilterDownloadIfNeeded()
             settingsRepository.setOnboardingVersion(ONBOARDING_VERSION)
             settingsRepository.setGestureHintShown(true)
+            settingsRepository.setScreenSwipeHintShown(true)
             onComplete()
         }
     }
@@ -338,6 +339,7 @@ class OnboardingModel(
             }
             settingsRepository.setOnboardingVersion(ONBOARDING_VERSION)
             settingsRepository.setGestureHintShown(true)
+            settingsRepository.setScreenSwipeHintShown(true)
             onComplete()
         }
     }

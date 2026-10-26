@@ -26,6 +26,7 @@ import io.github.omeg4dev.fmhy.data.SettingsRepository
 import io.github.omeg4dev.fmhy.data.ThemeMode
 import io.github.omeg4dev.fmhy.data.sync.SyncResult
 import io.github.omeg4dev.fmhy.data.sync.SyncState
+import io.github.omeg4dev.fmhy.nav.BottomBarStyle
 import io.github.omeg4dev.fmhy.work.NetworkKind
 import io.github.omeg4dev.fmhy.work.NetworkPolicy
 import io.github.omeg4dev.fmhy.data.model.Entry
@@ -499,6 +500,12 @@ class SettingsViewModel(
     fun setAppIcon(icon: AppIcon) {
         viewModelScope.launch {
             settingsRepository.setAppIcon(icon)
+        }
+    }
+
+    fun setBottomBarStyle(style: BottomBarStyle) {
+        viewModelScope.launch {
+            settingsRepository.setBottomBarStyle(style)
         }
     }
 

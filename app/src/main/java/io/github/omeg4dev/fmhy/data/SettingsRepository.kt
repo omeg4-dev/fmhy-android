@@ -13,6 +13,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import io.github.omeg4dev.fmhy.data.adblock.FilterListCatalog
+import io.github.omeg4dev.fmhy.nav.BottomBarStyle
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -43,6 +44,7 @@ interface SettingsRepository {
     suspend fun setHapticFeedback(enabled: Boolean)
     suspend fun setWebsiteStyle(enabled: Boolean)
     suspend fun setAppIcon(icon: AppIcon)
+    suspend fun setBottomBarStyle(style: BottomBarStyle)
 
     val homePrefs: Flow<HomePrefs>
     suspend fun updateHome(f: (HomePrefs) -> HomePrefs)
@@ -86,6 +88,10 @@ interface SettingsRepository {
         get() = kotlinx.coroutines.flow.flowOf(false)
     suspend fun setGestureHintShown(shown: Boolean) {}
 
+    val screenSwipeHintShown: Flow<Boolean>
+        get() = kotlinx.coroutines.flow.flowOf(false)
+    suspend fun setScreenSwipeHintShown(shown: Boolean) {}
+
     val reportOfferCrashes: Flow<Boolean>
         get() = kotlinx.coroutines.flow.flowOf(true)
     suspend fun setReportOfferCrashes(enabled: Boolean) {}
@@ -122,6 +128,7 @@ class DefaultSettingsRepository(
         private val KEY_HAPTIC_FEEDBACK = booleanPreferencesKey("haptic_feedback")
         private val KEY_WEBSITE_STYLE = booleanPreferencesKey("website_style")
         private val KEY_APP_ICON = stringPreferencesKey("app_icon")
+        private val KEY_BOTTOM_BAR_STYLE = stringPreferencesKey("appearance_bottom_bar_style")
         private val KEY_ONBOARDING_VERSION = intPreferencesKey("onboarding_version")
 
         // Home
@@ -130,6 +137,7 @@ class DefaultSettingsRepository(
         private val KEY_HOME_SEARCH_EXACT = booleanPreferencesKey("home_search_exact")
         private val KEY_HOME_SWIPE_TO_BOOKMARK = booleanPreferencesKey("home_swipe_to_bookmark")
         private val KEY_HOME_SWAP_TAP_HOLD = booleanPreferencesKey("home_swap_tap_hold")
+        private val KEY_HOME_SWIPE_BETWEEN_SCREENS = booleanPreferencesKey("home_swipe_between_screens")
 
         // Browser
         private val KEY_BROWSER_OPEN_LINKS_WITH = stringPreferencesKey("browser_open_links_with")
@@ -198,6 +206,7 @@ class DefaultSettingsRepository(
         private val KEY_NOTIFICATIONS_WIFI_ONLY = booleanPreferencesKey("notifications_wifi_only")
         private val KEY_FOLLOW_NOTIFY_PROMPT_SHOWN = booleanPreferencesKey("follow_notify_prompt_shown")
         private val KEY_GESTURE_HINT_SHOWN = booleanPreferencesKey("gesture_hint_shown")
+        private val KEY_SCREEN_SWIPE_HINT_SHOWN = booleanPreferencesKey("screen_swipe_hint_shown")
 
         // Data usage
         private val KEY_DATA_USAGE_DOWNLOAD_WIFI_ONLY = booleanPreferencesKey("data_usage_download_wifi_only")
@@ -324,6 +333,7 @@ class DefaultSettingsRepository(
         } catch (_: IllegalArgumentException) {
             AppIcon.DEFAULT
         }
+        val bottomBarStyle = BottomBarStyle.fromName(prefs[KEY_BOTTOM_BAR_STYLE])
 
         Appearance(
             themeMode = themeMode,
@@ -339,6 +349,7 @@ class DefaultSettingsRepository(
             hapticFeedback = hapticFeedback,
             websiteStyle = websiteStyle,
             appIcon = appIcon,
+            bottomBarStyle = bottomBarStyle,
         )
     }.distinctUntilChanged()
 
@@ -420,6 +431,12 @@ class DefaultSettingsRepository(
         }
     }
 
+    override suspend fun setBottomBarStyle(style: BottomBarStyle) {
+        dataStore.edit { prefs ->
+            prefs[KEY_BOTTOM_BAR_STYLE] = style.name
+        }
+    }
+
     // --- HomePrefs ---
     private fun readHomePrefs(prefs: Preferences): HomePrefs {
         val default = HomePrefs()
@@ -429,6 +446,7 @@ class DefaultSettingsRepository(
             searchExact = prefs[KEY_HOME_SEARCH_EXACT] ?: default.searchExact,
             swipeToBookmark = prefs[KEY_HOME_SWIPE_TO_BOOKMARK] ?: default.swipeToBookmark,
             swapTapHold = prefs[KEY_HOME_SWAP_TAP_HOLD] ?: default.swapTapHold,
+            swipeBetweenScreens = prefs[KEY_HOME_SWIPE_BETWEEN_SCREENS] ?: default.swipeBetweenScreens,
         )
     }
 
@@ -438,6 +456,7 @@ class DefaultSettingsRepository(
         prefs[KEY_HOME_NEW_BADGE_DAYS] = p.newBadgeDays
         prefs[KEY_HOME_SWIPE_TO_BOOKMARK] = p.swipeToBookmark
         prefs[KEY_HOME_SWAP_TAP_HOLD] = p.swapTapHold
+        prefs[KEY_HOME_SWIPE_BETWEEN_SCREENS] = p.swipeBetweenScreens
     }
 
     override val homePrefs: Flow<HomePrefs> = dataStore.data.map { prefs ->
@@ -872,6 +891,16 @@ class DefaultSettingsRepository(
     override suspend fun setGestureHintShown(shown: Boolean) {
         dataStore.edit { prefs ->
             prefs[KEY_GESTURE_HINT_SHOWN] = shown
+        }
+    }
+
+    override val screenSwipeHintShown: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[KEY_SCREEN_SWIPE_HINT_SHOWN] ?: false
+    }.distinctUntilChanged()
+
+    override suspend fun setScreenSwipeHintShown(shown: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[KEY_SCREEN_SWIPE_HINT_SHOWN] = shown
         }
     }
 

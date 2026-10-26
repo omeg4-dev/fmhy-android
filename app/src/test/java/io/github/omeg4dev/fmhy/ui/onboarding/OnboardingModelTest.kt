@@ -99,6 +99,7 @@ class OnboardingModelTest {
         override suspend fun setHapticFeedback(enabled: Boolean) { appearanceState.value = appearanceState.value.copy(hapticFeedback = enabled) }
         override suspend fun setWebsiteStyle(enabled: Boolean) { appearanceState.value = appearanceState.value.copy(websiteStyle = enabled) }
         override suspend fun setAppIcon(icon: AppIcon) { appearanceState.value = appearanceState.value.copy(appIcon = icon) }
+        override suspend fun setBottomBarStyle(style: io.github.omeg4dev.fmhy.nav.BottomBarStyle) { appearanceState.value = appearanceState.value.copy(bottomBarStyle = style) }
 
         val homeState = MutableStateFlow(initialHome)
         override val homePrefs: Flow<HomePrefs> = homeState.asStateFlow()

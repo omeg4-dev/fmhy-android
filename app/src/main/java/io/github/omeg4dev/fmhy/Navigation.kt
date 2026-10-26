@@ -5,7 +5,6 @@ import io.github.omeg4dev.fmhy.ui.common.LocalPasteDecoder
 import io.github.omeg4dev.fmhy.ui.common.PasteDecodeUi
 import io.github.omeg4dev.fmhy.ui.common.rememberPasteDecoder
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -16,6 +15,8 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -25,8 +26,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.systemGestures
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -37,6 +41,10 @@ import androidx.compose.material3.TopAppBarDefaults
 import io.github.omeg4dev.fmhy.ui.shell.BrowserBarItem
 import io.github.omeg4dev.fmhy.ui.shell.BrowserMenuSheet
 import io.github.omeg4dev.fmhy.ui.shell.StatusNoticeOverlay
+import io.github.omeg4dev.fmhy.ui.shell.AppBottomBar
+import io.github.omeg4dev.fmhy.data.Appearance
+import io.github.omeg4dev.fmhy.nav.contentPaddingDp
+import io.github.omeg4dev.fmhy.nav.metrics
 import io.github.omeg4dev.fmhy.browser.bringBrowserToFront
 import io.github.omeg4dev.fmhy.browser.openBrowserNewTab
 import io.github.omeg4dev.fmhy.browser.formatRelativeTime
@@ -78,6 +86,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.staticCompositionLocalOf
 
 import androidx.compose.ui.Alignment
@@ -87,10 +96,14 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import io.github.omeg4dev.fmhy.data.HomePrefs
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
@@ -191,6 +204,26 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
     }
     LaunchedEffect(nav.current) {
         savedTabName = nav.current.name
+    }
+
+    val pagerState = rememberPagerState(initialPage = initialTab.ordinal) { Tab.entries.size }
+    LaunchedEffect(nav.current) {
+        val targetIndex = nav.current.ordinal
+        if (pagerState.currentPage != targetIndex) {
+            if (kotlin.math.abs(pagerState.currentPage - targetIndex) > 1) {
+                pagerState.scrollToPage(targetIndex)
+            } else {
+                pagerState.animateScrollToPage(targetIndex)
+            }
+        }
+    }
+    LaunchedEffect(pagerState) {
+        snapshotFlow { pagerState.settledPage }.collect { settled ->
+            val targetTab = Tab.entries[settled]
+            if (targetTab != nav.current) {
+                nav.select(targetTab)
+            }
+        }
     }
 
     val snackbarHostState = remember { SnackbarHostState() }
@@ -354,8 +387,10 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
         )
     }
 
+    val appearance by container.settingsRepository.appearance.collectAsStateWithLifecycle(initialValue = Appearance())
+    val barMetrics = remember(appearance.bottomBarStyle) { appearance.bottomBarStyle.metrics() }
     val navBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    val bottomBarPadding = 80.dp + navBarInset
+    val bottomBarPadding = barMetrics.contentPaddingDp().dp + navBarInset
 
     LaunchedEffect(container.snackbarEvents) {
         container.snackbarEvents.collect { msg ->
@@ -402,6 +437,7 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
         }
     }
 
+    val homePrefs by container.settingsRepository.homePrefs.collectAsStateWithLifecycle(initialValue = HomePrefs())
     val onboardingVersion by container.settingsRepository.onboardingVersion.collectAsStateWithLifecycle(initialValue = -1)
     val showOnboarding = onboardingVersion in 0 until ONBOARDING_VERSION
 
@@ -409,7 +445,26 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
     val browserTabCount by container.tabManager.browserTabCount.collectAsStateWithLifecycle()
     var showBrowserMenu by rememberSaveable { mutableStateOf(false) }
 
-    val shouldShowBar = isBarVisible && !showOnboarding && currentTopKey !is SettingsNavKey && currentTopKey !is SettingsPageNavKey && currentTopKey !is LegendNavKey && currentTopKey !is SiteSettingsNavKey && currentTopKey !is ReaderNavKey && currentTopKey !is FollowingNavKey
+    val showsBarScreen = !showOnboarding &&
+        currentTopKey !is SettingsNavKey &&
+        currentTopKey !is SettingsPageNavKey &&
+        currentTopKey !is LegendNavKey &&
+        currentTopKey !is SiteSettingsNavKey &&
+        currentTopKey !is ReaderNavKey &&
+        currentTopKey !is FollowingNavKey
+    val shouldShowBar = isBarVisible && showsBarScreen
+    val swipeEnabled = homePrefs.swipeBetweenScreens && showsBarScreen && nav.currentStack.size == 1
+
+    val highlightedTab = if (pagerState.isScrollInProgress) {
+        Tab.entries.getOrElse(pagerState.targetPage) { nav.current }
+    } else {
+        nav.current
+    }
+
+    val systemGestures = WindowInsets.systemGestures
+    val density = LocalDensity.current
+    val layoutDirection = LocalLayoutDirection.current
+    var gutterDown by remember { mutableStateOf(false) }
 
     BackHandler(enabled = nav.current != Tab.BROWSE && nav.currentStack.size == 1) {
         nav.back()
@@ -714,23 +769,44 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                     .fillMaxSize()
                     .padding(innerPadding)
             ) {
-                // Content box with hide-on-scroll connection
+                // Content box with hide-on-scroll connection and system-gesture gutter detection
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .nestedScroll(nestedScrollConnection)
+                        // Ignore drags starting within system gesture insets at left/right edges
+                        .pointerInput(systemGestures, density, layoutDirection) {
+                            awaitEachGesture {
+                                val down = awaitFirstDown(requireUnconsumed = false)
+                                val leftGutter = systemGestures.getLeft(density, layoutDirection)
+                                val rightGutter = systemGestures.getRight(density, layoutDirection)
+                                val inGutter = down.position.x < leftGutter || down.position.x > (size.width - rightGutter)
+                                if (inGutter) {
+                                    gutterDown = true
+                                    try {
+                                        while (true) {
+                                            val event = awaitPointerEvent()
+                                            if (event.changes.none { it.pressed }) break
+                                        }
+                                    } finally {
+                                        gutterDown = false
+                                    }
+                                }
+                            }
+                        }
                 ) {
                     val holder = rememberSaveableStateHolder()
-                    AnimatedContent(
-                        targetState = nav.current,
-                        transitionSpec = {
-                            fadeIn(tween(150)) togetherWith fadeOut(tween(90))
-                        },
-                        label = "tab_switch",
-                    ) { targetTab ->
-                        holder.SaveableStateProvider(targetTab.name) {
+                    HorizontalPager(
+                        state = pagerState,
+                        beyondViewportPageCount = Tab.entries.size - 1,
+                        userScrollEnabled = swipeEnabled && !gutterDown,
+                        key = { Tab.entries[it].name },
+                        modifier = Modifier.fillMaxSize(),
+                    ) { pageIndex ->
+                        val tab = Tab.entries[pageIndex]
+                        holder.SaveableStateProvider(tab.name) {
                             NavDisplay(
-                                backStack = nav.stacks.getValue(targetTab),
+                                backStack = nav.stacks.getValue(tab),
                                 onBack = { if (!nav.back()) activity?.finish() },
                                 transitionSpec = {
                                     slideInHorizontally(tween(220)) { width -> width / 6 } + fadeIn(tween(220)) togetherWith fadeOut(tween(120))
@@ -758,62 +834,19 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                         animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing)
                     ) { it },
                 ) {
-                    NavigationBar(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                    ) {
-                        NavigationBarItem(
-                            selected = nav.current == Tab.BROWSE,
-                            onClick = {
-                                nav.select(Tab.BROWSE)
-                            },
-                            icon = {
-                                Icon(
-                                    imageVector = if (nav.current == Tab.BROWSE) Icons.Filled.Explore else Icons.Outlined.Explore,
-                                    contentDescription = "Browse",
-                                )
-                            },
-                            label = { Text("Browse") },
-                            alwaysShowLabel = true,
-                        )
-                        NavigationBarItem(
-                            selected = nav.current == Tab.SEARCH,
-                            onClick = {
-                                nav.select(Tab.SEARCH)
-                            },
-                            icon = {
-                                Icon(
-                                    imageVector = if (nav.current == Tab.SEARCH) Icons.Filled.Search else Icons.Outlined.Search,
-                                    contentDescription = "Search",
-                                )
-                            },
-                            label = { Text("Search") },
-                            alwaysShowLabel = true,
-                        )
-                        BrowserBarItem(
-                            tabCount = browserTabCount,
-                            onClick = {
-                                if (browserTabCount > 0) bringBrowserToFront(context) else openBrowserNewTab(context)
-                            },
-                            onLongClick = {
-                                barHaptics.longPress()
-                                showBrowserMenu = true
-                            },
-                        )
-                        NavigationBarItem(
-                            selected = nav.current == Tab.SAVED,
-                            onClick = {
-                                nav.select(Tab.SAVED)
-                            },
-                            icon = {
-                                Icon(
-                                    imageVector = if (nav.current == Tab.SAVED) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
-                                    contentDescription = "Saved",
-                                )
-                            },
-                            label = { Text("Saved") },
-                            alwaysShowLabel = true,
-                        )
-                    }
+                    AppBottomBar(
+                        style = appearance.bottomBarStyle,
+                        current = highlightedTab,
+                        browserTabCount = browserTabCount,
+                        onSelect = { nav.select(it) },
+                        onBrowserClick = {
+                            if (browserTabCount > 0) bringBrowserToFront(context) else openBrowserNewTab(context)
+                        },
+                        onBrowserLongClick = {
+                            barHaptics.longPress()
+                            showBrowserMenu = true
+                        },
+                    )
                 }
 
                 // Update prompt overlay above bottom bar / system insets

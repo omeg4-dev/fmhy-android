@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import io.github.omeg4dev.fmhy.data.adblock.FilterListCatalog
+import io.github.omeg4dev.fmhy.nav.BottomBarStyle
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestScope
@@ -210,6 +211,14 @@ class SettingsRepositoryTest {
     }
 
     @Test
+    fun testBottomBarStyleRoundTrip() = runTest {
+        val (repo, _) = createRepository(this)
+        assertEquals(BottomBarStyle.CLASSIC, repo.appearance.first().bottomBarStyle)
+        repo.setBottomBarStyle(BottomBarStyle.FLOATING)
+        assertEquals(BottomBarStyle.FLOATING, repo.appearance.first().bottomBarStyle)
+    }
+
+    @Test
     fun testMigration_whenOpenInExternalBrowserIsTrue_andOpenLinksWithAbsent_yieldsExternal() = runTest {
         val (repo, dataStore) = createRepository(this)
         dataStore.edit { prefs ->
@@ -323,11 +332,13 @@ class SettingsRepositoryTest {
         val defaultPrefs = repo.homePrefs.first()
         assertFalse(defaultPrefs.swipeToBookmark)
         assertFalse(defaultPrefs.swapTapHold)
+        assertTrue(defaultPrefs.swipeBetweenScreens)
 
-        repo.updateHome { it.copy(swipeToBookmark = true, swapTapHold = true) }
+        repo.updateHome { it.copy(swipeToBookmark = true, swapTapHold = true, swipeBetweenScreens = false) }
         val updated = repo.homePrefs.first()
         assertTrue(updated.swipeToBookmark)
         assertTrue(updated.swapTapHold)
+        assertFalse(updated.swipeBetweenScreens)
     }
 
     @Test
@@ -336,6 +347,14 @@ class SettingsRepositoryTest {
         assertFalse(repo.gestureHintShown.first())
         repo.setGestureHintShown(true)
         assertTrue(repo.gestureHintShown.first())
+    }
+
+    @Test
+    fun testScreenSwipeHintShownRoundTrip() = runTest {
+        val (repo, _) = createRepository(this)
+        assertFalse(repo.screenSwipeHintShown.first())
+        repo.setScreenSwipeHintShown(true)
+        assertTrue(repo.screenSwipeHintShown.first())
     }
 
     @Test

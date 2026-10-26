@@ -50,6 +50,8 @@ fun RowScope.BrowserBarItem(
     tabCount: Int,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
+    showLabel: Boolean = true,
+    heightDp: Int = 80,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val tint = MaterialTheme.colorScheme.onSurfaceVariant
@@ -57,7 +59,7 @@ fun RowScope.BrowserBarItem(
     Column(
         modifier = Modifier
             .weight(1f)
-            .height(80.dp)
+            .height(heightDp.dp)
             .padding(bottom = 4.dp)
             .semantics(mergeDescendants = true) {
                 contentDescription = "Browser" + if (tabCount > 0) ", $tabCount " + if (tabCount == 1) "tab" else "tabs" else ""
@@ -90,7 +92,9 @@ fun RowScope.BrowserBarItem(
                 Icon(Icons.Outlined.Tab, contentDescription = null, tint = tint, modifier = Modifier.size(24.dp))
             }
         }
-        Spacer(Modifier.height(4.dp))
-        Text("Browser", style = MaterialTheme.typography.labelMedium, color = tint, maxLines = 1)
+        if (showLabel) {
+            Spacer(Modifier.height(4.dp))
+            Text("Browser", style = MaterialTheme.typography.labelMedium, color = tint, maxLines = 1)
+        }
     }
 }

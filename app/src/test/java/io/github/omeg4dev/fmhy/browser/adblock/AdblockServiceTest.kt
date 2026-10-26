@@ -93,6 +93,7 @@ class AdblockServiceTest {
         override suspend fun setHapticFeedback(enabled: Boolean) {}
         override suspend fun setWebsiteStyle(enabled: Boolean) {}
         override suspend fun setAppIcon(icon: io.github.omeg4dev.fmhy.data.AppIcon) {}
+        override suspend fun setBottomBarStyle(style: io.github.omeg4dev.fmhy.nav.BottomBarStyle) {}
 
         private val _home = MutableStateFlow(HomePrefs())
         override val homePrefs: Flow<HomePrefs> = _home

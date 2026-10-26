@@ -7,6 +7,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -42,7 +44,10 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -61,7 +66,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -80,6 +90,7 @@ import io.github.omeg4dev.fmhy.R
 import io.github.omeg4dev.fmhy.data.AppIcon
 import io.github.omeg4dev.fmhy.data.ColorSource
 import io.github.omeg4dev.fmhy.data.ThemeMode
+import io.github.omeg4dev.fmhy.nav.BottomBarStyle
 import io.github.omeg4dev.fmhy.theme.ACCENT_PRESETS
 import io.github.omeg4dev.fmhy.theme.LocalIsDarkTheme
 import io.github.omeg4dev.fmhy.theme.colors
@@ -149,6 +160,25 @@ fun AppearancePage(
                         enabled = isDark,
                         onChange = { viewModel.setPureBlack(it) },
                     )
+                }
+            }
+
+            // Bottom bar section
+            item {
+                SettingsSection(title = "Bottom bar") {
+                    ListItem(
+                        headlineContent = {
+                            Text("Bottom bar style", style = MaterialTheme.typography.bodyLarge)
+                        },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                    )
+                    BottomBarStyle.entries.forEach { style ->
+                        BottomBarStyleRow(
+                            style = style,
+                            selected = appearance.bottomBarStyle == style,
+                            onClick = { viewModel.setBottomBarStyle(style) },
+                        )
+                    }
                 }
             }
 
@@ -712,4 +742,176 @@ private fun iconForegroundRes(icon: AppIcon): Int = when (icon) {
     AppIcon.GREEN -> R.drawable.ic_launcher_monochrome
     AppIcon.RED -> R.drawable.ic_launcher_monochrome
     AppIcon.BLACK -> R.drawable.ic_launcher_monochrome
+}
+
+@Composable
+private fun BottomBarStyleRow(
+    style: BottomBarStyle,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val haptics = rememberHaptics()
+    ListItem(
+        headlineContent = {
+            Text(style.label, style = MaterialTheme.typography.bodyLarge)
+        },
+        leadingContent = {
+            BottomBarPreview(style = style)
+        },
+        trailingContent = {
+            RadioButton(
+                selected = selected,
+                onClick = null,
+            )
+        },
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        modifier = modifier
+            .fillMaxWidth()
+            .defaultMinSize(minHeight = 48.dp)
+            .selectable(
+                selected = selected,
+                role = Role.RadioButton,
+                onClick = {
+                    haptics.tick()
+                    onClick()
+                },
+            ),
+    )
+}
+
+@Composable
+private fun BottomBarPreview(
+    style: BottomBarStyle,
+    modifier: Modifier = Modifier,
+) {
+    val backdropColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+    val borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+    val barColor = MaterialTheme.colorScheme.surfaceContainerHigh
+    val barBorder = MaterialTheme.colorScheme.outlineVariant
+    val activeDotColor = MaterialTheme.colorScheme.primary
+    val inactiveDotColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+
+    Box(
+        modifier = modifier
+            .size(width = 56.dp, height = 28.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .background(backdropColor)
+            .border(1.dp, borderColor, RoundedCornerShape(6.dp)),
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val w = size.width
+            val h = size.height
+
+            when (style) {
+                BottomBarStyle.CLASSIC -> {
+                    val barH = 13.dp.toPx()
+                    val barTop = h - barH
+                    drawRect(
+                        color = barColor,
+                        topLeft = Offset(0f, barTop),
+                        size = Size(w, barH),
+                    )
+                    drawLine(
+                        color = barBorder.copy(alpha = 0.5f),
+                        start = Offset(0f, barTop),
+                        end = Offset(w, barTop),
+                        strokeWidth = 1.dp.toPx(),
+                    )
+                    val dotY = barTop + barH / 2f
+                    drawCircle(color = activeDotColor, radius = 2.dp.toPx(), center = Offset(w * 0.25f, dotY))
+                    drawCircle(color = inactiveDotColor, radius = 1.8.dp.toPx(), center = Offset(w * 0.50f, dotY))
+                    drawCircle(color = inactiveDotColor, radius = 1.8.dp.toPx(), center = Offset(w * 0.75f, dotY))
+                }
+                BottomBarStyle.ROUNDED_TOP -> {
+                    val barH = 13.dp.toPx()
+                    val barTop = h - barH
+                    val cornerR = 5.dp.toPx()
+                    val path = Path().apply {
+                        moveTo(0f, h)
+                        lineTo(0f, barTop + cornerR)
+                        quadraticTo(0f, barTop, cornerR, barTop)
+                        lineTo(w - cornerR, barTop)
+                        quadraticTo(w, barTop, w, barTop + cornerR)
+                        lineTo(w, h)
+                        close()
+                    }
+                    drawPath(path, color = barColor)
+                    val borderPath = Path().apply {
+                        moveTo(0f, barTop + cornerR)
+                        quadraticTo(0f, barTop, cornerR, barTop)
+                        lineTo(w - cornerR, barTop)
+                        quadraticTo(w, barTop, w, barTop + cornerR)
+                    }
+                    drawPath(borderPath, color = barBorder.copy(alpha = 0.6f), style = Stroke(width = 1.dp.toPx()))
+
+                    val dotY = barTop + barH / 2f
+                    drawCircle(color = activeDotColor, radius = 2.dp.toPx(), center = Offset(w * 0.25f, dotY))
+                    drawCircle(color = inactiveDotColor, radius = 1.8.dp.toPx(), center = Offset(w * 0.50f, dotY))
+                    drawCircle(color = inactiveDotColor, radius = 1.8.dp.toPx(), center = Offset(w * 0.75f, dotY))
+                }
+                BottomBarStyle.FLOATING -> {
+                    val pillW = 42.dp.toPx()
+                    val pillH = 11.dp.toPx()
+                    val pillLeft = (w - pillW) / 2f
+                    val pillTop = h - pillH - 2.5.dp.toPx()
+                    val r = pillH / 2f
+
+                    // Shadow
+                    drawRoundRect(
+                        color = Color.Black.copy(alpha = 0.18f),
+                        topLeft = Offset(pillLeft, pillTop + 1.2.dp.toPx()),
+                        size = Size(pillW, pillH),
+                        cornerRadius = CornerRadius(r, r),
+                    )
+                    // Bubble body
+                    drawRoundRect(
+                        color = barColor,
+                        topLeft = Offset(pillLeft, pillTop),
+                        size = Size(pillW, pillH),
+                        cornerRadius = CornerRadius(r, r),
+                    )
+                    // Bubble border
+                    drawRoundRect(
+                        color = barBorder,
+                        topLeft = Offset(pillLeft, pillTop),
+                        size = Size(pillW, pillH),
+                        cornerRadius = CornerRadius(r, r),
+                        style = Stroke(width = 1.dp.toPx()),
+                    )
+
+                    val dotY = pillTop + pillH / 2f
+                    drawCircle(color = activeDotColor, radius = 1.8.dp.toPx(), center = Offset(pillLeft + pillW * 0.25f, dotY))
+                    drawCircle(color = inactiveDotColor, radius = 1.6.dp.toPx(), center = Offset(pillLeft + pillW * 0.50f, dotY))
+                    drawCircle(color = inactiveDotColor, radius = 1.6.dp.toPx(), center = Offset(pillLeft + pillW * 0.75f, dotY))
+                }
+                BottomBarStyle.SELECTED_LABEL_ONLY -> {
+                    val barH = 12.dp.toPx()
+                    val barTop = h - barH
+                    drawRect(
+                        color = barColor,
+                        topLeft = Offset(0f, barTop),
+                        size = Size(w, barH),
+                    )
+                    drawLine(
+                        color = barBorder.copy(alpha = 0.5f),
+                        start = Offset(0f, barTop),
+                        end = Offset(w, barTop),
+                        strokeWidth = 1.dp.toPx(),
+                    )
+                    val activeDotY = barTop + 3.5.dp.toPx()
+                    drawCircle(color = activeDotColor, radius = 1.6.dp.toPx(), center = Offset(w * 0.25f, activeDotY))
+                    drawRoundRect(
+                        color = activeDotColor,
+                        topLeft = Offset(w * 0.25f - 3.5.dp.toPx(), barTop + 7.dp.toPx()),
+                        size = Size(7.dp.toPx(), 1.5.dp.toPx()),
+                        cornerRadius = CornerRadius(0.75.dp.toPx(), 0.75.dp.toPx()),
+                    )
+                    val otherDotY = barTop + barH / 2f
+                    drawCircle(color = inactiveDotColor, radius = 1.8.dp.toPx(), center = Offset(w * 0.50f, otherDotY))
+                    drawCircle(color = inactiveDotColor, radius = 1.8.dp.toPx(), center = Offset(w * 0.75f, otherDotY))
+                }
+            }
+        }
+    }
 }

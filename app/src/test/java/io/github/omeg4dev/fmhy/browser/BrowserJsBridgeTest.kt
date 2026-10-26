@@ -57,6 +57,7 @@ class BrowserJsBridgeTest {
         override suspend fun setHapticFeedback(enabled: Boolean) {}
         override suspend fun setWebsiteStyle(enabled: Boolean) {}
         override suspend fun setAppIcon(icon: io.github.omeg4dev.fmhy.data.AppIcon) {}
+        override suspend fun setBottomBarStyle(style: io.github.omeg4dev.fmhy.nav.BottomBarStyle) {}
         override val homePrefs: Flow<HomePrefs> = MutableStateFlow(HomePrefs())
         override suspend fun updateHome(f: (HomePrefs) -> HomePrefs) {}
         override val browserPrefs: Flow<BrowserPrefs> = MutableStateFlow(BrowserPrefs())
