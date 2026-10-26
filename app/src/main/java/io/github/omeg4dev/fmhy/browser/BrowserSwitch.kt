@@ -25,7 +25,8 @@ fun bringBrowserToFront(context: Context, selectTabId: Long? = null, showTabs: B
         if (selectTabId != null) putExtra(EXTRA_SELECT_TAB, selectTabId)
         if (showTabs) putExtra(EXTRA_SHOW_TABS, true)
     }
-    context.startActivity(intent)
+    val options = browserOpenOptions(context, null)
+    context.startActivity(intent, options)
 }
 
 /** Brings the browser to the front on a new, empty tab (private when [private]). */
@@ -36,7 +37,8 @@ fun openBrowserNewTab(context: Context, private: Boolean = false) {
         putExtra(EXTRA_NEW_TAB_PAGE, true)
         if (private) putExtra(EXTRA_PRIVATE_TAB, true)
     }
-    context.startActivity(intent)
+    val options = browserOpenOptions(context, null)
+    context.startActivity(intent, options)
 }
 
 /** Brings FMHY (MainActivity) to the front. The browser and its tabs stay alive. */
@@ -45,7 +47,8 @@ fun bringFmhyToFront(context: Context) {
         addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
         if (context !is Activity) addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     }
-    context.startActivity(intent)
+    val options = browserCloseOptions(context)
+    context.startActivity(intent, options)
 }
 
 /** "Show in section": brings FMHY to the front at [entry]; the browser and its tabs stay alive. */
@@ -58,5 +61,6 @@ fun showEntryInApp(context: Context, entry: Entry) {
         putExtra(EXTRA_SECTION_ID, entry.sectionId)
         entry.headingId?.let { putExtra(EXTRA_HEADING_ID, it) }
     }
-    context.startActivity(intent)
+    val options = browserCloseOptions(context)
+    context.startActivity(intent, options)
 }

@@ -77,6 +77,8 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -86,6 +88,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.omeg4dev.fmhy.R
+import io.github.omeg4dev.fmhy.browser.BoundsHolder
+import io.github.omeg4dev.fmhy.browser.OriginBounds
 import io.github.omeg4dev.fmhy.data.link.CrossLinks
 import io.github.omeg4dev.fmhy.data.model.Entry
 import io.github.omeg4dev.fmhy.data.model.Heading
@@ -336,10 +340,20 @@ fun MoreGroupRow(
         label = "more_icon_rotation",
     )
 
+    val rowBoundsHolder = remember { BoundsHolder() }
     Column(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 10.dp)
+            .onGloballyPositioned { coords ->
+                val rect = coords.boundsInWindow()
+                rowBoundsHolder.bounds = OriginBounds(
+                    left = rect.left.toInt(),
+                    top = rect.top.toInt(),
+                    right = rect.right.toInt(),
+                    bottom = rect.bottom.toInt(),
+                )
+            }
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,

@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="splash_background">#FDF8FF</color>
+    <color name="browser_window_background">#FFFDF8FF</color>
     <color name="ic_launcher_background">#FF000000</color>
     <color name="ic_launcher_mono_background">#FF7C5CFF</color>
     <color name="ic_launcher_light_background">#FFFFFFFF</color>

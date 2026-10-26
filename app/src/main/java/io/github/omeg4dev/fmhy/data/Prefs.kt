@@ -87,11 +87,6 @@ data class BrowserPrefs(
     val bubbleSide: BubbleSide = BubbleSide.RIGHT,
     /** 0..1 position inside the allowed vertical range. */
     val bubbleY: Float = 0.75f,
-    /** Floating back-to-FMHY bubble inside the browser; hidden from its hold menu, shown again in Settings. */
-    val backBubbleHidden: Boolean = false,
-    val backBubbleSide: BubbleSide = BubbleSide.LEFT,
-    /** 0..1 position inside the allowed vertical range. */
-    val backBubbleY: Float = 0.85f,
     val tabsView: TabsView = TabsView.LIST,
     // Page
     val javascript: Boolean = true,

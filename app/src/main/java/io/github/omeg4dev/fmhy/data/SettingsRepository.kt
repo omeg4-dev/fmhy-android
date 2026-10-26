@@ -143,9 +143,6 @@ class DefaultSettingsRepository(
         private val KEY_BROWSER_BUBBLE_HIDDEN = booleanPreferencesKey("browser_bubble_hidden")
         private val KEY_BROWSER_BUBBLE_SIDE = stringPreferencesKey("browser_bubble_side")
         private val KEY_BROWSER_BUBBLE_Y = floatPreferencesKey("browser_bubble_y")
-        private val KEY_BROWSER_BACK_BUBBLE_HIDDEN = booleanPreferencesKey("browser_back_bubble_hidden")
-        private val KEY_BROWSER_BACK_BUBBLE_SIDE = stringPreferencesKey("browser_back_bubble_side")
-        private val KEY_BROWSER_BACK_BUBBLE_Y = floatPreferencesKey("browser_back_bubble_y")
         private val KEY_BROWSER_TABS_VIEW = stringPreferencesKey("browser_tabs_view")
         private val KEY_BROWSER_JAVASCRIPT = booleanPreferencesKey("browser_javascript")
         private val KEY_BROWSER_FORCE_DARK = booleanPreferencesKey("browser_force_dark")
@@ -477,9 +474,6 @@ class DefaultSettingsRepository(
         val bubbleSide = prefs[KEY_BROWSER_BUBBLE_SIDE]?.let { name ->
             try { BubbleSide.valueOf(name) } catch (_: IllegalArgumentException) { default.bubbleSide }
         } ?: default.bubbleSide
-        val backBubbleSide = prefs[KEY_BROWSER_BACK_BUBBLE_SIDE]?.let { name ->
-            try { BubbleSide.valueOf(name) } catch (_: IllegalArgumentException) { default.backBubbleSide }
-        } ?: default.backBubbleSide
         val tabsView = prefs[KEY_BROWSER_TABS_VIEW]?.let { name ->
             try { TabsView.valueOf(name) } catch (_: IllegalArgumentException) { default.tabsView }
         } ?: default.tabsView
@@ -496,9 +490,6 @@ class DefaultSettingsRepository(
             browserBubbleHidden = prefs[KEY_BROWSER_BUBBLE_HIDDEN] ?: default.browserBubbleHidden,
             bubbleSide = bubbleSide,
             bubbleY = (prefs[KEY_BROWSER_BUBBLE_Y] ?: default.bubbleY).coerceIn(0f, 1f),
-            backBubbleHidden = prefs[KEY_BROWSER_BACK_BUBBLE_HIDDEN] ?: default.backBubbleHidden,
-            backBubbleSide = backBubbleSide,
-            backBubbleY = (prefs[KEY_BROWSER_BACK_BUBBLE_Y] ?: default.backBubbleY).coerceIn(0f, 1f),
             tabsView = tabsView,
             javascript = prefs[KEY_BROWSER_JAVASCRIPT] ?: default.javascript,
             forceDark = prefs[KEY_BROWSER_FORCE_DARK] ?: default.forceDark,
@@ -532,9 +523,6 @@ class DefaultSettingsRepository(
         prefs[KEY_BROWSER_BUBBLE_HIDDEN] = p.browserBubbleHidden
         prefs[KEY_BROWSER_BUBBLE_SIDE] = p.bubbleSide.name
         prefs[KEY_BROWSER_BUBBLE_Y] = p.bubbleY
-        prefs[KEY_BROWSER_BACK_BUBBLE_HIDDEN] = p.backBubbleHidden
-        prefs[KEY_BROWSER_BACK_BUBBLE_SIDE] = p.backBubbleSide.name
-        prefs[KEY_BROWSER_BACK_BUBBLE_Y] = p.backBubbleY
         prefs[KEY_BROWSER_TABS_VIEW] = p.tabsView.name
         prefs[KEY_BROWSER_JAVASCRIPT] = p.javascript
         prefs[KEY_BROWSER_FORCE_DARK] = p.forceDark

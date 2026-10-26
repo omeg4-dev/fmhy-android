@@ -193,6 +193,7 @@
         </activity>
         <activity
             android:name=".browser.BrowserActivity"
+            android:theme="@style/Theme.FMHY.Browser"
             android:exported="false"
             android:launchMode="singleTop"
             android:supportsPictureInPicture="true"

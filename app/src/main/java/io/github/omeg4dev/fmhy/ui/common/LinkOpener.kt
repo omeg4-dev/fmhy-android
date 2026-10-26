@@ -24,6 +24,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import io.github.omeg4dev.fmhy.browser.BrowserActivity
+import io.github.omeg4dev.fmhy.browser.OriginBounds
+import io.github.omeg4dev.fmhy.browser.browserOpenOptions
 import io.github.omeg4dev.fmhy.SectionNavKey
 import io.github.omeg4dev.fmhy.data.DatasetStore
 import io.github.omeg4dev.fmhy.data.OpenLinksWith
@@ -73,6 +75,7 @@ class LinkOpener(
     var pendingUnsafeReason by mutableStateOf<String?>(null)
         private set
     private var pendingUnsafeEntryId: String? = null
+    private var pendingUnsafeBounds: OriginBounds? = null
 
     var pendingNote by mutableStateOf<PendingNote?>(null)
         private set
@@ -86,7 +89,7 @@ class LinkOpener(
         openUrlDirectly(url)
     }
 
-    fun openUrl(url: String, entryId: String? = null) {
+    fun openUrl(url: String, entryId: String? = null, originBounds: OriginBounds? = null) {
         val target = crossLinks?.value?.resolve(url)
         if (target != null) {
             onOpenInternal(target)
@@ -103,13 +106,13 @@ class LinkOpener(
                 url = url,
                 action = PasteAction.OPEN,
                 onLinks = { urls ->
-                    if (urls.size == 1) openChecked(urls[0], entryId) else pendingPasteChoices = urls
+                    if (urls.size == 1) openChecked(urls[0], entryId, originBounds) else pendingPasteChoices = urls
                 },
-                onUseRaw = { openChecked(url, entryId) },
+                onUseRaw = { openChecked(url, entryId, originBounds) },
             )
             return
         }
-        openChecked(url, entryId)
+        openChecked(url, entryId, originBounds)
     }
 
     fun choosePasteLink(url: String?) {
@@ -117,7 +120,7 @@ class LinkOpener(
         if (url != null) openChecked(url, null)
     }
 
-    private fun openChecked(url: String, entryId: String? = null) {
+    private fun openChecked(url: String, entryId: String? = null, originBounds: OriginBounds? = null) {
         coroutineScope.launch {
             val unsafeWarning = settingsRepository.protectionPrefs.first().unsafeWarning
             val reason = if (unsafeWarning && store.isAvailable) store.unsafeReason(url) else null
@@ -125,8 +128,9 @@ class LinkOpener(
                 pendingUnsafeReason = reason
                 pendingUnsafeUrl = url
                 pendingUnsafeEntryId = entryId
+                pendingUnsafeBounds = originBounds
             } else {
-                openUrlDirectly(url, entryId)
+                openUrlDirectly(url, entryId, originBounds)
             }
         }
     }
@@ -134,11 +138,13 @@ class LinkOpener(
     fun confirmOpenUnsafe() {
         val url = pendingUnsafeUrl
         val entryId = pendingUnsafeEntryId
+        val bounds = pendingUnsafeBounds
         pendingUnsafeUrl = null
         pendingUnsafeReason = null
         pendingUnsafeEntryId = null
+        pendingUnsafeBounds = null
         if (url != null) {
-            openUrlDirectly(url, entryId)
+            openUrlDirectly(url, entryId, bounds)
         }
     }
 
@@ -146,9 +152,10 @@ class LinkOpener(
         pendingUnsafeUrl = null
         pendingUnsafeReason = null
         pendingUnsafeEntryId = null
+        pendingUnsafeBounds = null
     }
 
-    private fun openUrlDirectly(url: String, entryId: String? = null) {
+    private fun openUrlDirectly(url: String, entryId: String? = null, originBounds: OriginBounds? = null) {
         coroutineScope.launch {
             if (userStore != null) {
                 try {
@@ -172,13 +179,14 @@ class LinkOpener(
             when (openWith) {
                 OpenLinksWith.IN_APP -> {
                     try {
+                        val options = browserOpenOptions(context, originBounds)
                         val intent = BrowserActivity.intent(context, url, entryId).apply {
                             addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
                             if (context !is Activity) {
                                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                             }
                         }
-                        context.startActivity(intent)
+                        context.startActivity(intent, options)
                     } catch (_: Exception) {
                         try {
                             val intent = Intent(Intent.ACTION_VIEW, uri).apply {

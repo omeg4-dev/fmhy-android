@@ -71,6 +71,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
@@ -82,6 +84,8 @@ import io.github.omeg4dev.fmhy.CategoryNavKey
 import io.github.omeg4dev.fmhy.LegendNavKey
 import io.github.omeg4dev.fmhy.LocalBottomBarController
 import io.github.omeg4dev.fmhy.SectionNavKey
+import io.github.omeg4dev.fmhy.browser.BoundsHolder
+import io.github.omeg4dev.fmhy.browser.OriginBounds
 import io.github.omeg4dev.fmhy.data.SectionLayout
 import io.github.omeg4dev.fmhy.data.link.CrossLinks
 import io.github.omeg4dev.fmhy.data.model.Heading
@@ -804,13 +808,26 @@ fun SectionScreen(
                                         }
                                         is SectionItem.EntryItem -> {
                                             val isEntryHighlighted = item.entry.id == highlightedEntryId || item.alternatives.any { it.id == highlightedEntryId }
-                                            Column(modifier = Modifier.jumpHighlight(active = isEntryHighlighted)) {
+                                            val boundsHolder = remember { BoundsHolder() }
+                                            Column(
+                                                modifier = Modifier
+                                                    .jumpHighlight(active = isEntryHighlighted)
+                                                    .onGloballyPositioned { coords ->
+                                                        val rect = coords.boundsInWindow()
+                                                        boundsHolder.bounds = OriginBounds(
+                                                            left = rect.left.toInt(),
+                                                            top = rect.top.toInt(),
+                                                            right = rect.right.toInt(),
+                                                            bottom = rect.bottom.toInt(),
+                                                        )
+                                                    }
+                                            ) {
                                                 SwipeToSave(entry = item.entry) {
                                                     EntryRow(
                                                         entry = item.entry,
                                                         alternatives = item.alternatives,
                                                         isNew = item.entry.id in state.newEntryIds,
-                                                        onOpenUrl = { linkOpener.openUrl(it) },
+                                                        onOpenUrl = { linkOpener.openUrl(it, item.entry.id, boundsHolder.bounds) },
                                                         onShowSnackbar = onShowSnackbar,
                                                     )
                                                 }
@@ -828,9 +845,19 @@ fun SectionScreen(
                                             NoteCallout(note = item.note)
                                         }
                                         is SectionItem.MoreGroup -> {
+                                            val boundsHolder = remember { BoundsHolder() }
                                             MoreGroupRow(
                                                 entries = item.entries,
-                                                onOpenUrl = { linkOpener.openUrl(it) },
+                                                onOpenUrl = { linkOpener.openUrl(it, originBounds = boundsHolder.bounds) },
+                                                modifier = Modifier.onGloballyPositioned { coords ->
+                                                    val rect = coords.boundsInWindow()
+                                                    boundsHolder.bounds = OriginBounds(
+                                                        left = rect.left.toInt(),
+                                                        top = rect.top.toInt(),
+                                                        right = rect.right.toInt(),
+                                                        bottom = rect.bottom.toInt(),
+                                                    )
+                                                },
                                             )
                                         }
                                     }

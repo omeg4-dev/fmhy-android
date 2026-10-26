@@ -705,7 +705,7 @@ class TabManager(
 
     /**
      * Closes every live tab AND forgets tabs that exist only in the restore store (browser not started this
-     * session), so the FMHY bubble/chip count drops to 0. Used by the bubble's "Close all tabs".
+     * session), so the FMHY chip count drops to 0. Used by "Close all tabs".
      */
     fun closeAllTabsIncludingRestorable() {
         closeAllTabs()
@@ -1317,6 +1317,18 @@ class TabManager(
         appScope.launch {
             settingsRepository.updateBlocking {
                 it.copy(customRules = AllowRule.append(it.customRules, AllowRule.forHost(host, site)))
+            }
+        }
+        reloadTab(tabId)
+    }
+
+    fun unallowBlockedHost(tabId: Long, host: String) {
+        val record = getTabRecord(tabId) ?: return
+        val site = AllowRule.pageSite(record.url) ?: return
+        record.bypass.remove(AllowRule.bypassKey(site, host))
+        appScope.launch {
+            settingsRepository.updateBlocking {
+                it.copy(customRules = AllowRule.remove(it.customRules, host, site))
             }
         }
         reloadTab(tabId)

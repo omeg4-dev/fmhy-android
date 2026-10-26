@@ -13,16 +13,20 @@ import android.view.MotionEvent
 import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.webkit.WebView
+import androidx.activity.BackEventCompat
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.PredictiveBackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.PaddingValues
@@ -85,6 +89,7 @@ import io.github.omeg4dev.fmhy.browser.download.KeyPromptDialog
 import io.github.omeg4dev.fmhy.browser.download.RedirectWarningText
 import io.github.omeg4dev.fmhy.browser.download.VideoSourcesSheet
 import io.github.omeg4dev.fmhy.browser.adblock.AdblockService
+import io.github.omeg4dev.fmhy.browser.adblock.AllowRule
 import io.github.omeg4dev.fmhy.browser.adblock.SelectorPicker
 import io.github.omeg4dev.fmhy.data.BookmarksRepository
 import io.github.omeg4dev.fmhy.data.CheckPrefs
@@ -101,7 +106,9 @@ import io.github.omeg4dev.fmhy.ui.common.Motion
 import io.github.omeg4dev.fmhy.ui.common.SavedInfo
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import kotlin.math.roundToInt
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -146,6 +153,7 @@ fun BrowserScreen(
         isEditMode = false
     }
     var showShieldSheet by remember { mutableStateOf(false) }
+    var showBlockedSheet by remember { mutableStateOf(false) }
     var showTabsSheet by remember { mutableStateOf(false) }
     var showDownloadsSheet by remember { mutableStateOf(false) }
     var showVideoSheet by remember { mutableStateOf(false) }
@@ -355,17 +363,57 @@ fun BrowserScreen(
     }
 
     // System Back Handling
-    BackHandler(enabled = true) {
-        val action = backAction(
-            fullscreen = hooks?.customView != null,
-            findMode = isFindMode,
-            editMode = isEditMode,
-            hasTab = currentTab != null,
-            canGoBack = currentTab != null && tabManager.canGoBack(currentTab.id),
-            isBlankTab = currentTab != null && (currentTab.url == "about:blank" || currentTab.url.isEmpty()),
-            tabCount = tabs.size,
-        )
-        when (action) {
+    val currentBackAction = backAction(
+        fullscreen = hooks?.customView != null,
+        findMode = isFindMode,
+        editMode = isEditMode,
+        hasTab = currentTab != null,
+        canGoBack = currentTab != null && tabManager.canGoBack(currentTab.id),
+        isBlankTab = currentTab != null && (currentTab.url == "about:blank" || currentTab.url.isEmpty()),
+        tabCount = tabs.size,
+    )
+    val predictiveBackEnabled = usePredictiveBack(currentBackAction, Build.VERSION.SDK_INT)
+
+    val backScale = remember { Animatable(1f) }
+    val backAlpha = remember { Animatable(1f) }
+    val backRadius = remember { Animatable(0f) }
+    val backTranslateX = remember { Animatable(0f) }
+
+    if (Build.VERSION.SDK_INT >= 34) {
+        PredictiveBackHandler(enabled = predictiveBackEnabled) { progress ->
+            try {
+                progress.collect { backEvent ->
+                    val p = backEvent.progress
+                    val edge = backEvent.swipeEdge
+                    val sign = if (edge == BackEventCompat.EDGE_RIGHT) -1f else 1f
+                    val maxTranslatePx = with(density) { 24.dp.toPx() }
+                    backScale.snapTo(1f - (0.1f * p))
+                    backRadius.snapTo(28f * p)
+                    backTranslateX.snapTo(maxTranslatePx * p * sign)
+                    backAlpha.snapTo(1f)
+                }
+                coroutineScope {
+                    launch { backScale.animateTo(0.85f, tween(200, easing = Motion.EmphasizedAccelerate)) }
+                    launch { backAlpha.animateTo(0f, tween(200, easing = Motion.EmphasizedAccelerate)) }
+                }
+                leaveToFmhy()
+                backScale.snapTo(1f)
+                backAlpha.snapTo(1f)
+                backRadius.snapTo(0f)
+                backTranslateX.snapTo(0f)
+            } catch (_: CancellationException) {
+                coroutineScope {
+                    launch { backScale.animateTo(1f, Motion.standard()) }
+                    launch { backAlpha.animateTo(1f, Motion.standard()) }
+                    launch { backRadius.animateTo(0f, Motion.standard()) }
+                    launch { backTranslateX.animateTo(0f, Motion.standard()) }
+                }
+            }
+        }
+    }
+
+    BackHandler(enabled = !predictiveBackEnabled) {
+        when (currentBackAction) {
             BackAction.EXIT_FULLSCREEN -> hooks?.onHideCustomView()
             BackAction.CLOSE_FIND -> {
                 isFindMode = false
@@ -390,6 +438,17 @@ fun BrowserScreen(
         Box(
             modifier = modifier
                 .fillMaxSize()
+                .graphicsLayer {
+                    scaleX = backScale.value
+                    scaleY = backScale.value
+                    alpha = backAlpha.value
+                    translationX = backTranslateX.value
+                    val r = backRadius.value
+                    if (r > 0f) {
+                        shape = RoundedCornerShape(r.dp)
+                        clip = true
+                    }
+                }
                 .background(MaterialTheme.colorScheme.background)
         ) {
             // 1. Status bar background: solid surfaceContainer at all times (no transparent band)
@@ -898,25 +957,6 @@ fun BrowserScreen(
                     }
                 }
 
-                // Back-to-FMHY bubble: slides away with the toolbar, hidden while something else owns the screen.
-                BackBubble(
-                    settingsRepository = settingsRepository,
-                    visible = BubbleLogic.backBubbleVisible(
-                        hidden = browserPrefs.backBubbleHidden,
-                        fullscreen = customView != null,
-                        pip = isInPip,
-                        ime = WindowInsets.ime.getBottom(density) > 0,
-                        editMode = isEditMode,
-                        findMode = isFindMode,
-                    ),
-                    toolbarPosition = browserPrefs.toolbarPosition,
-                    barHeightPx = totalBarHeightPx,
-                    barTranslation = { toolbarTranslation.value },
-                    side = browserPrefs.backBubbleSide,
-                    yFraction = browserPrefs.backBubbleY,
-                    onBackToFmhy = leaveToFmhy,
-                    modifier = Modifier.zIndex(4f),
-                )
 
                 // Edit Mode overlay (when typing a URL over an existing page or from start screen)
                 if (isEditMode && currentTab != null) {
@@ -1216,14 +1256,35 @@ fun BrowserScreen(
                 if (host.isNotEmpty()) {
                     tabManager.clearSitePrefs(currentTab.id, host)
                 }
+                val site = AllowRule.pageSite(currentTab.url)
+                if (site != null) {
+                    val allowed = AllowRule.allowedHostsFor(blockingPrefs.customRules, site)
+                    for (h in allowed) {
+                        tabManager.unallowBlockedHost(currentTab.id, h)
+                    }
+                }
             },
             onHideElement = {
                 showShieldSheet = false
                 tabManager.startElementPicker(currentTab.id)
             },
-            onAllowHost = { host ->
-                tabManager.allowBlockedHost(currentTab.id, host)
+            onOpenBlockedList = {
+                showShieldSheet = false
+                showBlockedSheet = true
             },
+        )
+    }
+
+    // Blocked Sheet
+    if (showBlockedSheet && currentTab != null) {
+        val site = currentTab.url.let { AllowRule.pageSite(it) }.orEmpty()
+        BlockedSheet(
+            tab = currentTab,
+            allowedHosts = AllowRule.allowedHostsFor(blockingPrefs.customRules, site),
+            onAllow = { host -> tabManager.allowBlockedHost(currentTab.id, host) },
+            onUnallow = { host -> tabManager.unallowBlockedHost(currentTab.id, host) },
+            onReload = { tabManager.reloadTab(currentTab.id) },
+            onDismiss = { showBlockedSheet = false },
         )
     }
 

@@ -57,7 +57,7 @@ fun ShieldSheet(
     onUpdateSitePref: (update: (io.github.omeg4dev.fmhy.data.user.SitePrefs) -> io.github.omeg4dev.fmhy.data.user.SitePrefs) -> Unit,
     onResetDefaults: () -> Unit,
     onHideElement: () -> Unit,
-    onAllowHost: (host: String) -> Unit,
+    onOpenBlockedList: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val host = try {
@@ -65,8 +65,6 @@ fun ShieldSheet(
     } catch (_: Exception) {
         ""
     }
-
-    var expanded by remember { mutableStateOf(false) }
 
     val sitePrefs = tab.sitePrefs
     val hasOverrides = sitePrefs != null && (
@@ -107,76 +105,39 @@ fun ShieldSheet(
                         style = MaterialTheme.typography.titleLarge,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        AnimatedContent(
-                            targetState = tab.blocked,
-                            label = "blockedCount",
-                        ) { count ->
+                    if (adblockOn) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            AnimatedContent(
+                                targetState = tab.blocked,
+                                label = "blockedCount",
+                            ) { count ->
+                                Text(
+                                    text = "$count",
+                                    style = MaterialTheme.typography.headlineMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "$count",
-                                style = MaterialTheme.typography.headlineMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = if (adblockOn) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                                text = BlockedList.rowText(tab.blocked),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
+                            if (tab.blocked > 0) {
+                                Spacer(modifier = Modifier.width(8.dp))
+                                TextButton(onClick = onOpenBlockedList) {
+                                    Text("See list ›")
+                                }
+                            }
                         }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = if (adblockOn) "blocked on this page" else "Ad blocking is off",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
                     }
                 }
 
                 if (hasOverrides) {
                     TextButton(onClick = onResetDefaults) {
                         Text("Reset to defaults")
-                    }
-                }
-            }
-
-            if (adblockOn) {
-                Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    text = "Blocked on this page",
-                    style = MaterialTheme.typography.titleSmall,
-                )
-                if (tab.blockedHosts.isEmpty()) {
-                    Text(
-                        text = "Nothing blocked on this page",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                } else {
-                    val hostsToShow = if (expanded) tab.blockedHosts else tab.blockedHosts.take(8)
-                    for (blockedHost in hostsToShow) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text(
-                                text = blockedHost.host,
-                                style = MaterialTheme.typography.bodyMedium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f),
-                            )
-                            Text(
-                                text = "· ${blockedHost.count}",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            TextButton(onClick = { onAllowHost(blockedHost.host) }) {
-                                Text("Allow")
-                            }
-                        }
-                    }
-                    if (tab.blockedHosts.size > 8 && !expanded) {
-                        TextButton(onClick = { expanded = true }) {
-                            Text("Show all (${tab.blockedHosts.size})")
-                        }
                     }
                 }
             }

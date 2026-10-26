@@ -141,15 +141,6 @@ fun BrowserPage(
                                 viewModel.updateBrowser { it.copy(toolbarPosition = pos) }
                             },
                         )
-                        SettingsDivider()
-                        SwitchRow(
-                            title = "Back-to-FMHY button",
-                            summary = "Floating button over pages that returns to FMHY. The FMHY logo in the address bar always does too.",
-                            checked = !browserPrefs.backBubbleHidden,
-                            onChange = { checked ->
-                                viewModel.updateBrowser { it.copy(backBubbleHidden = !checked) }
-                            },
-                        )
                     }
                 }
             }

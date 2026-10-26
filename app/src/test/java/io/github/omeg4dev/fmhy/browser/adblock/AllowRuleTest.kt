@@ -56,4 +56,53 @@ class AllowRuleTest {
     fun testBypassKey() {
         assertEquals("example.com cdn.tracker.net", AllowRule.bypassKey("EXAMPLE.COM", "CDN.TRACKER.NET"))
     }
+
+    @Test
+    fun testAllowedHostsForOnlyReturnsLinesForThatSiteAndIgnoresOtherRules() {
+        val rules = """
+            ||ads.com^
+            ! comment line
+            @@||cdn.example.org^${'$'}domain=targetsite.com
+            @@||static.example.org^${'$'}domain=targetsite.com
+            @@||other.org^${'$'}domain=othersite.com
+            @@||sub.cdn.example.org^${'$'}domain=targetsite.com
+            invalid@@||rule
+        """.trimIndent()
+
+        val allowed = AllowRule.allowedHostsFor(rules, "targetsite.com")
+        assertEquals(
+            listOf("cdn.example.org", "static.example.org", "sub.cdn.example.org"),
+            allowed
+        )
+
+        val allowedUpper = AllowRule.allowedHostsFor(rules, "TARGETSITE.COM")
+        assertEquals(
+            listOf("cdn.example.org", "static.example.org", "sub.cdn.example.org"),
+            allowedUpper
+        )
+
+        assertEquals(listOf("other.org"), AllowRule.allowedHostsFor(rules, "othersite.com"))
+        assertEquals(emptyList<String>(), AllowRule.allowedHostsFor(rules, "nonexistent.com"))
+        assertEquals(emptyList<String>(), AllowRule.allowedHostsFor(rules, ""))
+    }
+
+    @Test
+    fun testRemoveDropsExactlyOneLineAndKeepsOthers() {
+        val rules = """
+            ||ads.com^
+            @@||a.com^${'$'}domain=site.com
+            @@||b.com^${'$'}domain=site.com
+            ||tracker.net^
+        """.trimIndent()
+
+        val removed = AllowRule.remove(rules, "a.com", "site.com")
+        val expected = """
+            ||ads.com^
+            @@||b.com^${'$'}domain=site.com
+            ||tracker.net^
+        """.trimIndent()
+        assertEquals(expected, removed)
+
+        assertEquals(expected, AllowRule.remove(expected, "nonexistent.com", "site.com"))
+    }
 }

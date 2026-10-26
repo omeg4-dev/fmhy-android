@@ -3,6 +3,10 @@
 
     <style name="Theme.FMHY" parent="android:Theme.Material.Light.NoActionBar" />
 
+    <style name="Theme.FMHY.Browser" parent="Theme.FMHY">
+        <item name="android:windowBackground">@color/browser_window_background</item>
+    </style>
+
     <style name="Theme.FMHY.Translucent" parent="@android:style/Theme.Translucent.NoTitleBar">
         <item name="android:windowBackground">@android:color/transparent</item>
         <item name="android:colorBackgroundCacheHint">@null</item>

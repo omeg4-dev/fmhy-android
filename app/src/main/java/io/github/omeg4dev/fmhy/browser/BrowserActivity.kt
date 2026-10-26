@@ -1,5 +1,6 @@
 package io.github.omeg4dev.fmhy.browser
 
+import android.app.Activity
 import android.app.PictureInPictureParams
 import android.content.ComponentCallbacks2
 import android.content.Context
@@ -7,6 +8,7 @@ import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -30,6 +32,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import io.github.omeg4dev.fmhy.FmhyApp
+import io.github.omeg4dev.fmhy.R
 import io.github.omeg4dev.fmhy.browser.download.DownloadService
 import io.github.omeg4dev.fmhy.browser.media.BackgroundMediaService
 import io.github.omeg4dev.fmhy.browser.media.shouldKeepPlaying
@@ -132,6 +135,27 @@ class BrowserActivity : ComponentActivity() {
             if (savedInstanceState == null) handleSwitchExtras(intent)
         }
 
+        val appearance = container.tabManager.currentAppearance
+        val isSystemDark = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        val isDark = when (appearance.themeMode) {
+            ThemeMode.SYSTEM -> isSystemDark
+            ThemeMode.LIGHT -> false
+            ThemeMode.DARK -> true
+        }
+        if (isDark && appearance.pureBlack) {
+            window.setBackgroundDrawable(ColorDrawable(Color.BLACK))
+        }
+
+        if (Build.VERSION.SDK_INT >= 34) {
+            val animOn = animationsOn(this)
+            val openEnter = if (animOn) R.anim.browser_open_enter else R.anim.browser_fade_in
+            val openExit = if (animOn) R.anim.browser_open_exit else R.anim.browser_fade_out
+            val closeEnter = if (animOn) R.anim.browser_close_enter else R.anim.browser_fade_in
+            val closeExit = if (animOn) R.anim.browser_close_exit else R.anim.browser_fade_out
+            overrideActivityTransition(Activity.OVERRIDE_TRANSITION_OPEN, openEnter, openExit)
+            overrideActivityTransition(Activity.OVERRIDE_TRANSITION_CLOSE, closeEnter, closeExit)
+        }
+
         setContent {
             val appearance by container.settingsRepository.appearance.collectAsStateWithLifecycle(initialValue = Appearance())
             val isSystemDark = isSystemInDarkTheme()
@@ -163,7 +187,7 @@ class BrowserActivity : ComponentActivity() {
             FMHYTheme(appearance) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
+                    color = androidx.compose.ui.graphics.Color.Transparent
                 ) {
                     BrowserScreen(
                         tabManager = container.tabManager,
@@ -260,6 +284,17 @@ class BrowserActivity : ComponentActivity() {
         tabManager.onActivityPause(keepPlaying = keep || (inPip && playing && !isFinishing))
         if (keep) BackgroundMediaService.start(this)
         if (isFinishing) tabManager.closeEmptyTabsOnLeave()
+    }
+
+    override fun finish() {
+        super.finish()
+        if (Build.VERSION.SDK_INT < 34) {
+            val animOn = animationsOn(this)
+            val closeEnter = if (animOn) R.anim.browser_close_enter else R.anim.browser_fade_in
+            val closeExit = if (animOn) R.anim.browser_close_exit else R.anim.browser_fade_out
+            @Suppress("DEPRECATION")
+            overridePendingTransition(closeEnter, closeExit)
+        }
     }
 
     override fun onPause() {

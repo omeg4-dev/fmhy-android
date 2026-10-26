@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="splash_background">#141218</color>
+    <color name="browser_window_background">#FF141218</color>
 
     <!-- Widget colors (dark) -->
     <color name="widget_bg">#FF1C1B1F</color>
