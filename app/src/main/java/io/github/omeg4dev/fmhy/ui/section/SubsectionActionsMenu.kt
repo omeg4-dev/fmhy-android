@@ -28,7 +28,7 @@ fun SubsectionActionsMenu(
     title: String,
     isFollowed: Boolean,
     isPinned: Boolean,
-    showPinAction: Boolean,
+    showPinAction: Boolean = true,
     onToggleFollow: () -> Unit,
     onTogglePin: () -> Unit,
     onDismiss: () -> Unit,

@@ -5,6 +5,8 @@ import android.util.Log
 import io.github.omeg4dev.fmhy.BuildConfig
 import io.github.omeg4dev.fmhy.data.DatasetStore
 import io.github.omeg4dev.fmhy.data.SettingsRepository
+import io.github.omeg4dev.fmhy.data.VisitTracker
+import io.github.omeg4dev.fmhy.data.DefaultVisitTracker
 import io.github.omeg4dev.fmhy.data.doc.DocFetcher
 import io.github.omeg4dev.fmhy.data.search.SearchEngine
 import io.github.omeg4dev.fmhy.data.sync.FmhySync
@@ -85,6 +87,7 @@ interface AppContainer : OnboardingActions {
         set(_) {}
     val searchEngine: SearchEngine
     val settingsRepository: SettingsRepository
+    val visitTracker: VisitTracker get() = error("visitTracker not provided")
     val bookmarks: BookmarksRepository
     val docFetcher: DocFetcher
     val crossLinks: StateFlow<CrossLinks?>
@@ -272,6 +275,13 @@ class DefaultAppContainer(
 
     override val settingsRepository: SettingsRepository by lazy {
         io.github.omeg4dev.fmhy.data.DefaultSettingsRepository(context)
+    }
+
+    override val visitTracker: VisitTracker by lazy {
+        DefaultVisitTracker(
+            settingsRepository = settingsRepository,
+            scope = appScope,
+        )
     }
 
     override val networkMonitor: NetworkMonitor by lazy {

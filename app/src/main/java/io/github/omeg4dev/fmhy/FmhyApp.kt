@@ -140,10 +140,12 @@ class FmhyApp : Application() {
         }
 
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onStart(owner: LifecycleOwner) {
+                container.visitTracker.onStart()
+            }
+
             override fun onStop(owner: LifecycleOwner) {
-                container.appScope.launch {
-                    container.settingsRepository.setLastVisitTs(System.currentTimeMillis() / 1000)
-                }
+                container.visitTracker.onStop()
             }
         })
     }

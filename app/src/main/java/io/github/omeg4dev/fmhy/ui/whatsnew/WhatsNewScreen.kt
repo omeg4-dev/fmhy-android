@@ -37,15 +37,19 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
@@ -57,23 +61,35 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.omeg4dev.fmhy.FollowingNavKey
 import io.github.omeg4dev.fmhy.SectionNavKey
+import io.github.omeg4dev.fmhy.data.NotificationPrefs
 import io.github.omeg4dev.fmhy.data.model.ChangeItem
 import io.github.omeg4dev.fmhy.data.model.ChangeKind
 import io.github.omeg4dev.fmhy.data.model.Entry
+import io.github.omeg4dev.fmhy.data.user.Follow
 import io.github.omeg4dev.fmhy.di.AppContainer
 import io.github.omeg4dev.fmhy.nav.LocalAppNav
 import io.github.omeg4dev.fmhy.nav.LocalBottomBarPadding
 import io.github.omeg4dev.fmhy.ui.common.CrossfadeContent
 import io.github.omeg4dev.fmhy.ui.common.EmptyState
 import io.github.omeg4dev.fmhy.ui.common.EntryDetailBottomSheet
+import io.github.omeg4dev.fmhy.ui.common.FollowNotifyPrompt
+import io.github.omeg4dev.fmhy.ui.common.FollowTree
 import io.github.omeg4dev.fmhy.ui.common.LocalPasteDecoder
+import io.github.omeg4dev.fmhy.ui.common.LocalSnackbarHost
 import io.github.omeg4dev.fmhy.ui.common.PasteAction
-import io.github.omeg4dev.fmhy.ui.common.linkText
 import io.github.omeg4dev.fmhy.ui.common.SkeletonRows
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
 import io.github.omeg4dev.fmhy.ui.common.enterStagger
+import io.github.omeg4dev.fmhy.ui.common.linkText
+import io.github.omeg4dev.fmhy.ui.common.pinItem
+import io.github.omeg4dev.fmhy.ui.common.rememberFollowNotifyPromptState
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
+import io.github.omeg4dev.fmhy.ui.common.rememberIsPinned
 import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
+import io.github.omeg4dev.fmhy.ui.common.showFollowing
+import io.github.omeg4dev.fmhy.ui.common.showUndo
+import io.github.omeg4dev.fmhy.ui.common.unpinItem
+import io.github.omeg4dev.fmhy.ui.section.SubsectionActionsMenu
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
@@ -95,6 +111,20 @@ fun WhatsNewScreen(
     val haptics = rememberHaptics()
     val linkOpener = rememberLinkOpener(container, onShowSnackbar)
     val pasteDecoder = LocalPasteDecoder.current
+    val snackbarHostState = remember { SnackbarHostState() }
+    val followPromptShown by container.settingsRepository.followNotifyPromptShown.collectAsStateWithLifecycle(initialValue = false)
+    val notificationPrefs by container.settingsRepository.notificationPrefs.collectAsStateWithLifecycle(initialValue = NotificationPrefs())
+    val promptState = rememberFollowNotifyPromptState(followPromptShown, notificationPrefs)
+    var actionsMenuTarget by remember { mutableStateOf<WhatsNewSubsectionTarget?>(null) }
+
+    val userChanges by container.userStore.changes.collectAsStateWithLifecycle(initialValue = 0L)
+    val follows by produceState(initialValue = emptyList<Follow>(), userChanges) {
+        value = try {
+            container.userStore.follows()
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
 
     // Hub -> feed is internal state so the system back from the feed lands on the hub again.
     var inFeed by rememberSaveable { mutableStateOf(!startInHub) }
@@ -134,8 +164,13 @@ fun WhatsNewScreen(
                             text = "What's new",
                             style = MaterialTheme.typography.titleLarge,
                         )
+                        val periodSubtitle = if (state.period == WhatsNewPeriod.SINCE_LAST_VISIT) {
+                            sinceLastVisitLabel(state.cutoffTs, System.currentTimeMillis() / 1000).lowercase()
+                        } else {
+                            state.period.label.lowercase()
+                        }
                         Text(
-                            text = "From fmhy/edit · ${state.period.label.lowercase()}",
+                            text = "From fmhy/edit · $periodSubtitle",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -170,15 +205,17 @@ fun WhatsNewScreen(
                     scrolledContainerColor = MaterialTheme.colorScheme.surface,
                 ),
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { innerPadding ->
-        PullToRefreshBox(
-            isRefreshing = state.isRefreshing,
-            onRefresh = { viewModel.refresh() },
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-        ) {
+        CompositionLocalProvider(LocalSnackbarHost provides snackbarHostState) {
+            PullToRefreshBox(
+                isRefreshing = state.isRefreshing,
+                onRefresh = { viewModel.refresh() },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+            ) {
             // Hide the feed's filters after 48 dp of scrolling down, show them again after 32 dp up.
             var filtersVisible by rememberSaveable { mutableStateOf(true) }
             val density = LocalDensity.current
@@ -309,7 +346,17 @@ fun WhatsNewScreen(
                                     .padding(horizontal = 32.dp),
                                 contentAlignment = Alignment.Center,
                             ) {
-                                if (state.scope is WhatsNewScope.Following && !state.hasFollows) {
+                                if (state.period == WhatsNewPeriod.SINCE_LAST_VISIT) {
+                                    EmptyState(
+                                        icon = Icons.Outlined.HistoryToggleOff,
+                                        title = "Nothing new since your last visit",
+                                        body = "You are up to date.",
+                                        actionLabel = "Show this week",
+                                        onAction = {
+                                            viewModel.setPeriod(WhatsNewPeriod.WEEK)
+                                        },
+                                    )
+                                } else if (state.scope is WhatsNewScope.Following && !state.hasFollows) {
                                     EmptyState(
                                         icon = Icons.Outlined.HistoryToggleOff,
                                         title = "No followed sections",
@@ -352,6 +399,9 @@ fun WhatsNewScreen(
 
                                     itemsIndexed(dayGroup.cards, key = { _, card -> card.key }) { index, card ->
                                         val staggerModifier = if (index < 8) Modifier.enterStagger(index) else Modifier
+                                        val target = remember(card, sectionTitles) {
+                                            extractSubsectionTarget(card, sectionTitles)
+                                        }
                                         ChangeCardRow(
                                             card = card,
                                             sectionTitles = sectionTitles,
@@ -366,6 +416,12 @@ fun WhatsNewScreen(
                                                 haptics.longPress()
                                                 linkOpener.openUrl(card.url)
                                             },
+                                            onLongClickSection = if (target != null) {
+                                                {
+                                                    haptics.longPress()
+                                                    actionsMenuTarget = target
+                                                }
+                                            } else null,
                                             modifier = Modifier
                                                 .animateItem()
                                                 .then(staggerModifier),
@@ -384,6 +440,7 @@ fun WhatsNewScreen(
             }
             }
             }
+        }
         }
     }
 
@@ -471,4 +528,79 @@ fun WhatsNewScreen(
     }
 
     UnsafeWarningDialog(linkOpener)
+
+    actionsMenuTarget?.let { target ->
+        val tree = FollowTree(follows)
+        val isCatFollowed = tree.isSubsectionFollowed(target.sectionId, target.headingId)
+        val isCatPinned = rememberIsPinned(container, target.sectionId, target.headingId)
+        val fullTitle = "${target.sectionTitle} › ${target.subTitle}"
+
+        SubsectionActionsMenu(
+            title = target.subTitle,
+            isFollowed = isCatFollowed,
+            isPinned = isCatPinned,
+            showPinAction = true,
+            onToggleFollow = {
+                val nextFollowed = !isCatFollowed
+                scope.launch {
+                    if (!nextFollowed) {
+                        val snapshot = follows.firstOrNull { it.sectionId == target.sectionId && it.headingId == target.headingId }
+                            ?: Follow(target.sectionId, target.headingId, fullTitle, System.currentTimeMillis())
+                        container.userStore.unfollow(target.sectionId, target.headingId)
+                        haptics.remove()
+                        val undone = snackbarHostState.showUndo("Unfollowed $fullTitle")
+                        if (undone) {
+                            container.userStore.setSubsectionFollowed(target.sectionId, target.headingId, fullTitle, true)
+                        }
+                    } else {
+                        container.userStore.setSubsectionFollowed(target.sectionId, target.headingId, fullTitle, true)
+                        showFollowing(
+                            snackbarHostState = snackbarHostState,
+                            title = fullTitle,
+                            isPinned = isCatPinned,
+                        ) {
+                            pinItem(
+                                container = container,
+                                snackbarHostState = snackbarHostState,
+                                sectionId = target.sectionId,
+                                headingId = target.headingId,
+                                title = target.subTitle,
+                            )
+                        }
+                        promptState.checkAndTrigger()
+                    }
+                }
+            },
+            onTogglePin = {
+                scope.launch {
+                    if (isCatPinned) {
+                        unpinItem(
+                            container = container,
+                            snackbarHostState = snackbarHostState,
+                            haptics = haptics,
+                            sectionId = target.sectionId,
+                            headingId = target.headingId,
+                            title = target.subTitle,
+                        )
+                    } else {
+                        pinItem(
+                            container = container,
+                            snackbarHostState = snackbarHostState,
+                            sectionId = target.sectionId,
+                            headingId = target.headingId,
+                            title = target.subTitle,
+                        )
+                    }
+                }
+            },
+            onDismiss = { actionsMenuTarget = null },
+        )
+    }
+
+    if (promptState.showPrompt) {
+        FollowNotifyPrompt(
+            settingsRepository = container.settingsRepository,
+            onDismiss = { promptState.showPrompt = false },
+        )
+    }
 }

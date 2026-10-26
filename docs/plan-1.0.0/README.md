@@ -33,7 +33,7 @@ Source: the Obsidian note "FMHY 1.0.0 Changes" (2026-10-25). Each batch file hol
 | 28 | BUG-16, BRW-11 | [Reopened tabs and link hold menu](BATCH-28-reopen-link-menu.md) | Opus | `opus` | yes | Done |
 | 29 | BRW-12, BRW-13, BRW-14 | [Browser cleanup and transitions](BATCH-29-browser-cleanup-motion.md) | Sonnet | `sonnet` | yes | Done |
 | 30 | THM-03 | [Vibrant palettes](BATCH-30-vibrant-palettes.md) | Sonnet | `sonnet` | yes | Done |
-| 31 | HOME-04, HOME-05, WN-01 | [Pins everywhere and "Since last visit"](BATCH-31-pins-since-last-visit.md) | Sonnet | `sonnet` | yes | To do |
+| 31 | HOME-04, HOME-05, WN-01 | [Pins everywhere and "Since last visit"](BATCH-31-pins-since-last-visit.md) | Sonnet | `sonnet` | yes | Done |
 | 32 | UI-07, UI-08 | [Swiping between screens and bottom bar style](BATCH-32-screen-swipe-bottom-bar.md) | Opus | `opus` | yes | To do |
 | 23 | SET-01, SET-02 | [Settings re-sort](BATCH-23-settings-resort.md) | Sonnet | `sonnet` | yes | To do |
 | 24 | QA-01 | [Bug hunt](BATCH-24-bug-hunt.md) | Sonnet | — (no agy) | no | To do |

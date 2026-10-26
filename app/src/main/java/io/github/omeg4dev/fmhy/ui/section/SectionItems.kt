@@ -124,6 +124,7 @@ private fun rememberLinkOpener(): (String) -> Unit {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun HeadingHeader(
     heading: Heading,
@@ -133,11 +134,25 @@ fun HeadingHeader(
     onOpenUrl: (String) -> Unit = {},
     flag: String? = null,
     sectionId: String? = null,
+    onLongClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val (splitTitle, url) = remember(heading.title) { CrossLinks.splitLinkTitle(heading.title) }
     val effectiveFlag = flag ?: if (heading.level == 1) flagFor(sectionId, heading.title) else null
     val displayTitle = if (effectiveFlag != null && heading.level == 1) "$effectiveFlag $splitTitle" else splitTitle
+
+    val clickModifier = when {
+        url != null && onLongClick != null -> Modifier.combinedClickable(
+            onClick = { onOpenUrl(url) },
+            onLongClick = onLongClick,
+        )
+        url != null -> Modifier.clickable { onOpenUrl(url) }
+        onLongClick != null -> Modifier.combinedClickable(
+            onClick = {},
+            onLongClick = onLongClick,
+        )
+        else -> Modifier
+    }
 
     when (heading.level) {
         1 -> {
@@ -156,7 +171,7 @@ fun HeadingHeader(
                     shape = RoundedCornerShape(16.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .then(if (url != null) Modifier.clickable { onOpenUrl(url) } else Modifier),
+                        .then(clickModifier),
                 ) {
                     Box(
                         modifier = Modifier

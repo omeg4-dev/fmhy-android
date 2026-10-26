@@ -58,6 +58,7 @@ data class OnboardingState(
     val adblockLevel: AdblockLevel = AdblockLevel.BALANCED,
     val blockPopupsAndRedirects: Boolean = true,
     val followedSections: Set<String> = emptySet(),
+    val pinnedSections: Set<String> = emptySet(),
     val notifyChanges: Boolean = false,
     val personalHome: Boolean = false,
     val filterDownloadStarted: Boolean = false,
@@ -72,6 +73,7 @@ data class OnboardingState(
             homePrefs: HomePrefs,
             notificationPrefs: NotificationPrefs,
             follows: Set<String> = emptySet(),
+            pinnedSections: Set<String> = emptySet(),
         ): OnboardingState {
             return OnboardingState(
                 themeMode = appearance.themeMode,
@@ -82,6 +84,7 @@ data class OnboardingState(
                 adblockLevel = AdblockLevel.fromBlockingPrefs(blockingPrefs),
                 blockPopupsAndRedirects = protectionPrefs.popupBlocker && protectionPrefs.redirectGuard,
                 followedSections = follows,
+                pinnedSections = pinnedSections,
                 notifyChanges = notificationPrefs.enabled,
                 personalHome = homePrefs.personalHome,
                 isInitialized = true,
@@ -123,6 +126,11 @@ class OnboardingModel(
         } catch (_: Exception) {
             emptySet()
         }
+        val pinned = try {
+            userStore.pins().filter { it.headingId.isEmpty() }.map { it.sectionId }.toSet()
+        } catch (_: Exception) {
+            emptySet()
+        }
 
         _state.value = OnboardingState.fromCurrent(
             appearance = appearance,
@@ -132,6 +140,7 @@ class OnboardingModel(
             homePrefs = homePrefs,
             notificationPrefs = notificationPrefs,
             follows = follows,
+            pinnedSections = pinned,
         )
     }
 
@@ -199,6 +208,17 @@ class OnboardingModel(
                 curr.notifyChanges
             }
             curr.copy(followedSections = updated, notifyChanges = notify)
+        }
+    }
+
+    fun toggleSectionPinned(sectionId: String) {
+        _state.update { curr ->
+            val updated = if (sectionId in curr.pinnedSections) {
+                curr.pinnedSections - sectionId
+            } else {
+                curr.pinnedSections + sectionId
+            }
+            curr.copy(pinnedSections = updated)
         }
     }
 
@@ -283,6 +303,11 @@ class OnboardingModel(
                         if (secId !in s.followedSections) {
                             userStore.unfollowSection(secId)
                         }
+                    }
+
+                    for (secId in s.pinnedSections) {
+                        val title = titles[secId] ?: existingFollows.firstOrNull { it.sectionId == secId }?.title?.substringBefore(" › ") ?: secId.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+                        userStore.pin(secId, "", title)
                     }
                 } catch (_: Exception) {}
             }

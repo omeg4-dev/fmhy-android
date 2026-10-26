@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -38,11 +39,13 @@ data class WhatsNewUiState(
     val isRefreshing: Boolean = false,
     val oldestChangeTs: Long? = null,
     val query: String = "",
+    val cutoffTs: Long = 0L,
 )
 
 class WhatsNewViewModel(
     private val initialFilter: String = "all",
     initialType: String? = null,
+    initialPeriod: String? = null,
     private val container: AppContainer,
 ) : ViewModel() {
 
@@ -54,13 +57,16 @@ class WhatsNewViewModel(
     private val store: DatasetStore = container.datasetStore
     private val userStore: UserStore = container.userStore
 
-    private val period = MutableStateFlow(WhatsNewPeriod.WEEK)
+    private val period = MutableStateFlow(
+        if (initialPeriod == "since_last_visit") WhatsNewPeriod.SINCE_LAST_VISIT else WhatsNewPeriod.WEEK
+    )
     private val types = MutableStateFlow(
         when {
             initialType == null -> WhatsNewGrouping.DEFAULT_TYPES
             initialType == TYPE_ALL -> emptySet()
-            else -> ChangeKind.entries.firstOrNull { it.name == initialType }?.let { setOf(it) }
-                ?: WhatsNewGrouping.DEFAULT_TYPES
+            else -> ChangeKind.entries.firstOrNull {
+                it.name.equals(initialType, ignoreCase = true) || it.value.equals(initialType, ignoreCase = true)
+            }?.let { setOf(it) } ?: WhatsNewGrouping.DEFAULT_TYPES
         }
     )
     private val query = MutableStateFlow("")
@@ -83,6 +89,11 @@ class WhatsNewViewModel(
 
     init {
         loadData()
+        viewModelScope.launch {
+            container.visitTracker.visitCutoffTs.drop(1).collect {
+                loadChanges()
+            }
+        }
     }
 
     fun loadData() {
@@ -134,12 +145,25 @@ class WhatsNewViewModel(
                 if (store.isAvailable) {
                     val nowSec = System.currentTimeMillis() / 1000
                     val currentPeriod = period.value
-                    val cutoffTs = nowSec - currentPeriod.days * 86400L
-                    val changes = store.recentChanges(
-                        sinceTs = cutoffTs,
-                        kinds = emptySet(),
-                        limit = 5000,
-                    )
+                    val changes = if (currentPeriod == WhatsNewPeriod.SINCE_LAST_VISIT) {
+                        val cutoff = container.visitTracker.visitCutoffTs.value
+                        if (cutoff == 0L) {
+                            emptyList()
+                        } else {
+                            store.recentChanges(
+                                sinceTs = cutoff + 1L,
+                                kinds = emptySet(),
+                                limit = 5000,
+                            )
+                        }
+                    } else {
+                        val cutoffTs = nowSec - currentPeriod.days * 86400L
+                        store.recentChanges(
+                            sinceTs = cutoffTs,
+                            kinds = emptySet(),
+                            limit = 5000,
+                        )
+                    }
 
                     // Auto-switch: if WEEK has 0 cards on the very first load, switch to MONTH automatically once
                     if (currentPeriod == WhatsNewPeriod.WEEK && !hasAutoSwitched) {
@@ -171,6 +195,7 @@ class WhatsNewViewModel(
         val period: WhatsNewPeriod,
         val types: Set<ChangeKind>,
         val scope: WhatsNewScope,
+        val cutoffTs: Long,
         val refreshing: Boolean,
         val loading: Boolean,
     )
@@ -179,10 +204,10 @@ class WhatsNewViewModel(
         period,
         types,
         scope,
-        isRefreshing,
-        isLoading,
-    ) { p, t, s, refreshing, loading ->
-        FilterState(p, t, s, refreshing, loading)
+        container.visitTracker.visitCutoffTs,
+        combine(isRefreshing, isLoading) { r, l -> r to l },
+    ) { p, t, s, cutoff, (refreshing, loading) ->
+        FilterState(p, t, s, cutoff, refreshing, loading)
     }
 
     private val filterAndQuery = combine(filterState, query) { f, q -> f to q }
@@ -240,6 +265,7 @@ class WhatsNewViewModel(
             isRefreshing = filter.refreshing,
             oldestChangeTs = oldestTs,
             query = text,
+            cutoffTs = filter.cutoffTs,
         )
     }.stateIn(
         viewModelScope,
@@ -249,6 +275,7 @@ class WhatsNewViewModel(
             types = types.value,
             scope = scope.value,
             isLoading = true,
+            cutoffTs = container.visitTracker.visitCutoffTs.value,
         )
     )
 

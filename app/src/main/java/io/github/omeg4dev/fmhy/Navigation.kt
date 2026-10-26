@@ -112,6 +112,7 @@ import io.github.omeg4dev.fmhy.nav.Tab
 import io.github.omeg4dev.fmhy.ui.common.BookmarksState
 import io.github.omeg4dev.fmhy.ui.common.LocalDatasetStore
 import io.github.omeg4dev.fmhy.ui.common.LocalUserStore
+import io.github.omeg4dev.fmhy.ui.common.LocalAppContainer
 import io.github.omeg4dev.fmhy.ui.common.LocalBookmarks
 import io.github.omeg4dev.fmhy.ui.common.SavedInfo
 import io.github.omeg4dev.fmhy.ui.common.LocalCrossLinks
@@ -588,8 +589,13 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
         }
 
         entry<WhatsNewNavKey> { key ->
-            val whatsNewViewModel: io.github.omeg4dev.fmhy.ui.whatsnew.WhatsNewViewModel = viewModel(key = "whatsnew-${key.filter}-${key.type}") {
-                io.github.omeg4dev.fmhy.ui.whatsnew.WhatsNewViewModel(key.filter, key.type, container)
+            val whatsNewViewModel: io.github.omeg4dev.fmhy.ui.whatsnew.WhatsNewViewModel = viewModel(key = "whatsnew-${key.filter}-${key.type}-${key.period}") {
+                io.github.omeg4dev.fmhy.ui.whatsnew.WhatsNewViewModel(
+                    initialFilter = key.filter,
+                    initialType = key.type,
+                    initialPeriod = key.period,
+                    container = container,
+                )
             }
             io.github.omeg4dev.fmhy.ui.whatsnew.WhatsNewScreen(
                 viewModel = whatsNewViewModel,
@@ -598,7 +604,7 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                 onShowSnackbar = { msg ->
                     scope.launch { snackbarHostState.showSnackbar(msg) }
                 },
-                startInHub = key.filter == "all" && key.type == null,
+                startInHub = key.filter == "all" && key.type == null && key.period == null,
                 onNavigateToFollowing = { nav.push(FollowingNavKey) },
             )
         }
@@ -690,6 +696,7 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
         LocalBookmarks provides bookmarksState,
         LocalDatasetStore provides container.datasetStore,
         LocalUserStore provides container.userStore,
+        LocalAppContainer provides container,
     ) {
         Scaffold(
             snackbarHost = {

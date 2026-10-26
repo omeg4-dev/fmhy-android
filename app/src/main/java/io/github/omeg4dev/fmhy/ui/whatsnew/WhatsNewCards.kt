@@ -39,10 +39,39 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import io.github.omeg4dev.fmhy.data.link.CrossLinks
 import io.github.omeg4dev.fmhy.data.model.ChangeKind
 import io.github.omeg4dev.fmhy.data.model.Section
 import io.github.omeg4dev.fmhy.data.model.Tier
 import io.github.omeg4dev.fmhy.ui.common.sectionIcon
+
+data class WhatsNewSubsectionTarget(
+    val sectionId: String,
+    val headingId: String,
+    val subTitle: String,
+    val sectionTitle: String,
+)
+
+fun extractSubsectionTarget(
+    card: ChangeCard,
+    sectionTitles: Map<String, String>,
+): WhatsNewSubsectionTarget? {
+    val headingId = card.entry?.headingId?.takeIf { it.isNotEmpty() } ?: return null
+    val secTitle = sectionTitles[card.sectionId] ?: card.sectionId
+    val headingPath = card.entry?.headingPath
+    val rawSubTitle = if (!headingPath.isNullOrBlank()) {
+        headingPath.split(" › ").lastOrNull()?.ifBlank { null } ?: secTitle
+    } else {
+        secTitle
+    }
+    val (subTitle, _) = CrossLinks.splitLinkTitle(rawSubTitle)
+    return WhatsNewSubsectionTarget(
+        sectionId = card.sectionId,
+        headingId = headingId,
+        subTitle = subTitle,
+        sectionTitle = secTitle,
+    )
+}
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -51,6 +80,7 @@ internal fun ChangeCardRow(
     sectionTitles: Map<String, String>,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
+    onLongClickSection: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val primaryLook = card.primaryKind.style()
@@ -278,6 +308,12 @@ internal fun ChangeCardRow(
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = if (onLongClickSection != null) {
+                    Modifier.combinedClickable(
+                        onClick = onClick,
+                        onLongClick = onLongClickSection,
+                    )
+                } else Modifier,
             ) {
                 Icon(
                     imageVector = sectionIcon(card.sectionId),

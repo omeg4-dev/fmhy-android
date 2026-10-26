@@ -6,6 +6,8 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.awaitHorizontalTouchSlopOrCancellation
@@ -107,6 +109,11 @@ import io.github.omeg4dev.fmhy.ui.common.enterStagger
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
 import io.github.omeg4dev.fmhy.ui.common.showUndo
+import io.github.omeg4dev.fmhy.ui.common.pinItem
+import io.github.omeg4dev.fmhy.ui.common.unpinItem
+import io.github.omeg4dev.fmhy.ui.common.showFollowing
+import io.github.omeg4dev.fmhy.ui.common.rememberIsPinned
+import io.github.omeg4dev.fmhy.ui.common.subsectionPinMenuLabel
 import io.github.omeg4dev.fmhy.ui.common.FollowNotifyPrompt
 import io.github.omeg4dev.fmhy.ui.common.FollowTree
 import io.github.omeg4dev.fmhy.ui.common.rememberFollowNotifyPromptState
@@ -116,7 +123,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun SectionScreen(
     viewModel: SectionViewModel,
@@ -196,7 +203,20 @@ fun SectionScreen(
                     container.userStore.setSubsectionFollowed(currentSectionId, headingId, fullTitle, true)
                 }
             } else {
-                onShowSnackbar("Following $subTitle")
+                val isSubPinned = container.userStore.pins().any { it.sectionId == currentSectionId && it.headingId == headingId }
+                showFollowing(
+                    snackbarHostState = snackbarHostState,
+                    title = subTitle,
+                    isPinned = isSubPinned,
+                ) {
+                    pinItem(
+                        container = container,
+                        snackbarHostState = snackbarHostState,
+                        sectionId = currentSectionId,
+                        headingId = headingId,
+                        title = subTitle,
+                    )
+                }
                 promptState.checkAndTrigger()
             }
         }
@@ -205,16 +225,13 @@ fun SectionScreen(
     val isFilterActive = state.starredOnly || !state.showIndexes
 
     val homePrefs by container.settingsRepository.homePrefs.collectAsStateWithLifecycle(initialValue = HomePrefs())
-    var isSectionPinned by remember { mutableStateOf(false) }
+    val secId = state.section?.id ?: viewModel.sectionId
+    val secTitle = state.section?.title ?: secId
+    val isSectionPinned = rememberIsPinned(container, secId, "")
     var isSectionHidden by remember { mutableStateOf(false) }
     var actionsMenuCategoryIndex by remember { mutableStateOf<Int?>(null) }
 
-    val secId = state.section?.id ?: viewModel.sectionId
-    val secTitle = state.section?.title ?: secId
-
     LaunchedEffect(userChanges, secId) {
-        val pins = container.userStore.pins()
-        isSectionPinned = pins.any { it.sectionId == secId && it.headingId.isEmpty() }
         val hidden = container.userStore.hiddenSections()
         isSectionHidden = secId in hidden
     }
@@ -356,6 +373,7 @@ fun SectionScreen(
         val isCurrentFollowed = if (websiteStyle && currentCategory != null) {
             FollowTree(follows).isSubsectionFollowed(currentSectionId, currentCategory.heading.id)
         } else false
+        val isCurrentCatPinned = rememberIsPinned(container, secId, currentCategory?.heading?.id ?: "")
 
         Scaffold(
             snackbarHost = {
@@ -442,7 +460,13 @@ fun SectionScreen(
                                                     }
                                                 } else {
                                                     container.userStore.followSection(currentSectionId, currentSectionTitle)
-                                                    onShowSnackbar("Following $currentSectionTitle")
+                                                    showFollowing(
+                                                        snackbarHostState = snackbarHostState,
+                                                        title = currentSectionTitle,
+                                                        isPinned = isSectionPinned,
+                                                    ) {
+                                                        pinItem(container, snackbarHostState, secId, "", currentSectionTitle)
+                                                    }
                                                     promptState.checkAndTrigger()
                                                 }
                                             }
@@ -462,36 +486,74 @@ fun SectionScreen(
                                                 toggleSubsectionFollow(currentCategory.heading.id, currentCleanTitle)
                                             },
                                         )
+                                        DropdownMenuItem(
+                                            text = {
+                                                Text(
+                                                    text = subsectionPinMenuLabel(currentCleanTitle, isCurrentCatPinned),
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                )
+                                            },
+                                            onClick = {
+                                                showOverflowMenu = false
+                                                scope.launch {
+                                                    if (isCurrentCatPinned) {
+                                                        unpinItem(
+                                                            container = container,
+                                                            snackbarHostState = snackbarHostState,
+                                                            haptics = haptics,
+                                                            sectionId = secId,
+                                                            headingId = currentCategory.heading.id,
+                                                            title = currentCleanTitle,
+                                                        )
+                                                    } else {
+                                                        pinItem(
+                                                            container = container,
+                                                            snackbarHostState = snackbarHostState,
+                                                            sectionId = secId,
+                                                            headingId = currentCategory.heading.id,
+                                                            title = currentCleanTitle,
+                                                        )
+                                                    }
+                                                }
+                                            },
+                                        )
+                                    }
+                                    if (isSectionPinned) {
+                                        DropdownMenuItem(
+                                            text = { Text("Unpin") },
+                                            onClick = {
+                                                showOverflowMenu = false
+                                                scope.launch {
+                                                    unpinItem(
+                                                        container = container,
+                                                        snackbarHostState = snackbarHostState,
+                                                        haptics = haptics,
+                                                        sectionId = secId,
+                                                        headingId = "",
+                                                        title = secTitle,
+                                                    )
+                                                }
+                                            },
+                                        )
+                                    } else {
+                                        DropdownMenuItem(
+                                            text = { Text("Pin to Home") },
+                                            onClick = {
+                                                showOverflowMenu = false
+                                                scope.launch {
+                                                    pinItem(
+                                                        container = container,
+                                                        snackbarHostState = snackbarHostState,
+                                                        sectionId = secId,
+                                                        headingId = "",
+                                                        title = secTitle,
+                                                    )
+                                                }
+                                            },
+                                        )
                                     }
                                     if (homePrefs.personalHome) {
-                                        if (isSectionPinned) {
-                                            DropdownMenuItem(
-                                                text = { Text("Unpin") },
-                                                onClick = {
-                                                    showOverflowMenu = false
-                                                    scope.launch {
-                                                        val snapshot = container.userStore.pins().firstOrNull { it.sectionId == secId && it.headingId.isEmpty() } ?: io.github.omeg4dev.fmhy.data.user.Pin(secId, "", secTitle, 0)
-                                                        container.userStore.unpin(secId, "")
-                                                        haptics.remove()
-                                                        val undone = snackbarHostState.showUndo("Unpinned $secTitle")
-                                                        if (undone) {
-                                                            container.userStore.restorePin(snapshot)
-                                                        }
-                                                    }
-                                                },
-                                            )
-                                        } else {
-                                            DropdownMenuItem(
-                                                text = { Text("Pin to Home") },
-                                                onClick = {
-                                                    showOverflowMenu = false
-                                                    scope.launch {
-                                                        container.userStore.pin(secId, "", secTitle)
-                                                        onShowSnackbar("Pinned to Home")
-                                                    }
-                                                },
-                                            )
-                                        }
                                         DropdownMenuItem(
                                             text = { Text("Hide on Home") },
                                             onClick = {
@@ -689,14 +751,19 @@ fun SectionScreen(
                                         .fillMaxWidth()
                                         .animateItem()
                                         .enterStagger(index + if (state.structure.overview.isNotEmpty()) 1 else 0, currentSectionId)
-                                        .clickable {
-                                            nav.push(
-                                                CategoryNavKey(
-                                                    sectionId = state.section?.id ?: viewModel.sectionId,
-                                                    categoryHeadingId = category.heading.id,
+                                        .combinedClickable(
+                                            onClick = {
+                                                nav.push(
+                                                    CategoryNavKey(
+                                                        sectionId = state.section?.id ?: viewModel.sectionId,
+                                                        categoryHeadingId = category.heading.id,
+                                                    )
                                                 )
-                                            )
-                                        },
+                                            },
+                                            onLongClick = {
+                                                actionsMenuCategoryIndex = index
+                                            },
+                                        ),
                                 )
 
                                 if (index < state.structure.categories.lastIndex) {
@@ -797,6 +864,9 @@ fun SectionScreen(
                                             val entryCount = remember(state.structure.categories, item.heading.id) {
                                                 state.structure.categories.firstOrNull { it.heading.id == item.heading.id }?.entryCount
                                             }
+                                            val catIndex = remember(state.structure.categories, item.heading.id) {
+                                                state.structure.categories.indexOfFirst { it.heading.id == item.heading.id }.takeIf { it >= 0 }
+                                            }
                                             HeadingHeader(
                                                 heading = item.heading,
                                                 isHighlighted = item.heading.id == highlightedHeadingId,
@@ -804,6 +874,9 @@ fun SectionScreen(
                                                 entryCount = entryCount,
                                                 onOpenUrl = { linkOpener.openUrl(it) },
                                                 sectionId = state.section?.id ?: viewModel.sectionId,
+                                                onLongClick = if (catIndex != null) {
+                                                    { actionsMenuCategoryIndex = catIndex }
+                                                } else null,
                                             )
                                         }
                                         is SectionItem.EntryItem -> {
@@ -997,34 +1070,35 @@ fun SectionScreen(
             val catTitle = CrossLinks.splitLinkTitle(category.heading.title).first
             val tree = FollowTree(follows)
             val isCatFollowed = tree.isSubsectionFollowed(secId, category.heading.id)
-            var isCatPinned by remember(category.heading.id, userChanges) { mutableStateOf(false) }
-            LaunchedEffect(category.heading.id, userChanges) {
-                val pins = container.userStore.pins()
-                isCatPinned = pins.any { it.sectionId == secId && it.headingId == category.heading.id }
-            }
+            val isCatPinned = rememberIsPinned(container, secId, category.heading.id)
 
             SubsectionActionsMenu(
                 title = catTitle,
                 isFollowed = isCatFollowed,
                 isPinned = isCatPinned,
-                showPinAction = homePrefs.personalHome,
+                showPinAction = true,
                 onToggleFollow = {
                     toggleSubsectionFollow(category.heading.id, catTitle)
                 },
                 onTogglePin = {
-                    val toPin = !isCatPinned
                     scope.launch {
-                        if (toPin) {
-                            container.userStore.pin(secId, category.heading.id, catTitle)
-                            onShowSnackbar("Pinned to Home")
+                        if (isCatPinned) {
+                            unpinItem(
+                                container = container,
+                                snackbarHostState = snackbarHostState,
+                                haptics = haptics,
+                                sectionId = secId,
+                                headingId = category.heading.id,
+                                title = catTitle,
+                            )
                         } else {
-                            val snapshot = container.userStore.pins().firstOrNull { it.sectionId == secId && it.headingId == category.heading.id } ?: io.github.omeg4dev.fmhy.data.user.Pin(secId, category.heading.id, catTitle, 0)
-                            container.userStore.unpin(secId, category.heading.id)
-                            haptics.remove()
-                            val undone = snackbarHostState.showUndo("Unpinned $catTitle")
-                            if (undone) {
-                                container.userStore.restorePin(snapshot)
-                            }
+                            pinItem(
+                                container = container,
+                                snackbarHostState = snackbarHostState,
+                                sectionId = secId,
+                                headingId = category.heading.id,
+                                title = catTitle,
+                            )
                         }
                     }
                 },

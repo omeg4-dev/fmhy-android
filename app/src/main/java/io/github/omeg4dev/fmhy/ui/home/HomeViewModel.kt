@@ -294,7 +294,7 @@ class HomeViewModel(
         combine(
             container.isInitialized,
             store.changes,
-            settingsRepository.lastVisitTs,
+            container.visitTracker.visitCutoffTs,
             settingsRepository.appearance,
         ) { initialized, version, lastVisitTs, appearance ->
             HomeCoreData(initialized, version, lastVisitTs, appearance)

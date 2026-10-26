@@ -575,4 +575,50 @@ class OnboardingModelTest {
         )
         assertTrue(state.websiteStyle)
     }
+
+    @Test
+    fun testToggleSectionPinned() {
+        val repo = FakeSettingsRepository()
+        val container = FakeContainer(repo, userStore)
+        val model = OnboardingModel(repo, userStore, container)
+
+        assertTrue(model.state.value.pinnedSections.isEmpty())
+
+        model.toggleSectionPinned("video")
+        assertTrue(model.state.value.pinnedSections.contains("video"))
+
+        model.toggleSectionPinned("audio")
+        assertEquals(setOf("video", "audio"), model.state.value.pinnedSections)
+
+        model.toggleSectionPinned("video")
+        assertFalse(model.state.value.pinnedSections.contains("video"))
+        assertEquals(setOf("audio"), model.state.value.pinnedSections)
+    }
+
+    @Test
+    fun testFinishWritesPinsForPinnedSections() = runTest {
+        val repo = FakeSettingsRepository()
+        val container = FakeContainer(repo, userStore)
+
+        // Seed an existing pin for another section
+        userStore.pin("tools", "", "Tools")
+
+        val model = OnboardingModel(repo, userStore, container)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        model.toggleSectionFollowed("video")
+        model.toggleSectionPinned("video")
+        // "audio" is followed but NOT pinned
+        model.toggleSectionFollowed("audio")
+
+        model.finish()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val pins = userStore.pins()
+        val pinnedSectionIds = pins.map { it.sectionId }.toSet()
+
+        assertTrue("Pinned section 'video' should be in pins", "video" in pinnedSectionIds)
+        assertFalse("Unpinned section 'audio' should not be in pins", "audio" in pinnedSectionIds)
+        assertTrue("Pre-existing pin 'tools' should be preserved", "tools" in pinnedSectionIds)
+    }
 }

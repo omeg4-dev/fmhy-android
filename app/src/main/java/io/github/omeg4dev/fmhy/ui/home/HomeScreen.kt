@@ -106,6 +106,8 @@ import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
 import io.github.omeg4dev.fmhy.ui.common.sectionIcon
 import io.github.omeg4dev.fmhy.ui.common.showUndo
+import io.github.omeg4dev.fmhy.ui.common.unpinItem
+import io.github.omeg4dev.fmhy.ui.common.showFollowing
 import io.github.omeg4dev.fmhy.ui.search.SearchBarShape
 import io.github.omeg4dev.fmhy.ui.search.searchBarBorder
 import io.github.omeg4dev.fmhy.ui.search.searchBarContainerColor
@@ -375,7 +377,7 @@ fun HomeScreen(
                         item(key = "new-since-last-visit") {
                             Surface(
                                 onClick = {
-                                    nav.push(WhatsNewNavKey(filter = "all"))
+                                    nav.push(WhatsNewNavKey(filter = "all", type = "added", period = "since_last_visit"))
                                 },
                                 shape = MaterialTheme.shapes.large,
                                 color = MaterialTheme.colorScheme.secondaryContainer,
@@ -441,53 +443,62 @@ fun HomeScreen(
                                 }
                             }
 
-                            Surface(
-                                shape = MaterialTheme.shapes.large,
-                                color = MaterialTheme.colorScheme.surfaceContainerLow,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(start = 16.dp, end = 16.dp, bottom = 8.dp)
-                                    .clip(MaterialTheme.shapes.large)
-                                    .combinedClickable(
-                                        onClick = {
-                                            linkOpener.openUrl(pick.url)
-                                        },
-                                        onLongClick = {
-                                            haptics.longPress()
-                                            showRandomPickDetails = true
-                                        },
-                                    ),
+                            Column(
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                             ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
+                                Text(
+                                    text = "Random pick",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(bottom = 8.dp),
+                                )
+                                Surface(
+                                    shape = MaterialTheme.shapes.large,
+                                    color = MaterialTheme.colorScheme.surfaceContainerLow,
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .heightIn(min = 56.dp)
-                                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                                        .clip(MaterialTheme.shapes.large)
+                                        .combinedClickable(
+                                            onClick = {
+                                                linkOpener.openUrl(pick.url)
+                                            },
+                                            onLongClick = {
+                                                haptics.longPress()
+                                                showRandomPickDetails = true
+                                            },
+                                        ),
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.Casino,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(22.dp),
-                                    )
-                                    Spacer(Modifier.width(12.dp))
-                                    Text(
-                                        text = annotatedText,
-                                        style = MaterialTheme.typography.titleMedium,
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.weight(1f),
-                                    )
-                                    IconButton(
-                                        onClick = {
-                                            viewModel.refreshRandomPick()
-                                        },
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .heightIn(min = 56.dp)
+                                            .padding(horizontal = 16.dp, vertical = 8.dp),
                                     ) {
                                         Icon(
-                                            imageVector = Icons.Default.Refresh,
-                                            contentDescription = "Reroll random pick",
+                                            imageVector = Icons.Outlined.Casino,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(22.dp),
                                         )
+                                        Spacer(Modifier.width(12.dp))
+                                        Text(
+                                            text = annotatedText,
+                                            style = MaterialTheme.typography.titleMedium,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f),
+                                        )
+                                        IconButton(
+                                            onClick = {
+                                                viewModel.refreshRandomPick()
+                                            },
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Refresh,
+                                                contentDescription = "Reroll random pick",
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -556,14 +567,15 @@ fun HomeScreen(
                                                             onNavigateToSection(pin.sectionId, pin.anchor)
                                                         },
                                                         onUnpin = {
-                                                            haptics.remove()
                                                             scope.launch {
-                                                                val snapshot = pin.pin ?: Pin(pin.sectionId, pin.headingId, pin.label, 0)
-                                                                container.userStore.unpin(pin.sectionId, pin.headingId)
-                                                                val undo = snackbarHostState.showUndo("Unpinned ${pin.label}")
-                                                                if (undo) {
-                                                                    container.userStore.restorePin(snapshot)
-                                                                }
+                                                                unpinItem(
+                                                                    container = container,
+                                                                    snackbarHostState = snackbarHostState,
+                                                                    haptics = haptics,
+                                                                    sectionId = pin.sectionId,
+                                                                    headingId = pin.headingId,
+                                                                    title = pin.label,
+                                                                )
                                                             }
                                                         },
                                                         onToggleFollow = {
@@ -575,7 +587,7 @@ fun HomeScreen(
                                                                         onShowSnackbar("Unfollowed ${pin.title}")
                                                                     } else {
                                                                         container.userStore.followSection(pin.sectionId, pin.title)
-                                                                        onShowSnackbar("Following ${pin.title}")
+                                                                        showFollowing(snackbarHostState, pin.title, isPinned = true) {}
                                                                     }
                                                                 } else {
                                                                     val nextFollowed = !isFollowed
@@ -587,7 +599,7 @@ fun HomeScreen(
                                                                         nextFollowed,
                                                                     )
                                                                     if (nextFollowed) {
-                                                                        onShowSnackbar("Following ${pin.title}")
+                                                                        showFollowing(snackbarHostState, pin.title, isPinned = true) {}
                                                                     } else {
                                                                         onShowSnackbar("Unfollowed ${pin.title}")
                                                                     }

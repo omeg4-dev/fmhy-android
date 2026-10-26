@@ -57,6 +57,7 @@ private val HUB_KINDS: List<ChangeKind> = listOf(
 )
 
 private fun periodShort(p: WhatsNewPeriod): String = when (p) {
+    WhatsNewPeriod.SINCE_LAST_VISIT -> "New"
     WhatsNewPeriod.DAY -> "Day"
     WhatsNewPeriod.WEEK -> "Week"
     WhatsNewPeriod.MONTH -> "Month"
@@ -120,6 +121,14 @@ fun WhatsNewHub(
                     ) { Text(periodShort(p)) }
                 }
             }
+            if (state.period == WhatsNewPeriod.SINCE_LAST_VISIT) {
+                Text(
+                    text = sinceLastVisitLabel(state.cutoffTs, System.currentTimeMillis() / 1000),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 6.dp, start = 4.dp),
+                )
+            }
         }
         item(key = "all") {
             Card(
@@ -147,7 +156,10 @@ fun WhatsNewHub(
                     Column(modifier = Modifier.weight(1f)) {
                         Text("All changes", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
                         Text(
-                            text = if (state.isLoading) "Loading…" else "${state.totalCards} in the ${state.period.label.lowercase()}",
+                            text = if (state.isLoading) "Loading…" else when (state.period) {
+                                WhatsNewPeriod.SINCE_LAST_VISIT -> "${state.totalCards} since your last visit"
+                                else -> "${state.totalCards} in the ${state.period.label.lowercase()}"
+                            },
                             style = MaterialTheme.typography.bodyMedium,
                         )
                     }

@@ -34,7 +34,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import io.github.omeg4dev.fmhy.data.HomePrefs
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -77,6 +76,10 @@ import io.github.omeg4dev.fmhy.ui.common.enterStagger
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
 import io.github.omeg4dev.fmhy.ui.common.showUndo
+import io.github.omeg4dev.fmhy.ui.common.pinItem
+import io.github.omeg4dev.fmhy.ui.common.unpinItem
+import io.github.omeg4dev.fmhy.ui.common.showFollowing
+import io.github.omeg4dev.fmhy.ui.common.rememberIsPinned
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -119,13 +122,12 @@ fun CategoryScreen(
     val isFilterActive = state.starredOnly || !state.showIndexes
 
     val isOverview = key.categoryHeadingId == "__overview"
-    val homePrefs by container.settingsRepository.homePrefs.collectAsStateWithLifecycle(initialValue = HomePrefs())
-    val userChanges by container.userStore.changes.collectAsStateWithLifecycle()
-    var isCategoryPinned by remember { mutableStateOf(false) }
 
     val category = remember(state.structure.categories, key.categoryHeadingId) {
         if (isOverview) null else state.structure.categories.firstOrNull { it.heading.id == key.categoryHeadingId }
     }
+    val catHeadingId = if (isOverview) "__overview" else (category?.heading?.id ?: key.categoryHeadingId)
+    val isCategoryPinned = rememberIsPinned(container, key.sectionId, catHeadingId)
     val isCategoryFollowed = remember(follows, currentSectionId, category) {
         category != null && follows.any { it.sectionId == currentSectionId && it.headingId == category.heading.id }
     }
@@ -298,73 +300,76 @@ fun CategoryScreen(
                             Icon(Icons.AutoMirrored.Outlined.List, contentDescription = "Outline")
                         }
                         val canFollowCat = !isOverview && category != null
-                        if (canFollowCat || homePrefs.personalHome) {
-                            val catHeadingId = if (isOverview) "__overview" else (category?.heading?.id ?: key.categoryHeadingId)
-                            LaunchedEffect(userChanges, key.sectionId, catHeadingId) {
-                                val pins = container.userStore.pins()
-                                isCategoryPinned = pins.any { it.sectionId == key.sectionId && it.headingId == catHeadingId }
+                        Box {
+                            IconButton(onClick = { showOverflowMenu = true }) {
+                                Icon(Icons.Default.MoreVert, contentDescription = "More options")
                             }
-                            Box {
-                                IconButton(onClick = { showOverflowMenu = true }) {
-                                    Icon(Icons.Default.MoreVert, contentDescription = "More options")
-                                }
-                                DropdownMenu(
-                                    expanded = showOverflowMenu,
-                                    onDismissRequest = { showOverflowMenu = false },
-                                ) {
-                                    if (canFollowCat) {
-                                        val fullCatTitle = "$currentSectionTitle › $categoryTitle"
-                                        DropdownMenuItem(
-                                            text = { Text(if (isCategoryFollowed) "Unfollow this category" else "Follow this category") },
-                                            onClick = {
-                                                showOverflowMenu = false
-                                                scope.launch {
-                                                    if (isCategoryFollowed) {
-                                                        val snapshot = follows.firstOrNull { it.sectionId == currentSectionId && it.headingId == category.heading.id } ?: io.github.omeg4dev.fmhy.data.user.Follow(currentSectionId, category.heading.id, fullCatTitle, System.currentTimeMillis())
-                                                        container.userStore.unfollow(currentSectionId, category.heading.id)
-                                                        haptics.remove()
-                                                        val undone = snackbarHostState.showUndo("Unfollowed $fullCatTitle")
-                                                        if (undone) {
-                                                            container.userStore.restoreFollow(snapshot)
-                                                        }
-                                                    } else {
-                                                        container.userStore.follow(currentSectionId, category.heading.id, fullCatTitle)
-                                                        onShowSnackbar("Following $fullCatTitle")
+                            DropdownMenu(
+                                expanded = showOverflowMenu,
+                                onDismissRequest = { showOverflowMenu = false },
+                            ) {
+                                if (canFollowCat) {
+                                    val fullCatTitle = "$currentSectionTitle › $categoryTitle"
+                                    DropdownMenuItem(
+                                        text = { Text(if (isCategoryFollowed) "Unfollow this category" else "Follow this category") },
+                                        onClick = {
+                                            showOverflowMenu = false
+                                            scope.launch {
+                                                if (isCategoryFollowed) {
+                                                    val snapshot = follows.firstOrNull { it.sectionId == currentSectionId && it.headingId == category.heading.id } ?: io.github.omeg4dev.fmhy.data.user.Follow(currentSectionId, category.heading.id, fullCatTitle, System.currentTimeMillis())
+                                                    container.userStore.unfollow(currentSectionId, category.heading.id)
+                                                    haptics.remove()
+                                                    val undone = snackbarHostState.showUndo("Unfollowed $fullCatTitle")
+                                                    if (undone) {
+                                                        container.userStore.restoreFollow(snapshot)
+                                                    }
+                                                } else {
+                                                    container.userStore.follow(currentSectionId, category.heading.id, fullCatTitle)
+                                                    showFollowing(
+                                                        snackbarHostState = snackbarHostState,
+                                                        title = fullCatTitle,
+                                                        isPinned = isCategoryPinned,
+                                                    ) {
+                                                        pinItem(container, snackbarHostState, key.sectionId, catHeadingId, categoryTitle)
                                                     }
                                                 }
-                                            },
-                                        )
-                                    }
-                                    if (homePrefs.personalHome) {
-                                        if (isCategoryPinned) {
-                                            DropdownMenuItem(
-                                                text = { Text("Unpin") },
-                                                onClick = {
-                                                    showOverflowMenu = false
-                                                    scope.launch {
-                                                        val snapshot = container.userStore.pins().firstOrNull { it.sectionId == key.sectionId && it.headingId == catHeadingId } ?: io.github.omeg4dev.fmhy.data.user.Pin(key.sectionId, catHeadingId, categoryTitle, 0)
-                                                        container.userStore.unpin(key.sectionId, catHeadingId)
-                                                        haptics.remove()
-                                                        val undone = snackbarHostState.showUndo("Unpinned $categoryTitle")
-                                                        if (undone) {
-                                                            container.userStore.restorePin(snapshot)
-                                                        }
-                                                    }
-                                                },
-                                            )
-                                        } else {
-                                            DropdownMenuItem(
-                                                text = { Text("Pin to Home") },
-                                                onClick = {
-                                                    showOverflowMenu = false
-                                                    scope.launch {
-                                                        container.userStore.pin(key.sectionId, catHeadingId, categoryTitle)
-                                                        onShowSnackbar("Pinned to Home")
-                                                    }
-                                                },
-                                            )
-                                        }
-                                    }
+                                            }
+                                        },
+                                    )
+                                }
+                                if (isCategoryPinned) {
+                                    DropdownMenuItem(
+                                        text = { Text("Unpin") },
+                                        onClick = {
+                                            showOverflowMenu = false
+                                            scope.launch {
+                                                unpinItem(
+                                                    container = container,
+                                                    snackbarHostState = snackbarHostState,
+                                                    haptics = haptics,
+                                                    sectionId = key.sectionId,
+                                                    headingId = catHeadingId,
+                                                    title = categoryTitle,
+                                                )
+                                            }
+                                        },
+                                    )
+                                } else {
+                                    DropdownMenuItem(
+                                        text = { Text("Pin to Home") },
+                                        onClick = {
+                                            showOverflowMenu = false
+                                            scope.launch {
+                                                pinItem(
+                                                    container = container,
+                                                    snackbarHostState = snackbarHostState,
+                                                    sectionId = key.sectionId,
+                                                    headingId = catHeadingId,
+                                                    title = categoryTitle,
+                                                )
+                                            }
+                                        },
+                                    )
                                 }
                             }
                         }

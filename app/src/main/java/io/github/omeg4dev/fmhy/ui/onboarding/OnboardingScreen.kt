@@ -53,15 +53,18 @@ import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.NewReleases
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Tab
+import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.outlined.TouchApp
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
@@ -677,22 +680,43 @@ private fun FollowPageContent(
             ) {
                 sections.forEachIndexed { chipIndex, section ->
                     val isSelected = section.id in state.followedSections
-                    FilterChip(
+                    val isPinned = section.id in state.pinnedSections
+                    Row(
                         modifier = Modifier.enterStaggerChip(index = chipIndex, key = OnboardingPage.FOLLOW),
-                        selected = isSelected,
-                        onClick = {
-                            haptics.toggle(!isSelected)
-                            model.toggleSectionFollowed(section.id)
-                        },
-                        label = { Text(section.title) },
-                        leadingIcon = {
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = {
+                                haptics.toggle(!isSelected)
+                                model.toggleSectionFollowed(section.id)
+                            },
+                            label = { Text(section.title) },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = sectionIcon(section.id),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            },
+                        )
+                        IconToggleButton(
+                            checked = isPinned,
+                            onCheckedChange = {
+                                haptics.toggle(!isPinned)
+                                model.toggleSectionPinned(section.id)
+                            },
+                            modifier = Modifier.size(32.dp),
+                        ) {
                             Icon(
-                                imageVector = sectionIcon(section.id),
-                                contentDescription = null,
+                                imageVector = if (isPinned) Icons.Filled.PushPin else Icons.Outlined.PushPin,
+                                contentDescription = if (isPinned) "Unpin" else "Pin to Home",
+                                tint = if (isPinned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                                 modifier = Modifier.size(18.dp),
                             )
-                        },
-                    )
+                        }
+                    }
                 }
             }
         }

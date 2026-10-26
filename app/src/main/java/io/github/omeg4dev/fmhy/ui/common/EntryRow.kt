@@ -53,6 +53,7 @@ import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
+import io.github.omeg4dev.fmhy.FmhyApp
 import io.github.omeg4dev.fmhy.data.link.CrossLinks
 import io.github.omeg4dev.fmhy.data.model.ChangeItem
 import io.github.omeg4dev.fmhy.data.model.Entry
@@ -98,6 +99,8 @@ fun EntryRow(
     onShowInSection: (() -> Unit)? = null,
     followState: FollowState? = null,
     onToggleFollow: (() -> Unit)? = null,
+    isPinned: Boolean? = null,
+    onTogglePin: (() -> Unit)? = null,
     onOpenUrl: (String) -> Unit,
     onShowSnackbar: (String) -> Unit = {},
     folderLabel: String? = null,
@@ -111,6 +114,10 @@ fun EntryRow(
     val userStore = LocalUserStore.current
     val snackbarHost = LocalSnackbarHost.current
     val saveActions = rememberSaveActions(onShowSnackbar = onShowSnackbar)
+    val container = LocalAppContainer.current ?: (LocalContext.current.applicationContext as? FmhyApp)?.container
+    val targetHeadingId = entry.headingId ?: ""
+    val rememberedIsPinned = rememberIsPinned(container, entry.sectionId, targetHeadingId)
+    val effectiveIsPinned = isPinned ?: rememberedIsPinned
 
     var loadedHistory by remember(entry.id, history) { mutableStateOf<List<ChangeItem>?>(history) }
     LaunchedEffect(showBottomSheet, history, entry.id) {
@@ -142,18 +149,16 @@ fun EntryRow(
 
     val effectiveFollowState = remember(followState, followsList, entry.sectionId, entry.headingId, categoryTitle) {
         followState ?: if (categoryTitle.isNotEmpty()) {
-            val targetHeadingId = entry.headingId ?: ""
             val tree = FollowTree(followsList)
             val isFollowing = tree.isSubsectionFollowed(entry.sectionId, targetHeadingId)
             FollowState(categoryTitle = categoryTitle, isFollowing = isFollowing)
         } else null
     }
 
-    val effectiveToggleFollow: (() -> Unit)? = remember(onToggleFollow, effectiveFollowState, userStore, entry.sectionId, entry.headingId, entry.headingPath, snackbarHost) {
+    val effectiveToggleFollow: (() -> Unit)? = remember(onToggleFollow, effectiveFollowState, userStore, container, entry.sectionId, targetHeadingId, entry.headingPath, snackbarHost, effectiveIsPinned) {
         onToggleFollow ?: if (userStore != null && effectiveFollowState != null) {
             {
                 scope.launch {
-                    val targetHeadingId = entry.headingId ?: ""
                     val isCurrentlyFollowing = effectiveFollowState.isFollowing
                     val nextFollowing = !isCurrentlyFollowing
                     val segments = entry.headingPath
@@ -175,7 +180,53 @@ fun EntryRow(
                             onShowSnackbar("Unfollowed ${effectiveFollowState.categoryTitle}")
                         }
                     } else {
-                        onShowSnackbar("Following ${effectiveFollowState.categoryTitle}")
+                        val host = snackbarHost
+                        if (host != null) {
+                            showFollowing(
+                                snackbarHostState = host,
+                                title = effectiveFollowState.categoryTitle,
+                                isPinned = effectiveIsPinned,
+                            ) {
+                                if (container != null) {
+                                    pinItem(
+                                        container = container,
+                                        snackbarHostState = host,
+                                        sectionId = entry.sectionId,
+                                        headingId = targetHeadingId,
+                                        title = effectiveFollowState.categoryTitle,
+                                    )
+                                }
+                            }
+                        } else {
+                            onShowSnackbar("Following ${effectiveFollowState.categoryTitle}")
+                        }
+                    }
+                }
+            }
+        } else null
+    }
+
+    val effectiveTogglePin: (() -> Unit)? = remember(onTogglePin, container, snackbarHost, haptics, entry.sectionId, targetHeadingId, categoryTitle, effectiveIsPinned) {
+        onTogglePin ?: if (container != null && categoryTitle.isNotEmpty() && snackbarHost != null) {
+            {
+                scope.launch {
+                    if (effectiveIsPinned) {
+                        unpinItem(
+                            container = container,
+                            snackbarHostState = snackbarHost,
+                            haptics = haptics,
+                            sectionId = entry.sectionId,
+                            headingId = targetHeadingId,
+                            title = categoryTitle,
+                        )
+                    } else {
+                        pinItem(
+                            container = container,
+                            snackbarHostState = snackbarHost,
+                            sectionId = entry.sectionId,
+                            headingId = targetHeadingId,
+                            title = categoryTitle,
+                        )
                     }
                 }
             }
@@ -451,6 +502,8 @@ fun EntryRow(
             onShowInSection = onShowInSection,
             followState = effectiveFollowState,
             onToggleFollow = effectiveToggleFollow,
+            isPinned = effectiveIsPinned,
+            onTogglePin = effectiveTogglePin,
             onDismiss = { showBottomSheet = false },
             onOpenUrl = { url ->
                 showBottomSheet = false

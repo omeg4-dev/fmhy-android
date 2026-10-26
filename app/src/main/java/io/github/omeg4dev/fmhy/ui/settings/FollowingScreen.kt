@@ -23,6 +23,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -30,10 +32,13 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -53,9 +58,21 @@ import io.github.omeg4dev.fmhy.data.model.Section
 import io.github.omeg4dev.fmhy.data.user.Follow
 import io.github.omeg4dev.fmhy.data.user.UserStore
 import io.github.omeg4dev.fmhy.ui.common.FollowTree
+import io.github.omeg4dev.fmhy.ui.common.LocalAppContainer
+import io.github.omeg4dev.fmhy.ui.common.LocalSnackbarHost
 import io.github.omeg4dev.fmhy.ui.common.SectionFollowState
+import io.github.omeg4dev.fmhy.ui.common.pinItem
+import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
+import io.github.omeg4dev.fmhy.ui.common.rememberIsPinned
 import io.github.omeg4dev.fmhy.ui.common.sectionIcon
+import io.github.omeg4dev.fmhy.ui.common.unpinItem
 import kotlinx.coroutines.launch
+
+fun shouldShowFollowingPin(
+    isFollowed: Boolean,
+    isExcluded: Boolean,
+    isPinned: Boolean,
+): Boolean = !isExcluded && (isFollowed || isPinned)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -67,6 +84,9 @@ fun FollowingScreen(
     extraRows: LazyListScope.() -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
+    val container = LocalAppContainer.current
+    val haptics = rememberHaptics()
+    val snackbarHostState = remember { SnackbarHostState() }
 
     val sections by produceState(initialValue = emptyList<Section>(), datasetStore) {
         value = try {
@@ -139,17 +159,19 @@ fun FollowingScreen(
                 },
             )
         },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         contentWindowInsets = WindowInsets.navigationBars,
         modifier = modifier,
     ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(
-                top = innerPadding.calculateTopPadding() + 8.dp,
-                bottom = innerPadding.calculateBottomPadding() + 24.dp,
-            ),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
+        CompositionLocalProvider(LocalSnackbarHost provides snackbarHostState) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(
+                    top = innerPadding.calculateTopPadding() + 8.dp,
+                    bottom = innerPadding.calculateBottomPadding() + 24.dp,
+                ),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
             item {
                 SettingsSection(title = headerText) {
                     if (sections.isEmpty()) {
@@ -167,6 +189,13 @@ fun FollowingScreen(
                             val subIds = subsectionIdsBySection[section.id].orEmpty()
                             val state = followTree.sectionState(section.id, subIds)
                             val isExpanded = section.id in expandedSections
+                            val isSectionFollowed = state != SectionFollowState.NONE
+                            val isSectionPinned = rememberIsPinned(container, section.id, "")
+                            val showSectionPin = shouldShowFollowingPin(
+                                isFollowed = isSectionFollowed,
+                                isExcluded = false,
+                                isPinned = isSectionPinned,
+                            )
 
                             ListItem(
                                 leadingContent = {
@@ -209,6 +238,39 @@ fun FollowingScreen(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                                     ) {
+                                        if (showSectionPin) {
+                                            IconButton(
+                                                onClick = {
+                                                    val app = container ?: return@IconButton
+                                                    scope.launch {
+                                                        if (isSectionPinned) {
+                                                            unpinItem(
+                                                                container = app,
+                                                                snackbarHostState = snackbarHostState,
+                                                                haptics = haptics,
+                                                                sectionId = section.id,
+                                                                headingId = "",
+                                                                title = section.title,
+                                                            )
+                                                        } else {
+                                                            pinItem(
+                                                                container = app,
+                                                                snackbarHostState = snackbarHostState,
+                                                                sectionId = section.id,
+                                                                headingId = "",
+                                                                title = section.title,
+                                                            )
+                                                        }
+                                                    }
+                                                },
+                                            ) {
+                                                Icon(
+                                                    imageVector = if (isSectionPinned) Icons.Filled.PushPin else Icons.Outlined.PushPin,
+                                                    contentDescription = if (isSectionPinned) "Unpin" else "Pin to Home",
+                                                    tint = if (isSectionPinned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                                )
+                                            }
+                                        }
                                         Switch(
                                             checked = state != SectionFollowState.NONE,
                                             onCheckedChange = { checked ->
@@ -260,6 +322,13 @@ fun FollowingScreen(
                                             if (subIndex > 0) SettingsDivider()
                                             val subTitle = CrossLinks.splitLinkTitle(heading.title).first
                                             val isFollowed = followTree.isSubsectionFollowed(section.id, heading.id)
+                                            val isExcluded = follows.any { it.sectionId == section.id && it.headingId == heading.id && it.excluded }
+                                            val isSubPinned = rememberIsPinned(container, section.id, heading.id)
+                                            val showSubPin = shouldShowFollowingPin(
+                                                isFollowed = isFollowed,
+                                                isExcluded = isExcluded,
+                                                isPinned = isSubPinned,
+                                            )
 
                                             ListItem(
                                                 headlineContent = {
@@ -269,19 +338,57 @@ fun FollowingScreen(
                                                     )
                                                 },
                                                 trailingContent = {
-                                                    Switch(
-                                                        checked = isFollowed,
-                                                        onCheckedChange = { on ->
-                                                            scope.launch {
-                                                                userStore.setSubsectionFollowed(
-                                                                    section.id,
-                                                                    heading.id,
-                                                                    "${section.title} › $subTitle",
-                                                                    on,
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                    ) {
+                                                        if (showSubPin) {
+                                                            IconButton(
+                                                                onClick = {
+                                                                    val app = container ?: return@IconButton
+                                                                    scope.launch {
+                                                                        if (isSubPinned) {
+                                                                            unpinItem(
+                                                                                container = app,
+                                                                                snackbarHostState = snackbarHostState,
+                                                                                haptics = haptics,
+                                                                                sectionId = section.id,
+                                                                                headingId = heading.id,
+                                                                                title = subTitle,
+                                                                            )
+                                                                        } else {
+                                                                            pinItem(
+                                                                                container = app,
+                                                                                snackbarHostState = snackbarHostState,
+                                                                                sectionId = section.id,
+                                                                                headingId = heading.id,
+                                                                                title = subTitle,
+                                                                            )
+                                                                        }
+                                                                    }
+                                                                },
+                                                            ) {
+                                                                Icon(
+                                                                    imageVector = if (isSubPinned) Icons.Filled.PushPin else Icons.Outlined.PushPin,
+                                                                    contentDescription = if (isSubPinned) "Unpin" else "Pin to Home",
+                                                                    tint = if (isSubPinned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                                                                 )
                                                             }
-                                                        },
-                                                    )
+                                                        }
+                                                        Switch(
+                                                            checked = isFollowed,
+                                                            onCheckedChange = { on ->
+                                                                scope.launch {
+                                                                    userStore.setSubsectionFollowed(
+                                                                        section.id,
+                                                                        heading.id,
+                                                                        "${section.title} › $subTitle",
+                                                                        on,
+                                                                    )
+                                                                }
+                                                            },
+                                                        )
+                                                    }
                                                 },
                                                 colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                                                 modifier = Modifier
@@ -309,4 +416,5 @@ fun FollowingScreen(
             extraRows()
         }
     }
+}
 }

@@ -14,7 +14,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.automirrored.filled.Segment
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
@@ -51,6 +53,8 @@ fun EntryDetailBottomSheet(
     onShowInSection: (() -> Unit)? = null,
     followState: FollowState? = null,
     onToggleFollow: (() -> Unit)? = null,
+    isPinned: Boolean = false,
+    onTogglePin: (() -> Unit)? = null,
     onDismiss: () -> Unit,
     onOpenUrl: (String) -> Unit,
     onCopyLink: (String) -> Unit,
@@ -374,6 +378,45 @@ fun EntryDetailBottomSheet(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { onToggleFollow() }
+                        .padding(horizontal = 8.dp),
+                )
+            }
+
+            if (onTogglePin != null) {
+                val categoryTitle = followState?.categoryTitle
+                ListItem(
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                    leadingContent = {
+                        Icon(
+                            imageVector = if (isPinned) Icons.Filled.PushPin else Icons.Outlined.PushPin,
+                            contentDescription = null,
+                            tint = if (isPinned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        )
+                    },
+                    headlineContent = {
+                        Text(
+                            text = if (categoryTitle.isNullOrBlank()) {
+                                if (isPinned) "Unpin" else "Pin to Home"
+                            } else {
+                                subsectionPinMenuLabel(categoryTitle, isPinned)
+                            },
+                            style = MaterialTheme.typography.titleSmall,
+                        )
+                    },
+                    trailingContent = {
+                        if (isPinned) {
+                            FilledTonalButton(onClick = onTogglePin) {
+                                Text("Pinned")
+                            }
+                        } else {
+                            Button(onClick = onTogglePin) {
+                                Text("Pin")
+                            }
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onTogglePin() }
                         .padding(horizontal = 8.dp),
                 )
             }

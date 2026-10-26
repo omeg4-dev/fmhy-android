@@ -229,7 +229,11 @@ fun EmptyState(
     }
 }
 
+/** Shows "[message] · [actionLabel]"; returns true when the user tapped the action. */
+suspend fun SnackbarHostState.showAction(message: String, actionLabel: String): Boolean =
+    showSnackbar(message, actionLabel = actionLabel, withDismissAction = false, duration = SnackbarDuration.Short) ==
+        SnackbarResult.ActionPerformed
+
 /** Shows "[message] · Undo"; returns true when the user tapped Undo. */
 suspend fun SnackbarHostState.showUndo(message: String): Boolean =
-    showSnackbar(message, actionLabel = "Undo", withDismissAction = false, duration = SnackbarDuration.Short) ==
-        SnackbarResult.ActionPerformed
+    showAction(message, "Undo")

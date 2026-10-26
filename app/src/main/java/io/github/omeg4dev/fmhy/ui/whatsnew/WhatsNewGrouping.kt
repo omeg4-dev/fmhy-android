@@ -31,9 +31,33 @@ data class DayGroup(
 )
 
 enum class WhatsNewPeriod(val days: Int, val label: String) {
+    SINCE_LAST_VISIT(0, "Since last visit"),
     DAY(1, "Last 24 hours"),
     WEEK(7, "Last 7 days"),
     MONTH(30, "Last 30 days"),
+}
+
+fun sinceLastVisitLabel(cutoffSec: Long, nowSec: Long): String {
+    if (cutoffSec <= 0L) return "Since last visit"
+    val diff = (nowSec - cutoffSec).coerceAtLeast(0L)
+    val rel = when {
+        diff < 60 -> "just now"
+        diff < 3600 -> {
+            val m = diff / 60
+            if (m == 1L) "1 minute ago" else "$m minutes ago"
+        }
+        diff < 86400 -> {
+            val h = diff / 3600
+            if (h == 1L) "1 hour ago" else "$h hours ago"
+        }
+        diff < 86400 * 2 -> "yesterday"
+        diff < 86400 * 7 -> "${diff / 86400} days ago"
+        else -> {
+            val w = diff / (86400 * 7)
+            if (w == 1L) "1 week ago" else "$w weeks ago"
+        }
+    }
+    return "Since last visit · $rel"
 }
 
 sealed interface WhatsNewScope {

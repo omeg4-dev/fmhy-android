@@ -2,8 +2,12 @@ package io.github.omeg4dev.fmhy.ui.whatsnew
 
 import io.github.omeg4dev.fmhy.data.model.ChangeItem
 import io.github.omeg4dev.fmhy.data.model.ChangeKind
+import io.github.omeg4dev.fmhy.data.model.Entry
+import io.github.omeg4dev.fmhy.data.model.Tier
 import java.time.ZoneId
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -176,5 +180,65 @@ class WhatsNewGroupingTest {
         // Empty old url
         val emptyOld = WhatsNewGrouping.formatUrlChange("", "https://site.com/path")
         assertEquals("site.com", emptyOld)
+    }
+
+    @Test
+    fun testExtractSubsectionTarget() {
+        val entryWithHeading = Entry(
+            id = "e1",
+            num = 1,
+            sectionId = "video",
+            headingId = "movies-cat",
+            ord = 1,
+            name = "Movie Site",
+            url = "https://example.com/movie",
+            originalUrl = null,
+            description = "desc",
+            tags = emptyList(),
+            headingPath = "Video › [Movies / TV](https://fmhy.net/video)",
+            tier = Tier.NORMAL,
+            isInlineMore = false,
+            isBase64 = false,
+            mirrors = emptyList(),
+            extraLinks = emptyList(),
+            firstSeen = 0L,
+            lastChanged = 0L,
+            starredAt = null,
+        )
+        val card = ChangeCard(
+            key = "key1",
+            ts = 1000L,
+            primaryKind = ChangeKind.ADDED,
+            kinds = setOf(ChangeKind.ADDED),
+            name = "Movie Site",
+            url = "https://example.com/movie",
+            sectionId = "video",
+            entry = entryWithHeading,
+            oldName = null,
+            oldUrl = null,
+            oldSectionId = null,
+            oldLine = null,
+        )
+        val sectionTitles = mapOf("video" to "Movies, TV & Anime")
+        val target = extractSubsectionTarget(card, sectionTitles)
+        assertNotNull(target)
+        assertEquals("video", target!!.sectionId)
+        assertEquals("movies-cat", target.headingId)
+        assertEquals("Movies / TV", target.subTitle)
+        assertEquals("Movies, TV & Anime", target.sectionTitle)
+
+        // Card without headingId
+        val entryWithoutHeading = entryWithHeading.copy(headingId = null)
+        val cardWithoutHeading = card.copy(entry = entryWithoutHeading)
+        assertNull(extractSubsectionTarget(cardWithoutHeading, sectionTitles))
+
+        // Card with empty headingId
+        val entryEmptyHeading = entryWithHeading.copy(headingId = "")
+        val cardEmptyHeading = card.copy(entry = entryEmptyHeading)
+        assertNull(extractSubsectionTarget(cardEmptyHeading, sectionTitles))
+
+        // Card with null entry
+        val cardNullEntry = card.copy(entry = null)
+        assertNull(extractSubsectionTarget(cardNullEntry, sectionTitles))
     }
 }

@@ -65,8 +65,13 @@ internal fun FilterBar(
     ) {
         // 1. Period Pill
         Box {
+            val periodLabel = if (state.period == WhatsNewPeriod.SINCE_LAST_VISIT) {
+                sinceLastVisitLabel(state.cutoffTs, System.currentTimeMillis() / 1000)
+            } else {
+                state.period.label
+            }
             FilterDropdownPill(
-                label = state.period.label,
+                label = periodLabel,
                 active = state.period != WhatsNewPeriod.WEEK,
                 onClick = { periodMenuExpanded = true },
             )

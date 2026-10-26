@@ -50,7 +50,7 @@ data object SavedNavKey : NavKey
  * [filter] "all" / "following" / "saved". With filter "all" and no [type] it opens the hub;
  * [type] is a ChangeKind name (or "ALL") and opens the feed on that kind.
  */
-data class WhatsNewNavKey(val filter: String = "all", val type: String? = null) : NavKey
+data class WhatsNewNavKey(val filter: String = "all", val type: String? = null, val period: String? = null) : NavKey
 
 @Serializable
 data object LegendNavKey : NavKey
