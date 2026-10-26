@@ -20,7 +20,7 @@ data class RescueState(
     val canSkipBlocking: Boolean = false,
 )
 
-enum class WarningReason { UNSAFE, POTENTIALLY_UNSAFE, FILTER_BLOCK }
+enum class WarningReason { UNSAFE, POTENTIALLY_UNSAFE, FILTER_BLOCK, LOOKALIKE }
 
 data class InterstitialState(
     val host: String,

@@ -78,6 +78,7 @@ import io.github.omeg4dev.fmhy.FmhyApp
 import io.github.omeg4dev.fmhy.browser.download.DownloadEvent
 import io.github.omeg4dev.fmhy.browser.download.DownloadsSheet
 import io.github.omeg4dev.fmhy.browser.download.KeyPromptDialog
+import io.github.omeg4dev.fmhy.browser.download.RedirectWarningText
 import io.github.omeg4dev.fmhy.browser.download.VideoSourcesSheet
 import io.github.omeg4dev.fmhy.browser.adblock.AdblockService
 import io.github.omeg4dev.fmhy.browser.adblock.SelectorPicker
@@ -192,12 +193,16 @@ fun BrowserScreen(
     }
 
     var showKeyPromptDialog by remember { mutableStateOf(false) }
+    var redirectWarningEvent by remember { mutableStateOf<DownloadEvent.RedirectWarning?>(null) }
     LaunchedEffect(downloadController) {
         downloadController.events.collect { event ->
             when (event) {
                 is DownloadEvent.KeyPromptNeeded -> {
                     downloadController.keyPromptShown()
                     showKeyPromptDialog = true
+                }
+                is DownloadEvent.RedirectWarning -> {
+                    redirectWarningEvent = event
                 }
             }
         }
@@ -950,6 +955,14 @@ fun BrowserScreen(
                     readyServices = checkPrefs.readyServices,
                     onCheckLink = { url -> container.checks.checkLink(url, checkPrefs.readyServices) },
                     onOpenUrl = { tabManager.openTab(it, isPrivate = currentTab?.isPrivate == true) },
+                    onShowInSection = { entryId ->
+                        scope.launch {
+                            val entry = datasetStore.entry(entryId)
+                            if (entry != null) {
+                                showEntryInApp(context, entry)
+                            }
+                        }
+                    },
                 )
             } else {
                 LaunchedEffect(pendingDownload, offerAccepted) {
@@ -1053,6 +1066,44 @@ fun BrowserScreen(
             checks = container.checks,
             onOpenUrl = { tabManager.openTab(it, isPrivate = currentTab?.isPrivate == true) },
             onOpenCheckSettings = { tabManager.openFileCheckSettings() },
+            onShowInSection = { entryId ->
+                scope.launch {
+                    val entry = datasetStore.entry(entryId)
+                    if (entry != null) {
+                        showEntryInApp(context, entry)
+                    }
+                }
+            },
+        )
+    }
+
+    redirectWarningEvent?.let { warn ->
+        AlertDialog(
+            onDismissRequest = { redirectWarningEvent = null },
+            title = { Text("Download redirected") },
+            text = { Text(RedirectWarningText.sentence(warn.fromHost, warn.flag)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val id = warn.id
+                        redirectWarningEvent = null
+                        downloadController.continueAfterRedirectWarning(id)
+                    }
+                ) {
+                    Text("Continue")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        val id = warn.id
+                        redirectWarningEvent = null
+                        downloadController.cancel(id)
+                    }
+                ) {
+                    Text("Cancel download")
+                }
+            },
         )
     }
 

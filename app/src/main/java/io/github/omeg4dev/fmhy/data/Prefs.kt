@@ -195,6 +195,7 @@ data class CheckPrefs(
     val keyPromptShown: Boolean = false,
     /** The one-time explanation of what checks send was shown. */
     val explainShown: Boolean = false,
+    val fmhyDownloadStatus: Boolean = true,
 ) {
     /** Services that are on AND have a non-blank key, VirusTotal first. */
     val readyServices: List<ScanService>

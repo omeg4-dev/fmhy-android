@@ -17,11 +17,14 @@ object InterstitialMerge {
         val reasons = mutableListOf<WarningReason>()
         val hasUnsafe = !hostAllowed && verdict?.status == SafetyStatus.UNSAFE && unsafeWarning
         val hasPotentiallyUnsafe = !hostAllowed && verdict?.status == SafetyStatus.POTENTIALLY_UNSAFE && potentiallyUnsafeWarning
+        val hasLookalike = !hostAllowed && verdict?.status == SafetyStatus.NO_DATA && !verdict.lookalikes.isNullOrEmpty() && potentiallyUnsafeWarning
 
         if (hasUnsafe) {
             reasons.add(WarningReason.UNSAFE)
         } else if (hasPotentiallyUnsafe) {
             reasons.add(WarningReason.POTENTIALLY_UNSAFE)
+        } else if (hasLookalike) {
+            reasons.add(WarningReason.LOOKALIKE)
         }
 
         val hasFilterBlock = filterRule != null
@@ -52,5 +55,6 @@ object InterstitialMerge {
         WarningReason.UNSAFE -> "FMHY lists this site as unsafe"
         WarningReason.POTENTIALLY_UNSAFE -> "FMHY flags this site as potentially unsafe"
         WarningReason.FILTER_BLOCK -> "An ad-blocking filter blocks this site"
+        WarningReason.LOOKALIKE -> "looks like a fake copy of a site FMHY lists"
     }
 }

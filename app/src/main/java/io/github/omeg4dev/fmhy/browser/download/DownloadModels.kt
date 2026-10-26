@@ -44,6 +44,7 @@ data class DownloadItem(
     val etaSeconds: Long? = null,
     val check: ScanResult? = null,
     val checking: Boolean = false,
+    val fmhy: DownloadSourceStatus? = null,
 ) {
     /** 0f..1f, or null when the total size is unknown. */
     val fraction: Float? get() = if (totalBytes > 0) (downloadedBytes.toFloat() / totalBytes).coerceIn(0f, 1f) else null
@@ -79,6 +80,7 @@ fun DownloadItem.toRecord(): DownloadRecord {
         createdAt = createdAt,
         finishedAt = finishedAt,
         checkJson = check?.toJson(),
+        fmhyJson = fmhy?.toJson(),
     )
 }
 
@@ -114,6 +116,7 @@ fun DownloadRecord.toItem(): DownloadItem {
         etaSeconds = null,
         check = ScanResult.fromJson(checkJson),
         checking = false,
+        fmhy = DownloadSourceStatus.fromJson(fmhyJson),
     )
 }
 

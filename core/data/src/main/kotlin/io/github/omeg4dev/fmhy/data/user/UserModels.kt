@@ -122,4 +122,5 @@ data class DownloadRecord(
     val error: String? = null, val fileUri: String? = null, val folderLabel: String = "",
     val etag: String? = null, val lastModified: String? = null, val createdAt: Long, val finishedAt: Long? = null,
     val checkJson: String? = null,
+    val fmhyJson: String? = null,
 )

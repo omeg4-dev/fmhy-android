@@ -40,8 +40,10 @@ import io.github.omeg4dev.fmhy.browser.download.DownloadOffer
 import io.github.omeg4dev.fmhy.browser.download.DownloadOfferText
 import io.github.omeg4dev.fmhy.browser.download.DownloadPolicy
 import io.github.omeg4dev.fmhy.browser.download.DownloadRequest
+import io.github.omeg4dev.fmhy.browser.download.DownloadSourceStatus
 import io.github.omeg4dev.fmhy.browser.download.NewDownload
 import io.github.omeg4dev.fmhy.browser.download.buildOffer
+import kotlinx.coroutines.flow.first
 import io.github.omeg4dev.fmhy.ui.common.Motion
 import io.github.omeg4dev.fmhy.ui.common.PasteAction
 import io.github.omeg4dev.fmhy.ui.common.PasteDecodeUi
@@ -381,9 +383,12 @@ class DefaultBrowserHooks(
                     ?: sg.check(checkUrl).also { synchronized(verdictCache) { verdictCache[key] = it } }
             }
 
-            var verdict = getVerdict(url)
+            val fileVerdict = getVerdict(url)
+            val pageVerdict = referer?.let { getVerdict(it) }
+
+            var verdict = fileVerdict
             if (verdict?.status == SafetyStatus.NO_DATA && referer != null) {
-                val refererVerdict = getVerdict(referer)
+                val refererVerdict = pageVerdict ?: getVerdict(referer)
                 if (refererVerdict != null) {
                     verdict = refererVerdict
                 }
@@ -405,6 +410,23 @@ class DefaultBrowserHooks(
 
             val folderLabel = controller.targetLabel()
 
+            val fmhyEnabled = runCatching { app.container.checks.prefs.value.fmhyDownloadStatus }
+                .getOrElse { runCatching { app.container.settingsRepository.checkPrefs.first().fmhyDownloadStatus }.getOrDefault(true) }
+
+            val sourceStatus = if (fmhyEnabled && sg != null && fileVerdict != null) {
+                val wikiDateMs = datasetStore?.meta()?.get("last_sync")?.toLongOrNull()
+                val pageHost = referer?.let { DownloadRequest.hostOf(it) }
+                DownloadSourceStatus.from(
+                    fileVerdict = fileVerdict,
+                    pageVerdict = pageVerdict,
+                    fileHost = host,
+                    pageHost = pageHost,
+                    wikiDateMs = wikiDateMs,
+                )
+            } else {
+                null
+            }
+
             val offer = buildOffer(
                 url = url,
                 fileName = fileName,
@@ -422,6 +444,7 @@ class DefaultBrowserHooks(
                 askBeforeDownload = protectionPrefs.askBeforeDownload,
                 lastTouchAt = record.lastTouchAt,
                 nowMs = System.currentTimeMillis(),
+                sourceStatus = sourceStatus,
             )
 
             if (offer.interstitial != null || offer.needsConfirmation) {
@@ -440,6 +463,7 @@ class DefaultBrowserHooks(
                         userAgent = offer.userAgent,
                         isPrivate = offer.isPrivate,
                         allowMobile = false,
+                        fmhy = offer.sourceStatus,
                     )
                 )
                 downloadStarted.tryEmit(Unit)
@@ -473,7 +497,8 @@ class DefaultBrowserHooks(
                     ?: sg.check(checkUrl).also { synchronized(verdictCache) { verdictCache[key] = it } }
             }
 
-            val verdict = getVerdict(url)
+            val fileVerdict = getVerdict(url)
+            val verdict = fileVerdict
             val rule = (tm.adblockService.currentEngine?.match(
                 FilterRequest(url = url, sourceUrl = url, type = ResourceType.DOCUMENT)
             ) as? MatchResult.Block)?.rule
@@ -489,6 +514,22 @@ class DefaultBrowserHooks(
             )
 
             val folderLabel = controller.targetLabel()
+
+            val fmhyEnabled = runCatching { app.container.checks.prefs.value.fmhyDownloadStatus }
+                .getOrElse { runCatching { app.container.settingsRepository.checkPrefs.first().fmhyDownloadStatus }.getOrDefault(true) }
+
+            val sourceStatus = if (fmhyEnabled && sg != null && fileVerdict != null) {
+                val wikiDateMs = datasetStore?.meta()?.get("last_sync")?.toLongOrNull()
+                DownloadSourceStatus.from(
+                    fileVerdict = fileVerdict,
+                    pageVerdict = null,
+                    fileHost = host,
+                    pageHost = null,
+                    wikiDateMs = wikiDateMs,
+                )
+            } else {
+                null
+            }
 
             val offer = buildOffer(
                 url = url,
@@ -508,6 +549,7 @@ class DefaultBrowserHooks(
                 lastTouchAt = 0L,
                 nowMs = System.currentTimeMillis(),
                 forceConfirmation = true,
+                sourceStatus = sourceStatus,
             )
 
             withContext(Dispatchers.Main) {
@@ -532,6 +574,7 @@ class DefaultBrowserHooks(
                     userAgent = offer.userAgent,
                     isPrivate = offer.isPrivate,
                     allowMobile = allowMobile,
+                    fmhy = offer.sourceStatus,
                 )
             )
             downloadStarted.tryEmit(Unit)

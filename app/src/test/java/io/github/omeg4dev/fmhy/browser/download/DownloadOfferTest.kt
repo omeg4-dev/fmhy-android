@@ -163,4 +163,66 @@ class DownloadOfferTest {
         assertEquals("Downloading test.apk", DownloadOfferText.started("test.apk", waits = false))
         assertEquals("Waiting for Wi-Fi: test.apk", DownloadOfferText.started("test.apk", waits = true))
     }
+
+    @Test
+    fun `buildOffer defaults sourceStatus to null`() {
+        val now = 100_000L
+        val offer = buildOffer(
+            url = "https://example.com/file.bin",
+            fileName = "file.bin",
+            totalBytes = 100,
+            mimeType = "application/octet-stream",
+            host = "example.com",
+            referer = null,
+            userAgent = null,
+            isPrivate = false,
+            warnRiskyDownloads = false,
+            downloadWifiOnly = false,
+            networkKind = NetworkKind.WIFI,
+            folderLabel = "Downloads",
+            interstitial = null,
+            askBeforeDownload = false,
+            lastTouchAt = now - 1000L,
+            nowMs = now,
+        )
+        assertNull(offer.sourceStatus)
+    }
+
+    @Test
+    fun `buildOffer carries sourceStatus when provided`() {
+        val now = 100_000L
+        val status = DownloadSourceStatus(
+            kind = SourceKind.STARRED,
+            isMirror = false,
+            fileHost = "example.com",
+            pageHost = null,
+            differs = false,
+            fileKind = SourceKind.STARRED,
+            pageKind = null,
+            entryId = "entry-1",
+            wikiDateMs = 12345L,
+            lookalikeOf = null,
+        )
+        val offer = buildOffer(
+            url = "https://example.com/file.bin",
+            fileName = "file.bin",
+            totalBytes = 100,
+            mimeType = "application/octet-stream",
+            host = "example.com",
+            referer = null,
+            userAgent = null,
+            isPrivate = false,
+            warnRiskyDownloads = false,
+            downloadWifiOnly = false,
+            networkKind = NetworkKind.WIFI,
+            folderLabel = "Downloads",
+            interstitial = null,
+            askBeforeDownload = false,
+            lastTouchAt = now - 1000L,
+            nowMs = now,
+            sourceStatus = status,
+        )
+        assertNotNull(offer.sourceStatus)
+        assertEquals(status, offer.sourceStatus)
+    }
 }

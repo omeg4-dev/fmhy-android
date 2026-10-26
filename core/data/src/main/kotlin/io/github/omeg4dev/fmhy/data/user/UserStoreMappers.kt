@@ -82,6 +82,11 @@ internal fun executeDefaultMigration(conn: SQLiteConnection, fromVersion: Int, t
             conn.execSQL("ALTER TABLE downloads ADD COLUMN check_json TEXT;")
         }
     }
+    if (fromVersion == 4 && toVersion == 5) {
+        if (!columnExists(conn, "downloads", "fmhy_json")) {
+            conn.execSQL("ALTER TABLE downloads ADD COLUMN fmhy_json TEXT;")
+        }
+    }
 }
 
 internal fun readBookmarksInternal(conn: SQLiteConnection): List<UserBookmark> {

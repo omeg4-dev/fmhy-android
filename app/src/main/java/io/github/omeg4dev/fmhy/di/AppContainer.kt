@@ -24,6 +24,7 @@ import io.github.omeg4dev.fmhy.browser.DefaultBrowserHooks
 import io.github.omeg4dev.fmhy.browser.TabManager
 import io.github.omeg4dev.fmhy.browser.download.DownloadChecks
 import io.github.omeg4dev.fmhy.browser.download.DownloadController
+import io.github.omeg4dev.fmhy.browser.download.HopChecker
 import io.github.omeg4dev.fmhy.browser.adblock.AdblockService
 import io.github.omeg4dev.fmhy.browser.adblock.DefaultAdblockUpdater
 import io.github.omeg4dev.fmhy.browser.adblock.ScriptletLibrary
@@ -290,6 +291,7 @@ class DefaultAppContainer(
             networkMonitor,
             settingsRepository,
             checks,
+            hopChecker = HopChecker.from(safeGuard),
         )
     }
 

@@ -1,4 +1,4 @@
-PRAGMA user_version = 4;
+PRAGMA user_version = 5;
 CREATE TABLE folders (id INTEGER PRIMARY KEY, name TEXT NOT NULL, ord INTEGER NOT NULL, created_at INTEGER NOT NULL);
 CREATE TABLE bookmarks (
   entry_id TEXT PRIMARY KEY, name TEXT NOT NULL, url TEXT NOT NULL, section_id TEXT NOT NULL,
@@ -20,5 +20,5 @@ CREATE TABLE downloads (
   source_host TEXT NOT NULL DEFAULT '', referer TEXT, user_agent TEXT, total_bytes INTEGER NOT NULL DEFAULT -1,
   downloaded_bytes INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL, resumable INTEGER NOT NULL DEFAULT 1,
   restart_note INTEGER NOT NULL DEFAULT 0, allow_mobile INTEGER NOT NULL DEFAULT 0, error TEXT, file_uri TEXT,
-  folder_label TEXT NOT NULL DEFAULT '', etag TEXT, last_modified TEXT, created_at INTEGER NOT NULL, finished_at INTEGER, check_json TEXT);
+  folder_label TEXT NOT NULL DEFAULT '', etag TEXT, last_modified TEXT, created_at INTEGER NOT NULL, finished_at INTEGER, check_json TEXT, fmhy_json TEXT);
 CREATE INDEX downloads_created ON downloads(created_at DESC);

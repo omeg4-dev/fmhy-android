@@ -1,5 +1,7 @@
 package io.github.omeg4dev.fmhy.browser
 
+import io.github.omeg4dev.fmhy.data.model.Entry
+import io.github.omeg4dev.fmhy.data.model.Tier
 import io.github.omeg4dev.fmhy.data.safety.SafetyStatus
 import io.github.omeg4dev.fmhy.data.safety.Verdict
 import org.junit.Assert.assertEquals
@@ -240,9 +242,69 @@ class InterstitialMergeTest {
     }
 
     @Test
+    fun testLookalikeNoDataVerdict() {
+        val host = "nxfilte.org"
+        val url = "https://nxfilte.org/path"
+        val entry = Entry(
+            id = "e1",
+            num = 1,
+            sectionId = "sec",
+            headingId = null,
+            ord = 1,
+            name = "NxFilter",
+            url = "https://nxfilter.org",
+            originalUrl = null,
+            description = "",
+            tags = emptyList(),
+            headingPath = "Tools",
+            tier = Tier.NORMAL,
+            isInlineMore = false,
+            isBase64 = false,
+            mirrors = emptyList(),
+            extraLinks = emptyList(),
+            firstSeen = 0L,
+            lastChanged = 0L,
+            starredAt = null,
+        )
+        val v = Verdict(
+            status = SafetyStatus.NO_DATA,
+            input = url,
+            normalizedUrl = url,
+            host = host,
+            reason = null,
+            matches = emptyList(),
+            lookalikes = listOf(entry),
+        )
+        val state = InterstitialMerge.combine(
+            host = host,
+            url = url,
+            verdict = v,
+            unsafeWarning = true,
+            potentiallyUnsafeWarning = true,
+            hostAllowed = false,
+            filterRule = null,
+        )
+        assertNotNull(state)
+        assertEquals(listOf(WarningReason.LOOKALIKE), state!!.reasons)
+        assertNull(state.note)
+
+        val stateDisabled = InterstitialMerge.combine(
+            host = host,
+            url = url,
+            verdict = v,
+            unsafeWarning = true,
+            potentiallyUnsafeWarning = false,
+            hostAllowed = false,
+            filterRule = null,
+        )
+        assertNull(stateDisabled)
+    }
+
+    @Test
     fun testSentence() {
         assertEquals("FMHY lists this site as unsafe", InterstitialMerge.sentence(WarningReason.UNSAFE))
         assertEquals("FMHY flags this site as potentially unsafe", InterstitialMerge.sentence(WarningReason.POTENTIALLY_UNSAFE))
         assertEquals("An ad-blocking filter blocks this site", InterstitialMerge.sentence(WarningReason.FILTER_BLOCK))
+        assertEquals("looks like a fake copy of a site FMHY lists", InterstitialMerge.sentence(WarningReason.LOOKALIKE))
     }
 }

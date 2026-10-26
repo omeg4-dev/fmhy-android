@@ -845,7 +845,7 @@ class UserStoreTest {
         store.withConnection { conn ->
             conn.prepare("PRAGMA user_version;").use { stmt ->
                 assertTrue(stmt.step())
-                assertEquals(4L, stmt.getLong(0))
+                assertEquals(5L, stmt.getLong(0))
             }
         }
         store.close()
@@ -1105,7 +1105,7 @@ class UserStoreTest {
         store.withConnection { conn ->
             conn.prepare("PRAGMA user_version;").use { stmt ->
                 assertTrue(stmt.step())
-                assertEquals(4L, stmt.getLong(0))
+                assertEquals(5L, stmt.getLong(0))
             }
         }
         store.close()
@@ -1176,7 +1176,7 @@ class UserStoreTest {
         store.withConnection { conn ->
             conn.prepare("PRAGMA user_version;").use { stmt ->
                 assertTrue(stmt.step())
-                assertEquals(4L, stmt.getLong(0))
+                assertEquals(5L, stmt.getLong(0))
             }
         }
         store.close()
@@ -1205,6 +1205,68 @@ class UserStoreTest {
 
         val retrieved2 = store.downloads().first { it.id == id }
         assertEquals("""{"kind":"FILE","sha256":"abc","services":[],"checkedAt":2000}""", retrieved2.checkJson)
+
+        store.close()
+    }
+
+    @Test
+    fun testMigrationV4AddsFmhyJson() = runTest {
+        val dbFile = tempFolder.newFile("legacy_v4.db")
+        val rawConn = BundledSQLiteDriver().open(dbFile.absolutePath)
+        rawConn.execSQL("PRAGMA user_version = 4;")
+        rawConn.execSQL("""
+            CREATE TABLE IF NOT EXISTS downloads (
+              id INTEGER PRIMARY KEY AUTOINCREMENT, url TEXT NOT NULL, file_name TEXT NOT NULL, mime_type TEXT NOT NULL DEFAULT '',
+              source_host TEXT NOT NULL DEFAULT '', referer TEXT, user_agent TEXT, total_bytes INTEGER NOT NULL DEFAULT -1,
+              downloaded_bytes INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL, resumable INTEGER NOT NULL DEFAULT 1,
+              restart_note INTEGER NOT NULL DEFAULT 0, allow_mobile INTEGER NOT NULL DEFAULT 0, error TEXT, file_uri TEXT,
+              folder_label TEXT NOT NULL DEFAULT '', etag TEXT, last_modified TEXT, created_at INTEGER NOT NULL, finished_at INTEGER, check_json TEXT);
+        """.trimIndent())
+        rawConn.execSQL("""
+            INSERT INTO downloads (url, file_name, status, created_at, check_json)
+            VALUES ('https://example.com/test.zip', 'test.zip', 'FINISHED', 1000, '{"test":true}');
+        """.trimIndent())
+        rawConn.close()
+
+        val store = UserStore(dbFile)
+        val dls = store.downloads()
+        assertEquals(1, dls.size)
+        assertEquals("test.zip", dls[0].fileName)
+        assertEquals("""{"test":true}""", dls[0].checkJson)
+        assertNull(dls[0].fmhyJson)
+
+        store.withConnection { conn ->
+            conn.prepare("PRAGMA user_version;").use { stmt ->
+                assertTrue(stmt.step())
+                assertEquals(5L, stmt.getLong(0))
+            }
+        }
+        store.close()
+    }
+
+    @Test
+    fun testDownloadFmhyJsonRoundTrip() = runTest {
+        val store = createStore()
+        val initialRecord = DownloadRecord(
+            url = "https://example.com/file.apk",
+            fileName = "file.apk",
+            status = "FINISHED",
+            createdAt = 1000L,
+            fmhyJson = """{"kind":"STARRED","isMirror":false,"fileHost":"example.com","differs":false,"fileKind":"STARRED"}""",
+        )
+        val id = store.insertDownload(initialRecord)
+        assertTrue(id > 0)
+
+        val retrieved1 = store.downloads().first { it.id == id }
+        assertEquals(initialRecord.fmhyJson, retrieved1.fmhyJson)
+
+        val updatedRecord = retrieved1.copy(
+            fmhyJson = """{"kind":"LISTED","isMirror":true,"fileHost":"example.com","differs":true,"fileKind":"LISTED"}""",
+        )
+        store.updateDownload(updatedRecord)
+
+        val retrieved2 = store.downloads().first { it.id == id }
+        assertEquals(updatedRecord.fmhyJson, retrieved2.fmhyJson)
 
         store.close()
     }

@@ -234,6 +234,7 @@ class DefaultSettingsRepository(
         private val KEY_CHECK_AUTO_RISKY = booleanPreferencesKey("check_auto_risky")
         private val KEY_CHECK_KEY_PROMPT_SHOWN = booleanPreferencesKey("check_key_prompt_shown")
         private val KEY_CHECK_EXPLAIN_SHOWN = booleanPreferencesKey("check_explain_shown")
+        private val KEY_CHECK_FMHY_DOWNLOAD_STATUS = booleanPreferencesKey("check_fmhy_download_status")
     }
 
     override val lastVisitTs: Flow<Long> = dataStore.data.map { prefs ->
@@ -835,6 +836,7 @@ class DefaultSettingsRepository(
             autoCheckRisky = prefs[KEY_CHECK_AUTO_RISKY] ?: default.autoCheckRisky,
             keyPromptShown = prefs[KEY_CHECK_KEY_PROMPT_SHOWN] ?: default.keyPromptShown,
             explainShown = prefs[KEY_CHECK_EXPLAIN_SHOWN] ?: default.explainShown,
+            fmhyDownloadStatus = prefs[KEY_CHECK_FMHY_DOWNLOAD_STATUS] ?: default.fmhyDownloadStatus,
         )
     }
 
@@ -847,6 +849,7 @@ class DefaultSettingsRepository(
         prefs[KEY_CHECK_AUTO_RISKY] = p.autoCheckRisky
         prefs[KEY_CHECK_KEY_PROMPT_SHOWN] = p.keyPromptShown
         prefs[KEY_CHECK_EXPLAIN_SHOWN] = p.explainShown
+        prefs[KEY_CHECK_FMHY_DOWNLOAD_STATUS] = p.fmhyDownloadStatus
     }
 
     override val checkPrefs: Flow<CheckPrefs> = dataStore.data.map { prefs ->

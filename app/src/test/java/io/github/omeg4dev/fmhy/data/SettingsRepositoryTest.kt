@@ -391,4 +391,42 @@ class SettingsRepositoryTest {
         val cleared = repo.downloadPrefs.first()
         assertEquals(expected.copy(folderUri = null), cleared)
     }
+
+    @Test
+    fun testCheckPrefsFmhyDownloadStatus() = runTest {
+        val (repo, _) = createRepository(this)
+
+        // Default is true
+        val defaultPrefs = repo.checkPrefs.first()
+        assertTrue(defaultPrefs.fmhyDownloadStatus)
+
+        // Set other values
+        repo.updateCheckPrefs {
+            it.copy(
+                virusTotalOn = true,
+                virusTotalKey = "dummy-vt-key",
+                hybridOn = true,
+                hybridKey = "dummy-ha-key",
+                holdUntilChecked = true,
+                autoCheckRisky = false,
+            )
+        }
+        val withExisting = repo.checkPrefs.first()
+        assertTrue(withExisting.fmhyDownloadStatus)
+        assertTrue(withExisting.virusTotalOn)
+        assertEquals("dummy-vt-key", withExisting.virusTotalKey)
+
+        // Written false persists
+        repo.updateCheckPrefs { it.copy(fmhyDownloadStatus = false) }
+        val updated = repo.checkPrefs.first()
+        assertFalse(updated.fmhyDownloadStatus)
+
+        // Existing values survived
+        assertTrue(updated.virusTotalOn)
+        assertEquals("dummy-vt-key", updated.virusTotalKey)
+        assertTrue(updated.hybridOn)
+        assertEquals("dummy-ha-key", updated.hybridKey)
+        assertTrue(updated.holdUntilChecked)
+        assertFalse(updated.autoCheckRisky)
+    }
 }

@@ -1026,8 +1026,8 @@ open class UserStore(
                 url, file_name, mime_type, source_host, referer, user_agent,
                 total_bytes, downloaded_bytes, status, resumable, restart_note,
                 allow_mobile, error, file_uri, folder_label, etag, last_modified,
-                created_at, finished_at, check_json
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                created_at, finished_at, check_json, fmhy_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """.trimIndent()
         conn.prepare(sql).use { stmt ->
             stmt.bindText(1, r.url)
@@ -1050,6 +1050,7 @@ open class UserStore(
             stmt.bindLong(18, r.createdAt)
             if (r.finishedAt != null) stmt.bindLong(19, r.finishedAt) else stmt.bindNull(19)
             if (r.checkJson != null) stmt.bindText(20, r.checkJson) else stmt.bindNull(20)
+            if (r.fmhyJson != null) stmt.bindText(21, r.fmhyJson) else stmt.bindNull(21)
             stmt.step()
         }
         val id = conn.prepare("SELECT last_insert_rowid()").use { stmt ->
@@ -1078,7 +1079,8 @@ open class UserStore(
                 etag = ?,
                 last_modified = ?,
                 finished_at = ?,
-                check_json = ?
+                check_json = ?,
+                fmhy_json = ?
             WHERE id = ?
         """.trimIndent()
         conn.prepare(sql).use { stmt ->
@@ -1100,7 +1102,8 @@ open class UserStore(
             if (r.lastModified != null) stmt.bindText(16, r.lastModified) else stmt.bindNull(16)
             if (r.finishedAt != null) stmt.bindLong(17, r.finishedAt) else stmt.bindNull(17)
             if (r.checkJson != null) stmt.bindText(18, r.checkJson) else stmt.bindNull(18)
-            stmt.bindLong(19, r.id)
+            if (r.fmhyJson != null) stmt.bindText(19, r.fmhyJson) else stmt.bindNull(19)
+            stmt.bindLong(20, r.id)
             stmt.step()
         }
     }
@@ -1112,7 +1115,7 @@ open class UserStore(
                 id, url, file_name, mime_type, source_host, referer, user_agent,
                 total_bytes, downloaded_bytes, status, resumable, restart_note,
                 allow_mobile, error, file_uri, folder_label, etag, last_modified,
-                created_at, finished_at, check_json
+                created_at, finished_at, check_json, fmhy_json
             FROM downloads
             ORDER BY created_at DESC, id DESC
         """.trimIndent()
@@ -1141,6 +1144,7 @@ open class UserStore(
                         createdAt = stmt.getLong(18),
                         finishedAt = if (stmt.isNull(19)) null else stmt.getLong(19),
                         checkJson = if (stmt.isNull(20)) null else stmt.getText(20),
+                        fmhyJson = if (stmt.isNull(21)) null else stmt.getText(21),
                     )
                 )
             }
@@ -1171,7 +1175,7 @@ open class UserStore(
     }
 
     companion object {
-        const val USER_DB_VERSION = 4
+        const val USER_DB_VERSION = 5
         const val BACKUP_FORMAT = "fmhy-backup"
         const val BACKUP_VERSION = 1
 

@@ -269,6 +269,15 @@ fun BlockingPage(
                         },
                     )
                     SettingsDivider()
+                    SwitchRow(
+                        title = "Show FMHY status in downloads",
+                        summary = "Shows where a download's source site is listed on FMHY. Checked on this phone; no address is sent anywhere.",
+                        checked = checkPrefs.fmhyDownloadStatus,
+                        onChange = { checked ->
+                            viewModel.updateCheckPrefs { it.copy(fmhyDownloadStatus = checked) }
+                        },
+                    )
+                    SettingsDivider()
                     NavRow(
                         title = "Download folder",
                         summary = downloadFolderSummary,

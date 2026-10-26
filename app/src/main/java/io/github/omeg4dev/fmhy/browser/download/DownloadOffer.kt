@@ -19,12 +19,31 @@ data class DownloadOffer(
     val folderLabel: String,       // controller.targetLabel()
     val interstitial: InterstitialState?,  // non-null → show the warning screen first
     val needsConfirmation: Boolean,
-)
+    val sourceStatus: DownloadSourceStatus? = null,
+) {
+    val emphasizeLinkCheck: Boolean get() = DownloadOfferRules.emphasizeLinkCheck(sourceStatus?.kind, isRisky)
+    val firmRiskConfirm: Boolean get() = DownloadOfferRules.firmRiskConfirm(sourceStatus?.kind, isRisky)
+}
+
+object DownloadOfferRules {
+    fun emphasizeLinkCheck(kind: SourceKind?, isRisky: Boolean): Boolean = when (kind) {
+        SourceKind.STARRED -> false
+        SourceKind.LISTED -> isRisky
+        SourceKind.NOT_LISTED,
+        SourceKind.UNSAFE,
+        SourceKind.LOOKALIKE -> true
+        null -> isRisky
+    }
+
+    fun firmRiskConfirm(kind: SourceKind?, isRisky: Boolean): Boolean =
+        isRisky && (kind == SourceKind.NOT_LISTED || kind == SourceKind.LOOKALIKE || kind == SourceKind.UNSAFE)
+}
 
 object DownloadOfferText {
     fun sizeText(totalBytes: Long): String? = if (totalBytes > 0) DownloadPolicy.formatBytes(totalBytes) else null
     const val WIFI_NOTE = "Download only on Wi-Fi is on. This file will wait for Wi-Fi."
     const val RISK_TITLE = "This file can install software"
+    const val UNLISTED_RISK_NOTE = "FMHY does not list this site. Only continue if you trust where the file comes from."
     fun started(fileName: String, waits: Boolean) = if (waits) "Waiting for Wi-Fi: $fileName" else "Downloading $fileName"
 }
 
@@ -46,6 +65,7 @@ fun buildOffer(
     lastTouchAt: Long,
     nowMs: Long,
     forceConfirmation: Boolean = false,
+    sourceStatus: DownloadSourceStatus? = null,
 ): DownloadOffer {
     val isRisky = RiskyDownload.isRiskyExtension(fileName) && warnRiskyDownloads
     val waitsForWifi = DownloadPolicy.waitsForWifi(downloadWifiOnly, networkKind)
@@ -70,5 +90,6 @@ fun buildOffer(
         folderLabel = folderLabel,
         interstitial = interstitial,
         needsConfirmation = needsConfirmation,
+        sourceStatus = sourceStatus,
     )
 }

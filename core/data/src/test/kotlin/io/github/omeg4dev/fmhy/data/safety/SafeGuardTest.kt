@@ -92,4 +92,12 @@ class SafeGuardTest {
         println("SafeGuardTest: ${cases.size} cases passed. Average check time: %.2f ms".format(avgTimeMs))
         assertTrue("Average check time should be well under 50 ms (got %.2f ms)".format(avgTimeMs), avgTimeMs < 50.0)
     }
+
+    @Test
+    fun testOneCharacterOffListedDomainYieldsLookalike() = runTest {
+        val verdict = safeGuard.check("https://nxfilte.org")
+        assertEquals(SafetyStatus.NO_DATA, verdict.status)
+        assertTrue("Lookalikes should not be empty for host one character off listed domain", verdict.lookalikes.isNotEmpty())
+        assertTrue("Lookalikes should contain nxfilter.org", verdict.lookalikes.any { it.url.contains("nxfilter.org") })
+    }
 }

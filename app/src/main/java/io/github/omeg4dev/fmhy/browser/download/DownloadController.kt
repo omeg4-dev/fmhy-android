@@ -34,8 +34,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import okhttp3.Call
+import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.Response
 import java.io.FileNotFoundException
 import java.io.FileOutputStream
 import java.io.IOException
@@ -46,6 +50,7 @@ import kotlin.math.abs
 
 sealed interface DownloadEvent {
     data object KeyPromptNeeded : DownloadEvent
+    data class RedirectWarning(val id: Long, val fromHost: String, val flag: HopFlag) : DownloadEvent
 }
 
 data class NewDownload(
@@ -58,6 +63,7 @@ data class NewDownload(
     val userAgent: String? = null,
     val isPrivate: Boolean = false,
     val allowMobile: Boolean = false,
+    val fmhy: DownloadSourceStatus? = null,
 )
 
 class DownloadController(
@@ -70,6 +76,7 @@ class DownloadController(
     private val checks: DownloadChecks,
     private val storage: DownloadStorage = DownloadStorage(context, settings),
     private val clock: () -> Long = System::currentTimeMillis,
+    private val hopChecker: HopChecker = HopChecker { null },
 ) {
     private val _items = MutableStateFlow<List<DownloadItem>>(emptyList())
     val items: StateFlow<List<DownloadItem>> = _items.asStateFlow()
@@ -91,9 +98,12 @@ class DownloadController(
         .cache(null)
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
-        .followRedirects(true)
-        .followSslRedirects(true)
+        .followRedirects(false)
+        .followSslRedirects(false)
         .build()
+
+    private val allowedHosts = ConcurrentHashMap<Long, MutableSet<String>>()
+    private val pendingFlags = ConcurrentHashMap<Long, HopFlag>()
 
     private val privateIdCounter = AtomicLong(-1L)
     private val jobs = ConcurrentHashMap<Long, Job>()
@@ -209,6 +219,7 @@ class DownloadController(
                             lastModified = null,
                             createdAt = createdAt,
                             finishedAt = null,
+                            fmhyJson = req.fmhy?.toJson(),
                         )
                     )
                 } catch (_: Throwable) {
@@ -241,6 +252,7 @@ class DownloadController(
             finishedAt = null,
             speedBps = null,
             etaSeconds = null,
+            fmhy = req.fmhy,
         )
 
         _items.update { list ->
@@ -292,10 +304,24 @@ class DownloadController(
         reschedule()
     }
 
+    fun continueAfterRedirectWarning(id: Long) {
+        val item = _items.value.firstOrNull { it.id == id } ?: return
+        if (item.status != DownloadStatus.AWAITING_DECISION) return
+        val flag = pendingFlags.remove(id)
+        if (flag != null) {
+            allowedHosts.computeIfAbsent(id) { ConcurrentHashMap.newKeySet() }.add(flag.host)
+        }
+        val waiting = edit(id) { it.copy(status = DownloadStatus.WAITING) }
+        waiting?.let { persist(it) }
+        reschedule()
+    }
+
     fun cancel(id: Long) {
         val item = _items.value.firstOrNull { it.id == id } ?: return
         checkJobs.remove(id)?.cancel()
         jobs.remove(id)?.cancel()
+        allowedHosts.remove(id)
+        pendingFlags.remove(id)
         storage.partFile(id).delete()
         _items.update { list -> list.filterNot { it.id == id } }
         if (!item.isPrivate) {
@@ -336,6 +362,8 @@ class DownloadController(
         for (item in active) {
             checkJobs.remove(item.id)?.cancel()
             jobs.remove(item.id)?.cancel()
+            allowedHosts.remove(item.id)
+            pendingFlags.remove(item.id)
             storage.partFile(item.id).delete()
             _items.update { list -> list.filterNot { it.id == item.id } }
             if (!item.isPrivate) {
@@ -353,6 +381,8 @@ class DownloadController(
     fun removeFromList(id: Long) {
         val item = _items.value.firstOrNull { it.id == id } ?: return
         checkJobs.remove(id)?.cancel()
+        allowedHosts.remove(id)
+        pendingFlags.remove(id)
         _items.update { list -> list.filterNot { it.id == id } }
         if (!item.isPrivate) {
             scope.launch(Dispatchers.IO) {
@@ -725,31 +755,28 @@ class DownloadController(
                 part.delete()
             }
 
-            val cookies = try {
-                android.webkit.CookieManager.getInstance().getCookie(currentItem.url)
-            } catch (_: Throwable) {
-                null
+            var currentUrlString = currentItem.url
+            val parsedUrl = currentUrlString.toHttpUrlOrNull()
+            if (parsedUrl == null) {
+                val failedItem = edit(id) {
+                    it.copy(
+                        status = DownloadStatus.FAILED,
+                        error = "Invalid URL",
+                        speedBps = null,
+                        etaSeconds = null,
+                    )
+                }
+                failedItem?.let { persist(it) }
+                jobs.remove(id)
+                reschedule()
+                return
             }
+            var currentHttpUrl: HttpUrl = parsedUrl
 
-            val headers = DownloadRequest.headers(
-                userAgent = currentItem.userAgent,
-                cookies = cookies,
-                referer = currentItem.referer,
-                offset = offset,
-                etag = currentItem.etag,
-                lastModified = currentItem.lastModified,
-            )
-
-            val requestBuilder = Request.Builder().url(currentItem.url)
-            for ((k, v) in headers) {
-                requestBuilder.header(k, v)
-            }
-            val request = requestBuilder.build()
-            val call = client.newCall(request)
-
+            var currentCall: Call? = null
             val job = coroutineContext.job
             val handle = job.invokeOnCompletion {
-                call.cancel()
+                currentCall?.cancel()
             }
 
             var shouldRetry = false
@@ -757,7 +784,87 @@ class DownloadController(
             var updatedItem = currentItem
 
             try {
-                val response = call.execute()
+                var hops = 0
+                var finalResponse: Response? = null
+
+                while (true) {
+                    val cookies = try {
+                        android.webkit.CookieManager.getInstance().getCookie(currentUrlString)
+                    } catch (_: Throwable) {
+                        null
+                    }
+
+                    val headers = DownloadRequest.headers(
+                        userAgent = currentItem.userAgent,
+                        cookies = cookies,
+                        referer = currentItem.referer,
+                        offset = offset,
+                        etag = currentItem.etag,
+                        lastModified = currentItem.lastModified,
+                    )
+
+                    val requestBuilder = Request.Builder().url(currentHttpUrl)
+                    for ((k, v) in headers) {
+                        requestBuilder.header(k, v)
+                    }
+                    val request = requestBuilder.build()
+                    val call = client.newCall(request)
+                    currentCall = call
+
+                    val resp = call.execute()
+                    val nextUrl = RedirectPath.nextUrl(currentHttpUrl, resp.header("Location"), resp.code)
+                    if (nextUrl != null) {
+                        resp.close()
+                        hops++
+                        if (hops > RedirectPath.MAX_HOPS) {
+                            val failedItem = edit(id) {
+                                it.copy(
+                                    status = DownloadStatus.FAILED,
+                                    error = "Too many redirects",
+                                    speedBps = null,
+                                    etaSeconds = null,
+                                )
+                            }
+                            failedItem?.let { persist(it) }
+                            jobs.remove(id)
+                            reschedule()
+                            return
+                        }
+
+                        val flag = hopChecker.check(nextUrl.toString())
+                        val allowed = allowedHosts[id] ?: emptySet()
+                        if (flag != null && !allowed.contains(flag.host)) {
+                            pendingFlags[id] = flag
+                            val heldItem = edit(id) {
+                                it.copy(
+                                    status = DownloadStatus.AWAITING_DECISION,
+                                    speedBps = null,
+                                    etaSeconds = null,
+                                )
+                            }
+                            heldItem?.let { persist(it) }
+                            jobs.remove(id)
+                            reschedule()
+                            _events.tryEmit(
+                                DownloadEvent.RedirectWarning(
+                                    id = id,
+                                    fromHost = currentHttpUrl.host,
+                                    flag = flag,
+                                )
+                            )
+                            return
+                        }
+
+                        currentHttpUrl = nextUrl
+                        currentUrlString = nextUrl.toString()
+                        continue
+                    } else {
+                        finalResponse = resp
+                        break
+                    }
+                }
+
+                val response = checkNotNull(finalResponse)
                 response.use { resp ->
                     val code = resp.code
                     if (code == 416 && offset > 0L && currentItem.totalBytes == offset) {

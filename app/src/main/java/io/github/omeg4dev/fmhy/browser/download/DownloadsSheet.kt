@@ -71,6 +71,13 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Surface
+import io.github.omeg4dev.fmhy.browser.RiskyDownload
+import io.github.omeg4dev.fmhy.browser.SiteBarKind
+import io.github.omeg4dev.fmhy.browser.StatusTone
+import io.github.omeg4dev.fmhy.browser.statusIconSpec
+import io.github.omeg4dev.fmhy.browser.statusToneColor
 import io.github.omeg4dev.fmhy.data.CheckPrefs
 import io.github.omeg4dev.fmhy.update.ui.InstallPermissionDialog
 import kotlinx.coroutines.launch
@@ -89,6 +96,7 @@ fun DownloadsSheet(
     checks: DownloadChecks,
     onOpenUrl: (String) -> Unit,
     onOpenCheckSettings: () -> Unit,
+    onShowInSection: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -438,6 +446,7 @@ fun DownloadsSheet(
                         onShowResult = { viewingResultItem = it },
                         onDangerousOpenClick = { pendingDangerousOpenItem = it },
                         onDangerousInstallClick = { pendingDangerousInstallItem = it },
+                        onShowInSection = onShowInSection,
                     )
                 }
             }
@@ -480,6 +489,7 @@ fun DownloadsSheet(
                         onShowResult = { viewingResultItem = it },
                         onDangerousOpenClick = { pendingDangerousOpenItem = it },
                         onDangerousInstallClick = { pendingDangerousInstallItem = it },
+                        onShowInSection = onShowInSection,
                     )
                 }
             }
@@ -898,9 +908,11 @@ private fun DownloadEntryRow(
     onShowResult: (DownloadItem) -> Unit,
     onDangerousOpenClick: (DownloadItem) -> Unit,
     onDangerousInstallClick: (DownloadItem) -> Unit,
+    onShowInSection: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
     var menuExpanded by remember { mutableStateOf(false) }
+    var showFmhyStatusDialog by remember { mutableStateOf(false) }
 
     val isFinished = item.status == DownloadStatus.FINISHED
     val rowModifier = if (isFinished) {
@@ -950,16 +962,108 @@ private fun DownloadEntryRow(
                 overflow = TextOverflow.Ellipsis,
             )
 
-            // Second line: <sourceHost> · <size>
+            // Second line: <sourceHost> · <size> + FMHY badge
             val sizePart = if (item.totalBytes > 0) DownloadPolicy.formatBytes(item.totalBytes) else null
             val secondLine = listOfNotNull(item.sourceHost.ifBlank { null }, sizePart).joinToString(" · ")
-            if (secondLine.isNotEmpty()) {
-                Text(
-                    text = secondLine,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+            val showFmhyBadge = item.fmhy != null && checkPrefs.fmhyDownloadStatus
+
+            if (secondLine.isNotEmpty() || showFmhyBadge) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    if (secondLine.isNotEmpty()) {
+                        Text(
+                            text = secondLine,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = if (showFmhyBadge) Modifier.weight(1f, fill = false) else Modifier,
+                        )
+                    }
+                    if (showFmhyBadge && item.fmhy != null) {
+                        val siteBarKind = when (item.fmhy.kind) {
+                            SourceKind.STARRED -> SiteBarKind.STARRED
+                            SourceKind.LISTED -> SiteBarKind.LISTED
+                            SourceKind.NOT_LISTED -> SiteBarKind.NOT_ON_FMHY
+                            SourceKind.UNSAFE,
+                            SourceKind.LOOKALIKE -> SiteBarKind.UNSAFE
+                        }
+                        val spec = statusIconSpec(siteBarKind)
+                        val toneColor = statusToneColor(spec.tone)
+
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = toneColor.copy(alpha = 0.12f),
+                            modifier = Modifier.clickable { showFmhyStatusDialog = true },
+                        ) {
+                            Text(
+                                text = DownloadSourceText.badge(item.fmhy.kind),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = toneColor,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (showFmhyStatusDialog && item.fmhy != null) {
+                val status = item.fmhy
+                val titleWithMirror = DownloadSourceText.title(status.kind) +
+                    if (status.isMirror) DownloadSourceText.mirrorSuffix else ""
+                AlertDialog(
+                    onDismissRequest = { showFmhyStatusDialog = false },
+                    title = { Text("FMHY status") },
+                    text = {
+                        Column(
+                            modifier = Modifier.verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Text(
+                                text = titleWithMirror,
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                            if (status.differs && status.pageHost != null) {
+                                Text(
+                                    text = DownloadSourceText.differsLine(status.pageHost, status.fileHost),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            Text(
+                                text = "Status at download time. " + DownloadSourceText.dateLabel(status.wikiDateMs),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Text(
+                                text = DownloadSourceText.REMINDER,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    },
+                    confirmButton = {
+                        Row(
+                            horizontalArrangement = Arrangement.End,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            if ((status.kind == SourceKind.STARRED || status.kind == SourceKind.LISTED) && status.entryId != null) {
+                                TextButton(
+                                    onClick = {
+                                        showFmhyStatusDialog = false
+                                        onShowInSection(status.entryId)
+                                    }
+                                ) {
+                                    Text("Show in section")
+                                }
+                            }
+                            TextButton(onClick = { showFmhyStatusDialog = false }) {
+                                Text("Close")
+                            }
+                        }
+                    },
                 )
             }
 
@@ -1179,6 +1283,25 @@ private fun DownloadEntryRow(
                 ) {
                     TextButton(onClick = { onDiscardClick(item) }) {
                         Text("Delete")
+                    }
+                }
+            }
+
+            // Suggestion: Check file on Finished rows
+            val isUnlistedOrUnsafeSource = item.fmhy?.kind in setOf(SourceKind.NOT_LISTED, SourceKind.UNSAFE, SourceKind.LOOKALIKE)
+            val isRiskyFile = RiskyDownload.isRiskyExtension(item.fileName)
+            if (isFinished && item.check == null && !item.checking && (isUnlistedOrUnsafeSource || isRiskyFile) && checkPrefs.readyServices.isNotEmpty()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 2.dp),
+                    horizontalArrangement = Arrangement.Start,
+                ) {
+                    TextButton(
+                        onClick = { onCheckFinished(item) },
+                        contentPadding = PaddingValues(horizontal = 0.dp, vertical = 2.dp),
+                    ) {
+                        Text("Check file")
                     }
                 }
             }

@@ -50,14 +50,18 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.PaddingValues
 import io.github.omeg4dev.fmhy.browser.download.CheckUiText
 import io.github.omeg4dev.fmhy.browser.download.DownloadOffer
+import io.github.omeg4dev.fmhy.browser.download.DownloadSourceStatus
+import io.github.omeg4dev.fmhy.browser.download.DownloadSourceText
 import io.github.omeg4dev.fmhy.browser.download.ScanError
 import io.github.omeg4dev.fmhy.browser.download.ScanLinks
 import io.github.omeg4dev.fmhy.browser.download.ScanResult
 import io.github.omeg4dev.fmhy.browser.download.ScanResultView
 import io.github.omeg4dev.fmhy.browser.download.ScanService
 import io.github.omeg4dev.fmhy.browser.download.ScanVerdict
+import io.github.omeg4dev.fmhy.browser.download.SourceKind
 import kotlinx.coroutines.launch
 import io.github.omeg4dev.fmhy.browser.download.DownloadOfferText
 import io.github.omeg4dev.fmhy.ui.common.enterStagger
@@ -314,6 +318,7 @@ fun DownloadDialog(
     readyServices: List<ScanService> = emptyList(),
     onCheckLink: suspend (url: String) -> ScanResult = { error("Not supported") },
     onOpenUrl: (String) -> Unit = {},
+    onShowInSection: (String) -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     var riskStep by remember(offer) { mutableStateOf(false) }
@@ -365,6 +370,85 @@ fun DownloadDialog(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    val sourceStatus = offer.sourceStatus
+                    if (sourceStatus != null) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                        ) {
+                            val siteBarKind = when (sourceStatus.kind) {
+                                SourceKind.STARRED -> SiteBarKind.STARRED
+                                SourceKind.LISTED -> SiteBarKind.LISTED
+                                SourceKind.NOT_LISTED -> SiteBarKind.NOT_ON_FMHY
+                                SourceKind.UNSAFE,
+                                SourceKind.LOOKALIKE -> SiteBarKind.UNSAFE
+                            }
+                            val spec = statusIconSpec(siteBarKind)
+                            val title = DownloadSourceText.title(sourceStatus.kind) +
+                                if (sourceStatus.isMirror) DownloadSourceText.mirrorSuffix else ""
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                Icon(
+                                    imageVector = statusGlyphVector(spec.glyph),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                    tint = statusToneColor(spec.tone),
+                                )
+                                Text(
+                                    text = title,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = if (spec.tone == StatusTone.ERROR) {
+                                        MaterialTheme.colorScheme.error
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurface
+                                    },
+                                )
+                            }
+
+                            if (sourceStatus.differs && sourceStatus.pageHost != null) {
+                                Text(
+                                    text = DownloadSourceText.differsLine(sourceStatus.pageHost, sourceStatus.fileHost),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                if (sourceStatus.pageKind != null && sourceStatus.pageKind != sourceStatus.fileKind) {
+                                    Text(
+                                        text = "The page: " + DownloadSourceText.title(sourceStatus.pageKind),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+
+                            if ((sourceStatus.kind == SourceKind.STARRED || sourceStatus.kind == SourceKind.LISTED) &&
+                                sourceStatus.entryId != null
+                            ) {
+                                TextButton(
+                                    onClick = { onShowInSection(sourceStatus.entryId) },
+                                    contentPadding = PaddingValues(horizontal = 0.dp, vertical = 2.dp),
+                                ) {
+                                    Text("Show in section")
+                                }
+                            }
+
+                            Text(
+                                text = DownloadSourceText.dateLabel(sourceStatus.wikiDateMs),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+
+                            Text(
+                                text = DownloadSourceText.REMINDER,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
                     Text(
                         text = "Save to: ${offer.folderLabel}",
                         style = MaterialTheme.typography.bodyMedium,
@@ -379,16 +463,21 @@ fun DownloadDialog(
                     }
 
                     if (checkServices.isNotEmpty() && linkCheckResult == null && !checkingLink && !showSendNoteInline) {
-                        TextButton(
-                            onClick = {
-                                if (readyServices.isEmpty()) {
-                                    onOpenUrl(ScanLinks.linkReport(checkServices.first(), offer.url))
-                                } else {
-                                    showSendNoteInline = true
-                                }
+                        val onCheckClick = {
+                            if (readyServices.isEmpty()) {
+                                onOpenUrl(ScanLinks.linkReport(checkServices.first(), offer.url))
+                            } else {
+                                showSendNoteInline = true
                             }
-                        ) {
-                            Text("Check link first")
+                        }
+                        if (offer.emphasizeLinkCheck) {
+                            FilledTonalButton(onClick = onCheckClick) {
+                                Text("Check link first")
+                            }
+                        } else {
+                            TextButton(onClick = onCheckClick) {
+                                Text("Check link first")
+                            }
                         }
                     }
 
@@ -518,10 +607,21 @@ fun DownloadDialog(
             },
             title = { Text(DownloadOfferText.RISK_TITLE) },
             text = {
-                Text(
-                    text = RiskyDownload.warningMessage(offer.host.ifBlank { "this site" }),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        text = RiskyDownload.warningMessage(offer.host.ifBlank { "this site" }),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    if (offer.firmRiskConfirm) {
+                        Text(
+                            text = DownloadOfferText.UNLISTED_RISK_NOTE,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                }
             },
             confirmButton = {
                 Row(
