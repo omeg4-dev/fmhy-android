@@ -252,4 +252,59 @@ class ReleaseParserTest {
         // Null body -> null
         assertNull(ReleaseParser.extractNotes(null))
     }
+
+    private val repo = "omeg4-dev/fmhy-android"
+
+    private fun releaseJson(
+        tag: String = "v0.6.0",
+        apkUrl: String = "https://github.com/omeg4-dev/fmhy-android/releases/download/v0.6.0/fmhy-0.6.0.apk",
+        size: Long = 1024,
+        htmlUrl: String = "https://github.com/omeg4-dev/fmhy-android/releases/tag/v0.6.0",
+    ) = """
+        {"tag_name": "$tag", "html_url": "$htmlUrl", "draft": false, "prerelease": false,
+         "assets": [{"name": "fmhy.apk", "size": $size, "browser_download_url": "$apkUrl"}]}
+    """.trimIndent()
+
+    @Test
+    fun isTrustedApkUrl_onlyAcceptsThisRepositorysReleaseAssetsOverHttps() {
+        assertTrue(ReleaseParser.isTrustedApkUrl("https://github.com/omeg4-dev/fmhy-android/releases/download/v1.0.0/fmhy.apk", repo))
+        assertTrue(ReleaseParser.isTrustedApkUrl("https://GitHub.com/Omeg4-Dev/fmhy-android/releases/download/v1.0.0/fmhy.apk", repo))
+        assertFalse(ReleaseParser.isTrustedApkUrl("http://github.com/omeg4-dev/fmhy-android/releases/download/v1.0.0/fmhy.apk", repo))
+        assertFalse(ReleaseParser.isTrustedApkUrl("https://example.com/omeg4-dev/fmhy-android/releases/download/v1.0.0/fmhy.apk", repo))
+        assertFalse(ReleaseParser.isTrustedApkUrl("https://github.com.evil.org/omeg4-dev/fmhy-android/releases/download/v1/fmhy.apk", repo))
+        assertFalse(ReleaseParser.isTrustedApkUrl("https://github.com@evil.org/omeg4-dev/fmhy-android/releases/download/v1/fmhy.apk", repo))
+        assertFalse(ReleaseParser.isTrustedApkUrl("https://user@github.com/omeg4-dev/fmhy-android/releases/download/v1/fmhy.apk", repo))
+        assertFalse(ReleaseParser.isTrustedApkUrl("https://github.com:8443/omeg4-dev/fmhy-android/releases/download/v1/fmhy.apk", repo))
+        assertFalse(ReleaseParser.isTrustedApkUrl("https://github.com/someone-else/fmhy-android/releases/download/v1/fmhy.apk", repo))
+        assertFalse(ReleaseParser.isTrustedApkUrl("https://github.com/omeg4-dev/fmhy-android/releases/download/../../../evil/x.apk", repo))
+        assertFalse(ReleaseParser.isTrustedApkUrl("not a url", repo))
+    }
+
+    @Test
+    fun parse_rejectsUntrustedApkUrl() {
+        assertNotNull(ReleaseParser.parse(releaseJson(), repo))
+        assertNull(ReleaseParser.parse(releaseJson(apkUrl = "https://example.com/app.apk"), repo))
+        assertNull(ReleaseParser.parse(releaseJson(apkUrl = "http://github.com/omeg4-dev/fmhy-android/releases/download/v0.6.0/a.apk"), repo))
+    }
+
+    @Test
+    fun parse_rejectsVersionsUnsafeForFileNames() {
+        assertNull(ReleaseParser.parse(releaseJson(tag = "v1.0.0-x/../../evil"), repo))
+        assertNull(ReleaseParser.parse(releaseJson(tag = "v1.0.0-..x"), repo))
+        assertEquals("1.0.0-rc.1", ReleaseParser.parse(releaseJson(tag = "v1.0.0-rc.1"), repo)?.version)
+    }
+
+    @Test
+    fun parse_rejectsOversizedApk() {
+        assertNull(ReleaseParser.parse(releaseJson(size = ReleaseParser.MAX_APK_BYTES + 1), repo))
+        assertNotNull(ReleaseParser.parse(releaseJson(size = ReleaseParser.MAX_APK_BYTES), repo))
+    }
+
+    @Test
+    fun parse_replacesUntrustedReleasePage() {
+        assertEquals(
+            "https://github.com/omeg4-dev/fmhy-android/releases",
+            ReleaseParser.parse(releaseJson(htmlUrl = "https://evil.example/phish"), repo)?.pageUrl,
+        )
+    }
 }

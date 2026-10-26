@@ -1,5 +1,7 @@
 package io.github.omeg4dev.fmhy.update
 
+import io.github.omeg4dev.fmhy.BuildConfig
+import java.net.URI
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -44,6 +46,28 @@ private data class GitHubAssetDto(
 object ReleaseParser {
 
     private val jsonParser = Json { ignoreUnknownKeys = true }
+
+    /** Upper bound for an update APK; larger assets are refused and downloads stop at this size. */
+    const val MAX_APK_BYTES: Long = 200L * 1024 * 1024
+    private val SAFE_VERSION = Regex("^[0-9A-Za-z._+-]{1,64}$")
+
+    /** True for `https://github.com/<repo>/releases/download/...` (the only place release assets live). */
+    fun isTrustedApkUrl(url: String, repo: String): Boolean =
+        isGitHubPath(url, "/$repo/releases/download/")
+
+    /** True for `https://github.com/<repo>/releases...`, the page opened from the update prompt. */
+    fun isTrustedReleasePage(url: String, repo: String): Boolean =
+        isGitHubPath(url, "/$repo/releases")
+
+    private fun isGitHubPath(url: String, pathPrefix: String): Boolean {
+        val uri = try { URI(url.trim()) } catch (_: Exception) { return false }
+        return uri.scheme.equals("https", ignoreCase = true) &&
+            uri.host.equals("github.com", ignoreCase = true) &&
+            uri.rawUserInfo == null &&
+            (uri.port == -1 || uri.port == 443) &&
+            uri.path?.startsWith(pathPrefix, ignoreCase = true) == true &&
+            uri.path?.contains("/../") != true
+    }
     private val headingRegex = Regex("""^#+\s*what['’]?s\s+new\b.*$""", RegexOption.IGNORE_CASE)
 
     /**
@@ -52,7 +76,7 @@ object ReleaseParser {
      * Returns null if the JSON is invalid, marked as draft or prerelease,
      * lacks a valid parseable version tag, or contains no APK asset with a valid download URL.
      */
-    fun parse(json: String): ReleaseInfo? {
+    fun parse(json: String, repo: String = BuildConfig.RELEASE_REPO): ReleaseInfo? {
         return try {
             val dto = jsonParser.decodeFromString<GitHubReleaseDto>(json)
             if (dto.draft || dto.prerelease) return null
@@ -65,20 +89,28 @@ object ReleaseParser {
             } ?: return null
 
             val apkUrl = apkAsset.browserDownloadUrl
-            if (apkUrl.isNullOrBlank()) return null
+            if (apkUrl.isNullOrBlank() || !isTrustedApkUrl(apkUrl, repo)) return null
+
+            val apkSize = apkAsset.size ?: 0L
+            if (apkSize > MAX_APK_BYTES) return null
 
             val version = if (rawTag.startsWith("v", ignoreCase = true)) {
                 rawTag.substring(1)
             } else {
                 rawTag
             }
+            // The version ends up in a cache file name: no path separators or "..".
+            if (!SAFE_VERSION.matches(version) || version.contains("..")) return null
+
+            val pageUrl = dto.htmlUrl?.takeIf { isTrustedReleasePage(it, repo) }
+                ?: "https://github.com/$repo/releases"
 
             ReleaseInfo(
                 version = version,
                 notes = extractNotes(dto.body),
                 apkUrl = apkUrl,
-                apkSize = apkAsset.size ?: 0L,
-                pageUrl = dto.htmlUrl.orEmpty(),
+                apkSize = apkSize,
+                pageUrl = pageUrl,
             )
         } catch (_: Throwable) {
             null

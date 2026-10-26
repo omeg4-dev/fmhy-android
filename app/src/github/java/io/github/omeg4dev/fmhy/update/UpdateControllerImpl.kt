@@ -354,7 +354,15 @@ class UpdateControllerImpl(
         startOffset: Long,
         append: Boolean,
     ) {
+        // Redirects (github.com -> its asset CDN) must stay on HTTPS.
+        if (!response.request.url.isHttps) throw IOException("Update download left HTTPS")
         val body = response.body ?: throw IOException("Empty response body")
+        // Never write more than the release says (or the hard cap when it says nothing).
+        val limit = if (release.apkSize > 0) release.apkSize else ReleaseParser.MAX_APK_BYTES
+        val announced = body.contentLength()
+        if (announced > 0 && startOffset + announced > limit) {
+            throw IOException("Update file is larger than expected")
+        }
         val total = if (release.apkSize > 0) {
             release.apkSize
         } else {
@@ -373,6 +381,7 @@ class UpdateControllerImpl(
                 var bytesRead: Int
                 while (input.read(buffer).also { bytesRead = it } != -1) {
                     currentCoroutineContext().ensureActive()
+                    if (currentBytes + bytesRead > limit) throw IOException("Update file is larger than expected")
                     out.write(buffer, 0, bytesRead)
                     currentBytes += bytesRead
 
