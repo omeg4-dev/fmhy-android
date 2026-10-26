@@ -85,6 +85,7 @@ import io.github.omeg4dev.fmhy.theme.LocalIsDarkTheme
 import io.github.omeg4dev.fmhy.theme.colors
 import io.github.omeg4dev.fmhy.theme.paletteColorScheme
 import io.github.omeg4dev.fmhy.theme.paletteFor
+import io.github.omeg4dev.fmhy.theme.withVividMaterialYou
 import io.github.omeg4dev.fmhy.ui.common.EntryRow
 import io.github.omeg4dev.fmhy.ui.common.Motion
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
@@ -159,7 +160,8 @@ fun AppearancePage(
                 val isMaterialYouAvailable = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
                 val materialYouPreviewScheme = remember(isDark, isMaterialYouAvailable) {
                     if (isMaterialYouAvailable) {
-                        if (isDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+                        val scheme = if (isDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+                        scheme.withVividMaterialYou(context, isDark)
                     } else {
                         null
                     }

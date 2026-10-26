@@ -1,5 +1,7 @@
 package io.github.omeg4dev.fmhy.theme
 
+import android.content.Context
+import android.os.Build
 import androidx.compose.material3.ColorScheme
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
@@ -112,5 +114,22 @@ fun ColorScheme.withLightCardTiers(): ColorScheme {
         surfaceContainerHighest = scHighest,
         outlineVariant = outVariant,
         outline = out,
+    )
+}
+
+fun ColorScheme.withVividMaterialYou(context: Context, dark: Boolean): ColorScheme {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return this
+    val resId = if (dark) android.R.color.system_accent1_300 else android.R.color.system_accent1_500
+    val vividContainer = Color(context.getColor(resId))
+    if (contrastRatio(vividContainer, surface) < 3.0) return this
+
+    val onContainerCandidates = listOf(onSurface, surface)
+    val onContainer = onContainerCandidates.maxByOrNull { contrastRatio(it, vividContainer) } ?: onSurface
+
+    return copy(
+        primaryContainer = vividContainer,
+        onPrimaryContainer = onContainer,
+        secondaryContainer = vividContainer,
+        onSecondaryContainer = onContainer,
     )
 }

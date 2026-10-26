@@ -21,26 +21,53 @@ data class AccentPalette(
     val dark: PaletteColors,
 )
 
+private fun buildLightAccent(h: Double, c: Double): Color {
+    val initialHct = Hct.from(h, c, 40.0)
+    if (initialHct.chroma >= 0.95 * c) {
+        return Color(initialHct.toInt())
+    }
+    val baseSurface = Color(Hct.from(h, 4.0, 98.0).toInt())
+    for (t in 41..50) {
+        val candidate = Hct.from(h, c, t.toDouble())
+        val col = Color(candidate.toInt())
+        if (contrastRatio(Color.White, col) >= 4.5 && contrastRatio(col, baseSurface) >= 3.0) {
+            if (candidate.chroma >= 0.95 * c) {
+                return col
+            }
+        }
+    }
+    return Color(initialHct.toInt())
+}
+
 private fun buildPaletteColors(seedArgb: Int, dark: Boolean): PaletteColors {
     val hct = Hct.fromInt(seedArgb)
     val h = hct.hue
     val c = hct.chroma
+    val selectedChroma = maxOf(c * 1.05, 24.0)
+
+    var selectedTone = 48.0
+    val candHct = Hct.from(h, selectedChroma, 49.5)
+    val candColor = Color(candHct.toInt())
+    if (contrastRatio(Color.White, candColor) >= 4.5 && candHct.chroma > Hct.from(h, selectedChroma, 48.0).chroma) {
+        selectedTone = 49.5
+    }
+
     return if (dark) {
         PaletteColors(
             accent = Color(Hct.from(h, c, 80.0).toInt()),
             onAccent = Color(Hct.from(h, (c * 0.8).coerceIn(20.0, 40.0), 10.0).toInt()),
-            selected = Color(Hct.from(h, (c * 0.6).coerceIn(16.0, 40.0), 45.0).toInt()),
-            onSelected = Color(Hct.from(h, 15.0, 98.0).toInt()),
-            accentContainer = Color(Hct.from(h, (c * 0.5).coerceIn(14.0, 36.0), 30.0).toInt()),
+            selected = Color(Hct.from(h, selectedChroma, selectedTone).toInt()),
+            onSelected = Color.White,
+            accentContainer = Color(Hct.from(h, (c * 0.65).coerceIn(14.0, 36.0), 30.0).toInt()),
             onAccentContainer = Color(Hct.from(h, 15.0, 90.0).toInt()),
         )
     } else {
         PaletteColors(
-            accent = Color(Hct.from(h, c, 40.0).toInt()),
+            accent = buildLightAccent(h, c),
             onAccent = Color.White,
-            selected = Color(Hct.from(h, (c * 0.55).coerceIn(16.0, 48.0), 58.0).toInt()),
-            onSelected = Color(Hct.from(h, 30.0, 8.0).toInt()),
-            accentContainer = Color(Hct.from(h, (c * 0.4).coerceIn(12.0, 36.0), 90.0).toInt()),
+            selected = Color(Hct.from(h, selectedChroma, selectedTone).toInt()),
+            onSelected = Color.White,
+            accentContainer = Color(Hct.from(h, (c * 0.65).coerceIn(12.0, 36.0), 90.0).toInt()),
             onAccentContainer = Color(Hct.from(h, 30.0, 10.0).toInt()),
         )
     }

@@ -80,6 +80,7 @@ import io.github.omeg4dev.fmhy.theme.LocalCalloutColors
 import io.github.omeg4dev.fmhy.theme.calloutColorsForSeed
 import io.github.omeg4dev.fmhy.theme.materialYouCalloutColors
 import io.github.omeg4dev.fmhy.theme.paletteColorScheme
+import io.github.omeg4dev.fmhy.theme.withVividMaterialYou
 import io.github.omeg4dev.fmhy.ui.common.BookmarksState
 import io.github.omeg4dev.fmhy.ui.common.EntryRow
 import io.github.omeg4dev.fmhy.ui.common.LocalBookmarks
@@ -128,7 +129,8 @@ fun LookPreview(
 
     val baseColorScheme = remember(themeMode, colorSource, accentSeed, isDark) {
         if (colorSource == ColorSource.MATERIAL_YOU && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            if (isDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+            val scheme = if (isDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+            scheme.withVividMaterialYou(context, isDark)
         } else {
             paletteColorScheme(accentSeed, isDark)
         }
