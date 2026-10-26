@@ -186,6 +186,7 @@ class TabManager(
     var onVideoPlayingChanged: ((Boolean) -> Unit)? = null
     /** Fired (main thread) when something picture-in-picture depends on changed for the current tab. */
     var onPipStateChanged: (() -> Unit)? = null
+    var onLinkMenuRequestCallback: ((LinkMenuRequest) -> Unit)? = null
 
     private val thumbnails = java.util.concurrent.ConcurrentHashMap<Long, Bitmap>()
     private val lastThumbnailCapture = java.util.concurrent.ConcurrentHashMap<Long, Long>()
@@ -251,6 +252,14 @@ class TabManager(
     @Volatile var currentDataPrefs = DataPrefs()
     @Volatile var currentDataUsagePrefs = DataUsagePrefs()
     @Volatile var currentNetworkKind = NetworkKind.NONE
+    @Volatile var networkReadyAt: Long = 0L
+    internal var clock: () -> Long = {
+        try {
+            android.os.SystemClock.uptimeMillis()
+        } catch (_: Throwable) {
+            System.currentTimeMillis()
+        }
+    }
     @Volatile var currentAppearance = Appearance()
     @Volatile var isAppDark = false
     val mobileOkTabs: MutableSet<Long> = java.util.concurrent.ConcurrentHashMap.newKeySet()
@@ -306,7 +315,15 @@ class TabManager(
         }
         if (networkMonitor != null) {
             appScope.launch {
-                networkMonitor.kind.collect { currentNetworkKind = it }
+                var prevKind = networkMonitor.kind.value
+                networkMonitor.kind.collect { kind ->
+                    val hadKind = prevKind
+                    prevKind = kind
+                    currentNetworkKind = kind
+                    if (hadKind == NetworkKind.NONE && kind != NetworkKind.NONE) {
+                        onNetworkBecameReady()
+                    }
+                }
             }
         }
         appScope.launch {
@@ -404,8 +421,9 @@ class TabManager(
                 } catch (_: Exception) {
                     emptyList()
                 }
+                val restoreTime = clock()
                 for (st in list) {
-                    openTab(url = st.url, title = st.title, isPrivate = false, select = false)
+                    openTab(url = st.url, title = st.title, isPrivate = false, select = false, restoredAt = restoreTime)
                     restoredAny = true
                 }
             }
@@ -435,12 +453,56 @@ class TabManager(
         records.firstOrNull { it.url == url && !it.isPrivate }
     }
 
+    fun inRestoreGrace(record: TabRecord, now: Long = clock()): Boolean {
+        val start = maxOf(record.restoredAt, networkReadyAt)
+        if (start <= 0L) return false
+        val elapsed = (now - start).coerceAtLeast(0L)
+        return elapsed < RescueDecision.GRACE_MS
+    }
+
+    fun graceElapsedMs(record: TabRecord, now: Long = clock()): Long {
+        val start = maxOf(record.restoredAt, networkReadyAt)
+        if (start <= 0L) return 0L
+        return (now - start).coerceAtLeast(0L)
+    }
+
+    internal fun onNetworkBecameReady() {
+        networkReadyAt = clock()
+        wakePendingRetries()
+    }
+
+    internal fun wakePendingRetries() {
+        val toReload = mutableListOf<TabRecord>()
+        synchronized(records) {
+            for (record in records) {
+                if (record.isWaitingRetry && record.rescueJob?.isActive == true) {
+                    record.rescueJob?.cancel()
+                    record.rescueJob = null
+                    val isGrace = record.isWaitingGraceRetry
+                    record.isWaitingRetry = false
+                    record.isWaitingGraceRetry = false
+                    if (!isGrace) {
+                        record.silentRetries++
+                        record.silentRetryUrl = record.url
+                    }
+                    toReload.add(record)
+                }
+            }
+        }
+        for (rec in toReload) {
+            postToMain {
+                rec.webView?.reload()
+            }
+        }
+    }
+
     fun openTab(
         url: String,
         title: String = "",
         entryId: String? = null,
         isPrivate: Boolean = false,
-        select: Boolean = true
+        select: Boolean = true,
+        restoredAt: Long = 0L,
     ): Long {
         val id = nextId.getAndIncrement()
         val actualPrivate = isPrivate || (url == "about:blank" && currentPrivacyPrefs.privateTabsByDefault)
@@ -455,6 +517,7 @@ class TabManager(
             lastLoadedHost = initialHost,
             desktopSite = currentBrowserPrefs.desktopByDefault,
             hadSite = !EmptyTabPolicy.isStartUrl(url),
+            restoredAt = restoredAt,
         )
 
         synchronized(records) {
@@ -568,6 +631,10 @@ class TabManager(
             if (index == -1) return
 
             val removed = records.removeAt(index)
+            removed.rescueJob?.cancel()
+            removed.rescueJob = null
+            removed.isWaitingRetry = false
+            removed.isWaitingGraceRetry = false
             removed.webView?.destroy()
             removed.webView = null
             removed.mutableContext = null

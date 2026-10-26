@@ -145,6 +145,13 @@ class DefaultBrowserHooks(
     private val verdictCache = object : LinkedHashMap<String, Verdict>(64, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Verdict>?) = size > 64
     }
+
+    suspend fun checkVerdict(url: String): Verdict? = withContext(Dispatchers.IO) {
+        val sg = safeGuard ?: return@withContext null
+        val key = url.substringBefore('#')
+        synchronized(verdictCache) { verdictCache[key] }
+            ?: runCatching { sg.check(url).also { synchronized(verdictCache) { verdictCache[key] = it } } }.getOrNull()
+    }
     private val livePopupCount = java.util.concurrent.atomic.AtomicInteger(0)
 
     override fun handleCreateWindow(
@@ -610,6 +617,7 @@ class DefaultBrowserHooks(
             reason = RescueReason.fromErrorCode(errorCode, description),
             isHttp = false,
             kind = RescueReason.kindForError(errorCode, tabManager?.isOnline() ?: true),
+            errorCode = errorCode,
         )
     }
 
@@ -624,6 +632,7 @@ class DefaultBrowserHooks(
             reason = RescueReason.fromHttpStatus(statusCode),
             isHttp = true,
             kind = RescueReason.kindForHttp(statusCode),
+            errorCode = statusCode,
         )
     }
 
@@ -634,6 +643,8 @@ class DefaultBrowserHooks(
         }
         record.rescueJob?.cancel()
         record.rescueJob = null
+        record.isWaitingRetry = false
+        record.isWaitingGraceRetry = false
         record.stallJob?.cancel()
         record.stallJob = null
         record.blankJob?.cancel()
@@ -803,31 +814,63 @@ class DefaultBrowserHooks(
     }
 
     private fun decideRescue(record: TabRecord, failed: FailedLoad) {
-        val action = RescueDecision.decide(
+        val tm = tabManager
+        val inGrace = tm?.inRestoreGrace(record) == true
+        val elapsed = tm?.graceElapsedMs(record) ?: 0L
+        val networkReady = tm?.isOnline() ?: true
+        val isLookup = failed.isLookupFailure()
+
+        val action = RescueDecision.decideWithNetworkGrace(
             isForMainFrame = true,
             failingUrl = failed.url,
             currentUrls = listOf(record.url, record.sourceUrl),
             contentShown = record.contentShown,
             retriesDone = record.silentRetries,
+            inGraceWindow = inGrace,
+            networkReady = networkReady,
+            graceElapsedMs = elapsed,
+            isLookupFailure = isLookup,
         )
-        rescueLog("decide $action url=${failed.url} tab=${record.url} shown=${record.contentShown} retries=${record.silentRetries} (${failed.reason})")
+        rescueLog("decide $action url=${failed.url} tab=${record.url} shown=${record.contentShown} retries=${record.silentRetries} grace=$inGrace ($failed)")
         when (action) {
-            RescueDecision.Action.IGNORE -> Unit
+            RescueDecision.Action.IGNORE -> {
+                record.isWaitingRetry = false
+                record.isWaitingGraceRetry = false
+            }
             RescueDecision.Action.RETRY -> {
                 val scope = tabManager?.appScope ?: return
+                val insideGrace = inGrace && isLookup && elapsed < RescueDecision.GRACE_MS
+                record.isWaitingRetry = true
+                record.isWaitingGraceRetry = insideGrace
+                if (insideGrace && record.rescueState != null) {
+                    tabManager?.setRescueState(record.id, null)
+                }
                 record.rescueJob = scope.launch(Dispatchers.Main) {
-                    delay(RescueDecision.retryDelayMs(record.silentRetries))
-                    record.silentRetries++
-                    record.silentRetryUrl = failed.url
+                    val delayMs = if (insideGrace) {
+                        RescueDecision.graceRetryDelayMs(networkReady, elapsed)
+                    } else {
+                        RescueDecision.retryDelayMs(record.silentRetries)
+                    }
+                    delay(delayMs)
+                    if (!insideGrace) {
+                        record.silentRetries++
+                        record.silentRetryUrl = failed.url
+                    }
+                    record.isWaitingRetry = false
+                    record.isWaitingGraceRetry = false
                     record.webView?.reload()
                 }
             }
-            RescueDecision.Action.SHOW -> buildRescueState(
-                record = record,
-                failingUrl = failed.url,
-                reason = failed.reason,
-                kind = failed.kind,
-            )
+            RescueDecision.Action.SHOW -> {
+                record.isWaitingRetry = false
+                record.isWaitingGraceRetry = false
+                buildRescueState(
+                    record = record,
+                    failingUrl = failed.url,
+                    reason = failed.reason,
+                    kind = failed.kind,
+                )
+            }
         }
     }
 

@@ -8,7 +8,25 @@ data class FailedLoad(
     val reason: String,
     val isHttp: Boolean,
     val kind: LoadFailureKind = LoadFailureKind.UNKNOWN,
-)
+    val errorCode: Int = 0,
+) {
+    fun isLookupFailure(): Boolean =
+        !isHttp && (
+            errorCode in setOf(
+                RescueReason.ERROR_HOST_LOOKUP,
+                RescueReason.ERROR_CONNECT,
+                RescueReason.ERROR_TIMEOUT,
+                RescueReason.ERROR_IO,
+            ) ||
+            kind == LoadFailureKind.OFFLINE ||
+            reason in setOf(
+                RescueReason.fromErrorCode(RescueReason.ERROR_HOST_LOOKUP),
+                RescueReason.fromErrorCode(RescueReason.ERROR_CONNECT),
+                RescueReason.fromErrorCode(RescueReason.ERROR_TIMEOUT),
+                RescueReason.fromErrorCode(RescueReason.ERROR_IO),
+            )
+        )
+}
 
 /**
  * Pure "show the dead-site rescue screen?" decision. The rescue is only for the main page of the
@@ -17,6 +35,7 @@ data class FailedLoad(
  */
 object RescueDecision {
     const val MAX_SILENT_RETRIES = 2
+    const val GRACE_MS = 6_000L
 
     /** Wait after a 5xx page finished before probing it: challenge pages redirect within this time. */
     const val HTTP_SETTLE_MS = 2_000L
@@ -35,16 +54,71 @@ object RescueDecision {
         currentUrls: Collection<String>,
         contentShown: Boolean,
         retriesDone: Int,
+    ): Action = decideWithNetworkGrace(
+        isForMainFrame = isForMainFrame,
+        failingUrl = failingUrl,
+        currentUrls = currentUrls,
+        contentShown = contentShown,
+        retriesDone = retriesDone,
+        inGraceWindow = false,
+        networkReady = true,
+        graceElapsedMs = 0L,
+        isLookupFailure = true,
+    )
+
+    fun decideWithNetworkGrace(
+        isForMainFrame: Boolean,
+        failingUrl: String,
+        currentUrls: Collection<String>,
+        contentShown: Boolean,
+        retriesDone: Int,
+        inGraceWindow: Boolean,
+        networkReady: Boolean,
+        graceElapsedMs: Long,
+        isLookupFailure: Boolean = true,
     ): Action = when {
         !isForMainFrame -> Action.IGNORE
         currentUrls.none { sameAddress(it, failingUrl) } -> Action.IGNORE
         contentShown -> Action.IGNORE
+        inGraceWindow && isLookupFailure && graceElapsedMs < GRACE_MS -> Action.RETRY
         retriesDone < MAX_SILENT_RETRIES -> Action.RETRY
         else -> Action.SHOW
     }
 
+    fun decideWithNetworkGrace(
+        isForMainFrame: Boolean,
+        failingUrl: String,
+        currentUrls: Collection<String>,
+        contentShown: Boolean,
+        retriesDone: Int,
+        inGraceWindow: Boolean,
+        networkReady: Boolean,
+        graceElapsedMs: Long,
+        failed: FailedLoad,
+    ): Action = decideWithNetworkGrace(
+        isForMainFrame = isForMainFrame,
+        failingUrl = failingUrl,
+        currentUrls = currentUrls,
+        contentShown = contentShown,
+        retriesDone = retriesDone,
+        inGraceWindow = inGraceWindow,
+        networkReady = networkReady,
+        graceElapsedMs = graceElapsedMs,
+        isLookupFailure = failed.isLookupFailure(),
+    )
+
     /** Delay before silent retry number [retriesDone] + 1: 1 s, then 2 s. */
     fun retryDelayMs(retriesDone: Int): Long = 1_000L shl retriesDone.coerceIn(0, 4)
+
+    /**
+     * Delay before retry inside network grace: 500 ms when network is ready, 1 000 ms otherwise,
+     * bounded by the remaining time until [GRACE_MS].
+     */
+    fun graceRetryDelayMs(networkReady: Boolean, elapsed: Long): Long {
+        val remaining = (GRACE_MS - elapsed).coerceAtLeast(0L)
+        val desired = if (networkReady) 500L else 1_000L
+        return minOf(desired, remaining)
+    }
 
     /**
      * Same page address: ignores the fragment, http/https, a leading `www.`, host case and a trailing

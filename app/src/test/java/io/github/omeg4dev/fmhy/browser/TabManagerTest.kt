@@ -399,4 +399,62 @@ class TabManagerTest {
         tabManager.loadUrl(tabId, "https://example.com")
         assertFalse(record.showsWifiOnlyPage)
     }
+
+    @Test
+    fun testInRestoreGraceAndNetworkReady() = runTest {
+        val tabManager = createTabManager()
+        var currentClock = 10_000L
+        tabManager.clock = { currentClock }
+
+        val restoredTabId = tabManager.openTab(url = "https://example.com", title = "Example", select = false, restoredAt = 10_000L)
+        val normalTabId = tabManager.openTab(url = "https://example.com/2", title = "Normal", select = false)
+        val restoredRecord = tabManager.getTabRecord(restoredTabId)!!
+        val normalRecord = tabManager.getTabRecord(normalTabId)!!
+
+        // Initially at 10_000: restored tab is in grace, normal tab is not
+        assertTrue(tabManager.inRestoreGrace(restoredRecord))
+        assertEquals(0L, tabManager.graceElapsedMs(restoredRecord))
+        assertFalse(tabManager.inRestoreGrace(normalRecord))
+        assertEquals(0L, tabManager.graceElapsedMs(normalRecord))
+
+        // At 12_000 (2s elapsed): restored tab is still in grace
+        currentClock = 12_000L
+        assertTrue(tabManager.inRestoreGrace(restoredRecord))
+        assertEquals(2_000L, tabManager.graceElapsedMs(restoredRecord))
+
+        // At 16_000 (6s elapsed): grace deadline passed
+        currentClock = 16_000L
+        assertFalse(tabManager.inRestoreGrace(restoredRecord))
+        assertEquals(6_000L, tabManager.graceElapsedMs(restoredRecord))
+
+        // Network becomes ready at 20_000L: normal tab and restored tab both get grace window
+        currentClock = 20_000L
+        tabManager.onNetworkBecameReady()
+        assertEquals(20_000L, tabManager.networkReadyAt)
+
+        // At 22_000L: both are within 6s of network ready
+        currentClock = 22_000L
+        assertTrue(tabManager.inRestoreGrace(normalRecord))
+        assertEquals(2_000L, tabManager.graceElapsedMs(normalRecord))
+        assertTrue(tabManager.inRestoreGrace(restoredRecord))
+        assertEquals(2_000L, tabManager.graceElapsedMs(restoredRecord))
+
+        // At 26_000L: grace deadline passed
+        currentClock = 26_000L
+        assertFalse(tabManager.inRestoreGrace(normalRecord))
+        assertFalse(tabManager.inRestoreGrace(restoredRecord))
+    }
+
+    @Test
+    fun backgroundOpenKeepsCurrentTabIdAndPrivacy() {
+        val tabManager = createTabManager()
+        val initialId = tabManager.openTab(url = "https://example.com/initial", select = true, isPrivate = true)
+        assertEquals(initialId, tabManager.currentTabId.value)
+
+        val bgId = tabManager.openTab(url = "https://example.com/bg", select = false, isPrivate = true)
+        assertEquals(initialId, tabManager.currentTabId.value)
+
+        val bgRecord = tabManager.getTabRecord(bgId)
+        assertTrue(bgRecord?.isPrivate == true)
+    }
 }

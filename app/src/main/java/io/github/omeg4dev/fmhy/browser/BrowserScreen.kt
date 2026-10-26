@@ -176,6 +176,7 @@ fun BrowserScreen(
     // Dialogs state
     var pendingHideElementRule by remember { mutableStateOf<String?>(null) }
     var pendingExternalApp by remember { mutableStateOf<Pair<Intent, String>?>(null) }
+    var pendingLinkMenu by remember { mutableStateOf<LinkMenuRequest?>(null) }
 
     val savedIds by bookmarksRepository.savedIds.collectAsStateWithLifecycle(initialValue = emptySet())
     val isSaved = currentTab?.entryId != null && savedIds.contains(currentTab.entryId)
@@ -331,6 +332,9 @@ fun BrowserScreen(
         tabManager.onPickerCancelCallback = {}
         tabManager.onExternalAppCallback = { intent, appName ->
             pendingExternalApp = Pair(intent, appName)
+        }
+        tabManager.onLinkMenuRequestCallback = { req ->
+            pendingLinkMenu = req
         }
     }
 
@@ -1339,6 +1343,89 @@ fun BrowserScreen(
                 )
             },
             onDismiss = { showVideoSheet = false },
+        )
+    }
+
+    // Link Menu Sheet
+    pendingLinkMenu?.let { req ->
+        LinkMenuSheet(
+            request = req,
+            onLookupVerdict = { url ->
+                val verdict = hooks?.checkVerdict(url)
+                verdict?.let { SiteBarModel.from(it, isRedirectedFromEntry = false) }
+            },
+            onAction = { action ->
+                pendingLinkMenu = null
+                when (action) {
+                    LinkMenuAction.OPEN_NEW_TAB -> {
+                        val opener = tabManager.getTabRecord(req.tabId)
+                        val isPrivate = tabPrivacyFor(opener?.isPrivate == true, action)
+                        tabManager.openTab(url = req.url, isPrivate = isPrivate, select = true)
+                    }
+                    LinkMenuAction.OPEN_BACKGROUND -> {
+                        val opener = tabManager.getTabRecord(req.tabId)
+                        val isPrivate = tabPrivacyFor(opener?.isPrivate == true, action)
+                        val newId = tabManager.openTab(url = req.url, isPrivate = isPrivate, select = false)
+                        val event = BrowserSnackbarEvent(
+                            message = "Opened in background",
+                            actionLabel = "Switch",
+                            onAction = { tabManager.selectTab(newId) },
+                        )
+                        if (hooks?.snackbarFlow?.tryEmit(event) != true) {
+                            scope.launch {
+                                val result = snackbarHostState.showSnackbar(
+                                    message = event.message,
+                                    actionLabel = event.actionLabel,
+                                    duration = SnackbarDuration.Long,
+                                )
+                                if (result == SnackbarResult.ActionPerformed) event.onAction?.invoke()
+                            }
+                        }
+                    }
+                    LinkMenuAction.OPEN_PRIVATE -> {
+                        tabManager.openTab(url = req.url, isPrivate = true, select = true)
+                    }
+                    LinkMenuAction.COPY_LINK -> {
+                        val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                        cm?.setPrimaryClip(android.content.ClipData.newPlainText("Link", req.url))
+                        val event = BrowserSnackbarEvent(message = "Link copied")
+                        if (hooks?.snackbarFlow?.tryEmit(event) != true) {
+                            scope.launch {
+                                snackbarHostState.showSnackbar(
+                                    message = event.message,
+                                    duration = SnackbarDuration.Short,
+                                )
+                            }
+                        }
+                    }
+                    LinkMenuAction.SHARE_LINK -> {
+                        val intent = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, req.url)
+                        }
+                        context.startActivity(Intent.createChooser(intent, "Share link"))
+                    }
+                    LinkMenuAction.OPEN_IMAGE_NEW_TAB -> {
+                        val opener = tabManager.getTabRecord(req.tabId)
+                        val isPrivate = tabPrivacyFor(opener?.isPrivate == true, action)
+                        tabManager.openTab(url = req.url, isPrivate = isPrivate, select = true)
+                    }
+                    LinkMenuAction.COPY_IMAGE_LINK -> {
+                        val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                        cm?.setPrimaryClip(android.content.ClipData.newPlainText("Image link", req.url))
+                        val event = BrowserSnackbarEvent(message = "Link copied")
+                        if (hooks?.snackbarFlow?.tryEmit(event) != true) {
+                            scope.launch {
+                                snackbarHostState.showSnackbar(
+                                    message = event.message,
+                                    duration = SnackbarDuration.Short,
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            onDismiss = { pendingLinkMenu = null },
         )
     }
 

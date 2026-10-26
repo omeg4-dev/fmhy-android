@@ -3,7 +3,10 @@ package io.github.omeg4dev.fmhy.browser
 import android.content.Context
 import android.graphics.Bitmap
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.Message
+import android.view.HapticFeedbackConstants
 import android.view.ViewGroup
 import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebChromeClient
@@ -392,6 +395,104 @@ class BrowserWebViewFactory(
             browserHooks.onDownloadStart(context, record, url, userAgent, contentDisposition, mimetype, contentLength)
         }
 
+        webView.setOnLongClickListener {
+            @Suppress("USELESS_ELVIS")
+            val hitResult = webView.hitTestResult ?: return@setOnLongClickListener false
+            val kind = hitKindFor(hitResult.type)
+            if (kind == HitKind.OTHER) {
+                return@setOnLongClickListener false
+            }
+
+            val extra = hitResult.extra
+            when (kind) {
+                HitKind.IMAGE -> {
+                    if (extra.isNullOrBlank() || linkMenuItems(kind, extra).isEmpty()) {
+                        return@setOnLongClickListener false
+                    }
+                    webView.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                    tabManager.onLinkMenuRequestCallback?.invoke(
+                        LinkMenuRequest(
+                            tabId = record.id,
+                            kind = kind,
+                            url = extra,
+                            imageUrl = extra,
+                        )
+                    )
+                    true
+                }
+                HitKind.LINK -> {
+                    if (!extra.isNullOrBlank()) {
+                        if (linkMenuItems(kind, extra).isEmpty()) {
+                            return@setOnLongClickListener false
+                        }
+                        webView.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                        tabManager.onLinkMenuRequestCallback?.invoke(
+                            LinkMenuRequest(
+                                tabId = record.id,
+                                kind = kind,
+                                url = extra,
+                                imageUrl = null,
+                            )
+                        )
+                        true
+                    } else {
+                        webView.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                        val handler = object : Handler(Looper.getMainLooper()) {
+                            override fun handleMessage(msg: Message) {
+                                val href = msg.data?.getString("url")?.takeIf { it.isNotBlank() }
+                                val src = msg.data?.getString("src")?.takeIf { it.isNotBlank() }
+                                if (href != null && linkMenuItems(kind, href).isNotEmpty()) {
+                                    tabManager.onLinkMenuRequestCallback?.invoke(
+                                        LinkMenuRequest(
+                                            tabId = record.id,
+                                            kind = kind,
+                                            url = href,
+                                            imageUrl = src,
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                        val msg = handler.obtainMessage()
+                        webView.requestFocusNodeHref(msg)
+                        true
+                    }
+                }
+                HitKind.IMAGE_LINK -> {
+                    webView.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                    val handler = object : Handler(Looper.getMainLooper()) {
+                        override fun handleMessage(msg: Message) {
+                            val href = msg.data?.getString("url")?.takeIf { it.isNotBlank() }
+                            val src = msg.data?.getString("src")?.takeIf { it.isNotBlank() } ?: extra
+                            if (href != null && linkMenuItems(kind, href).isNotEmpty()) {
+                                tabManager.onLinkMenuRequestCallback?.invoke(
+                                    LinkMenuRequest(
+                                        tabId = record.id,
+                                        kind = kind,
+                                        url = href,
+                                        imageUrl = src,
+                                    )
+                                )
+                            } else if (!src.isNullOrBlank() && linkMenuItems(HitKind.IMAGE, src).isNotEmpty()) {
+                                tabManager.onLinkMenuRequestCallback?.invoke(
+                                    LinkMenuRequest(
+                                        tabId = record.id,
+                                        kind = HitKind.IMAGE,
+                                        url = src,
+                                        imageUrl = src,
+                                    )
+                                )
+                            }
+                        }
+                    }
+                    val msg = handler.obtainMessage()
+                    webView.requestFocusNodeHref(msg)
+                    true
+                }
+                HitKind.OTHER -> false
+            }
+        }
+
         return webView
     }
 
@@ -452,6 +553,13 @@ class BrowserWebViewFactory(
     }
 
     companion object {
+        internal fun hitKindFor(hitTestResultType: Int): HitKind = when (hitTestResultType) {
+            WebView.HitTestResult.SRC_ANCHOR_TYPE -> HitKind.LINK
+            WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE -> HitKind.IMAGE_LINK
+            WebView.HitTestResult.IMAGE_TYPE -> HitKind.IMAGE
+            else -> HitKind.OTHER
+        }
+
         const val FORCE_ZOOM_SCRIPT: String = """
             (function() {
                 function rewriteViewport() {
