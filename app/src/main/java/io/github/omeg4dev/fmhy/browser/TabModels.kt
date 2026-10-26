@@ -1,6 +1,7 @@
 package io.github.omeg4dev.fmhy.browser
 
 import android.graphics.Bitmap
+import io.github.omeg4dev.fmhy.browser.download.VideoSource
 import io.github.omeg4dev.fmhy.data.adblock.ResourceType
 import io.github.omeg4dev.fmhy.data.model.Entry
 import io.github.omeg4dev.fmhy.data.model.Link
@@ -85,6 +86,7 @@ data class TabState(
     val hasMedia: Boolean = false,
     /** Current playback speed applied to the page's media (1 when untouched). */
     val playbackSpeed: Float = 1f,
+    val videoSources: List<VideoSource> = emptyList(),
     val crashed: Boolean = false,
     val lastActiveTime: Long = 0L,
 )

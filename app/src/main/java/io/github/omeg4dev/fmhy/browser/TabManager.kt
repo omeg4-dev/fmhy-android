@@ -18,6 +18,8 @@ import io.github.omeg4dev.fmhy.SettingsPageNavKey
 import io.github.omeg4dev.fmhy.browser.adblock.AdblockService
 import io.github.omeg4dev.fmhy.browser.adblock.AllowRule
 import io.github.omeg4dev.fmhy.browser.adblock.ScriptletLibrary
+import io.github.omeg4dev.fmhy.browser.download.VideoSource
+import io.github.omeg4dev.fmhy.browser.download.VideoSources
 import io.github.omeg4dev.fmhy.data.Appearance
 import io.github.omeg4dev.fmhy.data.AutoplayMode
 import io.github.omeg4dev.fmhy.data.BrowserPrefs
@@ -862,6 +864,12 @@ class TabManager(
         }
     }
 
+    fun openFileCheckSettings() {
+        val container = (appContext as? FmhyApp)?.container
+        container?.pushNavigation(SettingsPageNavKey(SettingsPage.PROTECTION))
+        bringFmhyToFront(appContext)
+    }
+
     fun buildWifiOnlyHtml(): String {
         val accent = String.format("#%06X", 0xFFFFFF and currentAppearance.accentSeed)
         val surface = if (isAppDark) {
@@ -1105,6 +1113,15 @@ class TabManager(
         updateTabsFlow()
     }
 
+    fun setVideoSources(tabId: Long, frame: String, list: List<VideoSource>) {
+        val record = getTabRecord(tabId) ?: return
+        if (list.isEmpty()) record.videoFrames.remove(frame) else record.videoFrames[frame] = list
+        val merged = VideoSources.merge(record.videoFrames[""].orEmpty(), record.videoFrames.filterKeys { it.isNotEmpty() }.values)
+        if (record.videoSources == merged) return
+        record.videoSources = merged
+        updateTabsFlow()
+    }
+
     /** Called when a page starts loading: forgets the last page's media and looks up its remembered speed. */
     fun onPlaybackPageStarted(tabId: Long, url: String) {
         val record = getTabRecord(tabId) ?: return
@@ -1112,6 +1129,8 @@ class TabManager(
         record.desiredRate = 0f
         record.videoWidth = 0
         record.videoHeight = 0
+        record.videoSources = emptyList()
+        record.videoFrames.clear()
         val host = try { Uri.parse(url).host } catch (_: Exception) { null }
         appScope.launch {
             val stored = if (host.isNullOrEmpty()) null else try {

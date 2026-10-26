@@ -95,16 +95,113 @@ object VideoJs {
         }, true);
         var scanTimer = null;
         function scheduleScan() {
+            scheduleSources();
             if (scanTimer) return;
             scanTimer = setTimeout(function() { scanTimer = null; scan(); }, 150);
         }
+
+        var lastSourcesJson = null, sourcesTimer = null;
+        // The script runs in every frame; each frame reports its own list, keyed by its address ('' = top page).
+        var frameKey = '';
+        try { if (window.top !== window) frameKey = String(location.href); } catch (_) { frameKey = String(location.href); }
+        function collectSources() {
+            var res = [];
+            var videos = document.querySelectorAll('video');
+            for (var i = 0; i < videos.length; i++) {
+                var v = videos[i];
+                var vSrc = v.currentSrc || v.src;
+                if (vSrc) {
+                    res.push({
+                        src: vSrc,
+                        type: '',
+                        w: v.videoWidth || 0,
+                        h: v.videoHeight || 0
+                    });
+                }
+                var sources = v.querySelectorAll('source');
+                for (var j = 0; j < sources.length; j++) {
+                    var s = sources[j];
+                    var sSrc = s.src || s.getAttribute('src');
+                    if (sSrc) {
+                        var qAttrs = ['label', 'res', 'size', 'data-quality', 'data-res'];
+                        var q = null;
+                        for (var k = 0; k < qAttrs.length; k++) {
+                            var val = s.getAttribute(qAttrs[k]);
+                            if (val && val.trim().length > 0) {
+                                q = val.trim();
+                                break;
+                            }
+                        }
+                        var item = {
+                            src: sSrc,
+                            type: s.getAttribute('type') || '',
+                            w: v.videoWidth || 0,
+                            h: v.videoHeight || 0
+                        };
+                        if (q) item.q = q;
+                        res.push(item);
+                    }
+                }
+            }
+            return res;
+        }
+
+        function reportSources() {
+            try {
+                if (!B.videoSources) return;
+                var list = collectSources();
+                var json = JSON.stringify(list);
+                if (json !== lastSourcesJson) {
+                    lastSourcesJson = json;
+                    B.videoSources(json, frameKey);
+                }
+            } catch (_) {}
+        }
+
+        function scheduleSources() {
+            if (sourcesTimer) return;
+            sourcesTimer = setTimeout(function() {
+                sourcesTimer = null;
+                reportSources();
+            }, 300);
+        }
+
+        function handleSpaNavigation() {
+            lastSourcesJson = null;
+            scheduleSources();
+        }
+        try {
+            var origPush = history.pushState;
+            if (origPush) {
+                history.pushState = function() {
+                    var ret = origPush.apply(this, arguments);
+                    handleSpaNavigation();
+                    return ret;
+                };
+            }
+            var origReplace = history.replaceState;
+            if (origReplace) {
+                history.replaceState = function() {
+                    var ret = origReplace.apply(this, arguments);
+                    handleSpaNavigation();
+                    return ret;
+                };
+            }
+            window.addEventListener('popstate', handleSpaNavigation);
+        } catch (_) {}
+
         try { new MutationObserver(scheduleScan).observe(document, { childList: true, subtree: true }); } catch (_) {}
-        document.addEventListener('DOMContentLoaded', scan);
+        document.addEventListener('DOMContentLoaded', function() { scan(); scheduleSources(); });
         ['loadedmetadata', 'play', 'resize'].forEach(function(evt) {
             document.addEventListener(evt, function(e) {
-                if (isMedia(e.target)) { hook(e.target); reportSize(e.target); }
+                if (isMedia(e.target)) {
+                    hook(e.target);
+                    reportSize(e.target);
+                    if (evt === 'loadedmetadata' || evt === 'play') scheduleSources();
+                }
             }, true);
         });
+        scheduleSources();
     } catch (_) {}
 })();
 """

@@ -74,6 +74,10 @@ interface SettingsRepository {
         get() = kotlinx.coroutines.flow.flowOf(DownloadPrefs())
     suspend fun updateDownloadPrefs(f: (DownloadPrefs) -> DownloadPrefs) {}
 
+    val checkPrefs: Flow<CheckPrefs>
+        get() = kotlinx.coroutines.flow.flowOf(CheckPrefs())
+    suspend fun updateCheckPrefs(f: (CheckPrefs) -> CheckPrefs) {}
+
     val followNotifyPromptShown: Flow<Boolean>
         get() = kotlinx.coroutines.flow.flowOf(false)
     suspend fun setFollowNotifyPromptShown(shown: Boolean) {}
@@ -157,6 +161,7 @@ class DefaultSettingsRepository(
         private val KEY_BROWSER_AUTOPLAY = stringPreferencesKey("browser_autoplay")
         private val KEY_BROWSER_BACKGROUND_PLAYBACK = booleanPreferencesKey("browser_background_playback")
         private val KEY_BROWSER_KEEP_SCREEN_ON = booleanPreferencesKey("browser_keep_screen_on")
+        private val KEY_BROWSER_VIDEO_DOWNLOAD_BUTTON = booleanPreferencesKey("browser_video_download_button")
 
         // Blocking
         private val KEY_BLOCKING_ADBLOCK = booleanPreferencesKey("blocking_adblock")
@@ -219,6 +224,16 @@ class DefaultSettingsRepository(
         // Downloads
         private val KEY_DOWNLOAD_FOLDER_URI = stringPreferencesKey("download_folder_uri")
         private val KEY_DOWNLOAD_FOLDER_FALLBACK_NOTIFIED = booleanPreferencesKey("download_folder_fallback_notified")
+
+        // Malware checks
+        private val KEY_CHECK_VT_ON = booleanPreferencesKey("check_vt_on")
+        private val KEY_CHECK_VT_KEY = stringPreferencesKey("check_vt_key")
+        private val KEY_CHECK_HA_ON = booleanPreferencesKey("check_ha_on")
+        private val KEY_CHECK_HA_KEY = stringPreferencesKey("check_ha_key")
+        private val KEY_CHECK_HOLD = booleanPreferencesKey("check_hold")
+        private val KEY_CHECK_AUTO_RISKY = booleanPreferencesKey("check_auto_risky")
+        private val KEY_CHECK_KEY_PROMPT_SHOWN = booleanPreferencesKey("check_key_prompt_shown")
+        private val KEY_CHECK_EXPLAIN_SHOWN = booleanPreferencesKey("check_explain_shown")
     }
 
     override val lastVisitTs: Flow<Long> = dataStore.data.map { prefs ->
@@ -498,6 +513,7 @@ class DefaultSettingsRepository(
             autoplay = prefs[KEY_BROWSER_AUTOPLAY]?.let { name -> AutoplayMode.entries.firstOrNull { it.name == name } } ?: default.autoplay,
             doubleTapSeek = prefs[KEY_BROWSER_DOUBLE_TAP_SEEK] ?: default.doubleTapSeek,
             defaultSpeed = prefs[KEY_BROWSER_DEFAULT_SPEED] ?: default.defaultSpeed,
+            videoDownloadButton = prefs[KEY_BROWSER_VIDEO_DOWNLOAD_BUTTON] ?: default.videoDownloadButton,
         )
     }
 
@@ -529,6 +545,7 @@ class DefaultSettingsRepository(
         prefs[KEY_BROWSER_AUTOPLAY] = p.autoplay.name
         prefs[KEY_BROWSER_DOUBLE_TAP_SEEK] = p.doubleTapSeek
         prefs[KEY_BROWSER_DEFAULT_SPEED] = p.defaultSpeed
+        prefs[KEY_BROWSER_VIDEO_DOWNLOAD_BUTTON] = p.videoDownloadButton
     }
 
     override val browserPrefs: Flow<BrowserPrefs> = dataStore.data.map { prefs ->
@@ -803,6 +820,44 @@ class DefaultSettingsRepository(
             val current = readDownloadPrefs(prefs)
             val updated = f(current)
             writeDownloadPrefs(prefs, updated)
+        }
+    }
+
+    // --- CheckPrefs ---
+    private fun readCheckPrefs(prefs: Preferences): CheckPrefs {
+        val default = CheckPrefs()
+        return CheckPrefs(
+            virusTotalOn = prefs[KEY_CHECK_VT_ON] ?: default.virusTotalOn,
+            virusTotalKey = prefs[KEY_CHECK_VT_KEY] ?: default.virusTotalKey,
+            hybridOn = prefs[KEY_CHECK_HA_ON] ?: default.hybridOn,
+            hybridKey = prefs[KEY_CHECK_HA_KEY] ?: default.hybridKey,
+            holdUntilChecked = prefs[KEY_CHECK_HOLD] ?: default.holdUntilChecked,
+            autoCheckRisky = prefs[KEY_CHECK_AUTO_RISKY] ?: default.autoCheckRisky,
+            keyPromptShown = prefs[KEY_CHECK_KEY_PROMPT_SHOWN] ?: default.keyPromptShown,
+            explainShown = prefs[KEY_CHECK_EXPLAIN_SHOWN] ?: default.explainShown,
+        )
+    }
+
+    private fun writeCheckPrefs(prefs: MutablePreferences, p: CheckPrefs) {
+        prefs[KEY_CHECK_VT_ON] = p.virusTotalOn
+        prefs[KEY_CHECK_VT_KEY] = p.virusTotalKey.trim()
+        prefs[KEY_CHECK_HA_ON] = p.hybridOn
+        prefs[KEY_CHECK_HA_KEY] = p.hybridKey.trim()
+        prefs[KEY_CHECK_HOLD] = p.holdUntilChecked
+        prefs[KEY_CHECK_AUTO_RISKY] = p.autoCheckRisky
+        prefs[KEY_CHECK_KEY_PROMPT_SHOWN] = p.keyPromptShown
+        prefs[KEY_CHECK_EXPLAIN_SHOWN] = p.explainShown
+    }
+
+    override val checkPrefs: Flow<CheckPrefs> = dataStore.data.map { prefs ->
+        readCheckPrefs(prefs)
+    }.distinctUntilChanged()
+
+    override suspend fun updateCheckPrefs(f: (CheckPrefs) -> CheckPrefs) {
+        dataStore.edit { prefs ->
+            val current = readCheckPrefs(prefs)
+            val updated = f(current)
+            writeCheckPrefs(prefs, updated)
         }
     }
 

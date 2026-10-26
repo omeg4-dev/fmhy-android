@@ -75,10 +75,14 @@ import androidx.compose.ui.zIndex
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.omeg4dev.fmhy.FmhyApp
+import io.github.omeg4dev.fmhy.browser.download.DownloadEvent
 import io.github.omeg4dev.fmhy.browser.download.DownloadsSheet
+import io.github.omeg4dev.fmhy.browser.download.KeyPromptDialog
+import io.github.omeg4dev.fmhy.browser.download.VideoSourcesSheet
 import io.github.omeg4dev.fmhy.browser.adblock.AdblockService
 import io.github.omeg4dev.fmhy.browser.adblock.SelectorPicker
 import io.github.omeg4dev.fmhy.data.BookmarksRepository
+import io.github.omeg4dev.fmhy.data.CheckPrefs
 import io.github.omeg4dev.fmhy.data.DatasetStore
 import io.github.omeg4dev.fmhy.data.SettingsRepository
 import io.github.omeg4dev.fmhy.data.ToolbarPosition
@@ -125,6 +129,7 @@ fun BrowserScreen(
     val browserPrefs by settingsRepository.browserPrefs.collectAsStateWithLifecycle(initialValue = tabManager.currentBrowserPrefs)
     val blockingPrefs by settingsRepository.blockingPrefs.collectAsStateWithLifecycle(initialValue = adblockService.currentBlockingPrefs)
     val protectionPrefs by settingsRepository.protectionPrefs.collectAsStateWithLifecycle(initialValue = tabManager.currentProtectionPrefs)
+    val checkPrefs by settingsRepository.checkPrefs.collectAsStateWithLifecycle(initialValue = CheckPrefs())
 
     val currentTab = remember(tabs, currentTabId) {
         tabs.firstOrNull { it.id == currentTabId }
@@ -139,6 +144,10 @@ fun BrowserScreen(
     var showShieldSheet by remember { mutableStateOf(false) }
     var showTabsSheet by remember { mutableStateOf(false) }
     var showDownloadsSheet by remember { mutableStateOf(false) }
+    var showVideoSheet by remember { mutableStateOf(false) }
+    if (showVideoSheet && currentTab?.videoSources.isNullOrEmpty()) {
+        showVideoSheet = false
+    }
     val showTabsRequested by tabManager.showTabsRequested.collectAsStateWithLifecycle()
     LaunchedEffect(showTabsRequested) {
         if (showTabsRequested) {
@@ -179,6 +188,18 @@ fun BrowserScreen(
     LaunchedEffect(downloadController) {
         downloadController.notices.collect { notice ->
             snackbarHostState.showSnackbar(notice)
+        }
+    }
+
+    var showKeyPromptDialog by remember { mutableStateOf(false) }
+    LaunchedEffect(downloadController) {
+        downloadController.events.collect { event ->
+            when (event) {
+                is DownloadEvent.KeyPromptNeeded -> {
+                    downloadController.keyPromptShown()
+                    showKeyPromptDialog = true
+                }
+            }
         }
     }
 
@@ -731,6 +752,8 @@ fun BrowserScreen(
                                 onDownloadsClick = { showDownloadsSheet = true },
                                 downloadSummary = downloadSummary,
                                 onDownloadsRingClick = { showDownloadsSheet = true },
+                                showVideoButton = browserPrefs.videoDownloadButton && (currentTab?.videoSources?.isNotEmpty() == true),
+                                onVideoClick = { showVideoSheet = true },
                             )
                         }
                     }
@@ -923,6 +946,10 @@ fun BrowserScreen(
                         hooks.confirmDownload(pendingDownload, allowMobile)
                     },
                     onCancel = { hooks.pendingDownload = null },
+                    checkServices = checkPrefs.enabledServices,
+                    readyServices = checkPrefs.readyServices,
+                    onCheckLink = { url -> container.checks.checkLink(url, checkPrefs.readyServices) },
+                    onOpenUrl = { tabManager.openTab(it, isPrivate = currentTab?.isPrivate == true) },
                 )
             } else {
                 LaunchedEffect(pendingDownload, offerAccepted) {
@@ -1022,6 +1049,46 @@ fun BrowserScreen(
             onMessage = { msg -> scope.launch { snackbarHostState.showSnackbar(msg) } },
             installExplained = updatePrefs.installExplained,
             onInstallExplained = { scope.launch { settingsRepository.updateUpdatePrefs { it.copy(installExplained = true) } } },
+            checkPrefs = checkPrefs,
+            checks = container.checks,
+            onOpenUrl = { tabManager.openTab(it, isPrivate = currentTab?.isPrivate == true) },
+            onOpenCheckSettings = { tabManager.openFileCheckSettings() },
+        )
+    }
+
+    if (showKeyPromptDialog) {
+        KeyPromptDialog(
+            onSetUp = {
+                showKeyPromptDialog = false
+                tabManager.openFileCheckSettings()
+            },
+            onNotNow = {
+                showKeyPromptDialog = false
+            },
+        )
+    }
+
+    // Video Sources Sheet
+    if (showVideoSheet) {
+        val sources = currentTab?.videoSources.orEmpty()
+        VideoSourcesSheet(
+            sources = sources,
+            onPick = { source ->
+                showVideoSheet = false
+                val id = currentTab?.id ?: return@VideoSourcesSheet
+                val record = tabManager.getTabRecord(id) ?: return@VideoSourcesSheet
+                val userAgent = record.webView?.settings?.userAgentString.orEmpty()
+                browserHooks.onDownloadStart(
+                    context = context,
+                    record = record,
+                    url = source.url,
+                    userAgent = userAgent,
+                    contentDisposition = "",
+                    mimeType = source.mimeType,
+                    contentLength = -1L,
+                )
+            },
+            onDismiss = { showVideoSheet = false },
         )
     }
 

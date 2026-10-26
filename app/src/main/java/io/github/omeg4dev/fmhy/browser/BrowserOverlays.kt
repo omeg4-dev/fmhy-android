@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -26,6 +27,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -33,21 +35,30 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import io.github.omeg4dev.fmhy.browser.download.CheckUiText
 import io.github.omeg4dev.fmhy.browser.download.DownloadOffer
+import io.github.omeg4dev.fmhy.browser.download.ScanError
+import io.github.omeg4dev.fmhy.browser.download.ScanLinks
+import io.github.omeg4dev.fmhy.browser.download.ScanResult
+import io.github.omeg4dev.fmhy.browser.download.ScanResultView
+import io.github.omeg4dev.fmhy.browser.download.ScanService
+import io.github.omeg4dev.fmhy.browser.download.ScanVerdict
+import kotlinx.coroutines.launch
 import io.github.omeg4dev.fmhy.browser.download.DownloadOfferText
 import io.github.omeg4dev.fmhy.ui.common.enterStagger
 
@@ -299,11 +310,27 @@ fun DownloadDialog(
     offer: DownloadOffer,
     onConfirm: (allowMobile: Boolean) -> Unit,
     onCancel: () -> Unit,
+    checkServices: List<ScanService> = emptyList(),
+    readyServices: List<ScanService> = emptyList(),
+    onCheckLink: suspend (url: String) -> ScanResult = { error("Not supported") },
+    onOpenUrl: (String) -> Unit = {},
 ) {
+    val scope = rememberCoroutineScope()
     var riskStep by remember(offer) { mutableStateOf(false) }
     var chosenAllowMobile by remember(offer) { mutableStateOf(false) }
+    var linkCheckResult by remember(offer) { mutableStateOf<ScanResult?>(null) }
+    var checkingLink by remember(offer) { mutableStateOf(false) }
+    var showSendNoteInline by remember(offer) { mutableStateOf(false) }
 
     if (!riskStep) {
+        val isDangerousLink = linkCheckResult?.verdict == ScanVerdict.DANGEROUS
+        val downloadButtonText = if (isDangerousLink) "Download anyway" else "Download"
+        val downloadButtonColors = if (isDangerousLink) {
+            ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+        } else {
+            ButtonDefaults.textButtonColors()
+        }
+
         AlertDialog(
             onDismissRequest = onCancel,
             icon = {
@@ -315,7 +342,10 @@ fun DownloadDialog(
             },
             title = { Text("Download file") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
                     Text(
                         text = offer.fileName,
                         style = MaterialTheme.typography.titleMedium,
@@ -347,6 +377,96 @@ fun DownloadDialog(
                             color = MaterialTheme.colorScheme.primary,
                         )
                     }
+
+                    if (checkServices.isNotEmpty() && linkCheckResult == null && !checkingLink && !showSendNoteInline) {
+                        TextButton(
+                            onClick = {
+                                if (readyServices.isEmpty()) {
+                                    onOpenUrl(ScanLinks.linkReport(checkServices.first(), offer.url))
+                                } else {
+                                    showSendNoteInline = true
+                                }
+                            }
+                        ) {
+                            Text("Check link first")
+                        }
+                    }
+
+                    if (showSendNoteInline) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 4.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Text(
+                                text = CheckUiText.sendNote(readyServices),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End,
+                            ) {
+                                TextButton(onClick = { showSendNoteInline = false }) {
+                                    Text("Cancel")
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                TextButton(
+                                    onClick = {
+                                        showSendNoteInline = false
+                                        checkingLink = true
+                                        scope.launch {
+                                            try {
+                                                linkCheckResult = onCheckLink(offer.url)
+                                            } catch (_: Exception) {
+                                            } finally {
+                                                checkingLink = false
+                                            }
+                                        }
+                                    }
+                                ) {
+                                    Text("Send")
+                                }
+                            }
+                        }
+                    }
+
+                    if (checkingLink) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(top = 8.dp),
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Checking link…",
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                    }
+
+                    if (linkCheckResult != null) {
+                        val res = linkCheckResult!!
+                        Spacer(modifier = Modifier.height(8.dp))
+                        ScanResultView(
+                            result = res,
+                            onOpenReport = onOpenUrl,
+                            isLink = true,
+                        )
+                        for (serviceRes in res.services) {
+                            if (serviceRes.error in setOf(ScanError.BAD_KEY, ScanError.LIMIT, ScanError.OFFLINE)) {
+                                TextButton(
+                                    onClick = { onOpenUrl(ScanLinks.linkReport(serviceRes.service, offer.url)) }
+                                ) {
+                                    Text("Open website")
+                                }
+                            }
+                        }
+                    }
                 }
             },
             confirmButton = {
@@ -375,8 +495,11 @@ fun DownloadDialog(
                             Text("Cancel")
                         }
                         Spacer(modifier = Modifier.size(8.dp))
-                        TextButton(onClick = { handleConfirm(false) }) {
-                            Text("Download")
+                        TextButton(
+                            onClick = { handleConfirm(false) },
+                            colors = downloadButtonColors,
+                        ) {
+                            Text(downloadButtonText)
                         }
                     }
                 }

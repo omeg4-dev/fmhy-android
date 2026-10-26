@@ -36,11 +36,17 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.io.FileNotFoundException
 import java.io.FileOutputStream
 import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
+import kotlin.math.abs
+
+sealed interface DownloadEvent {
+    data object KeyPromptNeeded : DownloadEvent
+}
 
 data class NewDownload(
     val url: String,
@@ -61,6 +67,7 @@ class DownloadController(
     baseClient: OkHttpClient,
     private val networkMonitor: NetworkMonitor,
     private val settings: SettingsRepository,
+    private val checks: DownloadChecks,
     private val storage: DownloadStorage = DownloadStorage(context, settings),
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
@@ -73,6 +80,12 @@ class DownloadController(
 
     private val _notices = MutableSharedFlow<String>(extraBufferCapacity = 4)
     val notices: SharedFlow<String> = _notices.asSharedFlow()
+
+    // Replayed so a prompt raised while no screen is collecting is still shown later.
+    private val _events = MutableSharedFlow<DownloadEvent>(replay = 1, extraBufferCapacity = 4)
+    val events: SharedFlow<DownloadEvent> = _events.asSharedFlow()
+
+    private val checkJobs = ConcurrentHashMap<Long, Job>()
 
     private val client: OkHttpClient = baseClient.newBuilder()
         .cache(null)
@@ -120,10 +133,11 @@ class DownloadController(
         val changedRows = mutableListOf<DownloadItem>()
         val loadedItems = records.map { record ->
             val item = record.toItem()
-            if (item.status == DownloadStatus.RUNNING) {
-                val waiting = item.copy(status = DownloadStatus.WAITING)
-                changedRows.add(waiting)
-                waiting
+            val mappedStatus = CheckPolicy.restoredStatus(item.status)
+            if (mappedStatus != item.status) {
+                val updated = item.copy(status = mappedStatus)
+                changedRows.add(updated)
+                updated
             } else {
                 item
             }
@@ -140,6 +154,28 @@ class DownloadController(
 
         reschedule()
         ensureService()
+
+        for (item in loadedItems) {
+            if (!item.isPrivate && item.check?.isRunning == true) {
+                val check = item.check
+                val id = item.id
+                val fileName = item.fileName
+                val job = scope.launch(Dispatchers.IO) {
+                    try {
+                        val final = checks.awaitPending(check)
+                        val updated = edit(id) { it.copy(check = final) }
+                        updated?.let { persist(it) }
+                        checks.notifyAnalysisDone(notificationId(id), fileName, final)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (_: Throwable) {
+                    } finally {
+                        checkJobs.remove(id)
+                    }
+                }
+                checkJobs[id] = job
+            }
+        }
     }
 
     suspend fun targetLabel(): String = storage.targetLabel()
@@ -258,6 +294,7 @@ class DownloadController(
 
     fun cancel(id: Long) {
         val item = _items.value.firstOrNull { it.id == id } ?: return
+        checkJobs.remove(id)?.cancel()
         jobs.remove(id)?.cancel()
         storage.partFile(id).delete()
         _items.update { list -> list.filterNot { it.id == id } }
@@ -297,6 +334,7 @@ class DownloadController(
     fun cancelAll() {
         val active = _items.value.filter { it.status.isActive }
         for (item in active) {
+            checkJobs.remove(item.id)?.cancel()
             jobs.remove(item.id)?.cancel()
             storage.partFile(item.id).delete()
             _items.update { list -> list.filterNot { it.id == item.id } }
@@ -314,6 +352,7 @@ class DownloadController(
 
     fun removeFromList(id: Long) {
         val item = _items.value.firstOrNull { it.id == id } ?: return
+        checkJobs.remove(id)?.cancel()
         _items.update { list -> list.filterNot { it.id == id } }
         if (!item.isPrivate) {
             scope.launch(Dispatchers.IO) {
@@ -336,6 +375,7 @@ class DownloadController(
     fun deleteFile(id: Long) {
         val item = _items.value.firstOrNull { it.id == id } ?: return
         if (item.status != DownloadStatus.FINISHED) return
+        checkJobs.remove(id)?.cancel()
         val uri = item.fileUri
         if (uri != null) {
             val deleted = storage.delete(uri)
@@ -346,6 +386,245 @@ class DownloadController(
         }
         removeFromList(id)
     }
+
+    /** Call once the key prompt was shown: it is never shown again and the replayed event is dropped. */
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    fun keyPromptShown() {
+        _events.resetReplayCache()
+        scope.launch {
+            try {
+                settings.updateCheckPrefs { it.copy(keyPromptShown = true) }
+            } catch (_: Throwable) {}
+        }
+    }
+
+    /** FINISHED entry: fingerprint the saved file and look it up (never uploads). */
+    fun checkFile(id: Long, services: List<ScanService>) {
+        val item = _items.value.firstOrNull { it.id == id } ?: return
+        if (item.status != DownloadStatus.FINISHED) return
+        if (item.checking) return
+        val uriStr = item.fileUri
+        if (uriStr.isNullOrBlank()) {
+            _notices.tryEmit("File not found")
+            return
+        }
+        val uri = try {
+            Uri.parse(uriStr)
+        } catch (_: Exception) {
+            _notices.tryEmit("File not found")
+            return
+        }
+        edit(id) { it.copy(checking = true) }
+        val job = scope.launch(Dispatchers.IO) {
+            try {
+                val source = CheckSource.OfUri(context, uri, item.fileName, item.totalBytes)
+                val sha = checks.fingerprint(source)
+                val result = checks.checkFile(sha, services)
+                edit(id) { it.copy(check = result, checking = false) }?.let { persist(it) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: FileNotFoundException) {
+                edit(id) { it.copy(checking = false) }
+                _notices.tryEmit("File not found")
+            } catch (e: Exception) {
+                edit(id) { it.copy(checking = false) }
+                _notices.tryEmit("Couldn't check the file")
+            } finally {
+                checkJobs.remove(id)
+                edit(id) { if (it.checking) it.copy(checking = false) else it }
+            }
+        }
+        checkJobs[id] = job
+    }
+
+    /** AWAITING_DECISION entry: fingerprint the held part file and look it up again. */
+    fun recheckHeld(id: Long, services: List<ScanService>) {
+        val item = _items.value.firstOrNull { it.id == id } ?: return
+        if (item.status != DownloadStatus.AWAITING_DECISION) return
+        runHeldCheck(id, services, transitionToAwaitingDecision = false)
+    }
+
+    private fun runHeldCheck(id: Long, services: List<ScanService>, transitionToAwaitingDecision: Boolean) {
+        val item = _items.value.firstOrNull { it.id == id } ?: return
+        if (item.checking) return
+        val part = storage.partFile(id)
+        if (!part.exists()) {
+            if (transitionToAwaitingDecision) {
+                edit(id) { it.copy(status = DownloadStatus.AWAITING_DECISION, checking = false) }?.let { persist(it) }
+            }
+            _notices.tryEmit("File not found")
+            return
+        }
+        edit(id) { it.copy(checking = true) }
+        val job = scope.launch(Dispatchers.IO) {
+            try {
+                val source = CheckSource.OfFile(part, item.fileName)
+                val sha = checks.fingerprint(source)
+                val result = checks.checkFile(sha, services)
+                val targetStatus = if (transitionToAwaitingDecision) DownloadStatus.AWAITING_DECISION else null
+                edit(id) { current ->
+                    current.copy(
+                        status = targetStatus ?: current.status,
+                        check = result,
+                        checking = false,
+                    )
+                }?.let { persist(it) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: FileNotFoundException) {
+                val targetStatus = if (transitionToAwaitingDecision) DownloadStatus.AWAITING_DECISION else null
+                edit(id) { current ->
+                    current.copy(
+                        status = targetStatus ?: current.status,
+                        checking = false,
+                    )
+                }?.let { persist(it) }
+                _notices.tryEmit("File not found")
+            } catch (e: Exception) {
+                val targetStatus = if (transitionToAwaitingDecision) DownloadStatus.AWAITING_DECISION else null
+                edit(id) { current ->
+                    current.copy(
+                        status = targetStatus ?: current.status,
+                        checking = false,
+                    )
+                }?.let { persist(it) }
+                _notices.tryEmit("Couldn't check the file")
+            } finally {
+                checkJobs.remove(id)
+                edit(id) { if (it.checking) it.copy(checking = false) else it }
+            }
+        }
+        checkJobs[id] = job
+    }
+
+    /** Fingerprint only (for "open the website" without a key). Returns the stored sha256 if the entry has one. */
+    suspend fun fingerprintOf(id: Long): String? = withContext(Dispatchers.IO) {
+        val item = _items.value.firstOrNull { it.id == id } ?: return@withContext null
+        item.check?.sha256?.let { return@withContext it }
+        val source = when (item.status) {
+            DownloadStatus.FINISHED -> {
+                val uriStr = item.fileUri ?: return@withContext null
+                val uri = try { Uri.parse(uriStr) } catch (_: Exception) { return@withContext null }
+                CheckSource.OfUri(context, uri, item.fileName, item.totalBytes)
+            }
+            DownloadStatus.AWAITING_DECISION, DownloadStatus.CHECKING -> {
+                val part = storage.partFile(id)
+                if (!part.exists()) return@withContext null
+                CheckSource.OfFile(part, item.fileName)
+            }
+            else -> return@withContext null
+        }
+        try {
+            checks.fingerprint(source)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /** Upload after the user agreed; FINISHED (saved file) or AWAITING_DECISION (part file). Then waits for the analysis in the background and notifies. */
+    fun upload(id: Long, service: ScanService) {
+        val item = _items.value.firstOrNull { it.id == id } ?: return
+        if (item.status != DownloadStatus.FINISHED && item.status != DownloadStatus.AWAITING_DECISION) return
+        val source = when (item.status) {
+            DownloadStatus.FINISHED -> {
+                val uriStr = item.fileUri
+                if (uriStr.isNullOrBlank()) {
+                    _notices.tryEmit("File not found")
+                    return
+                }
+                val uri = try { Uri.parse(uriStr) } catch (_: Exception) {
+                    _notices.tryEmit("File not found")
+                    return
+                }
+                CheckSource.OfUri(context, uri, item.fileName, item.totalBytes)
+            }
+            DownloadStatus.AWAITING_DECISION -> {
+                val part = storage.partFile(id)
+                if (!part.exists()) {
+                    _notices.tryEmit("File not found")
+                    return
+                }
+                CheckSource.OfFile(part, item.fileName)
+            }
+            else -> return
+        }
+        val job = scope.launch(Dispatchers.IO) {
+            try {
+                val sha = item.check?.sha256 ?: checks.fingerprint(source)
+                val result = checks.upload(source, sha, service, item.check)
+                val updated = edit(id) { it.copy(check = result) }
+                updated?.let { persist(it) }
+                if (result.isRunning) {
+                    val final = checks.awaitPending(result)
+                    val finalUpdated = edit(id) { it.copy(check = final) }
+                    finalUpdated?.let { persist(it) }
+                    val notifName = if (item.isPrivate) null else item.fileName
+                    checks.notifyAnalysisDone(notificationId(id), notifName, final)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: FileNotFoundException) {
+                _notices.tryEmit("File not found")
+            } catch (e: Exception) {
+                _notices.tryEmit("Couldn't check the file")
+            } finally {
+                checkJobs.remove(id)
+            }
+        }
+        checkJobs[id] = job
+    }
+
+    /** AWAITING_DECISION → move the held file to the download folder → FINISHED (keeps `check`). */
+    fun keep(id: Long) {
+        val item = _items.value.firstOrNull { it.id == id } ?: return
+        if (item.status != DownloadStatus.AWAITING_DECISION) return
+        val part = storage.partFile(id)
+        if (!part.exists()) {
+            _notices.tryEmit("File not found")
+            return
+        }
+        scope.launch(Dispatchers.IO) {
+            try {
+                val saved = storage.finalize(part, item.fileName, item.mimeType, onFallback = ::onFolderFallback)
+                val finishedItem = edit(id) {
+                    it.copy(
+                        status = DownloadStatus.FINISHED,
+                        fileUri = saved.uri,
+                        fileName = saved.displayName,
+                        totalBytes = it.downloadedBytes,
+                        finishedAt = clock(),
+                        speedBps = null,
+                        etaSeconds = null,
+                        error = null,
+                    )
+                } ?: return@launch
+                persist(finishedItem)
+            } catch (e: IOException) {
+                _notices.tryEmit("Couldn't save the file")
+            }
+        }
+    }
+
+    /** AWAITING_DECISION or CHECKING → delete the held part file and remove the entry. */
+    fun discard(id: Long) {
+        val item = _items.value.firstOrNull { it.id == id } ?: return
+        if (item.status != DownloadStatus.AWAITING_DECISION && item.status != DownloadStatus.CHECKING) return
+        checkJobs.remove(id)?.cancel()
+        jobs.remove(id)?.cancel()
+        storage.partFile(id).delete()
+        _items.update { list -> list.filterNot { it.id == id } }
+        if (!item.isPrivate) {
+            scope.launch(Dispatchers.IO) {
+                try {
+                    userStore.deleteDownload(id)
+                } catch (_: Throwable) {}
+            }
+        }
+        reschedule()
+        ensureService()
+    }
+
+    private fun notificationId(id: Long): Int = 7600 + (abs(id) % 1000).toInt()
 
     fun fileExists(item: DownloadItem): Boolean = item.fileUri?.let(storage::exists) == true
 
@@ -641,6 +920,33 @@ class DownloadController(
 
             if (finalizePart) {
                 coroutineContext.ensureActive()
+                val after = CheckPolicy.afterDownload(updatedItem.fileName, checks.prefs.value)
+                if (after.keyPrompt) {
+                    _events.tryEmit(DownloadEvent.KeyPromptNeeded)
+                }
+
+                if (after.hold) {
+                    val initialStatus = if (after.checkNow) DownloadStatus.CHECKING else DownloadStatus.AWAITING_DECISION
+                    val heldItem = edit(id) {
+                        it.copy(
+                            status = initialStatus,
+                            totalBytes = it.downloadedBytes,
+                            finishedAt = clock(),
+                            speedBps = null,
+                            etaSeconds = null,
+                            error = null,
+                        )
+                    } ?: return
+                    persist(heldItem)
+                    jobs.remove(id)
+                    reschedule()
+                    DownloadService.notifyFinished(context, heldItem)
+                    if (after.checkNow) {
+                        runHeldCheck(id, checks.prefs.value.readyServices, transitionToAwaitingDecision = true)
+                    }
+                    return
+                }
+
                 try {
                     val saved = storage.finalize(part, updatedItem.fileName, updatedItem.mimeType, onFallback = ::onFolderFallback)
                     val finishedItem = edit(id) {
@@ -659,6 +965,9 @@ class DownloadController(
                     DownloadService.notifyFinished(context, finishedItem)
                     jobs.remove(id)
                     reschedule()
+                    if (after.checkNow) {
+                        checkFile(id, checks.prefs.value.readyServices)
+                    }
                     return
                 } catch (e: IOException) {
                     val failedItem = edit(id) {

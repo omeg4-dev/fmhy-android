@@ -5,6 +5,7 @@ import io.github.omeg4dev.fmhy.data.AppIcon
 import io.github.omeg4dev.fmhy.data.Appearance
 import io.github.omeg4dev.fmhy.data.BlockingPrefs
 import io.github.omeg4dev.fmhy.data.BrowserPrefs
+import io.github.omeg4dev.fmhy.data.CheckPrefs
 import io.github.omeg4dev.fmhy.data.ColorSource
 import io.github.omeg4dev.fmhy.data.DataPrefs
 import io.github.omeg4dev.fmhy.data.DataUsagePrefs
@@ -182,6 +183,10 @@ class SettingsViewModelTest {
         override val dataUsagePrefs: Flow<DataUsagePrefs> = _dataUsage.asStateFlow()
         override suspend fun updateDataUsage(f: (DataUsagePrefs) -> DataUsagePrefs) { _dataUsage.value = f(_dataUsage.value) }
 
+        private val _check = MutableStateFlow(CheckPrefs())
+        override val checkPrefs: Flow<CheckPrefs> = _check.asStateFlow()
+        override suspend fun updateCheckPrefs(f: (CheckPrefs) -> CheckPrefs) { _check.value = f(_check.value) }
+
         private val _onboarding = MutableStateFlow(0)
         override val onboardingVersion: Flow<Int> = _onboarding.asStateFlow()
         override suspend fun setOnboardingVersion(v: Int) { _onboarding.value = v }
@@ -240,6 +245,23 @@ class SettingsViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(OpenLinksWith.EXTERNAL, viewModel.browserPrefs.value.openLinksWith)
+    }
+
+    @Test
+    fun testCheckPrefsUpdate() = runTest {
+        val store = FakeDatasetStore()
+        val settings = FakeSettingsRepository()
+        val container = FakeContainer(store, settings)
+
+        val viewModel = SettingsViewModel(store, settings, container)
+        backgroundScope.launch(kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)) { viewModel.checkPrefs.collect() }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertFalse(viewModel.checkPrefs.value.virusTotalOn)
+        viewModel.updateCheckPrefs { it.copy(virusTotalOn = true) }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(viewModel.checkPrefs.value.virusTotalOn)
     }
 
     @Test

@@ -1,5 +1,6 @@
 package io.github.omeg4dev.fmhy.data
 
+import io.github.omeg4dev.fmhy.browser.download.ScanService
 import io.github.omeg4dev.fmhy.data.adblock.FilterListCatalog
 
 // Preference groups added in 0.5. The older prefs stay in [Appearance]. Defaults here are the
@@ -111,6 +112,7 @@ data class BrowserPrefs(
     val doubleTapSeek: Boolean = true,
     /** Playback speed applied to media on pages without a remembered per-site speed. */
     val defaultSpeed: Float = 1f,
+    val videoDownloadButton: Boolean = true,
 )
 
 data class BlockingPrefs(
@@ -181,3 +183,31 @@ data class DataPrefs(
     val syncOnLaunch: Boolean = true,
     val keepHistory: Boolean = true,
 )
+
+data class CheckPrefs(
+    val virusTotalOn: Boolean = false,
+    val virusTotalKey: String = "",
+    val hybridOn: Boolean = false,
+    val hybridKey: String = "",
+    val holdUntilChecked: Boolean = false,
+    val autoCheckRisky: Boolean = true,
+    /** The one-time "set up a key" prompt for automatic checks was shown. */
+    val keyPromptShown: Boolean = false,
+    /** The one-time explanation of what checks send was shown. */
+    val explainShown: Boolean = false,
+) {
+    /** Services that are on AND have a non-blank key, VirusTotal first. */
+    val readyServices: List<ScanService>
+        get() = buildList {
+            if (virusTotalOn && virusTotalKey.isNotBlank()) add(ScanService.VIRUSTOTAL)
+            if (hybridOn && hybridKey.isNotBlank()) add(ScanService.HYBRID_ANALYSIS)
+        }
+
+    /** Services that are on (with or without key). */
+    val enabledServices: List<ScanService>
+        get() = buildList {
+            if (virusTotalOn) add(ScanService.VIRUSTOTAL)
+            if (hybridOn) add(ScanService.HYBRID_ANALYSIS)
+        }
+}
+

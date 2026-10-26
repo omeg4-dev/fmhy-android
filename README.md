@@ -62,6 +62,7 @@ in a native app that keeps up with every change for you.
 
 ### 🔒 Private by design
 - **No account, no ads, no tracking, no server of ours.** The app reads the wiki straight from FMHY's own repository.
+- **Optional file checks.** If you turn on VirusTotal or Hybrid Analysis with your own free key, the app sends a link's web address when you tap "Check link first", and a file's fingerprint (SHA-256) for file checks. A file is only uploaded after you agree. Off by default; nothing is sent until you add a key.
 - **Works offline**: the release APK ships with the whole wiki built in, and updates only download what changed.
 - Hidden base64 links on FMHY are decoded for you.
 

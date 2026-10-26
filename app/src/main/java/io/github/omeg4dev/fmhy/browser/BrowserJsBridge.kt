@@ -4,6 +4,8 @@ import android.net.Uri
 import android.webkit.JavascriptInterface
 import io.github.omeg4dev.fmhy.browser.adblock.AdblockService
 import io.github.omeg4dev.fmhy.browser.adblock.ScriptletLibrary
+import io.github.omeg4dev.fmhy.browser.download.DownloadRequest
+import io.github.omeg4dev.fmhy.browser.download.VideoSources
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -142,6 +144,17 @@ class BrowserJsBridge(
     fun mediaEvent(type: String) {
         tabManager.postToMain {
             tabManager.setVideoPlaying(tabId, type == "play")
+        }
+    }
+
+    @JavascriptInterface
+    fun videoSources(json: String, frame: String) {
+        if (json.length > 64_000 || frame.length > 4_000) return
+        tabManager.postToMain {
+            // The frame address comes from page script: only an http(s) address may serve as the base.
+            val baseUrl = frame.takeIf { DownloadRequest.isHttpUrl(it) } ?: tabManager.getTabRecord(tabId)?.url.orEmpty()
+            val list = VideoSources.parse(json, baseUrl)
+            tabManager.setVideoSources(tabId, frame, list)
         }
     }
 

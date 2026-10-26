@@ -121,4 +121,5 @@ data class DownloadRecord(
     val resumable: Boolean = true, val restartNote: Boolean = false, val allowMobile: Boolean = false,
     val error: String? = null, val fileUri: String? = null, val folderLabel: String = "",
     val etag: String? = null, val lastModified: String? = null, val createdAt: Long, val finishedAt: Long? = null,
+    val checkJson: String? = null,
 )

@@ -3,6 +3,7 @@ package io.github.omeg4dev.fmhy.browser
 import android.content.MutableContextWrapper
 import android.graphics.Bitmap
 import android.webkit.WebView
+import io.github.omeg4dev.fmhy.browser.download.VideoSource
 import io.github.omeg4dev.fmhy.data.user.SitePrefs
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -31,6 +32,9 @@ class TabRecord(
     @Volatile var videoWidth: Int = 0,
     @Volatile var videoHeight: Int = 0,
     @Volatile var hasMedia: Boolean = false,
+    @Volatile var videoSources: List<VideoSource> = emptyList(),
+    /** Video lists reported per frame ('' = top page); main thread only. */
+    val videoFrames: MutableMap<String, List<VideoSource>> = mutableMapOf(),
     /** Playback speed to apply to this page's media; 0 = leave the page alone. */
     @Volatile var desiredRate: Float = 0f,
     var hasStartedFirstLoad: Boolean = false,
@@ -95,6 +99,7 @@ class TabRecord(
         isVideoPlaying = isVideoPlaying,
         hasMedia = hasMedia,
         playbackSpeed = if (desiredRate > 0f) desiredRate else 1f,
+        videoSources = videoSources,
         videoAspect = if (videoWidth > 0 && videoHeight > 0) videoWidth.toFloat() / videoHeight else null,
         crashed = crashed,
         lastActiveTime = lastActiveTime,

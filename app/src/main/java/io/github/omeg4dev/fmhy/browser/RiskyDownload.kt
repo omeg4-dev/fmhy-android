@@ -5,6 +5,10 @@ object RiskyDownload {
         "apk", "xapk", "apks", "exe", "msi", "bat", "cmd", "scr", "dmg", "pkg", "jar", "vbs", "ps1"
     )
 
+    val AUTO_CHECK_EXTENSIONS = RISKY_EXTENSIONS + setOf("sh", "py", "js", "jse", "wsf", "hta", "com", "lnk", "appimage", "deb", "rpm", "msix", "appx")
+
+    fun isAutoCheckType(fileName: String): Boolean = extractExtension(fileName) in AUTO_CHECK_EXTENSIONS
+
     fun extractExtension(fileNameOrUrl: String): String {
         // Strip query params and fragments if present
         val clean = fileNameOrUrl.substringBefore('?').substringBefore('#').trimEnd('.', ' ')

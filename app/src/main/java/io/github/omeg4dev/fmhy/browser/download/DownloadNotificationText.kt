@@ -74,6 +74,9 @@ object DownloadNotificationText {
     }
 
     fun finishedTitle(item: DownloadItem): String {
+        if (item.status == DownloadStatus.AWAITING_DECISION || item.status == DownloadStatus.CHECKING) {
+            return "Download waiting for your decision"
+        }
         return if (item.isPrivate) "Private download finished" else "Download finished"
     }
 

@@ -50,4 +50,17 @@ class RiskyDownloadTest {
         val msg = RiskyDownload.warningMessage("evil.com")
         assertEquals("This file can install software. Only download it if you trust evil.com.", msg)
     }
+
+    @Test
+    fun testAutoCheckTypeTrue() {
+        assertTrue(RiskyDownload.isAutoCheckType("test.apk"))
+        assertTrue(RiskyDownload.isAutoCheckType("script.sh"))
+        assertTrue(RiskyDownload.isAutoCheckType("app.AppImage"))
+    }
+
+    @Test
+    fun testAutoCheckTypeFalse() {
+        assertFalse(RiskyDownload.isAutoCheckType("document.pdf"))
+        assertFalse(RiskyDownload.isAutoCheckType("video.mp4"))
+    }
 }

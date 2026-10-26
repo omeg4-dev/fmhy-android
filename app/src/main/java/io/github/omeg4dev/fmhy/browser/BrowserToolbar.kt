@@ -58,6 +58,7 @@ import androidx.compose.material.icons.filled.RemoveModerator
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.VideoFile
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Warning
@@ -150,6 +151,8 @@ fun BrowserToolbar(
     onDownloadsClick: () -> Unit = {},
     downloadSummary: ActiveSummary? = null,
     onDownloadsRingClick: () -> Unit = {},
+    showVideoButton: Boolean = false,
+    onVideoClick: () -> Unit = {},
     /** FMHY status icon (drawn at the start of the address pill); empty when the tab has no state. */
     statusIcon: @Composable () -> Unit = {},
     modifier: Modifier = Modifier,
@@ -212,6 +215,8 @@ fun BrowserToolbar(
                     showBlockedCount = showBlockedCount,
                     downloadSummary = downloadSummary,
                     onDownloadsRingClick = onDownloadsRingClick,
+                    showVideoButton = showVideoButton,
+                    onVideoClick = onVideoClick,
                     onAddressClick = onAddressClick,
                     onShieldClick = onShieldClick,
                     onSelectTab = onSelectTab,
@@ -362,6 +367,8 @@ private fun AddressPill(
     showBlockedCount: Boolean,
     downloadSummary: ActiveSummary? = null,
     onDownloadsRingClick: () -> Unit = {},
+    showVideoButton: Boolean = false,
+    onVideoClick: () -> Unit = {},
     onAddressClick: () -> Unit,
     onShieldClick: () -> Unit,
     onSelectTab: (Long) -> Unit,
@@ -557,6 +564,27 @@ private fun AddressPill(
                         modifier = Modifier
                             .fillMaxWidth()
                             .offset { IntOffset((dragOffset.value + pillWidthPx).roundToInt(), 0) },
+                    )
+                }
+            }
+
+            AnimatedVisibility(
+                visible = showVideoButton && !isBlank,
+                enter = fadeIn(),
+                exit = fadeOut(),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .minimumInteractiveComponentSize()
+                        .clickable(onClick = onVideoClick)
+                        .semantics { contentDescription = "Download video" },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.VideoFile,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }

@@ -118,6 +118,13 @@ fun VideoPage(
                         onChange = { checked -> viewModel.updateBrowser { it.copy(backgroundPlayback = checked) } },
                     )
                     SettingsDivider()
+                    SwitchRow(
+                        title = "Video download button",
+                        summary = "Show a button in the address bar when a page has a video you can save",
+                        checked = prefs.videoDownloadButton,
+                        onChange = { checked -> viewModel.updateBrowser { it.copy(videoDownloadButton = checked) } },
+                    )
+                    SettingsDivider()
                     ChoiceRow(
                         title = "Default speed",
                         options = PLAYBACK_SPEEDS.map { it to speedLabel(it) },

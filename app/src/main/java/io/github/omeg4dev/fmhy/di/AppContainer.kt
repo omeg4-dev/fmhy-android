@@ -22,6 +22,7 @@ import io.github.omeg4dev.fmhy.report.ReportRequest
 import io.github.omeg4dev.fmhy.browser.BrowserHooks
 import io.github.omeg4dev.fmhy.browser.DefaultBrowserHooks
 import io.github.omeg4dev.fmhy.browser.TabManager
+import io.github.omeg4dev.fmhy.browser.download.DownloadChecks
 import io.github.omeg4dev.fmhy.browser.download.DownloadController
 import io.github.omeg4dev.fmhy.browser.adblock.AdblockService
 import io.github.omeg4dev.fmhy.browser.adblock.DefaultAdblockUpdater
@@ -100,6 +101,7 @@ interface AppContainer : OnboardingActions {
     val networkMonitor: NetworkMonitor get() = error("Not supported")
     val updateController: io.github.omeg4dev.fmhy.update.UpdateController get() = io.github.omeg4dev.fmhy.update.NoOpUpdateController
     val downloads: DownloadController get() = error("Not supported")
+    val checks: DownloadChecks get() = error("Not supported")
     val firstWikiNeedsMobilePermission: MutableStateFlow<Boolean> get() = MutableStateFlow(false)
     val isSyncWaitingForWifi: MutableStateFlow<Boolean> get() = MutableStateFlow(false)
     val hasBuiltInWiki: Boolean get() = false
@@ -286,6 +288,16 @@ class DefaultAppContainer(
             userStore,
             okHttpClient,
             networkMonitor,
+            settingsRepository,
+            checks,
+        )
+    }
+
+    override val checks by lazy {
+        DownloadChecks(
+            context.applicationContext,
+            appScope,
+            okHttpClient,
             settingsRepository,
         )
     }

@@ -176,4 +176,23 @@ class DownloadNotificationTextTest {
         assertEquals("Private download finished", DownloadNotificationText.finishedTitle(priv))
         assertNull(DownloadNotificationText.finishedText(priv))
     }
+
+    @Test
+    fun testDecisionNeededNormalAndPrivate() {
+        val awaitingNormal = sampleItem(fileName = "setup.apk", status = DownloadStatus.AWAITING_DECISION, isPrivate = false)
+        assertEquals("Download waiting for your decision", DownloadNotificationText.finishedTitle(awaitingNormal))
+        assertEquals("setup.apk", DownloadNotificationText.finishedText(awaitingNormal))
+
+        val awaitingPrivate = sampleItem(fileName = "setup.apk", status = DownloadStatus.AWAITING_DECISION, isPrivate = true)
+        assertEquals("Download waiting for your decision", DownloadNotificationText.finishedTitle(awaitingPrivate))
+        assertNull(DownloadNotificationText.finishedText(awaitingPrivate))
+
+        val checkingNormal = sampleItem(fileName = "setup.apk", status = DownloadStatus.CHECKING, isPrivate = false)
+        assertEquals("Download waiting for your decision", DownloadNotificationText.finishedTitle(checkingNormal))
+        assertEquals("setup.apk", DownloadNotificationText.finishedText(checkingNormal))
+
+        val checkingPrivate = sampleItem(fileName = "setup.apk", status = DownloadStatus.CHECKING, isPrivate = true)
+        assertEquals("Download waiting for your decision", DownloadNotificationText.finishedTitle(checkingPrivate))
+        assertNull(DownloadNotificationText.finishedText(checkingPrivate))
+    }
 }

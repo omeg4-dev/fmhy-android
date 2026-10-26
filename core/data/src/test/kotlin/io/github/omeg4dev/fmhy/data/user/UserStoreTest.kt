@@ -845,7 +845,7 @@ class UserStoreTest {
         store.withConnection { conn ->
             conn.prepare("PRAGMA user_version;").use { stmt ->
                 assertTrue(stmt.step())
-                assertEquals(3L, stmt.getLong(0))
+                assertEquals(4L, stmt.getLong(0))
             }
         }
         store.close()
@@ -1105,7 +1105,7 @@ class UserStoreTest {
         store.withConnection { conn ->
             conn.prepare("PRAGMA user_version;").use { stmt ->
                 assertTrue(stmt.step())
-                assertEquals(3L, stmt.getLong(0))
+                assertEquals(4L, stmt.getLong(0))
             }
         }
         store.close()
@@ -1145,6 +1145,66 @@ class UserStoreTest {
 
         store.deleteDownloadsWithStatus("FINISHED")
         assertEquals(initialChanges, store.changes.value)
+
+        store.close()
+    }
+
+    @Test
+    fun testMigrationV3AddsCheckJson() = runTest {
+        val dbFile = tempFolder.newFile("legacy_v3.db")
+        val rawConn = BundledSQLiteDriver().open(dbFile.absolutePath)
+        rawConn.execSQL("PRAGMA user_version = 3;")
+        rawConn.execSQL("""
+            CREATE TABLE IF NOT EXISTS downloads (
+              id INTEGER PRIMARY KEY AUTOINCREMENT, url TEXT NOT NULL, file_name TEXT NOT NULL, mime_type TEXT NOT NULL DEFAULT '',
+              source_host TEXT NOT NULL DEFAULT '', referer TEXT, user_agent TEXT, total_bytes INTEGER NOT NULL DEFAULT -1,
+              downloaded_bytes INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL, resumable INTEGER NOT NULL DEFAULT 1,
+              restart_note INTEGER NOT NULL DEFAULT 0, allow_mobile INTEGER NOT NULL DEFAULT 0, error TEXT, file_uri TEXT,
+              folder_label TEXT NOT NULL DEFAULT '', etag TEXT, last_modified TEXT, created_at INTEGER NOT NULL, finished_at INTEGER);
+        """.trimIndent())
+        rawConn.execSQL("""
+            INSERT INTO downloads (url, file_name, status, created_at)
+            VALUES ('https://example.com/test.zip', 'test.zip', 'FINISHED', 1000);
+        """.trimIndent())
+        rawConn.close()
+
+        val store = UserStore(dbFile)
+        val dls = store.downloads()
+        assertEquals(1, dls.size)
+        assertNull(dls[0].checkJson)
+
+        store.withConnection { conn ->
+            conn.prepare("PRAGMA user_version;").use { stmt ->
+                assertTrue(stmt.step())
+                assertEquals(4L, stmt.getLong(0))
+            }
+        }
+        store.close()
+    }
+
+    @Test
+    fun testDownloadCheckJsonRoundTrip() = runTest {
+        val store = createStore()
+        val initialRecord = DownloadRecord(
+            url = "https://example.com/file.apk",
+            fileName = "file.apk",
+            status = "FINISHED",
+            createdAt = 1000L,
+            checkJson = """{"kind":"FILE","sha256":"abc","services":[],"checkedAt":1000}""",
+        )
+        val id = store.insertDownload(initialRecord)
+        assertTrue(id > 0)
+
+        val retrieved1 = store.downloads().first { it.id == id }
+        assertEquals("""{"kind":"FILE","sha256":"abc","services":[],"checkedAt":1000}""", retrieved1.checkJson)
+
+        val updatedRecord = retrieved1.copy(
+            checkJson = """{"kind":"FILE","sha256":"abc","services":[],"checkedAt":2000}""",
+        )
+        store.updateDownload(updatedRecord)
+
+        val retrieved2 = store.downloads().first { it.id == id }
+        assertEquals("""{"kind":"FILE","sha256":"abc","services":[],"checkedAt":2000}""", retrieved2.checkJson)
 
         store.close()
     }

@@ -45,11 +45,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.omeg4dev.fmhy.browser.download.ChecksExplainDialog
 import io.github.omeg4dev.fmhy.browser.download.DownloadStorage
+import io.github.omeg4dev.fmhy.browser.download.ScanService
 import io.github.omeg4dev.fmhy.browser.formatRelativeTime
 import io.github.omeg4dev.fmhy.data.adblock.FilterList
 import io.github.omeg4dev.fmhy.data.adblock.FilterListCatalog
@@ -69,6 +72,7 @@ fun BlockingPage(
     val blockingPrefs by viewModel.blockingPrefs.collectAsStateWithLifecycle()
     val protectionPrefs by viewModel.protectionPrefs.collectAsStateWithLifecycle()
     val downloadPrefs by viewModel.downloadPrefs.collectAsStateWithLifecycle()
+    val checkPrefs by viewModel.checkPrefs.collectAsStateWithLifecycle()
     val adblockStatus by viewModel.adblockStatus.collectAsStateWithLifecycle()
     val listStates by viewModel.listStates.collectAsStateWithLifecycle()
     val jobs by viewModel.jobs.collectAsStateWithLifecycle()
@@ -84,6 +88,10 @@ fun BlockingPage(
     var showCustomRulesDialog by remember { mutableStateOf(false) }
     var showAllowedSitesDialog by remember { mutableStateOf(false) }
     var showDownloadFolderDialog by remember { mutableStateOf(false) }
+    var showChecksExplainDialog by remember { mutableStateOf(false) }
+    var pendingTurnOnService by remember { mutableStateOf<ScanService?>(null) }
+    var showVtKeyDialog by remember { mutableStateOf(false) }
+    var showHaKeyDialog by remember { mutableStateOf(false) }
 
     val folderPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
@@ -273,6 +281,80 @@ fun BlockingPage(
                         onChange = { checked ->
                             viewModel.updateProtection { it.copy(safeBrowsing = checked) }
                         },
+                    )
+                }
+            }
+
+            // File checks section
+            item {
+                SettingsSection(title = "File checks") {
+                    val vtSummary = if (checkPrefs.virusTotalKey.isBlank()) "Needs a free key" else "Key added"
+                    SwitchRow(
+                        title = "VirusTotal",
+                        summary = vtSummary,
+                        checked = checkPrefs.virusTotalOn,
+                        onChange = { checked ->
+                            if (checked && !checkPrefs.explainShown) {
+                                pendingTurnOnService = ScanService.VIRUSTOTAL
+                                showChecksExplainDialog = true
+                            } else {
+                                viewModel.updateCheckPrefs { it.copy(virusTotalOn = checked) }
+                            }
+                        },
+                    )
+                    SettingsDivider()
+                    val vtKeySummary = if (checkPrefs.virusTotalKey.isBlank()) "Not set" else "••••" + checkPrefs.virusTotalKey.takeLast(4)
+                    NavRow(
+                        title = "VirusTotal key",
+                        summary = vtKeySummary,
+                        onClick = { showVtKeyDialog = true },
+                    )
+                    SettingsDivider()
+                    val haSummary = if (checkPrefs.hybridKey.isBlank()) "Needs a free key" else "Key added"
+                    SwitchRow(
+                        title = "Hybrid Analysis",
+                        summary = haSummary,
+                        checked = checkPrefs.hybridOn,
+                        onChange = { checked ->
+                            if (checked && !checkPrefs.explainShown) {
+                                pendingTurnOnService = ScanService.HYBRID_ANALYSIS
+                                showChecksExplainDialog = true
+                            } else {
+                                viewModel.updateCheckPrefs { it.copy(hybridOn = checked) }
+                            }
+                        },
+                    )
+                    SettingsDivider()
+                    val haKeySummary = if (checkPrefs.hybridKey.isBlank()) "Not set" else "••••" + checkPrefs.hybridKey.takeLast(4)
+                    NavRow(
+                        title = "Hybrid Analysis key",
+                        summary = haKeySummary,
+                        onClick = { showHaKeyDialog = true },
+                    )
+                    SettingsDivider()
+                    SwitchRow(
+                        title = "Check risky files automatically",
+                        summary = "APKs, executables and scripts, after download. Sends only the file's fingerprint.",
+                        checked = checkPrefs.autoCheckRisky,
+                        onChange = { checked ->
+                            viewModel.updateCheckPrefs { it.copy(autoCheckRisky = checked) }
+                        },
+                    )
+                    SettingsDivider()
+                    SwitchRow(
+                        title = "Hold new files until checked",
+                        summary = "New downloads stay hidden from other apps until you keep or delete them.",
+                        checked = checkPrefs.holdUntilChecked,
+                        onChange = { checked ->
+                            viewModel.updateCheckPrefs { it.copy(holdUntilChecked = checked) }
+                        },
+                    )
+                    SettingsDivider()
+                    Text(
+                        text = "What is sent: link checks send the web address, only when you tap “Check link first”. File checks send the file's fingerprint (SHA-256), not the file. Files are uploaded only after you agree. Without a key, the check opens the service's website instead.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                     )
                 }
             }
@@ -526,6 +608,55 @@ fun BlockingPage(
     }
 
     MobileDataConfirmationDialog(viewModel)
+
+    if (showChecksExplainDialog) {
+        ChecksExplainDialog(
+            onOk = {
+                showChecksExplainDialog = false
+                viewModel.updateCheckPrefs { prefs ->
+                    val withExplain = prefs.copy(explainShown = true)
+                    when (pendingTurnOnService) {
+                        ScanService.VIRUSTOTAL -> withExplain.copy(virusTotalOn = true)
+                        ScanService.HYBRID_ANALYSIS -> withExplain.copy(hybridOn = true)
+                        null -> withExplain
+                    }
+                }
+                pendingTurnOnService = null
+            }
+        )
+    }
+
+    if (showVtKeyDialog) {
+        ApiKeyDialog(
+            title = "VirusTotal key",
+            helpText = "Get a free key from your VirusTotal account (Profile → API key). Free keys have usage limits.",
+            currentKey = checkPrefs.virusTotalKey,
+            getKeyUrl = "https://www.virustotal.com/gui/my-apikey",
+            onSave = { key ->
+                viewModel.updateCheckPrefs { it.copy(virusTotalKey = key) }
+            },
+            onRemove = {
+                viewModel.updateCheckPrefs { it.copy(virusTotalKey = "") }
+            },
+            onDismiss = { showVtKeyDialog = false },
+        )
+    }
+
+    if (showHaKeyDialog) {
+        ApiKeyDialog(
+            title = "Hybrid Analysis key",
+            helpText = "Get a free key from your Hybrid Analysis profile (API key tab). Free keys have usage limits.",
+            currentKey = checkPrefs.hybridKey,
+            getKeyUrl = "https://hybrid-analysis.com/my-account?tab=%23api-key-tab",
+            onSave = { key ->
+                viewModel.updateCheckPrefs { it.copy(hybridKey = key) }
+            },
+            onRemove = {
+                viewModel.updateCheckPrefs { it.copy(hybridKey = "") }
+            },
+            onDismiss = { showHaKeyDialog = false },
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -674,6 +805,77 @@ private fun AllowedSitesDialog(
         confirmButton = {
             TextButton(onClick = onDismiss) {
                 Text("Done")
+            }
+        },
+    )
+}
+
+@Composable
+private fun ApiKeyDialog(
+    title: String,
+    helpText: String,
+    currentKey: String,
+    getKeyUrl: String,
+    onSave: (String) -> Unit,
+    onRemove: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val context = LocalContext.current
+    var keyInput by remember { mutableStateOf(currentKey) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = helpText,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                OutlinedTextField(
+                    value = keyInput,
+                    onValueChange = { keyInput = it },
+                    label = { Text("API key") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                TextButton(
+                    onClick = {
+                        try {
+                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(getKeyUrl)))
+                        } catch (_: Exception) {}
+                    }
+                ) {
+                    Text("Get a key")
+                }
+            }
+        },
+        confirmButton = {
+            Row {
+                if (currentKey.isNotBlank()) {
+                    TextButton(
+                        onClick = {
+                            onRemove()
+                            onDismiss()
+                        }
+                    ) {
+                        Text("Remove")
+                    }
+                }
+                TextButton(
+                    onClick = {
+                        onSave(keyInput.trim())
+                        onDismiss()
+                    }
+                ) {
+                    Text("Save")
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
             }
         },
     )

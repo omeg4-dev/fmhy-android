@@ -10,6 +10,7 @@ import io.github.omeg4dev.fmhy.data.AppIcon
 import io.github.omeg4dev.fmhy.data.Appearance
 import io.github.omeg4dev.fmhy.data.BlockingPrefs
 import io.github.omeg4dev.fmhy.data.BrowserPrefs
+import io.github.omeg4dev.fmhy.data.CheckPrefs
 import io.github.omeg4dev.fmhy.data.ColorSource
 import io.github.omeg4dev.fmhy.data.DataPrefs
 import io.github.omeg4dev.fmhy.data.DataUsagePrefs
@@ -400,6 +401,12 @@ class SettingsViewModel(
         DownloadPrefs()
     )
 
+    val checkPrefs: StateFlow<CheckPrefs> = settingsRepository.checkPrefs.stateIn(
+        viewModelScope,
+        SharingStarted.Eagerly,
+        CheckPrefs()
+    )
+
     val updateController: io.github.omeg4dev.fmhy.update.UpdateController
         get() = container.updateController
 
@@ -412,6 +419,12 @@ class SettingsViewModel(
     fun updateDownloadPrefs(f: (DownloadPrefs) -> DownloadPrefs) {
         viewModelScope.launch {
             settingsRepository.updateDownloadPrefs(f)
+        }
+    }
+
+    fun updateCheckPrefs(f: (CheckPrefs) -> CheckPrefs) {
+        viewModelScope.launch {
+            settingsRepository.updateCheckPrefs(f)
         }
     }
 

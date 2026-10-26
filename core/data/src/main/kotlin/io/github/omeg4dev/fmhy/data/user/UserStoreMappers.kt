@@ -77,6 +77,11 @@ internal fun executeDefaultMigration(conn: SQLiteConnection, fromVersion: Int, t
         """.trimIndent())
         conn.execSQL("CREATE INDEX IF NOT EXISTS downloads_created ON downloads(created_at DESC);")
     }
+    if (fromVersion == 3 && toVersion == 4) {
+        if (!columnExists(conn, "downloads", "check_json")) {
+            conn.execSQL("ALTER TABLE downloads ADD COLUMN check_json TEXT;")
+        }
+    }
 }
 
 internal fun readBookmarksInternal(conn: SQLiteConnection): List<UserBookmark> {

@@ -8,6 +8,8 @@ enum class DownloadStatus(val label: String) {
     RUNNING("Downloading"),
     PAUSED("Paused"),
     FAILED("Failed"),
+    CHECKING("Being checked"),
+    AWAITING_DECISION("Waiting for your decision"),
     FINISHED("Finished");
 
     /** Counts towards "something is going on": the service stays up and the bar ring shows. */
@@ -40,6 +42,8 @@ data class DownloadItem(
     val speedBps: Long? = null,
     /** Transient: seconds left, null when unknown. */
     val etaSeconds: Long? = null,
+    val check: ScanResult? = null,
+    val checking: Boolean = false,
 ) {
     /** 0f..1f, or null when the total size is unknown. */
     val fraction: Float? get() = if (totalBytes > 0) (downloadedBytes.toFloat() / totalBytes).coerceIn(0f, 1f) else null
@@ -74,6 +78,7 @@ fun DownloadItem.toRecord(): DownloadRecord {
         lastModified = lastModified,
         createdAt = createdAt,
         finishedAt = finishedAt,
+        checkJson = check?.toJson(),
     )
 }
 
@@ -107,6 +112,8 @@ fun DownloadRecord.toItem(): DownloadItem {
         finishedAt = finishedAt,
         speedBps = null,
         etaSeconds = null,
+        check = ScanResult.fromJson(checkJson),
+        checking = false,
     )
 }
 
