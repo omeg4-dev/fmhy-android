@@ -151,6 +151,7 @@ class DefaultSettingsRepository(
         private val KEY_BROWSER_FORCE_DARK = booleanPreferencesKey("browser_force_dark")
         private val KEY_BROWSER_DESKTOP_BY_DEFAULT = booleanPreferencesKey("browser_desktop_by_default")
         private val KEY_BROWSER_TEXT_ZOOM_FOLLOWS_APP = booleanPreferencesKey("browser_text_zoom_follows_app")
+        private val KEY_BROWSER_FORCE_ZOOM = booleanPreferencesKey("browser_force_zoom")
         private val KEY_BROWSER_FULLSCREEN_ORIENTATION = stringPreferencesKey("browser_fullscreen_orientation")
         /** Pre-0.5.2 boolean; only read, as the fallback for [KEY_BROWSER_FULLSCREEN_ORIENTATION]. */
         private val KEY_BROWSER_VIDEO_AUTO_ROTATE = booleanPreferencesKey("browser_video_auto_rotate")
@@ -503,6 +504,7 @@ class DefaultSettingsRepository(
             forceDark = prefs[KEY_BROWSER_FORCE_DARK] ?: default.forceDark,
             desktopByDefault = prefs[KEY_BROWSER_DESKTOP_BY_DEFAULT] ?: default.desktopByDefault,
             textZoomFollowsApp = prefs[KEY_BROWSER_TEXT_ZOOM_FOLLOWS_APP] ?: default.textZoomFollowsApp,
+            forceZoom = prefs[KEY_BROWSER_FORCE_ZOOM] ?: default.forceZoom,
             fullscreenOrientation = resolveFullscreenOrientation(
                 prefs[KEY_BROWSER_FULLSCREEN_ORIENTATION],
                 prefs[KEY_BROWSER_VIDEO_AUTO_ROTATE],
@@ -538,6 +540,7 @@ class DefaultSettingsRepository(
         prefs[KEY_BROWSER_FORCE_DARK] = p.forceDark
         prefs[KEY_BROWSER_DESKTOP_BY_DEFAULT] = p.desktopByDefault
         prefs[KEY_BROWSER_TEXT_ZOOM_FOLLOWS_APP] = p.textZoomFollowsApp
+        prefs[KEY_BROWSER_FORCE_ZOOM] = p.forceZoom
         prefs[KEY_BROWSER_FULLSCREEN_ORIENTATION] = p.fullscreenOrientation.name
         prefs[KEY_BROWSER_PICTURE_IN_PICTURE] = p.pictureInPicture
         prefs[KEY_BROWSER_AUTO_PIP] = p.autoPip

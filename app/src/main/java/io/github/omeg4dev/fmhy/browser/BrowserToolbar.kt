@@ -22,6 +22,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -62,6 +63,7 @@ import androidx.compose.material.icons.filled.VideoFile
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -77,6 +79,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -143,6 +146,7 @@ fun BrowserToolbar(
     onFindPrevious: () -> Unit = {},
     onFindClose: () -> Unit = {},
     onToggleDesktop: () -> Unit = {},
+    onSetZoom: (Float) -> Unit = {},
     onSetPlaybackSpeed: (Float) -> Unit = {},
     onToggleBookmark: () -> Unit = {},
     onSelectTab: (Long) -> Unit = {},
@@ -336,6 +340,7 @@ fun BrowserToolbar(
                 showMenuSheet = false
                 onToggleDesktop()
             },
+            onSetZoom = onSetZoom,
             onSetPlaybackSpeed = { speed ->
                 showMenuSheet = false
                 onSetPlaybackSpeed(speed)
@@ -788,6 +793,7 @@ fun BrowserMenuSheet(
     onNewPrivateTab: () -> Unit,
     onFindInPage: () -> Unit,
     onToggleDesktop: () -> Unit,
+    onSetZoom: (Float) -> Unit = {},
     onSetPlaybackSpeed: (Float) -> Unit,
     onCopyLink: () -> Unit,
     onOpenInBrowser: () -> Unit,
@@ -960,6 +966,81 @@ fun BrowserMenuSheet(
                         onToggleDesktop()
                     },
                 )
+            }
+
+            if (hasPage) {
+                val zoomLevel = tab?.zoomLevel ?: 1f
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                        .padding(horizontal = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.ZoomIn,
+                            contentDescription = null,
+                            modifier = Modifier.size(24.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Text(
+                            text = "Zoom",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (ZoomLogic.showReset(zoomLevel)) {
+                            TextButton(
+                                onClick = {
+                                    haptics.tick()
+                                    onSetZoom(1.0f)
+                                },
+                                contentPadding = PaddingValues(horizontal = 8.dp),
+                            ) {
+                                Text(text = "Reset", style = MaterialTheme.typography.labelLarge)
+                            }
+                        }
+                        IconButton(
+                            onClick = {
+                                haptics.tick()
+                                onSetZoom(ZoomLogic.stepDown(zoomLevel))
+                            },
+                            enabled = zoomLevel > ZoomLogic.MIN,
+                            modifier = Modifier.size(36.dp),
+                        ) {
+                            Text(
+                                text = "−",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = if (zoomLevel > ZoomLogic.MIN) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                            )
+                        }
+                        Text(
+                            text = ZoomLogic.label(zoomLevel),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(horizontal = 4.dp),
+                        )
+                        IconButton(
+                            onClick = {
+                                haptics.tick()
+                                onSetZoom(ZoomLogic.stepUp(zoomLevel))
+                            },
+                            enabled = zoomLevel < ZoomLogic.MAX,
+                            modifier = Modifier.size(36.dp),
+                        ) {
+                            Text(
+                                text = "+",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = if (zoomLevel < ZoomLogic.MAX) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                            )
+                        }
+                    }
+                }
             }
 
             if (tab?.hasMedia == true) {

@@ -72,6 +72,7 @@ data class TabState(
     val isLoading: Boolean = false,
     val progress: Float = 0f,
     val desktopSite: Boolean = false,
+    val zoomLevel: Float = 1f,
     val darkPage: Boolean = false,
     val sitePrefs: SitePrefs? = null,
     val rescueState: RescueState? = null,

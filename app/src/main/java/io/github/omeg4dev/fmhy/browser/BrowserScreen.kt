@@ -8,6 +8,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.ViewConfiguration
 import android.view.ViewGroup
@@ -20,6 +21,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
@@ -35,6 +37,7 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.windowInsetsTopHeight
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.SentimentDissatisfied
 import androidx.compose.material3.AlertDialog
@@ -44,6 +47,7 @@ import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -96,7 +100,6 @@ import io.github.omeg4dev.fmhy.ui.common.LocalBookmarks
 import io.github.omeg4dev.fmhy.ui.common.Motion
 import io.github.omeg4dev.fmhy.ui.common.SavedInfo
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
-import androidx.compose.runtime.snapshotFlow
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -257,7 +260,9 @@ fun BrowserScreen(
         BarScrollTracker(hideThresholdPx = with(density) { 48.dp.toPx() }, showThresholdPx = with(density) { 32.dp.toPx() })
     }
     val isTopBar = browserPrefs.toolbarPosition == ToolbarPosition.TOP
+    var barTargetHidden by remember { mutableStateOf(false) }
     val applyBars: () -> Unit = {
+        barTargetHidden = bars.hidden
         val hiddenValue = if (browserPrefs.toolbarPosition == ToolbarPosition.TOP) -totalBarHeightPx else totalBarHeightPx
         val target = if (bars.hidden) hiddenValue else 0f
         if (toolbarTranslation.targetValue != target) {
@@ -276,12 +281,14 @@ fun BrowserScreen(
     val navKey = currentTab?.url?.substringBefore('#')
     LaunchedEffect(shouldForceToolbarShown, navKey) {
         bars.hidden = false
+        barTargetHidden = false
         barTracker.reset()
         applyBarsState()
     }
     // Toolbar position changed: reset to shown.
     LaunchedEffect(isTopBar) {
         bars.hidden = false
+        barTargetHidden = false
         snapJob?.cancel()
         toolbarTranslation.snapTo(0f)
     }
@@ -480,17 +487,44 @@ fun BrowserScreen(
                         modifier = Modifier.fillMaxSize(),
                     ) {
                         if (webView != null) {
-                            // The page moves with the top bar (View.translationY, no relayout) so the
-                            // bar never covers the top of the page; a bottom bar simply overlays it.
-                            LaunchedEffect(webView, browserPrefs.toolbarPosition) {
+                            val tyHolder = remember(webView) { TyHolder(webView.translationY) }
+                            var initializedForWebView by remember(webView, browserPrefs.toolbarPosition) { mutableStateOf(false) }
+
+                            // BUG-15: The WebView translation changes only at the start of a bar animation (once per switch),
+                            // never per frame, compensating scroll in the same frame so content stays fixed on screen.
+                            val targetHidden = barTargetHidden || (isTopBar && toolbarTranslation.targetValue < 0f)
+                            LaunchedEffect(webView, browserPrefs.toolbarPosition, targetHidden, totalBarHeightPx) {
                                 webView.setPadding(0, 0, 0, 0)
-                                snapshotFlow { totalBarHeightPx + toolbarTranslation.value }.collect { visible ->
-                                    val ty = if (browserPrefs.toolbarPosition == ToolbarPosition.TOP) visible.coerceAtLeast(0f) else 0f
-                                    if (webView.translationY != ty) {
-                                        barsLog("webView.translationY=$ty pointerDown=${barTracker.pointerDown}")
-                                        webView.translationY = ty
+                                if (browserPrefs.toolbarPosition != ToolbarPosition.TOP) {
+                                    if (webView.translationY != 0f) {
+                                        barsLog("webView.translationY=0.0 pointerDown=${barTracker.pointerDown}")
+                                        webView.translationY = 0f
+                                        tyHolder.lastTy = 0f
                                     }
+                                    initializedForWebView = true
+                                    return@LaunchedEffect
                                 }
+
+                                if (totalBarHeightPx <= 0f) {
+                                    return@LaunchedEffect
+                                }
+
+                                val targetTy = pageOffsetFor(targetHidden, totalBarHeightPx)
+                                if (!initializedForWebView) {
+                                    // On first composition / WebView change / toolbar position change:
+                                    // set translationY directly to the correct resting value without scroll compensation.
+                                    initializedForWebView = true
+                                    if (webView.translationY != targetTy) {
+                                        barsLog("webView.translationY=$targetTy pointerDown=${barTracker.pointerDown}")
+                                        webView.translationY = targetTy
+                                        tyHolder.lastTy = targetTy
+                                    }
+                                    return@LaunchedEffect
+                                }
+
+                                tyHolder.pendingTy = targetTy
+                                // A finger is down: the switch rides on the next MOVE event (see the touch listener).
+                                if (!barTracker.pointerDown) applyPageOffsetAtRest(webView, tyHolder, ::barsLog)
                             }
 
                             DisposableEffect(webView) {
@@ -503,6 +537,7 @@ fun BrowserScreen(
                                 // Idle: the glide after a lift ended; make sure the bar rests fully shown/hidden.
                                 val idle = Runnable {
                                     barTracker.onScrollIdle()
+                                    applyPageOffsetAtRest(webView, tyHolder, ::barsLog)
                                     val hiddenValue = if (isTopBar) -totalBarHeightPx else totalBarHeightPx
                                     val target = if (bars.hidden) hiddenValue else 0f
                                     if (!toolbarTranslation.isRunning && toolbarTranslation.value != target) {
@@ -512,13 +547,14 @@ fun BrowserScreen(
                                         snapJob = scope.launch { toolbarTranslation.animateTo(target, Motion.standard()) }
                                     }
                                 }
-                                var lastTy = webView.translationY
+                                tyHolder.lastTy = webView.translationY
                                 webView.setOnScrollChangeListener { _, _, scrollY, _, oldScrollY ->
                                     // Screen-space delta: moving the WebView with a top bar shifts the finger's
                                     // position in the page and WebView scrolls by the same amount; that is no scroll.
                                     val ty = webView.translationY
-                                    val dy = (scrollY - oldScrollY) - (ty - lastTy).roundToInt()
-                                    lastTy = ty
+                                    val dy = (scrollY - oldScrollY) - (ty - tyHolder.lastTy).roundToInt() - tyHolder.pendingScroll
+                                    tyHolder.pendingScroll = 0
+                                    tyHolder.lastTy = ty
                                     val isAtTop = !webView.canScrollVertically(-1) || scrollY <= 0
 
                                     if (isAtTop) {
@@ -530,21 +566,73 @@ fun BrowserScreen(
                                     } else if (!isFindMode && !isEditMode && !loadingState && totalBarHeightPx > 0f) {
                                         val hide = barTracker.onScroll(dy)
                                         if (hide != null && hide != bars.hidden) {
-                                            bars.hidden = hide
-                                            applyBarsState()
+                                            if (hide && isTopBar && !canHideTopBar(webView.scrollY, totalBarHeightPx)) {
+                                                // Only allow hiding when webView.scrollY >= H (otherwise the compensation would clamp and the content would jump):
+                                                // if it is smaller, ignore the hide request (leave bars.hidden = false).
+                                            } else {
+                                                bars.hidden = hide
+                                                applyBarsState()
+                                            }
                                         }
                                     }
                                     webView.removeCallbacks(idle)
                                     if (!barTracker.pointerDown) webView.postDelayed(idle, 200L)
                                 }
 
-                                // Touch listener for Pull-to-refresh at top of WebView
+                                // Touch listener for Pull-to-refresh at top of WebView and Pinch/Double-tap zoom
                                 var startY = 0f
                                 var isPulling = false
                                 var hasCrossedThreshold = false
                                 val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
 
+                                val gestureDetector = GestureDetector(
+                                    context,
+                                    object : GestureDetector.SimpleOnGestureListener() {
+                                        override fun onDoubleTap(e: MotionEvent): Boolean {
+                                            val record = currentTab?.let { tabManager.getTabRecord(it.id) }
+                                            if (record != null) {
+                                                if (record.hasMedia && record.isVideoPlaying) {
+                                                    return false
+                                                }
+                                                if (customView != null) {
+                                                    return false
+                                                }
+                                                val targetLevel = ZoomLogic.doubleTapTarget(record.zoomLevel)
+                                                animateZoom(
+                                                    webView = webView,
+                                                    record = record,
+                                                    targetLevel = targetLevel,
+                                                    tapX = e.x,
+                                                    tapY = e.y,
+                                                    onFinish = {
+                                                        tabManager.notifyTabChanged(record.id)
+                                                    }
+                                                )
+                                            }
+                                            return false
+                                        }
+                                    }
+                                )
+
                                 webView.setOnTouchListener { _, event ->
+                                    if (event.actionMasked == MotionEvent.ACTION_MOVE) {
+                                        val pending = tyHolder.pendingTy
+                                        if (pending != null && pending != webView.translationY) {
+                                            // Move the page and tell the WebView the finger "moved" by the same amount in
+                                            // this very event: it scrolls the content back in the same frame, no flick.
+                                            val old = webView.translationY
+                                            barsLog("webView.translationY=$pending (drag)")
+                                            webView.translationY = pending
+                                            tyHolder.lastTy = pending
+                                            tyHolder.pendingScroll += (pending - old).roundToInt()
+                                            event.offsetLocation(0f, old - pending)
+                                        }
+                                        tyHolder.pendingTy = null
+                                    }
+                                    gestureDetector.onTouchEvent(event)
+                                    if (event.actionMasked == MotionEvent.ACTION_POINTER_DOWN || event.pointerCount >= 2) {
+                                        barTracker.setMultiTouch(true)
+                                    }
                                     when (event.actionMasked) {
                                         MotionEvent.ACTION_DOWN -> {
                                             currentTab?.let { tabManager.getTabRecord(it.id)?.lastTouchAt = System.currentTimeMillis() }
@@ -555,32 +643,57 @@ fun BrowserScreen(
                                             hasCrossedThreshold = false
                                             false
                                         }
+                                        MotionEvent.ACTION_POINTER_DOWN -> {
+                                            barTracker.setMultiTouch(true)
+                                            if (isPulling) {
+                                                isPulling = false
+                                                scope.launch { pullRefreshState.animateToHidden() }
+                                            }
+                                            false
+                                        }
+                                        MotionEvent.ACTION_POINTER_UP -> {
+                                            if (event.pointerCount <= 2) {
+                                                barTracker.setMultiTouch(false)
+                                            }
+                                            false
+                                        }
                                         MotionEvent.ACTION_MOVE -> {
-                                            val dy = event.rawY - startY
-                                            val canScrollUp = webView.canScrollVertically(-1)
-                                            if (dy > touchSlop && !canScrollUp && webView.scrollY <= 0) {
-                                                isPulling = true
-                                                val thresholdPx = with(density) { 80.dp.toPx() }
-                                                val fraction = (dy - touchSlop) / thresholdPx
-                                                scope.launch {
-                                                    pullRefreshState.snapTo(fraction.coerceIn(0f, 2f))
-                                                }
-                                                if (fraction >= 1f && !hasCrossedThreshold) {
-                                                    hasCrossedThreshold = true
-                                                    haptics.tick()
-                                                } else if (fraction < 1f && hasCrossedThreshold) {
-                                                    hasCrossedThreshold = false
-                                                }
-                                                true
-                                            } else {
+                                            val ignoresBar = ZoomLogic.ignoresBar(event.pointerCount)
+                                            if (ignoresBar) {
+                                                barTracker.setMultiTouch(true)
                                                 if (isPulling) {
                                                     isPulling = false
                                                     scope.launch { pullRefreshState.animateToHidden() }
                                                 }
                                                 false
+                                            } else {
+                                                val dy = event.rawY - startY
+                                                val canScrollUp = webView.canScrollVertically(-1)
+                                                if (dy > touchSlop && !canScrollUp && webView.scrollY <= 0) {
+                                                    isPulling = true
+                                                    val thresholdPx = with(density) { 80.dp.toPx() }
+                                                    val fraction = (dy - touchSlop) / thresholdPx
+                                                    scope.launch {
+                                                        pullRefreshState.snapTo(fraction.coerceIn(0f, 2f))
+                                                    }
+                                                    if (fraction >= 1f && !hasCrossedThreshold) {
+                                                        hasCrossedThreshold = true
+                                                        haptics.tick()
+                                                    } else if (fraction < 1f && hasCrossedThreshold) {
+                                                        hasCrossedThreshold = false
+                                                    }
+                                                    true
+                                                } else {
+                                                    if (isPulling) {
+                                                        isPulling = false
+                                                        scope.launch { pullRefreshState.animateToHidden() }
+                                                    }
+                                                    false
+                                                }
                                             }
                                         }
                                         MotionEvent.ACTION_UP -> {
+                                            barTracker.setMultiTouch(false)
                                             barTracker.onPointerUp()
                                             webView.removeCallbacks(idle)
                                             webView.postDelayed(idle, 200L)
@@ -602,6 +715,7 @@ fun BrowserScreen(
                                             }
                                         }
                                         MotionEvent.ACTION_CANCEL -> {
+                                            barTracker.setMultiTouch(false)
                                             barTracker.onPointerUp()
                                             webView.removeCallbacks(idle)
                                             webView.postDelayed(idle, 200L)
@@ -701,6 +815,22 @@ fun BrowserScreen(
                                 },
                                 onToggleDesktop = {
                                     currentTab?.let { tabManager.toggleDesktopSite(it.id) }
+                                },
+                                onSetZoom = { targetLevel ->
+                                    currentTab?.let { tab ->
+                                        val record = tabManager.getTabRecord(tab.id)
+                                        val wb = record?.webView
+                                        if (record != null && wb != null) {
+                                            animateZoom(
+                                                webView = wb,
+                                                record = record,
+                                                targetLevel = targetLevel,
+                                                onFinish = {
+                                                    tabManager.notifyTabChanged(tab.id)
+                                                }
+                                            )
+                                        }
+                                    }
                                 },
                                 onSetPlaybackSpeed = { speed ->
                                     currentTab?.let { tabManager.setPlaybackSpeed(it.id, speed) }
@@ -859,6 +989,75 @@ fun BrowserScreen(
                             )
                         },
                     )
+                }
+
+                // Zoom level pill indicator
+                var showZoomPill by remember { mutableStateOf(false) }
+                var lastSeenTabId by remember { mutableStateOf<Long?>(null) }
+                var lastSeenZoomLevel by remember { mutableStateOf(1f) }
+
+                val currentTabId = currentTab?.id
+                val currentZoomLevel = currentTab?.zoomLevel ?: 1f
+
+                LaunchedEffect(currentTabId, currentZoomLevel) {
+                    if (currentTabId == null) {
+                        showZoomPill = false
+                        return@LaunchedEffect
+                    }
+                    if (currentTabId != lastSeenTabId) {
+                        lastSeenTabId = currentTabId
+                        lastSeenZoomLevel = currentZoomLevel
+                        showZoomPill = false
+                    } else if (kotlin.math.abs(currentZoomLevel - lastSeenZoomLevel) > 0.005f) {
+                        lastSeenZoomLevel = currentZoomLevel
+                        showZoomPill = true
+                        delay(1500L)
+                        showZoomPill = false
+                    }
+                }
+
+                AnimatedVisibility(
+                    visible = showZoomPill && currentTab != null && !isBlankTab && customView == null,
+                    enter = fadeIn(Motion.enter()),
+                    exit = fadeOut(Motion.exit()),
+                    modifier = Modifier
+                        .align(if (isTopBar) Alignment.TopCenter else Alignment.BottomCenter)
+                        .padding(
+                            top = if (isTopBar) barHeightDp + 72.dp else 0.dp,
+                            bottom = if (isTopBar) 0.dp else barHeightDp + 72.dp,
+                        )
+                        .zIndex(4f),
+                ) {
+                    val tab = currentTab ?: return@AnimatedVisibility
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        tonalElevation = 3.dp,
+                        shadowElevation = 3.dp,
+                        modifier = Modifier
+                            .clickable {
+                                showZoomPill = false
+                                val record = tabManager.getTabRecord(tab.id)
+                                val wb = record?.webView
+                                if (record != null && wb != null && record.zoomLevel != 1f) {
+                                    animateZoom(
+                                        webView = wb,
+                                        record = record,
+                                        targetLevel = 1.0f,
+                                        onFinish = {
+                                            tabManager.notifyTabChanged(tab.id)
+                                        }
+                                    )
+                                }
+                            },
+                    ) {
+                        Text(
+                            text = ZoomLogic.label(tab.zoomLevel),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        )
+                    }
                 }
 
                 // Unsafe / potentially unsafe interstitial
@@ -1203,6 +1402,80 @@ fun BrowserScreen(
     }
 }
 
+/** [pendingScroll] is the scrollBy this screen applied itself; the scroll listener must not count it as a user scroll. */
+private class TyHolder(var lastTy: Float, var pendingScroll: Int = 0, var pendingTy: Float? = null)
+
+/** No finger down: switch the page offset and keep the content in place with one scrollBy. */
+private fun applyPageOffsetAtRest(webView: WebView, holder: TyHolder, log: (String) -> Unit) {
+    val target = holder.pendingTy ?: return
+    holder.pendingTy = null
+    val old = webView.translationY
+    if (old == target) return
+    val compensation = compensationFor(oldTy = old, newTy = target)
+    log("webView.translationY=$target (rest)")
+    webView.translationY = target
+    holder.lastTy = target
+    if (compensation != 0) {
+        holder.pendingScroll += compensation
+        webView.scrollBy(0, compensation)
+    }
+}
+
 private fun barsLog(msg: String) {
     if (io.github.omeg4dev.fmhy.BuildConfig.DEBUG) android.util.Log.d("FmhyBars", msg)
+}
+
+private fun animateZoom(
+    webView: WebView,
+    record: TabRecord,
+    targetLevel: Float,
+    tapX: Float? = null,
+    tapY: Float? = null,
+    steps: Int = 6,
+    durationMs: Long = 180L,
+    onFinish: () -> Unit = {}
+) {
+    val currentLevel = ZoomLogic.clamp(record.zoomLevel)
+    val totalFactor = ZoomMath.zoomFactor(currentLevel, targetLevel)
+    if (kotlin.math.abs(totalFactor - 1f) < 0.005f) return
+
+    val factorPerStep = ZoomMath.stepFactor(totalFactor, steps)
+    val stepDelayMs = (durationMs / steps).coerceAtLeast(16L)
+    record.isProgrammaticZoom = true
+
+    var step = 0
+    val runnable = object : Runnable {
+        override fun run() {
+            if (record.webView !== webView) {
+                record.isProgrammaticZoom = false
+                return
+            }
+            if (step < steps) {
+                val scrollBeforeX = webView.scrollX
+                val scrollBeforeY = webView.scrollY
+                webView.zoomBy(factorPerStep)
+                if (tapX != null && tapY != null) {
+                    val targetX = ZoomMath.targetScroll(scrollBeforeX, tapX, factorPerStep)
+                    val targetY = ZoomMath.targetScroll(scrollBeforeY, tapY, factorPerStep)
+                    val dx = ZoomMath.scrollDelta(targetX, webView.scrollX)
+                    val dy = ZoomMath.scrollDelta(targetY, webView.scrollY)
+                    if (dx != 0 || dy != 0) {
+                        webView.scrollBy(dx, dy)
+                    }
+                }
+                step++
+                if (step < steps) {
+                    webView.postDelayed(this, stepDelayMs)
+                } else {
+                    record.isProgrammaticZoom = false
+                    record.zoomLevel = ZoomLogic.clamp(targetLevel)
+                    onFinish()
+                }
+            } else {
+                record.isProgrammaticZoom = false
+                onFinish()
+            }
+        }
+    }
+    webView.post(runnable)
 }

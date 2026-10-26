@@ -29,6 +29,7 @@ class BrowserWebViewFactory(
     private val browserHooks: BrowserHooks,
     private val bridgeName: String,
 ) {
+    private val forceZoomHandlers = java.util.Collections.synchronizedMap(java.util.WeakHashMap<WebView, androidx.webkit.ScriptHandler>())
     @Suppress("DEPRECATION")
     fun createWebView(
         context: Context,
@@ -62,6 +63,12 @@ class BrowserWebViewFactory(
         // Windows
         settings.setSupportMultipleWindows(true)
         settings.javaScriptCanOpenWindowsAutomatically = true
+
+        // Zoom controls & layout
+        settings.setSupportZoom(true)
+        settings.builtInZoomControls = true
+        settings.displayZoomControls = false
+        settings.layoutAlgorithm = WebSettings.LayoutAlgorithm.NORMAL
 
         // Text zoom
         if (browserPrefs.textZoomFollowsApp) {
@@ -127,6 +134,12 @@ class BrowserWebViewFactory(
         if (hasDocumentStartScript) {
             WebViewCompat.addDocumentStartJavaScript(webView, cosmeticsJs, setOf("*"))
             WebViewCompat.addDocumentStartJavaScript(webView, videoJs, setOf("*"))
+            if (browserPrefs.forceZoom) {
+                try {
+                    val handle = WebViewCompat.addDocumentStartJavaScript(webView, FORCE_ZOOM_SCRIPT, setOf("*"))
+                    forceZoomHandlers[webView] = handle
+                } catch (_: Exception) {}
+            }
         }
 
         // Setup Clients
@@ -135,6 +148,9 @@ class BrowserWebViewFactory(
                 val url = request.url.toString()
                 if (request.isForMainFrame) {
                     record.sourceUrl = url
+                    record.isBackForwardNavigation = false
+                    record.zoomLevel = 1f
+                    record.zoomBaseScale = 0f
                     if (BrowsePolicy.shouldBlock(
                             url = url,
                             browseWifiOnly = tabManager.currentDataUsagePrefs.browseWifiOnly,
@@ -156,6 +172,10 @@ class BrowserWebViewFactory(
                 record.sourceUrl = url
                 if (!record.showsWifiOnlyPage && !url.startsWith("data:")) {
                     record.url = url
+                }
+                if (!record.isBackForwardNavigation) {
+                    record.zoomLevel = 1f
+                    record.zoomBaseScale = 0f
                 }
                 record.hasStartedFirstLoad = true
                 // Only the displayed page's icon: drop the old one now, the new one comes with the page.
@@ -189,6 +209,7 @@ class BrowserWebViewFactory(
                 if (isReload || url.substringBefore('#') == record.url.substringBefore('#')) return
                 if (hostOf(url) != hostOf(record.url)) record.favicon = null
                 record.url = url
+                record.zoomBaseScale = 0f
                 tabManager.updateTabUrlAndTitle(record.id, url, view.title ?: record.title)
                 (browserHooks as? DefaultBrowserHooks)?.onPageStarted(record, url)
             }
@@ -200,11 +221,89 @@ class BrowserWebViewFactory(
                 tabManager.notifyTabChanged(record.id)
                 tabManager.recordHistory(record.id, url, record.title)
                 (browserHooks as? DefaultBrowserHooks)?.onMainFramePageFinished(record, view, url)
+
+                if (record.zoomLevel == 1f || record.zoomBaseScale <= 0f) {
+                    @Suppress("DEPRECATION")
+                    val s = view.scale
+                    if (s > 0f) record.zoomBaseScale = s
+                }
+                if (record.isBackForwardNavigation && record.zoomLevel != 1f) {
+                    val restoreAction = {
+                        @Suppress("DEPRECATION")
+                        val currentScale = view.scale
+                        val expectedScale = record.zoomBaseScale * record.zoomLevel
+                        if (currentScale > 0f && expectedScale > 0f && kotlin.math.abs(currentScale - expectedScale) > 0.01f) {
+                            val factor = expectedScale / currentScale
+                            record.isProgrammaticZoom = true
+                            view.zoomBy(factor)
+                            view.postDelayed({ record.isProgrammaticZoom = false }, 100L)
+                        }
+                        record.isBackForwardNavigation = false
+                    }
+                    try {
+                        view.postVisualStateCallback(0L, object : WebView.VisualStateCallback() {
+                            override fun onComplete(requestId: Long) {
+                                restoreAction()
+                            }
+                        })
+                    } catch (_: Exception) {
+                        view.post(restoreAction)
+                    }
+                }
             }
 
             override fun onPageCommitVisible(view: WebView, url: String) {
                 super.onPageCommitVisible(view, url)
+                if (record.zoomLevel == 1f || record.zoomBaseScale <= 0f) {
+                    @Suppress("DEPRECATION")
+                    val s = view.scale
+                    if (s > 0f) record.zoomBaseScale = s
+                }
                 (browserHooks as? DefaultBrowserHooks)?.onPageCommitVisible(record, url)
+            }
+
+            override fun onScaleChanged(view: WebView, oldScale: Float, newScale: Float) {
+                super.onScaleChanged(view, oldScale, newScale)
+                if (record.isProgrammaticZoom) return
+                if (record.zoomBaseScale <= 0f) {
+                    record.zoomBaseScale = if (oldScale > 0f) oldScale else newScale
+                }
+                val baseScale = if (record.zoomBaseScale > 0f) record.zoomBaseScale else 1f
+                val level = newScale / baseScale
+                record.zoomLevel = ZoomLogic.clamp(level)
+                tabManager.notifyTabChanged(record.id)
+
+                if (ZoomMath.isZoomOutBelowNormal(level) || ZoomMath.isZoomInAboveMax(level)) {
+                    val softTarget = ZoomLogic.softLimit(level)
+                    val target = ZoomLogic.clamp(softTarget)
+                    val steps = 4
+                    val totalFactor = target / level
+                    val factorPerStep = ZoomMath.stepFactor(totalFactor, steps)
+                    record.isProgrammaticZoom = true
+                    var step = 0
+                    val settleRunnable = object : Runnable {
+                        override fun run() {
+                            if (record.webView !== view) {
+                                record.isProgrammaticZoom = false
+                                return
+                            }
+                            if (step < steps) {
+                                view.zoomBy(factorPerStep)
+                                step++
+                                if (step < steps) {
+                                    view.postDelayed(this, 30L)
+                                } else {
+                                    record.isProgrammaticZoom = false
+                                    record.zoomLevel = target
+                                    tabManager.notifyTabChanged(record.id)
+                                }
+                            } else {
+                                record.isProgrammaticZoom = false
+                            }
+                        }
+                    }
+                    view.post(settleRunnable)
+                }
             }
 
             override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
@@ -331,6 +430,78 @@ class BrowserWebViewFactory(
             settings.useWideViewPort = false
             settings.loadWithOverviewMode = false
         }
+
+        // Zoom controls & layout
+        settings.setSupportZoom(true)
+        settings.builtInZoomControls = true
+        settings.displayZoomControls = false
+        settings.layoutAlgorithm = WebSettings.LayoutAlgorithm.NORMAL
+
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+            if (browserPrefs.forceZoom) {
+                if (!forceZoomHandlers.containsKey(webView)) {
+                    try {
+                        val handle = WebViewCompat.addDocumentStartJavaScript(webView, FORCE_ZOOM_SCRIPT, setOf("*"))
+                        forceZoomHandlers[webView] = handle
+                    } catch (_: Exception) {}
+                }
+            } else {
+                forceZoomHandlers.remove(webView)?.remove()
+            }
+        }
+    }
+
+    companion object {
+        const val FORCE_ZOOM_SCRIPT: String = """
+            (function() {
+                function rewriteViewport() {
+                    var metas = document.querySelectorAll('meta[name="viewport"]');
+                    for (var i = 0; i < metas.length; i++) {
+                        var meta = metas[i];
+                        var content = meta.getAttribute('content');
+                        if (!content) continue;
+                        var parts = content.split(',');
+                        var newParts = [];
+                        for (var j = 0; j < parts.length; j++) {
+                            var p = parts[j].trim();
+                            var lower = p.replace(/\s+/g, '').toLowerCase();
+                            if (lower.indexOf('user-scalable') === 0 || lower.indexOf('maximum-scale') === 0 || lower.indexOf('minimum-scale') === 0) {
+                                continue;
+                            }
+                            if (p.length > 0) newParts.push(p);
+                        }
+                        newParts.push('user-scalable=yes');
+                        newParts.push('maximum-scale=5');
+                        newParts.push('minimum-scale=1');
+                        var newContent = newParts.join(', ');
+                        if (content !== newContent) {
+                            meta.setAttribute('content', newContent);
+                        }
+                    }
+                }
+                var observing = false;
+                function tryObserve() {
+                    rewriteViewport();
+                    if (!observing && window.MutationObserver && document.documentElement) {
+                        observing = true;
+                        var observer = new MutationObserver(function() {
+                            rewriteViewport();
+                        });
+                        observer.observe(document.documentElement, {
+                            childList: true,
+                            subtree: true,
+                            attributes: true,
+                            attributeFilter: ['content']
+                        });
+                    }
+                }
+                tryObserve();
+                if (!observing) {
+                    document.addEventListener('readystatechange', tryObserve);
+                    window.addEventListener('DOMContentLoaded', tryObserve);
+                }
+            })();
+        """
     }
 }
 

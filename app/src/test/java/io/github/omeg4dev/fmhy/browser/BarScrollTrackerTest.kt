@@ -72,4 +72,19 @@ class BarScrollTrackerTest {
         repeat(5) { assertNull(tr.onScroll(-10)) }
         assertEquals(false, tr.onScroll(-10))
     }
+
+    @Test fun pageJumpAgainstTheDragIsIgnored() {
+        val tr = t()
+        repeat(3) { assertNull(tr.onScroll(19)) }
+        assertNull(tr.onScroll(-108))
+        repeat(2) { assertNull(tr.onScroll(19)) }
+        assertEquals(true, tr.onScroll(19).let { it ?: tr.onScroll(19) ?: tr.onScroll(19) })
+    }
+
+    @Test fun smallReverseStepStillCounts() {
+        val tr = t()
+        tr.onScroll(19)
+        repeat(3) { tr.onScroll(-19) }
+        assertEquals(false, tr.onScroll(-19))
+    }
 }

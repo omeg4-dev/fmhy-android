@@ -99,6 +99,8 @@ data class BrowserPrefs(
     val forceDark: Boolean = true,
     val desktopByDefault: Boolean = false,
     val textZoomFollowsApp: Boolean = true,
+    /** Zoom pages even when they ask to block it. */
+    val forceZoom: Boolean = true,
     // Video
     val fullscreenOrientation: FullscreenOrientation = FullscreenOrientation.AUTO,
     val pictureInPicture: Boolean = true,

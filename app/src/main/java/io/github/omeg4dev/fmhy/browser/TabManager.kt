@@ -930,6 +930,7 @@ class TabManager(
     fun goBack(tabId: Long): Boolean {
         val record = getTabRecord(tabId) ?: return false
         if (record.webView?.canGoBack() == true) {
+            record.isBackForwardNavigation = true
             record.webView?.goBack()
             return true
         }
@@ -939,6 +940,7 @@ class TabManager(
     fun goForward(tabId: Long): Boolean {
         val record = getTabRecord(tabId) ?: return false
         if (record.webView?.canGoForward() == true) {
+            record.isBackForwardNavigation = true
             record.webView?.goForward()
             return true
         }
@@ -947,6 +949,9 @@ class TabManager(
 
     fun loadUrl(tabId: Long, url: String, entryId: String? = null) {
         val record = getTabRecord(tabId) ?: return
+        record.isBackForwardNavigation = false
+        record.zoomLevel = 1f
+        record.zoomBaseScale = 0f
         if (entryId != null) {
             record.entryId = entryId
         }

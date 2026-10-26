@@ -254,6 +254,14 @@ fun BrowserPage(
                                     viewModel.updateBrowser { it.copy(textZoomFollowsApp = checked) }
                                 },
                             )
+                            SettingsDivider()
+                            SwitchRow(
+                                title = "Allow zoom on every site",
+                                checked = browserPrefs.forceZoom,
+                                onChange = { checked ->
+                                    viewModel.updateBrowser { it.copy(forceZoom = checked) }
+                                },
+                            )
                         }
 
                         // More / NavRows
