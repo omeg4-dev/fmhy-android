@@ -11,19 +11,17 @@ W, H = 1080, 1920
 BOLD = "/usr/share/fonts/TTF/Roboto-Bold.ttf"
 REG = "/usr/share/fonts/TTF/Roboto-Regular.ttf"
 
-# Logo palette: cyan, violet, magenta, amber
-GLOWS = [(0, 229, 255), (124, 92, 255), (255, 62, 201), (255, 193, 77)]
+# One glow per accent palette used in the shots (teal, pink, green, amber, blue, orange)
+GLOWS = [(0, 191, 165), (255, 64, 129), (76, 175, 80), (255, 179, 0), (41, 121, 255), (255, 87, 34), (124, 92, 255)]
 
 FRAMES = [
     # (screenshot, headline, subline, glow colours, fraction of the screen skipped from the top)
-    ("raw-welcome.png", "Your FMHY,\nas an app", "21,000+ free sites · no account · no ads", (1, 0), 0),
-    ("raw-search.png", "Find anything\nin a second", "Offline, typo-proof search with smart filters", (0, 1), 0),
-    ("raw-section.png", "The best sites,\nstarred", "Every section, with FMHY's own top picks", (2, 3), 0),
-    ("raw-browser.png", "Browse without\nthe junk", "Ad blocking + a live FMHY check on every page", (1, 2), 0),
-    ("raw-check.png", "Check a link\nbefore you click", "See if a site is on FMHY, starred, or a fake", (3, 1), 0),
-    ("raw-hub.png", "Never miss\nwhat changed", "Every new, starred and removed site, day by day", (0, 2), 0),
-    ("raw-menu.png", "Your browser,\none tap away", "Tabs and private tabs, right in the bottom bar", (2, 0), 0.42),
-    ("raw-look.png", "Make it\nyours", "Light, dark, Material You or any accent", (3, 0), 0.24),
+    ("raw-welcome.png", "The whole wiki,\nin your pocket", "21,000+ free sites · no account · no ads", (0, 6), 0),
+    ("raw-search.png", "Find anything\nin a second", "Offline, typo-proof search with smart filters", (1, 6), 0),
+    ("raw-section.png", "The best sites,\nstarred", "Every section, in FMHY's own order", (3, 5), 0),
+    ("raw-check.png", "Check a link\nbefore you click", "See if a site is on FMHY, starred, or a fake", (4, 0), 0),
+    ("raw-hub.png", "Never miss\nwhat changed", "Every new, starred and removed site", (2, 4), 0),
+    ("raw-look.png", "Make it\nyours", "Light, dark, Material You and ten accents", (5, 1), 0),
 ]
 
 

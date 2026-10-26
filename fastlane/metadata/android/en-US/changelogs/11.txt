@@ -1,0 +1,6 @@
+- Built-in download manager with link and file checks (VirusTotal, Hybrid Analysis)
+- In-app updates, Wi-Fi only options, problem and crash reports
+- Browser: smoother scrolling and zoom, link hold menu, tab groups, back to FMHY
+- New accent palettes, a proper light mode, website style and bottom bar style
+- Swipe between screens, pins everywhere, "Since last visit" in What's new
+- Settings re-sorted with search; many fixes for sites that never loaded

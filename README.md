@@ -22,11 +22,23 @@ in a native app that keeps up with every change for you.
 </div>
 
 <p align="center">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" width="200" alt="Your FMHY, as an app">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" width="200" alt="Find anything in a second">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/4.png" width="200" alt="Browse without the junk">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/5.png" width="200" alt="Check a link before you click">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" width="160" alt="The whole wiki, in your pocket">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" width="160" alt="Find anything in a second">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" width="160" alt="The best sites, starred">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/4.png" width="160" alt="Check a link before you click">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/5.png" width="160" alt="Never miss what changed">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/6.png" width="160" alt="Make it yours">
 </p>
+
+## New in 1.0.0
+
+- **Built-in download manager**: files from the in-app browser download inside the app, with progress, pause and resume, a "download this video" button, and optional VirusTotal / Hybrid Analysis checks (your own free key, off by default).
+- **In-app updates**: the app tells you about a new release and updates with one tap. Nothing installs without you.
+- **Wi-Fi only options** for downloads, browsing and updates, and a **Report a problem** button that never sends anything by itself.
+- **A calmer, faster browser**: smoother scrolling and pinch zoom, a hold menu on links, tab groups, a back-to-FMHY button and fixes for sites that never loaded.
+- **Ten vibrant accent palettes**, a proper light mode, a choice of bottom bar styles and swiping between screens.
+- **Pin sections to Home** from anywhere you can follow them, and **"Since last visit"** in What's new.
+- Settings re-sorted, with a search.
 
 ---
 
@@ -74,12 +86,6 @@ in a native app that keeps up with every change for you.
 - One row per line of the wiki: tap for every site on that line with its mirrors and extra links, hold to open it.
 - The beginner's guide, notes, FAQ and FMHY's posts, readable in the app.
 
-<p align="center">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" width="200" alt="The best sites, starred">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/6.png" width="200" alt="Never miss what changed">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/7.png" width="200" alt="Your browser, one tap away">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/8.png" width="200" alt="Make it yours">
-</p>
 
 ## Download
 
