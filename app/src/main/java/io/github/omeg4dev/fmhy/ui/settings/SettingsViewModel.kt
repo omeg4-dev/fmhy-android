@@ -12,6 +12,7 @@ import io.github.omeg4dev.fmhy.data.BlockingPrefs
 import io.github.omeg4dev.fmhy.data.BrowserPrefs
 import io.github.omeg4dev.fmhy.data.ColorSource
 import io.github.omeg4dev.fmhy.data.DataPrefs
+import io.github.omeg4dev.fmhy.data.DataUsagePrefs
 import io.github.omeg4dev.fmhy.data.DatasetStore
 import io.github.omeg4dev.fmhy.data.HomePrefs
 import io.github.omeg4dev.fmhy.data.NotificationPrefs
@@ -23,6 +24,8 @@ import io.github.omeg4dev.fmhy.data.SettingsRepository
 import io.github.omeg4dev.fmhy.data.ThemeMode
 import io.github.omeg4dev.fmhy.data.sync.SyncResult
 import io.github.omeg4dev.fmhy.data.sync.SyncState
+import io.github.omeg4dev.fmhy.work.NetworkKind
+import io.github.omeg4dev.fmhy.work.NetworkPolicy
 import io.github.omeg4dev.fmhy.data.model.Entry
 import io.github.omeg4dev.fmhy.data.model.EntryKind
 import io.github.omeg4dev.fmhy.data.model.Section
@@ -66,6 +69,27 @@ class SettingsViewModel(
     private val _isUpdating = MutableStateFlow(false)
     private val _updateStatusMessage = MutableStateFlow<String?>(null)
 
+    private val _pendingMobileAction = MutableStateFlow<(() -> Unit)?>(null)
+    val pendingMobileAction: StateFlow<(() -> Unit)?> = _pendingMobileAction.asStateFlow()
+
+    fun dismissMobileActionDialog() {
+        _pendingMobileAction.value = null
+    }
+
+    fun confirmMobileAction() {
+        val action = _pendingMobileAction.value
+        _pendingMobileAction.value = null
+        action?.invoke()
+    }
+
+    fun needsMobilePermission(): Boolean {
+        return NetworkPolicy.needsAsk(
+            manual = true,
+            switchOn = dataUsagePrefs.value.appDataWifiOnly,
+            kind = runCatching { container.networkMonitor.kind.value }.getOrElse { NetworkKind.NONE },
+        )
+    }
+
     private val _previewEntry = MutableStateFlow(DEFAULT_PREVIEW_ENTRY)
     val previewEntry: StateFlow<Entry> = _previewEntry.asStateFlow()
 
@@ -95,7 +119,8 @@ class SettingsViewModel(
         },
         _isUpdating,
         _updateStatusMessage,
-    ) { (version, appearance), updating, statusMsg ->
+        container.isSyncWaitingForWifi,
+    ) { (version, appearance), updating, statusMsg, waitingForWifi ->
         val count = try { store.entryCount() } catch (_: Exception) { 0 }
         val syncState = try { container.fmhySync.loadState() } catch (_: Exception) { SyncState() }
         val lastSyncedStr = when {
@@ -110,12 +135,18 @@ class SettingsViewModel(
             else -> "Never"
         }
 
+        val effectiveStatusMsg = if (waitingForWifi && !updating && statusMsg == null) {
+            "Waiting for Wi-Fi"
+        } else {
+            statusMsg
+        }
+
         SettingsUiState(
             entryCount = count,
             lastSyncedText = lastSyncedStr,
             datasetVersion = version,
             isUpdating = updating,
-            updateStatusMessage = statusMsg,
+            updateStatusMessage = effectiveStatusMsg,
             appearance = appearance,
         )
     }.stateIn(
@@ -252,11 +283,23 @@ class SettingsViewModel(
         }
     }
 
-    fun updateAdblockNow() {
+    fun updateAdblockNow(overrideThisTime: Boolean = false) {
+        if (!overrideThisTime && needsMobilePermission()) {
+            _pendingMobileAction.value = { updateAdblockNow(overrideThisTime = true) }
+            return
+        }
         container.startFilterDownload()
     }
 
     fun checkForUpdates(onResult: (String) -> Unit) {
+        if (needsMobilePermission()) {
+            _pendingMobileAction.value = { checkForUpdatesInternal(onResult) }
+            return
+        }
+        checkForUpdatesInternal(onResult)
+    }
+
+    private fun checkForUpdatesInternal(onResult: (String) -> Unit) {
         if (_isCheckingUpdates.value) return
         viewModelScope.launch {
             _isCheckingUpdates.value = true
@@ -338,6 +381,12 @@ class SettingsViewModel(
         DataPrefs()
     )
 
+    val dataUsagePrefs: StateFlow<DataUsagePrefs> = settingsRepository.dataUsagePrefs.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5000),
+        DataUsagePrefs()
+    )
+
     fun updateHome(f: (HomePrefs) -> HomePrefs) {
         viewModelScope.launch {
             settingsRepository.updateHome(f)
@@ -385,6 +434,12 @@ class SettingsViewModel(
     fun updateData(f: (DataPrefs) -> DataPrefs) {
         viewModelScope.launch {
             settingsRepository.updateData(f)
+        }
+    }
+
+    fun updateDataUsage(f: (DataUsagePrefs) -> DataUsagePrefs) {
+        viewModelScope.launch {
+            settingsRepository.updateDataUsage(f)
         }
     }
 
@@ -466,7 +521,11 @@ class SettingsViewModel(
         }
     }
 
-    fun updateNow() {
+    fun updateNow(overrideThisTime: Boolean = false) {
+        if (!overrideThisTime && needsMobilePermission()) {
+            _pendingMobileAction.value = { updateNow(overrideThisTime = true) }
+            return
+        }
         viewModelScope.launch {
             _isUpdating.value = true
             _updateStatusMessage.value = "Checking for updates..."

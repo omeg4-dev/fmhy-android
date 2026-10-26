@@ -12,6 +12,9 @@ import android.util.Log
 import android.view.ViewGroup
 import android.webkit.WebView
 import androidx.core.view.drawToBitmap
+import io.github.omeg4dev.fmhy.FmhyApp
+import io.github.omeg4dev.fmhy.SettingsPage
+import io.github.omeg4dev.fmhy.SettingsPageNavKey
 import io.github.omeg4dev.fmhy.browser.adblock.AdblockService
 import io.github.omeg4dev.fmhy.browser.adblock.AllowRule
 import io.github.omeg4dev.fmhy.browser.adblock.ScriptletLibrary
@@ -19,12 +22,15 @@ import io.github.omeg4dev.fmhy.data.Appearance
 import io.github.omeg4dev.fmhy.data.AutoplayMode
 import io.github.omeg4dev.fmhy.data.BrowserPrefs
 import io.github.omeg4dev.fmhy.data.DataPrefs
+import io.github.omeg4dev.fmhy.data.DataUsagePrefs
 import io.github.omeg4dev.fmhy.data.PrivacyPrefs
 import io.github.omeg4dev.fmhy.data.ProtectionPrefs
 import io.github.omeg4dev.fmhy.data.SettingsRepository
 import io.github.omeg4dev.fmhy.data.ThemeMode
 import io.github.omeg4dev.fmhy.data.user.SitePrefs
 import io.github.omeg4dev.fmhy.data.user.UserStore
+import io.github.omeg4dev.fmhy.work.NetworkKind
+import io.github.omeg4dev.fmhy.work.NetworkMonitor
 import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -48,6 +54,7 @@ class TabManager(
     private val scriptletLibrary: ScriptletLibrary,
     private val browserHooks: BrowserHooks,
     val appScope: CoroutineScope,
+    networkMonitor: NetworkMonitor? = null,
 ) {
     fun isOnline(): Boolean {
         return try {
@@ -234,8 +241,12 @@ class TabManager(
     @Volatile var currentProtectionPrefs = ProtectionPrefs()
     @Volatile var currentPrivacyPrefs = PrivacyPrefs()
     @Volatile var currentDataPrefs = DataPrefs()
+    @Volatile var currentDataUsagePrefs = DataUsagePrefs()
+    @Volatile var currentNetworkKind = NetworkKind.NONE
     @Volatile var currentAppearance = Appearance()
     @Volatile var isAppDark = false
+    val mobileOkTabs: MutableSet<Long> = java.util.concurrent.ConcurrentHashMap.newKeySet()
+    var onOpenDataUsageSettings: (() -> Unit)? = null
 
     init {
         (browserHooks as? DefaultBrowserHooks)?.attachTabManager(this)
@@ -281,6 +292,14 @@ class TabManager(
         }
         appScope.launch {
             settingsRepository.dataPrefs.collect { currentDataPrefs = it }
+        }
+        appScope.launch {
+            settingsRepository.dataUsagePrefs.collect { currentDataUsagePrefs = it }
+        }
+        if (networkMonitor != null) {
+            appScope.launch {
+                networkMonitor.kind.collect { currentNetworkKind = it }
+            }
         }
         appScope.launch {
             settingsRepository.appearance.collect { appearance ->
@@ -531,6 +550,7 @@ class TabManager(
     }
 
     fun closeTab(tabId: Long) {
+        mobileOkTabs.remove(tabId)
         releaseThumbnail(tabId)
         if (previousTabId == tabId) {
             previousTabId = null
@@ -577,6 +597,7 @@ class TabManager(
     }
 
     fun closeAllTabs() {
+        mobileOkTabs.clear()
         releaseAllThumbnails()
         previousTabId = null
         val hadPrivate: Boolean
@@ -797,10 +818,20 @@ class TabManager(
             if (record.savedState != null) {
                 val restored = webView.restoreState(record.savedState!!)
                 if (restored == null && record.url.isNotEmpty() && record.url != "about:blank") {
-                    webView.loadUrl(record.url)
+                    if (BrowsePolicy.shouldBlock(record.url, currentDataUsagePrefs.browseWifiOnly, currentNetworkKind, record.id in mobileOkTabs)) {
+                        loadWifiOnlyPage(record)
+                    } else {
+                        record.showsWifiOnlyPage = false
+                        webView.loadUrl(record.url)
+                    }
                 }
             } else if (record.url.isNotEmpty() && record.url != "about:blank") {
-                webView.loadUrl(record.url)
+                if (BrowsePolicy.shouldBlock(record.url, currentDataUsagePrefs.browseWifiOnly, currentNetworkKind, record.id in mobileOkTabs)) {
+                    loadWifiOnlyPage(record)
+                } else {
+                    record.showsWifiOnlyPage = false
+                    webView.loadUrl(record.url)
+                }
             }
         } catch (e: Throwable) {
             try {
@@ -813,6 +844,42 @@ class TabManager(
         }
     }
 
+    fun allowMobileOnce(tabId: Long) {
+        mobileOkTabs.add(tabId)
+    }
+
+    fun openDataUsageSettings() {
+        onOpenDataUsageSettings?.invoke() ?: run {
+            val container = (appContext as? FmhyApp)?.container
+            container?.pushNavigation(SettingsPageNavKey(SettingsPage.DATA_USAGE))
+            bringFmhyToFront(appContext)
+        }
+    }
+
+    fun buildWifiOnlyHtml(): String {
+        val accent = String.format("#%06X", 0xFFFFFF and currentAppearance.accentSeed)
+        val surface = if (isAppDark) {
+            if (currentAppearance.pureBlack) "#121212" else "#1e1e1e"
+        } else {
+            "#ffffff"
+        }
+        val onSurface = if (isAppDark) "#e0e0e0" else "#1f1f1f"
+        return WifiOnlyPage.html(
+            isDark = isAppDark,
+            isBlack = isAppDark && currentAppearance.pureBlack,
+            accentHex = accent,
+            surfaceHex = surface,
+            onSurfaceHex = onSurface,
+            bridgeName = bridgeName,
+        )
+    }
+
+    fun loadWifiOnlyPage(record: TabRecord) {
+        record.showsWifiOnlyPage = true
+        record.webView?.loadDataWithBaseURL(null, buildWifiOnlyHtml(), "text/html", "utf-8", null)
+        updateTabsFlow()
+    }
+
     fun reloadTab(tabId: Long) {
         val record = getTabRecord(tabId) ?: return
         if (record.crashed || record.webView == null) {
@@ -820,7 +887,21 @@ class TabManager(
             record.savedState = null
             ensureWebView(record)
         } else {
-            record.webView?.reload()
+            if (BrowsePolicy.shouldBlock(record.url, currentDataUsagePrefs.browseWifiOnly, currentNetworkKind, tabId in mobileOkTabs)) {
+                loadWifiOnlyPage(record)
+            } else {
+                record.showsWifiOnlyPage = false
+                val currentWvUrl = record.webView?.url
+                if (currentWvUrl == null || currentWvUrl == "about:blank" || currentWvUrl.startsWith("data:")) {
+                    if (currentPrivacyPrefs.sendGpc) {
+                        record.webView?.loadUrl(record.url, mapOf("Sec-GPC" to "1", "DNT" to "1"))
+                    } else {
+                        record.webView?.loadUrl(record.url)
+                    }
+                } else {
+                    record.webView?.reload()
+                }
+            }
         }
         updateTabsFlow()
     }
@@ -859,10 +940,15 @@ class TabManager(
         record.sourceUrl = url
         if (!EmptyTabPolicy.isStartUrl(url)) record.hadSite = true
         ensureWebView(record)
-        if (currentPrivacyPrefs.sendGpc) {
-            record.webView?.loadUrl(url, mapOf("Sec-GPC" to "1", "DNT" to "1"))
+        if (BrowsePolicy.shouldBlock(url, currentDataUsagePrefs.browseWifiOnly, currentNetworkKind, tabId in mobileOkTabs)) {
+            loadWifiOnlyPage(record)
         } else {
-            record.webView?.loadUrl(url)
+            record.showsWifiOnlyPage = false
+            if (currentPrivacyPrefs.sendGpc) {
+                record.webView?.loadUrl(url, mapOf("Sec-GPC" to "1", "DNT" to "1"))
+            } else {
+                record.webView?.loadUrl(url)
+            }
         }
         updateTabsFlow()
     }

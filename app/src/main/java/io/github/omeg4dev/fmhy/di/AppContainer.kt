@@ -26,6 +26,7 @@ import io.github.omeg4dev.fmhy.browser.adblock.ScriptletLibrary
 import io.github.omeg4dev.fmhy.data.adblock.FilterListUpdater
 import io.github.omeg4dev.fmhy.data.adblock.OkHttpListFetcher
 import io.github.omeg4dev.fmhy.data.OpenLinksWith
+import io.github.omeg4dev.fmhy.work.NetworkMonitor
 import io.github.omeg4dev.fmhy.ui.shell.JobKind
 import io.github.omeg4dev.fmhy.ui.shell.SYNC_CANCELLED
 import io.github.omeg4dev.fmhy.ui.shell.StatusNotices
@@ -93,6 +94,11 @@ interface AppContainer : OnboardingActions {
     val tabManager: TabManager get() = error("Not supported")
     val browserHooks: BrowserHooks get() = error("Not supported")
     val statusNotices: StatusNotices get() = error("Not supported")
+    val networkMonitor: NetworkMonitor get() = error("Not supported")
+    val firstWikiNeedsMobilePermission: MutableStateFlow<Boolean> get() = MutableStateFlow(false)
+    val isSyncWaitingForWifi: MutableStateFlow<Boolean> get() = MutableStateFlow(false)
+    val hasBuiltInWiki: Boolean get() = false
+    val hasLocalWiki: Boolean get() = false
 
     fun cancelSync() {}
     fun cancelAdblockUpdate() {}
@@ -152,6 +158,7 @@ class DefaultAppContainer(override val context: Context) : AppContainer {
             updater = DefaultAdblockUpdater(filterListUpdater),
             scriptletLibrary = scriptletLibrary,
             coroutineScope = appScope,
+            networkMonitor = networkMonitor,
         )
     }
 
@@ -164,6 +171,7 @@ class DefaultAppContainer(override val context: Context) : AppContainer {
             scriptletLibrary = scriptletLibrary,
             browserHooks = browserHooks,
             appScope = appScope,
+            networkMonitor = networkMonitor,
         )
     }
 
@@ -238,6 +246,25 @@ class DefaultAppContainer(override val context: Context) : AppContainer {
     override val settingsRepository: SettingsRepository by lazy {
         io.github.omeg4dev.fmhy.data.DefaultSettingsRepository(context)
     }
+
+    override val networkMonitor: NetworkMonitor by lazy {
+        NetworkMonitor(context)
+    }
+
+    override val firstWikiNeedsMobilePermission = MutableStateFlow(false)
+    override val isSyncWaitingForWifi = MutableStateFlow(false)
+
+    override val hasBuiltInWiki: Boolean by lazy {
+        try {
+            val list = context.assets.list("dataset")?.toSet() ?: emptySet()
+            list.contains(SNAPSHOT_ASSET) && list.contains(SNAPSHOT_STATE_ASSET)
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    override val hasLocalWiki: Boolean
+        get() = datasetStore.isAvailable
 
     private val _isInitialized = MutableStateFlow(false)
     override val isInitialized: StateFlow<Boolean> = _isInitialized.asStateFlow()

@@ -341,4 +341,61 @@ class TabManagerTest {
         assertEquals(2, tabManager.tabs.value.size)
         assertEquals(restoredId, tabManager.tabs.value[0].id)
     }
+
+    @Test
+    fun testMobileOkTabsLifecycle() = runTest {
+        val tabManager = createTabManager()
+        val tabId = tabManager.openTab(url = "https://example.com", title = "Example", select = true)
+
+        assertFalse(tabManager.mobileOkTabs.contains(tabId))
+        tabManager.allowMobileOnce(tabId)
+        assertTrue(tabManager.mobileOkTabs.contains(tabId))
+
+        tabManager.closeTab(tabId)
+        assertFalse(tabManager.mobileOkTabs.contains(tabId))
+    }
+
+    @Test
+    fun testCloseAllTabsClearsMobileOkTabs() = runTest {
+        val tabManager = createTabManager()
+        val id1 = tabManager.openTab(url = "https://example.com/1", title = "1", select = false)
+        val id2 = tabManager.openTab(url = "https://example.com/2", title = "2", select = false)
+
+        tabManager.allowMobileOnce(id1)
+        tabManager.allowMobileOnce(id2)
+        assertEquals(2, tabManager.mobileOkTabs.size)
+
+        tabManager.closeAllTabs()
+        assertTrue(tabManager.mobileOkTabs.isEmpty())
+    }
+
+    @Test
+    fun testOpenDataUsageSettingsCallback() = runTest {
+        val tabManager = createTabManager()
+        var opened = false
+        tabManager.onOpenDataUsageSettings = { opened = true }
+
+        tabManager.openDataUsageSettings()
+        assertTrue(opened)
+    }
+
+    @Test
+    fun testBrowseWifiOnlyGatingInLoadUrl() = runTest {
+        val tabManager = createTabManager()
+        tabManager.currentDataUsagePrefs = io.github.omeg4dev.fmhy.data.DataUsagePrefs(browseWifiOnly = true)
+        tabManager.currentNetworkKind = io.github.omeg4dev.fmhy.work.NetworkKind.MOBILE
+
+        val tabId = tabManager.openTab(url = "about:blank", title = "Blank", select = true)
+        val record = tabManager.getTabRecord(tabId)!!
+
+        tabManager.loadUrl(tabId, "https://example.com")
+        // URL should be preserved as target URL for retry
+        assertEquals("https://example.com", record.url)
+        assertTrue(record.showsWifiOnlyPage)
+
+        // After allowing mobile once, loadUrl clears showsWifiOnlyPage
+        tabManager.allowMobileOnce(tabId)
+        tabManager.loadUrl(tabId, "https://example.com")
+        assertFalse(record.showsWifiOnlyPage)
+    }
 }

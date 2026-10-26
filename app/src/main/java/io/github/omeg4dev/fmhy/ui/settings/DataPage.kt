@@ -98,5 +98,7 @@ fun DataPage(
 
             extraRows()
         }
+
+        MobileDataConfirmationDialog(viewModel)
     }
 }

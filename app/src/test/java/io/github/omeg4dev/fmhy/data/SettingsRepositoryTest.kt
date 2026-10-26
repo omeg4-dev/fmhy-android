@@ -150,10 +150,36 @@ class SettingsRepositoryTest {
             watchSaved = false,
             notifyNewPosts = false,
             interval = UpdateInterval.WEEKLY,
-            wifiOnly = true,
         )
         repo.updateNotifications { expected }
         assertEquals(expected, repo.notificationPrefs.first())
+    }
+
+    @Test
+    fun testDataUsagePrefsRoundTrip() = runTest {
+        val (repo, _) = createRepository(this)
+        val expected = DataUsagePrefs(
+            downloadWifiOnly = true,
+            browseWifiOnly = true,
+            appDataWifiOnly = true,
+        )
+        repo.updateDataUsage { expected }
+        assertEquals(expected, repo.dataUsagePrefs.first())
+    }
+
+    @Test
+    fun dataUsageMigratesFromLegacyNotificationWifiOnly() = runTest {
+        val legacy = androidx.datastore.preferences.core.booleanPreferencesKey("notifications_wifi_only")
+        val (repoOn, storeOn) = createRepository(this)
+        storeOn.edit { it[legacy] = true }
+        assertTrue(repoOn.dataUsagePrefs.first().appDataWifiOnly)
+
+        val (repoOverride, storeOverride) = createRepository(this)
+        storeOverride.edit {
+            it[legacy] = true
+            it[androidx.datastore.preferences.core.booleanPreferencesKey("data_usage_app_data_wifi_only")] = false
+        }
+        assertFalse(repoOverride.dataUsagePrefs.first().appDataWifiOnly)
     }
 
     @Test

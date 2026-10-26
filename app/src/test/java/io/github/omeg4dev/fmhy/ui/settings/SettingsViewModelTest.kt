@@ -7,6 +7,7 @@ import io.github.omeg4dev.fmhy.data.BlockingPrefs
 import io.github.omeg4dev.fmhy.data.BrowserPrefs
 import io.github.omeg4dev.fmhy.data.ColorSource
 import io.github.omeg4dev.fmhy.data.DataPrefs
+import io.github.omeg4dev.fmhy.data.DataUsagePrefs
 import io.github.omeg4dev.fmhy.data.DatasetStore
 import io.github.omeg4dev.fmhy.data.HomePrefs
 import io.github.omeg4dev.fmhy.data.NotificationPrefs
@@ -45,7 +46,10 @@ import okhttp3.OkHttpClient
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import io.github.omeg4dev.fmhy.work.NetworkKind
 import org.junit.Before
 import org.junit.Test
 
@@ -97,6 +101,13 @@ class SettingsViewModelTest {
         override fun markSyncBannerConsumed() {}
         override fun showSnackbar(message: String) {}
         override fun initialize() {}
+        override val networkMonitor = io.github.omeg4dev.fmhy.work.NetworkMonitor()
+        override val firstWikiNeedsMobilePermission = MutableStateFlow(false)
+        override val isSyncWaitingForWifi = MutableStateFlow(false)
+        var startFilterDownloadCalled = false
+        override fun startFilterDownload() {
+            startFilterDownloadCalled = true
+        }
 
         override val fmhySync: FmhySync = object : FmhySync(
             store = datasetStore,
@@ -166,6 +177,10 @@ class SettingsViewModelTest {
         private val _data = MutableStateFlow(DataPrefs())
         override val dataPrefs: Flow<DataPrefs> = _data.asStateFlow()
         override suspend fun updateData(f: (DataPrefs) -> DataPrefs) { _data.value = f(_data.value) }
+
+        private val _dataUsage = MutableStateFlow(DataUsagePrefs())
+        override val dataUsagePrefs: Flow<DataUsagePrefs> = _dataUsage.asStateFlow()
+        override suspend fun updateDataUsage(f: (DataUsagePrefs) -> DataUsagePrefs) { _dataUsage.value = f(_dataUsage.value) }
 
         private val _onboarding = MutableStateFlow(0)
         override val onboardingVersion: Flow<Int> = _onboarding.asStateFlow()
@@ -385,5 +400,126 @@ class SettingsViewModelTest {
 
         assertEquals("ubo-real", viewModel.previewEntry.value.id)
         assertEquals("Real description from store", viewModel.previewEntry.value.description)
+    }
+
+    @Test
+    fun testDataUsagePrefsUpdate() = runTest {
+        val store = FakeDatasetStore()
+        val settings = FakeSettingsRepository()
+        val container = FakeContainer(store, settings)
+        val viewModel = SettingsViewModel(store, settings, container)
+        backgroundScope.launch(kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.dataUsagePrefs.collect()
+        }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.updateDataUsage { it.copy(appDataWifiOnly = true, browseWifiOnly = true) }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val updated = viewModel.dataUsagePrefs.value
+        assertTrue(updated.appDataWifiOnly)
+        assertTrue(updated.browseWifiOnly)
+        assertFalse(updated.downloadWifiOnly)
+    }
+
+    @Test
+    fun testManualActionPromptsWhenOnMobileWithWifiOnly() = runTest {
+        val store = FakeDatasetStore()
+        val settings = FakeSettingsRepository()
+        val container = FakeContainer(store, settings)
+        container.networkMonitor.setKindForTesting(NetworkKind.MOBILE)
+        settings.updateDataUsage { it.copy(appDataWifiOnly = true) }
+
+        val viewModel = SettingsViewModel(store, settings, container)
+        backgroundScope.launch(kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.dataUsagePrefs.collect()
+        }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.updateNow()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertNull(container.forceSyncCalledWith)
+        assertNotNull(viewModel.pendingMobileAction.value)
+
+        viewModel.confirmMobileAction()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(true, container.forceSyncCalledWith)
+        assertNull(viewModel.pendingMobileAction.value)
+    }
+
+    @Test
+    fun testManualActionDismissClearsPending() = runTest {
+        val store = FakeDatasetStore()
+        val settings = FakeSettingsRepository()
+        val container = FakeContainer(store, settings)
+        container.networkMonitor.setKindForTesting(NetworkKind.MOBILE)
+        settings.updateDataUsage { it.copy(appDataWifiOnly = true) }
+
+        val viewModel = SettingsViewModel(store, settings, container)
+        backgroundScope.launch(kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.dataUsagePrefs.collect()
+        }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.updateNow()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertNotNull(viewModel.pendingMobileAction.value)
+        viewModel.dismissMobileActionDialog()
+
+        assertNull(container.forceSyncCalledWith)
+        assertNull(viewModel.pendingMobileAction.value)
+    }
+
+    @Test
+    fun testUpdateAdblockNowPromptsWhenOnMobileWithWifiOnly() = runTest {
+        val store = FakeDatasetStore()
+        val settings = FakeSettingsRepository()
+        val container = FakeContainer(store, settings)
+        container.networkMonitor.setKindForTesting(NetworkKind.MOBILE)
+        settings.updateDataUsage { it.copy(appDataWifiOnly = true) }
+
+        val viewModel = SettingsViewModel(store, settings, container)
+        backgroundScope.launch(kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.dataUsagePrefs.collect()
+        }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.updateAdblockNow()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertFalse(container.startFilterDownloadCalled)
+        assertNotNull(viewModel.pendingMobileAction.value)
+
+        viewModel.confirmMobileAction()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(container.startFilterDownloadCalled)
+        assertNull(viewModel.pendingMobileAction.value)
+    }
+
+    @Test
+    fun testStatusShowsWaitingForWifi() = runTest {
+        val store = FakeDatasetStore()
+        val settings = FakeSettingsRepository()
+        val container = FakeContainer(store, settings)
+        val viewModel = SettingsViewModel(store, settings, container)
+
+        backgroundScope.launch(kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect()
+        }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        container.isSyncWaitingForWifi.value = true
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("Waiting for Wi-Fi", viewModel.uiState.value.updateStatusMessage)
+
+        container.isSyncWaitingForWifi.value = false
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertNull(viewModel.uiState.value.updateStatusMessage)
     }
 }

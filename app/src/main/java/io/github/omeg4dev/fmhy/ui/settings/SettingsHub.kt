@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -54,6 +55,7 @@ fun SettingsHub(
     val blockingPrefs by viewModel.blockingPrefs.collectAsStateWithLifecycle()
     val privacyPrefs by viewModel.privacyPrefs.collectAsStateWithLifecycle()
     val notificationPrefs by viewModel.notificationPrefs.collectAsStateWithLifecycle()
+    val dataUsagePrefs by viewModel.dataUsagePrefs.collectAsStateWithLifecycle()
     val follows by viewModel.follows.collectAsStateWithLifecycle()
     val savedCount by viewModel.savedCount.collectAsStateWithLifecycle()
 
@@ -213,6 +215,16 @@ fun SettingsHub(
                 } else {
                     "Synced ${state.lastSyncedText.substringBefore(" via ")}"
                 }
+                val activeWifiOnlyCount = listOf(
+                    dataUsagePrefs.downloadWifiOnly,
+                    dataUsagePrefs.browseWifiOnly,
+                    dataUsagePrefs.appDataWifiOnly,
+                ).count { it }
+                val dataUsageSummary = if (activeWifiOnlyCount > 0) {
+                    "Wi-Fi only: $activeWifiOnlyCount of 3 on"
+                } else {
+                    "Off"
+                }
 
                 SettingsSection(title = "Your data") {
                     NavRow(
@@ -220,6 +232,13 @@ fun SettingsHub(
                         summary = savedStr,
                         icon = Icons.Default.Bookmarks,
                         onClick = { onNavigateToPage(SettingsPage.SAVED) },
+                    )
+                    SettingsDivider(hasIcon = true)
+                    NavRow(
+                        title = "Data usage",
+                        summary = dataUsageSummary,
+                        icon = Icons.Default.Wifi,
+                        onClick = { onNavigateToPage(SettingsPage.DATA_USAGE) },
                     )
                     SettingsDivider(hasIcon = true)
                     NavRow(

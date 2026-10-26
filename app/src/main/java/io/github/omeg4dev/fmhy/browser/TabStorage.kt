@@ -64,6 +64,7 @@ class TabRecord(
     /** Filter rule that replaced [blockedMainFrameUrl] (set off the main thread). */
     @Volatile var blockedMainFrameRule: String? = null,
     var showsBlockPage: Boolean = false,
+    var showsWifiOnlyPage: Boolean = false,
 ) {
     var blocked: Int
         get() = blockedCount.get()

@@ -62,6 +62,10 @@ interface SettingsRepository {
     val notificationPrefs: Flow<NotificationPrefs>
     suspend fun updateNotifications(f: (NotificationPrefs) -> NotificationPrefs)
 
+    val dataUsagePrefs: Flow<DataUsagePrefs>
+        get() = kotlinx.coroutines.flow.flowOf(DataUsagePrefs())
+    suspend fun updateDataUsage(f: (DataUsagePrefs) -> DataUsagePrefs) {}
+
     val followNotifyPromptShown: Flow<Boolean>
         get() = kotlinx.coroutines.flow.flowOf(false)
     suspend fun setFollowNotifyPromptShown(shown: Boolean) {}
@@ -179,6 +183,11 @@ class DefaultSettingsRepository(
         private val KEY_NOTIFICATIONS_WIFI_ONLY = booleanPreferencesKey("notifications_wifi_only")
         private val KEY_FOLLOW_NOTIFY_PROMPT_SHOWN = booleanPreferencesKey("follow_notify_prompt_shown")
         private val KEY_GESTURE_HINT_SHOWN = booleanPreferencesKey("gesture_hint_shown")
+
+        // Data usage
+        private val KEY_DATA_USAGE_DOWNLOAD_WIFI_ONLY = booleanPreferencesKey("data_usage_download_wifi_only")
+        private val KEY_DATA_USAGE_BROWSE_WIFI_ONLY = booleanPreferencesKey("data_usage_browse_wifi_only")
+        private val KEY_DATA_USAGE_APP_DATA_WIFI_ONLY = booleanPreferencesKey("data_usage_app_data_wifi_only")
 
         // Data
         private val KEY_DATA_SYNC_ON_LAUNCH = booleanPreferencesKey("data_sync_on_launch")
@@ -643,7 +652,6 @@ class DefaultSettingsRepository(
             watchSaved = prefs[KEY_NOTIFICATIONS_WATCH_SAVED] ?: default.watchSaved,
             notifyNewPosts = prefs[KEY_NOTIFICATIONS_NOTIFY_NEW_POSTS] ?: default.notifyNewPosts,
             interval = interval,
-            wifiOnly = prefs[KEY_NOTIFICATIONS_WIFI_ONLY] ?: default.wifiOnly,
         )
     }
 
@@ -654,7 +662,6 @@ class DefaultSettingsRepository(
         prefs[KEY_NOTIFICATIONS_WATCH_SAVED] = p.watchSaved
         prefs[KEY_NOTIFICATIONS_NOTIFY_NEW_POSTS] = p.notifyNewPosts
         prefs[KEY_NOTIFICATIONS_INTERVAL] = p.interval.name
-        prefs[KEY_NOTIFICATIONS_WIFI_ONLY] = p.wifiOnly
     }
 
     override val notificationPrefs: Flow<NotificationPrefs> = dataStore.data.map { prefs ->
@@ -666,6 +673,37 @@ class DefaultSettingsRepository(
             val current = readNotificationPrefs(prefs)
             val updated = f(current)
             writeNotificationPrefs(prefs, updated)
+        }
+    }
+
+    // --- DataUsagePrefs ---
+    private fun readDataUsagePrefs(prefs: Preferences): DataUsagePrefs {
+        val default = DataUsagePrefs()
+        val appDataWifiOnly = prefs[KEY_DATA_USAGE_APP_DATA_WIFI_ONLY]
+            ?: prefs[KEY_NOTIFICATIONS_WIFI_ONLY]
+            ?: default.appDataWifiOnly
+        return DataUsagePrefs(
+            downloadWifiOnly = prefs[KEY_DATA_USAGE_DOWNLOAD_WIFI_ONLY] ?: default.downloadWifiOnly,
+            browseWifiOnly = prefs[KEY_DATA_USAGE_BROWSE_WIFI_ONLY] ?: default.browseWifiOnly,
+            appDataWifiOnly = appDataWifiOnly,
+        )
+    }
+
+    private fun writeDataUsagePrefs(prefs: MutablePreferences, p: DataUsagePrefs) {
+        prefs[KEY_DATA_USAGE_DOWNLOAD_WIFI_ONLY] = p.downloadWifiOnly
+        prefs[KEY_DATA_USAGE_BROWSE_WIFI_ONLY] = p.browseWifiOnly
+        prefs[KEY_DATA_USAGE_APP_DATA_WIFI_ONLY] = p.appDataWifiOnly
+    }
+
+    override val dataUsagePrefs: Flow<DataUsagePrefs> = dataStore.data.map { prefs ->
+        readDataUsagePrefs(prefs)
+    }.distinctUntilChanged()
+
+    override suspend fun updateDataUsage(f: (DataUsagePrefs) -> DataUsagePrefs) {
+        dataStore.edit { prefs ->
+            val current = readDataUsagePrefs(prefs)
+            val updated = f(current)
+            writeDataUsagePrefs(prefs, updated)
         }
     }
 

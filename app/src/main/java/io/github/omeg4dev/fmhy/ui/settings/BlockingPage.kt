@@ -339,6 +339,15 @@ fun BlockingPage(
                             onClick = viewModel::updateAdblockNow,
                         )
 
+                        if (adblockStatus.waitingForWifi) {
+                            Text(
+                                text = "Waiting for Wi-Fi",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                            )
+                        }
+
                         if (adblockStatus.failedLists.isNotEmpty()) {
                             adblockStatus.failedLists.forEach { failedList ->
                                 Text(
@@ -406,6 +415,8 @@ fun BlockingPage(
             },
         )
     }
+
+    MobileDataConfirmationDialog(viewModel)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

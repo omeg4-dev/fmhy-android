@@ -155,7 +155,12 @@ data class NotificationPrefs(
     val watchSaved: Boolean = true,
     val notifyNewPosts: Boolean = true,
     val interval: UpdateInterval = UpdateInterval.DAILY,
-    val wifiOnly: Boolean = false,
+)
+
+data class DataUsagePrefs(
+    val downloadWifiOnly: Boolean = false,
+    val browseWifiOnly: Boolean = false,
+    val appDataWifiOnly: Boolean = false,
 )
 
 data class DataPrefs(

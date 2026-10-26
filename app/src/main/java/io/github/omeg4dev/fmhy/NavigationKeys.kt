@@ -33,6 +33,7 @@ enum class SettingsPage {
     PRIVACY,
     VIDEO,
     NOTIFICATIONS,
+    DATA_USAGE,
     DATA,
     SAVED,
     ABOUT,

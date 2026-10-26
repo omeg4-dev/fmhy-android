@@ -77,6 +77,30 @@ class BrowserJsBridge(
         }
     }
 
+    private fun isNullOrDataOrigin(): Boolean {
+        val record = tabManager.getTabRecord(tabId) ?: return false
+        val wvUrl = record.webView?.url
+        return wvUrl == null || wvUrl == "about:blank" || wvUrl.startsWith("data:")
+    }
+
+    @JavascriptInterface
+    fun useMobileDataThisTime() {
+        if (!isNullOrDataOrigin()) return
+        tabManager.postToMain {
+            val record = tabManager.getTabRecord(tabId) ?: return@postToMain
+            tabManager.allowMobileOnce(tabId)
+            tabManager.loadUrl(tabId, record.url)
+        }
+    }
+
+    @JavascriptInterface
+    fun openDataUsageSettings() {
+        if (!isNullOrDataOrigin()) return
+        tabManager.postToMain {
+            tabManager.openDataUsageSettings()
+        }
+    }
+
     @JavascriptInterface
     fun pickerResult(selector: String) {
         tabManager.postToMain {

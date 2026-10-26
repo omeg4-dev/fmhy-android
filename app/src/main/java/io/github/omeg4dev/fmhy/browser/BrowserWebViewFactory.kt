@@ -132,8 +132,21 @@ class BrowserWebViewFactory(
         // Setup Clients
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+                val url = request.url.toString()
                 if (request.isForMainFrame) {
-                    record.sourceUrl = request.url.toString()
+                    record.sourceUrl = url
+                    if (BrowsePolicy.shouldBlock(
+                            url = url,
+                            browseWifiOnly = tabManager.currentDataUsagePrefs.browseWifiOnly,
+                            kind = tabManager.currentNetworkKind,
+                            tabOverride = record.id in tabManager.mobileOkTabs,
+                        )
+                    ) {
+                        record.url = url
+                        if (!EmptyTabPolicy.isStartUrl(url)) record.hadSite = true
+                        tabManager.loadWifiOnlyPage(record)
+                        return true
+                    }
                 }
                 return browserHooks.shouldOverrideNavigation(context, record.toState(), request, onExternalAppRequest)
             }
@@ -141,7 +154,9 @@ class BrowserWebViewFactory(
             override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
                 super.onPageStarted(view, url, favicon)
                 record.sourceUrl = url
-                record.url = url
+                if (!record.showsWifiOnlyPage && !url.startsWith("data:")) {
+                    record.url = url
+                }
                 record.hasStartedFirstLoad = true
                 // Only the displayed page's icon: drop the old one now, the new one comes with the page.
                 record.favicon = null
@@ -149,7 +164,7 @@ class BrowserWebViewFactory(
                 (browserHooks as? DefaultBrowserHooks)?.onMainFramePageStarted(record, url)
                 tabManager.onPlaybackPageStarted(record.id, url)
                 tabManager.notifyTabChanged(record.id)
-                tabManager.updateTabUrlAndTitle(record.id, url, record.title)
+                tabManager.updateTabUrlAndTitle(record.id, record.url, record.title)
                 (browserHooks as? DefaultBrowserHooks)?.onPageStarted(record, url)
 
                 if (!hasDocumentStartScript) {

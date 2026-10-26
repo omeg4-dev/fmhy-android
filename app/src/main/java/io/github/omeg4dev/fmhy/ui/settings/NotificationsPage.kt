@@ -150,15 +150,6 @@ fun NotificationsPage(
                             viewModel.updateNotifications { it.copy(interval = interval) }
                         },
                     )
-                    SettingsDivider()
-                    SwitchRow(
-                        title = "Only on Wi-Fi",
-                        checked = notificationPrefs.wifiOnly,
-                        enabled = master,
-                        onChange = { checked ->
-                            viewModel.updateNotifications { it.copy(wifiOnly = checked) }
-                        },
-                    )
                 }
             }
 
@@ -209,5 +200,7 @@ fun NotificationsPage(
 
             extraRows()
         }
+
+        MobileDataConfirmationDialog(viewModel)
     }
 }

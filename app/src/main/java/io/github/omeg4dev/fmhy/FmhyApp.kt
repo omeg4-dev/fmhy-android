@@ -10,7 +10,10 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import io.github.omeg4dev.fmhy.di.AppContainer
 import io.github.omeg4dev.fmhy.di.DefaultAppContainer
+import io.github.omeg4dev.fmhy.work.NetworkPolicy
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
@@ -39,6 +42,42 @@ class FmhyApp : Application() {
 
         ProcessLifecycleOwner.get().lifecycleScope.launch {
             try {
+                container.isInitialized.first { it }
+                val hasBuiltIn = container.hasBuiltInWiki
+                val hasLocal = container.hasLocalWiki
+                val dataUsage = container.settingsRepository.dataUsagePrefs.first()
+                val currentKind = container.networkMonitor.kind.value
+
+                if (NetworkPolicy.firstWikiNeedsAsk(
+                    hasBuiltInWiki = hasBuiltIn,
+                    hasLocalWiki = hasLocal,
+                    switchOn = dataUsage.appDataWifiOnly,
+                    kind = currentKind,
+                )) {
+                    container.firstWikiNeedsMobilePermission.value = true
+                    return@launch
+                }
+
+                val allowedInitially = NetworkPolicy.allowed(
+                    switchOn = dataUsage.appDataWifiOnly,
+                    kind = currentKind,
+                    overrideThisTime = false,
+                )
+                if (!allowedInitially) {
+                    container.isSyncWaitingForWifi.value = true
+                    combine(
+                        container.settingsRepository.dataUsagePrefs,
+                        container.networkMonitor.kind,
+                    ) { prefs, kind ->
+                        NetworkPolicy.allowed(
+                            switchOn = prefs.appDataWifiOnly,
+                            kind = kind,
+                            overrideThisTime = false,
+                        )
+                    }.first { allowed -> allowed }
+                    container.isSyncWaitingForWifi.value = false
+                }
+
                 container.sync(force = false)
             } catch (e: Exception) {
                 Log.e("FmhyApp", "Launch sync failed: ${e.message}", e)
@@ -47,8 +86,13 @@ class FmhyApp : Application() {
 
         ProcessLifecycleOwner.get().lifecycleScope.launch {
             try {
-                container.settingsRepository.notificationPrefs.collect { prefs ->
-                    io.github.omeg4dev.fmhy.work.UpdateScheduler.apply(this@FmhyApp, prefs)
+                combine(
+                    container.settingsRepository.notificationPrefs,
+                    container.settingsRepository.dataUsagePrefs,
+                ) { notif, dataUsage ->
+                    notif to dataUsage.appDataWifiOnly
+                }.collect { (prefs, appDataWifiOnly) ->
+                    io.github.omeg4dev.fmhy.work.UpdateScheduler.apply(this@FmhyApp, prefs, appDataWifiOnly)
                 }
             } catch (e: Exception) {
                 Log.e("FmhyApp", "Failed to schedule updates: ${e.message}", e)

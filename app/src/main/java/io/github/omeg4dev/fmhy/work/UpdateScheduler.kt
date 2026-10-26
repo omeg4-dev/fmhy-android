@@ -12,14 +12,14 @@ import java.util.concurrent.TimeUnit
 object UpdateScheduler {
     const val WORK_NAME = "fmhy-updates"
 
-    fun apply(context: Context, prefs: NotificationPrefs) {
+    fun apply(context: Context, prefs: NotificationPrefs, appDataWifiOnly: Boolean) {
         val workManager = WorkManager.getInstance(context)
         if (!prefs.enabled) {
             workManager.cancelUniqueWork(WORK_NAME)
             return
         }
 
-        val networkType = if (prefs.wifiOnly) {
+        val networkType = if (appDataWifiOnly) {
             NetworkType.UNMETERED
         } else {
             NetworkType.CONNECTED

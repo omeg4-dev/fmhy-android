@@ -18,6 +18,7 @@ data class AdblockStatus(
     val cancelled: Boolean = false,
     val userStarted: Boolean = false,
     val totalLists: Int = 0,
+    val waitingForWifi: Boolean = false,
 )
 
 interface AdblockUpdater {

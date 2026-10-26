@@ -18,6 +18,8 @@ import io.github.omeg4dev.fmhy.data.adblock.NeuteredResources
 import io.github.omeg4dev.fmhy.data.adblock.ResourceType
 import io.github.omeg4dev.fmhy.data.adblock.ResourceTypes
 import io.github.omeg4dev.fmhy.data.user.SitePrefs
+import io.github.omeg4dev.fmhy.work.NetworkMonitor
+import io.github.omeg4dev.fmhy.work.NetworkPolicy
 import java.io.ByteArrayInputStream
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.coroutines.cancellation.CancellationException
@@ -32,6 +34,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
@@ -48,6 +51,7 @@ class AdblockService(
     private val coroutineScope: CoroutineScope,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val clock: () -> Long = System::currentTimeMillis,
+    private val networkMonitor: NetworkMonitor? = null,
 ) {
     private val engineRef = AtomicReference<FilterEngine?>(null)
     val currentEngine: FilterEngine? get() = engineRef.get()
@@ -57,6 +61,9 @@ class AdblockService(
 
     @Volatile
     private var activeJob: Job? = null
+
+    @Volatile
+    private var wifiWaitJob: Job? = null
 
     fun cancelUpdate() {
         activeJob?.cancel()
@@ -121,10 +128,47 @@ class AdblockService(
     }
 
     suspend fun updateNow(userStarted: Boolean = true) {
+        wifiWaitJob?.cancel()
+        wifiWaitJob = null
         updateInternal(force = true, userStarted = userStarted)
     }
 
+    private suspend fun isAutoUpdateAllowed(): Boolean {
+        val monitor = networkMonitor ?: return true
+        val dataUsage = settingsRepository.dataUsagePrefs.first()
+        return NetworkPolicy.allowed(
+            switchOn = dataUsage.appDataWifiOnly,
+            kind = monitor.kind.value,
+            overrideThisTime = false,
+        )
+    }
+
+    private fun waitForWifiAndRerun() {
+        if (wifiWaitJob?.isActive == true) return
+        val monitor = networkMonitor ?: return
+        wifiWaitJob = coroutineScope.launch(ioDispatcher) {
+            try {
+                combine(
+                    settingsRepository.dataUsagePrefs,
+                    monitor.kind,
+                ) { dataUsage, kind ->
+                    NetworkPolicy.allowed(dataUsage.appDataWifiOnly, kind, false)
+                }.first { allowed -> allowed }
+
+                _status.value = _status.value.copy(waitingForWifi = false)
+                updateInternal(force = false, userStarted = false)
+            } finally {
+                wifiWaitJob = null
+            }
+        }
+    }
+
     private suspend fun updateInternal(force: Boolean, userStarted: Boolean) = withContext(ioDispatcher) {
+        if (!userStarted && !isAutoUpdateAllowed()) {
+            _status.value = _status.value.copy(waitingForWifi = true)
+            waitForWifiAndRerun()
+            return@withContext
+        }
         activeJob = currentCoroutineContext()[Job]
         _status.value = _status.value.copy(
             updating = true,
@@ -133,6 +177,7 @@ class AdblockService(
             failedLists = emptyList(),
             step = null,
             userStarted = userStarted,
+            waitingForWifi = false,
         )
         try {
             val prefs = settingsRepository.blockingPrefs.first()

@@ -134,6 +134,7 @@ import io.github.omeg4dev.fmhy.ui.settings.AppearancePage
 import io.github.omeg4dev.fmhy.ui.settings.BlockingPage
 import io.github.omeg4dev.fmhy.ui.settings.BrowserPage
 import io.github.omeg4dev.fmhy.ui.settings.DataPage
+import io.github.omeg4dev.fmhy.ui.settings.DataUsagePage
 import io.github.omeg4dev.fmhy.ui.settings.FollowingScreen
 import io.github.omeg4dev.fmhy.ui.settings.HomeListsPage
 import io.github.omeg4dev.fmhy.ui.settings.NavRow
@@ -554,6 +555,10 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                     onNavigateToWhatsNew = { nav.push(WhatsNewNavKey()) },
                     onNavigateToFollowing = { nav.push(FollowingNavKey) },
                 )
+                SettingsPage.DATA_USAGE -> DataUsagePage(
+                    viewModel = settingsViewModel,
+                    onBack = { if (!nav.back()) activity?.finish() },
+                )
                 SettingsPage.DATA -> DataPage(
                     viewModel = settingsViewModel,
                     onBack = { if (!nav.back()) activity?.finish() },
@@ -833,6 +838,34 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
         }
         PasteDecodeUi(pasteDecoder)
         UnsafeWarningDialog(linkOpener)
+
+        val firstWikiNeedsMobilePermission by container.firstWikiNeedsMobilePermission.collectAsStateWithLifecycle()
+        if (firstWikiNeedsMobilePermission) {
+            AlertDialog(
+                onDismissRequest = { container.firstWikiNeedsMobilePermission.value = false },
+                title = { Text("Wiki data needed") },
+                text = { Text("FMHY needs to download its data to work. Wi-Fi only is on and you are on mobile data. Use mobile data once?") },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            container.firstWikiNeedsMobilePermission.value = false
+                            scope.launch { container.sync(force = true) }
+                        }
+                    ) {
+                        Text("Use mobile data")
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = {
+                            container.firstWikiNeedsMobilePermission.value = false
+                        }
+                    ) {
+                        Text("Not now")
+                    }
+                },
+            )
+        }
     }
 }
 
