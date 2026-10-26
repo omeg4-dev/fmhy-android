@@ -4,8 +4,10 @@ import io.github.omeg4dev.fmhy.browser.WarningReason
 import kotlinx.coroutines.runBlocking
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RedirectPathTest {
@@ -140,5 +142,17 @@ class RedirectPathTest {
             "The download was redirected from legit.com to f4mhy.net, which looks like a fake copy of a site FMHY lists.",
             RedirectWarningText.sentence("legit.com", lookalikeFlag)
         )
+    }
+
+    @Test
+    fun httpsToHttpIsInsecureDowngrade() {
+        assertTrue(RedirectPath.isInsecureDowngrade("https://a.example/f".toHttpUrl(), "http://b.example/f".toHttpUrl()))
+    }
+
+    @Test
+    fun httpToHttpsAndSameSchemeAreAllowed() {
+        assertFalse(RedirectPath.isInsecureDowngrade("http://a.example/f".toHttpUrl(), "https://a.example/f".toHttpUrl()))
+        assertFalse(RedirectPath.isInsecureDowngrade("http://a.example/f".toHttpUrl(), "http://b.example/f".toHttpUrl()))
+        assertFalse(RedirectPath.isInsecureDowngrade("https://a.example/f".toHttpUrl(), "https://b.example/f".toHttpUrl()))
     }
 }

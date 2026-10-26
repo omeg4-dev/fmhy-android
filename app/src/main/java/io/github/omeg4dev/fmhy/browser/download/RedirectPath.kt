@@ -47,6 +47,12 @@ object RedirectPath {
         return target
     }
 
+    const val INSECURE_REDIRECT_MESSAGE = "The site tried to switch this download to an insecure connection"
+
+    /** True when a redirect would move a download from https to plain http. */
+    fun isInsecureDowngrade(current: HttpUrl, next: HttpUrl): Boolean =
+        current.isHttps && !next.isHttps
+
     suspend fun firstFlaggedHop(
         urls: List<String>,
         checker: HopChecker,

@@ -831,6 +831,21 @@ class DownloadController(
                             return
                         }
 
+                        if (RedirectPath.isInsecureDowngrade(currentHttpUrl, nextUrl)) {
+                            val failedItem = edit(id) {
+                                it.copy(
+                                    status = DownloadStatus.FAILED,
+                                    error = RedirectPath.INSECURE_REDIRECT_MESSAGE,
+                                    speedBps = null,
+                                    etaSeconds = null,
+                                )
+                            }
+                            failedItem?.let { persist(it) }
+                            jobs.remove(id)
+                            reschedule()
+                            return
+                        }
+
                         val flag = hopChecker.check(nextUrl.toString())
                         val allowed = allowedHosts[id] ?: emptySet()
                         if (flag != null && !allowed.contains(flag.host)) {
