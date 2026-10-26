@@ -22,8 +22,24 @@ class FmhyApp : Application() {
     lateinit var container: AppContainer
         private set
 
+    lateinit var crashReportStore: io.github.omeg4dev.fmhy.report.CrashReportStore
+        private set
+
     override fun onCreate() {
         super.onCreate()
+
+        val crashFile = java.io.File(filesDir, "crash_report.json")
+        val crashPrefs = getSharedPreferences("fmhy_crash", android.content.Context.MODE_PRIVATE)
+        val store = io.github.omeg4dev.fmhy.report.CrashReportStore(
+            file = crashFile,
+            enabled = { crashPrefs.getBoolean("report_offer_crashes", true) },
+        )
+        crashReportStore = store
+        val previousHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { t, e ->
+            runCatching { store.save(io.github.omeg4dev.fmhy.report.CrashDetails.from(e)) }
+            previousHandler?.uncaughtException(t, e)
+        }
 
         val isDebug = (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
         if (isDebug) {
@@ -37,8 +53,21 @@ class FmhyApp : Application() {
             )
         }
 
-        container = DefaultAppContainer(this)
+        container = DefaultAppContainer(this, store)
         container.initialize()
+
+        ProcessLifecycleOwner.get().lifecycleScope.launch {
+            try {
+                container.settingsRepository.reportOfferCrashes.collect { enabled ->
+                    crashPrefs.edit().putBoolean("report_offer_crashes", enabled).apply()
+                    if (!enabled) {
+                        store.clear()
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("FmhyApp", "Failed to mirror crash reporting pref: ${e.message}", e)
+            }
+        }
 
         ProcessLifecycleOwner.get().lifecycleScope.launch {
             try {

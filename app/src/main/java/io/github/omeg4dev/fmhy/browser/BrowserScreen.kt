@@ -664,6 +664,19 @@ fun BrowserScreen(
                                         }
                                     }
                                 },
+                                onReportProblem = {
+                                    val app = context.applicationContext as? io.github.omeg4dev.fmhy.FmhyApp
+                                    currentTab?.let { tab ->
+                                        app?.container?.openReport(
+                                            io.github.omeg4dev.fmhy.report.ReportRequest(
+                                                defaultArea = io.github.omeg4dev.fmhy.report.ReportArea.PAGE_DOES_NOT_LOAD,
+                                                pageUrl = tab.url,
+                                                isPrivateTab = tab.isPrivate,
+                                                crash = null,
+                                            )
+                                        )
+                                    }
+                                },
                             )
                         }
                     }
@@ -752,6 +765,17 @@ fun BrowserScreen(
                                 tabManager.loadUrl(tabId, url)
                             }
                         },
+                        onReport = {
+                            val app = context.applicationContext as? io.github.omeg4dev.fmhy.FmhyApp
+                            app?.container?.openReport(
+                                io.github.omeg4dev.fmhy.report.ReportRequest(
+                                    defaultArea = io.github.omeg4dev.fmhy.report.ReportArea.PAGE_DOES_NOT_LOAD,
+                                    pageUrl = shown.failingUrl,
+                                    isPrivateTab = currentTab?.isPrivate == true,
+                                    crash = null,
+                                )
+                            )
+                        },
                     )
                 }
 
@@ -767,6 +791,17 @@ fun BrowserScreen(
                             }
                         },
                         onContinue = { tabManager.continueAnyway(currentTab.id) },
+                        onReport = {
+                            val app = context.applicationContext as? io.github.omeg4dev.fmhy.FmhyApp
+                            app?.container?.openReport(
+                                io.github.omeg4dev.fmhy.report.ReportRequest(
+                                    defaultArea = io.github.omeg4dev.fmhy.report.ReportArea.OTHER,
+                                    pageUrl = interstitial.url,
+                                    isPrivateTab = currentTab.isPrivate,
+                                    crash = null,
+                                )
+                            )
+                        },
                         modifier = Modifier.zIndex(7f),
                     )
                 }

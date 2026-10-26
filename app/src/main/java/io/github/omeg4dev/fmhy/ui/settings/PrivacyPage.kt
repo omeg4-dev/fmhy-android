@@ -48,6 +48,7 @@ fun PrivacyPage(
     extraRows: LazyListScope.() -> Unit = {},
 ) {
     val privacyPrefs by viewModel.privacyPrefs.collectAsStateWithLifecycle()
+    val reportOfferCrashes by viewModel.reportOfferCrashes.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var showClearDataDialog by remember { mutableStateOf(false) }
 
@@ -124,6 +125,19 @@ fun PrivacyPage(
                         title = "Clear browsing data",
                         summary = "Cookies, cache, and history",
                         onClick = { showClearDataDialog = true },
+                    )
+                }
+            }
+
+            item {
+                SettingsSection(title = "Problem reports") {
+                    SwitchRow(
+                        title = "Offer to report crashes",
+                        summary = "Show a card after a crash so you can report it. Nothing is sent by the app.",
+                        checked = reportOfferCrashes,
+                        onChange = { checked ->
+                            viewModel.setReportOfferCrashes(checked)
+                        },
                     )
                 }
             }

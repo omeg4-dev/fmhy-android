@@ -17,6 +17,8 @@ import io.github.omeg4dev.fmhy.data.link.CrossLinks
 import io.github.omeg4dev.fmhy.data.safety.SafeGuard
 import io.github.omeg4dev.fmhy.data.user.UserStore
 import androidx.navigation3.runtime.NavKey
+import io.github.omeg4dev.fmhy.report.CrashReportStore
+import io.github.omeg4dev.fmhy.report.ReportRequest
 import io.github.omeg4dev.fmhy.browser.BrowserHooks
 import io.github.omeg4dev.fmhy.browser.DefaultBrowserHooks
 import io.github.omeg4dev.fmhy.browser.TabManager
@@ -99,7 +101,12 @@ interface AppContainer : OnboardingActions {
     val isSyncWaitingForWifi: MutableStateFlow<Boolean> get() = MutableStateFlow(false)
     val hasBuiltInWiki: Boolean get() = false
     val hasLocalWiki: Boolean get() = false
+    val crashReportStore: CrashReportStore get() = error("crashReportStore not provided")
+    val reportRequest: MutableStateFlow<ReportRequest?> get() = MutableStateFlow(null)
 
+    fun openReport(request: ReportRequest) {
+        reportRequest.value = request
+    }
     fun cancelSync() {}
     fun cancelAdblockUpdate() {}
     fun markSyncBannerConsumed()
@@ -109,7 +116,21 @@ interface AppContainer : OnboardingActions {
     suspend fun sync(force: Boolean = false): SyncResult
 }
 
-class DefaultAppContainer(override val context: Context) : AppContainer {
+class DefaultAppContainer(
+    override val context: Context,
+    crashStore: CrashReportStore? = null,
+) : AppContainer {
+
+    override val crashReportStore: CrashReportStore = crashStore ?: CrashReportStore(
+        file = File(context.filesDir, "crash_report.json"),
+        enabled = { context.getSharedPreferences("fmhy_crash", Context.MODE_PRIVATE).getBoolean("report_offer_crashes", true) }
+    )
+
+    override val reportRequest = MutableStateFlow<ReportRequest?>(null)
+
+    override fun openReport(request: ReportRequest) {
+        reportRequest.value = request
+    }
 
     override val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 

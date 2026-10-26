@@ -176,6 +176,14 @@ class BrowserActivity : ComponentActivity() {
                         isInPip = isInPipMode,
                         onFinishActivity = { finish() },
                     )
+                    val reportRequest by container.reportRequest.collectAsStateWithLifecycle()
+                    reportRequest?.let { req ->
+                        io.github.omeg4dev.fmhy.report.ReportSheet(
+                            request = req,
+                            container = container,
+                            onDismiss = { container.reportRequest.value = null },
+                        )
+                    }
                 }
             }
         }

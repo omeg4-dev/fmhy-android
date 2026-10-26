@@ -44,6 +44,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DesktopWindows
@@ -142,6 +143,7 @@ fun BrowserToolbar(
     onToggleBookmark: () -> Unit = {},
     onSelectTab: (Long) -> Unit = {},
     onCopyLink: () -> Unit = {},
+    onReportProblem: () -> Unit = {},
     /** FMHY status icon (drawn at the start of the address pill); empty when the tab has no state. */
     statusIcon: @Composable () -> Unit = {},
     modifier: Modifier = Modifier,
@@ -332,6 +334,10 @@ fun BrowserToolbar(
             onSiteSettings = {
                 showMenuSheet = false
                 onShieldClick()
+            },
+            onReportProblem = {
+                showMenuSheet = false
+                onReportProblem()
             },
         )
     }
@@ -715,6 +721,7 @@ fun BrowserMenuSheet(
     onCopyLink: () -> Unit,
     onOpenInBrowser: () -> Unit,
     onSiteSettings: () -> Unit,
+    onReportProblem: () -> Unit = {},
 ) {
     val haptics = rememberHaptics()
 
@@ -911,6 +918,17 @@ fun BrowserMenuSheet(
                     onSiteSettings()
                 },
             )
+
+            if (hasPage) {
+                MenuActionRow(
+                    icon = Icons.Default.BugReport,
+                    title = "Report a problem with this page",
+                    enabled = true,
+                    onClick = {
+                        onReportProblem()
+                    },
+                )
+            }
         }
     }
 }

@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.OndemandVideo
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bookmarks
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
@@ -48,6 +49,7 @@ fun SettingsHub(
     viewModel: SettingsViewModel,
     onBack: () -> Unit,
     onNavigateToPage: (SettingsPage) -> Unit,
+    onReportProblem: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -258,6 +260,12 @@ fun SettingsHub(
                         summary = "Version $versionName",
                         icon = Icons.Default.Info,
                         onClick = { onNavigateToPage(SettingsPage.ABOUT) },
+                    )
+                    SettingsDivider(hasIcon = true)
+                    NavRow(
+                        title = "Report a problem",
+                        icon = Icons.Default.BugReport,
+                        onClick = onReportProblem,
                     )
                 }
             }

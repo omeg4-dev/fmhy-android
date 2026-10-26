@@ -74,6 +74,10 @@ interface SettingsRepository {
         get() = kotlinx.coroutines.flow.flowOf(false)
     suspend fun setGestureHintShown(shown: Boolean) {}
 
+    val reportOfferCrashes: Flow<Boolean>
+        get() = kotlinx.coroutines.flow.flowOf(true)
+    suspend fun setReportOfferCrashes(enabled: Boolean) {}
+
     val dataPrefs: Flow<DataPrefs>
     suspend fun updateData(f: (DataPrefs) -> DataPrefs)
 
@@ -192,6 +196,9 @@ class DefaultSettingsRepository(
         // Data
         private val KEY_DATA_SYNC_ON_LAUNCH = booleanPreferencesKey("data_sync_on_launch")
         private val KEY_DATA_KEEP_HISTORY = booleanPreferencesKey("data_keep_history")
+
+        // Problem reports
+        private val KEY_REPORT_OFFER_CRASHES = booleanPreferencesKey("report_offer_crashes")
     }
 
     override val lastVisitTs: Flow<Long> = dataStore.data.map { prefs ->
@@ -724,6 +731,16 @@ class DefaultSettingsRepository(
     override suspend fun setGestureHintShown(shown: Boolean) {
         dataStore.edit { prefs ->
             prefs[KEY_GESTURE_HINT_SHOWN] = shown
+        }
+    }
+
+    override val reportOfferCrashes: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[KEY_REPORT_OFFER_CRASHES] ?: true
+    }.distinctUntilChanged()
+
+    override suspend fun setReportOfferCrashes(enabled: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[KEY_REPORT_OFFER_CRASHES] = enabled
         }
     }
 

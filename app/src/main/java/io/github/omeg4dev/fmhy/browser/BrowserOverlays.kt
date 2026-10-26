@@ -57,6 +57,7 @@ fun RescueOverlay(
     onRetry: () -> Unit,
     onReloadWithoutBlocking: () -> Unit,
     onOpenUrl: (String) -> Unit,
+    onReport: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Surface(
@@ -155,6 +156,13 @@ fun RescueOverlay(
                     )
                 }
             }
+
+            TextButton(
+                onClick = onReport,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Report this")
+            }
         }
     }
 }
@@ -165,6 +173,7 @@ fun InterstitialOverlay(
     state: InterstitialState,
     onGoBack: () -> Unit,
     onContinue: () -> Unit,
+    onReport: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val icon = when {
@@ -269,6 +278,12 @@ fun InterstitialOverlay(
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
                 ) {
                     Text("Continue anyway")
+                }
+                TextButton(
+                    onClick = onReport,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Report this")
                 }
             }
         }

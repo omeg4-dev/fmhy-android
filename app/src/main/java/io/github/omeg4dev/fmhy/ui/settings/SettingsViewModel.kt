@@ -387,6 +387,18 @@ class SettingsViewModel(
         DataUsagePrefs()
     )
 
+    val reportOfferCrashes: StateFlow<Boolean> = settingsRepository.reportOfferCrashes.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5000),
+        true
+    )
+
+    fun setReportOfferCrashes(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.setReportOfferCrashes(enabled)
+        }
+    }
+
     fun updateHome(f: (HomePrefs) -> HomePrefs) {
         viewModelScope.launch {
             settingsRepository.updateHome(f)

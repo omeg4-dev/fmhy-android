@@ -8,6 +8,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -34,6 +35,7 @@ import androidx.compose.material.icons.outlined.Casino
 import androidx.compose.material.icons.outlined.NewReleases
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -87,6 +89,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.omeg4dev.fmhy.R
 import io.github.omeg4dev.fmhy.di.AppContainer
+import io.github.omeg4dev.fmhy.report.ReportAction
+import io.github.omeg4dev.fmhy.report.ReportArea
+import io.github.omeg4dev.fmhy.report.ReportRequest
 import io.github.omeg4dev.fmhy.nav.LocalAppNav
 import io.github.omeg4dev.fmhy.nav.LocalBottomBarPadding
 import io.github.omeg4dev.fmhy.nav.Tab
@@ -128,6 +133,15 @@ fun HomeScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val bottomBarPadding = LocalBottomBarPadding.current
     var showRandomPickDetails by remember { mutableStateOf(false) }
+
+    val offerCrashes by container.settingsRepository.reportOfferCrashes.collectAsStateWithLifecycle(initialValue = true)
+    var pendingCrash by remember { mutableStateOf(container.crashReportStore.peek()) }
+    val reportRequest by container.reportRequest.collectAsStateWithLifecycle()
+    LaunchedEffect(reportRequest) {
+        if (reportRequest == null && pendingCrash != null && container.crashReportStore.peek() == null) {
+            pendingCrash = null
+        }
+    }
 
     val gestureHintShown by container.settingsRepository.gestureHintShown.collectAsStateWithLifecycle(initialValue = true)
     val onboardingVersion by container.settingsRepository.onboardingVersion.collectAsStateWithLifecycle(initialValue = -1)
@@ -254,6 +268,74 @@ fun HomeScreen(
                     ),
                     modifier = Modifier.fillMaxSize(),
                 ) {
+                    if (offerCrashes && pendingCrash != null) {
+                        val crash = pendingCrash!!
+                        item(key = "crash-report-card") {
+                            Surface(
+                                shape = MaterialTheme.shapes.large,
+                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                                ) {
+                                    Text(
+                                        text = "The app closed unexpectedly. Report it?",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                    )
+                                    FlowRow(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                                        modifier = Modifier.fillMaxWidth(),
+                                    ) {
+                                        FilledTonalButton(
+                                            onClick = {
+                                                container.openReport(
+                                                    ReportRequest(
+                                                        defaultArea = ReportArea.OTHER,
+                                                        pageUrl = null,
+                                                        isPrivateTab = false,
+                                                        crash = crash,
+                                                        emphasizedAction = ReportAction.GITHUB,
+                                                    )
+                                                )
+                                            },
+                                        ) {
+                                            Text("Report on GitHub")
+                                        }
+                                        FilledTonalButton(
+                                            onClick = {
+                                                container.openReport(
+                                                    ReportRequest(
+                                                        defaultArea = ReportArea.OTHER,
+                                                        pageUrl = null,
+                                                        isPrivateTab = false,
+                                                        crash = crash,
+                                                        emphasizedAction = ReportAction.DISCORD,
+                                                    )
+                                                )
+                                            },
+                                        ) {
+                                            Text("Message on Discord")
+                                        }
+                                        TextButton(
+                                            onClick = {
+                                                container.crashReportStore.clear()
+                                                pendingCrash = null
+                                            },
+                                        ) {
+                                            Text("Dismiss")
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     // Search pill (16dp horizontal margin, 8dp bottom)
                     item(key = "search-pill") {
                         Surface(

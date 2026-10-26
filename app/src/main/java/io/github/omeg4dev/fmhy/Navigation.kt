@@ -500,6 +500,16 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                 viewModel = settingsViewModel,
                 onBack = { if (!nav.back()) activity?.finish() },
                 onNavigateToPage = { page -> nav.push(SettingsPageNavKey(page)) },
+                onReportProblem = {
+                    container.openReport(
+                        io.github.omeg4dev.fmhy.report.ReportRequest(
+                            defaultArea = io.github.omeg4dev.fmhy.report.ReportArea.OTHER,
+                            pageUrl = null,
+                            isPrivateTab = false,
+                            crash = null,
+                        )
+                    )
+                },
             )
         }
 
@@ -864,6 +874,15 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                         Text("Not now")
                     }
                 },
+            )
+        }
+
+        val reportRequest by container.reportRequest.collectAsStateWithLifecycle()
+        reportRequest?.let { req ->
+            io.github.omeg4dev.fmhy.report.ReportSheet(
+                request = req,
+                container = container,
+                onDismiss = { container.reportRequest.value = null },
             )
         }
     }
