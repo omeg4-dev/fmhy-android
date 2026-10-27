@@ -21,3 +21,17 @@ NIGHT-REPORT.md
 
 # internal plans, QA notes and background docs (kept locally, not published)
 /docs/
+
+# local-only: agent notes/status, gradle helper for local builds, dev test pages and fixtures
+/STATUS.md
+/gw
+/tools/browser-test/
+/tools/safeguard-fixture.mjs
+
+# never commit
+.DS_Store
+*.log
+*.jks
+*.keystore
+keystore.properties
+.env

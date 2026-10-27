@@ -1,8 +1,0 @@
-#!/usr/bin/env bash
-# Gradle wrapper for this repo: repo-local Gradle home (primed by Claude), offline, SDK path.
-# Agents: always build with ./gw, never ./gradlew directly.
-here="$(cd "$(dirname "$0")" && pwd)"
-export GRADLE_USER_HOME="$here/.gradle-home"
-export ANDROID_HOME="${ANDROID_HOME:-$HOME/Android/Sdk}"
-offline="--offline"; [ "${GW_ONLINE:-}" = 1 ] && offline=""
-exec "$here/gradlew" $offline --console=plain "$@"

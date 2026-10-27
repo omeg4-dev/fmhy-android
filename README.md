@@ -80,7 +80,7 @@ No server in between: the app downloads the wiki's markdown from [fmhy/edit](htt
 ./gradlew :core:data:test :app:testDebugUnitTest
 ```
 
-`app/` Android app (Kotlin, Compose) · `core/data/` data layer (parser, SQLite, sync, search, ad-block) · `schema/` · `pipeline/` Python reference parser for parity tests · `tools/` icon and store-frame scripts. Third-party assets: `THIRD_PARTY.md`; architecture notes: `STATUS.md`.
+`app/` Android app (Kotlin, Compose) · `core/data/` data layer (parser, SQLite, sync, search, ad-block) · `schema/` · `pipeline/` Python reference parser for parity tests · `tools/` icon and store-frame scripts. Third-party assets: `THIRD_PARTY.md`.
 
 ## Not affiliated with FMHY
 
