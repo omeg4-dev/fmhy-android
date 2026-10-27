@@ -36,7 +36,7 @@ Source: the Obsidian note "FMHY 1.0.0 Changes" (2026-10-25). Each batch file hol
 | 31 | HOME-04, HOME-05, WN-01 | [Pins everywhere and "Since last visit"](BATCH-31-pins-since-last-visit.md) | Sonnet | `sonnet` | yes | Done |
 | 32 | UI-07, UI-08 | [Swiping between screens and bottom bar style](BATCH-32-screen-swipe-bottom-bar.md) | Opus | `opus` | yes | Done |
 | 23 | SET-01, SET-02 | [Settings re-sort](BATCH-23-settings-resort.md) | Sonnet | `sonnet` | yes | Done |
-| 24 | QA-01 | [Bug hunt](BATCH-24-bug-hunt.md) | Sonnet | — (no agy) | no | To do |
+| 24 | QA-01 | [Bug hunt](BATCH-24-bug-hunt.md) | Sonnet | — (no agy) | no | Done |
 
 ## How to run a session
 
