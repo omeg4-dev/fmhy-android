@@ -165,20 +165,29 @@ class OnboardingModel(
         return pages[idx - 1]
     }
 
+    // Appearance is written through immediately: the whole UI (onboarding included) themes
+    // from the repository, so the choice shows live instead of on "Next".
     fun setThemeMode(mode: ThemeMode) {
         _state.update { it.copy(themeMode = mode) }
+        viewModelScope.launch { settingsRepository.setThemeMode(mode) }
     }
 
     fun setColorSource(source: ColorSource) {
         _state.update { it.copy(colorSource = source) }
+        viewModelScope.launch { settingsRepository.setColorSource(source) }
     }
 
     fun setAccentSeed(seed: Int) {
         _state.update { it.copy(accentSeed = seed, colorSource = ColorSource.FMHY) }
+        viewModelScope.launch {
+            settingsRepository.setAccentSeed(seed)
+            settingsRepository.setColorSource(ColorSource.FMHY)
+        }
     }
 
     fun setWebsiteStyle(enabled: Boolean) {
         _state.update { it.copy(websiteStyle = enabled) }
+        viewModelScope.launch { settingsRepository.setWebsiteStyle(enabled) }
     }
 
     fun setOpenLinksWith(openLinksWith: OpenLinksWith) {

@@ -434,6 +434,23 @@ class OnboardingModelTest {
     }
 
     @Test
+    fun testAppearanceChoicesApplyLiveBeforeNext() = runTest {
+        val repo = FakeSettingsRepository()
+        val model = OnboardingModel(repo, userStore, FakeContainer(repo, userStore))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        model.setThemeMode(ThemeMode.DARK)
+        model.setAccentSeed(0xFF00897B.toInt())
+        model.setWebsiteStyle(true)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(ThemeMode.DARK, repo.appearanceState.value.themeMode)
+        assertEquals(0xFF00897B.toInt(), repo.appearanceState.value.accentSeed)
+        assertEquals(ColorSource.FMHY, repo.appearanceState.value.colorSource)
+        assertTrue(repo.appearanceState.value.websiteStyle)
+    }
+
+    @Test
     fun testFinishSavesAllChoicesAndSetsVersion() = runTest {
         val repo = FakeSettingsRepository()
         val container = FakeContainer(repo, userStore)
