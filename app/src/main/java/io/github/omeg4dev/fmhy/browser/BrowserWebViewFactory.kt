@@ -151,6 +151,9 @@ class BrowserWebViewFactory(
                 val url = request.url.toString()
                 if (request.isForMainFrame) {
                     record.sourceUrl = url
+                    if (!request.isRedirect && request.hasGesture()) {
+                        record.chainStartHost = request.url.host
+                    }
                     record.isBackForwardNavigation = false
                     record.zoomLevel = 1f
                     record.zoomBaseScale = 0f

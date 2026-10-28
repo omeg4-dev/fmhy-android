@@ -13,11 +13,13 @@ object InterstitialMerge {
         potentiallyUnsafeWarning: Boolean,
         hostAllowed: Boolean,
         filterRule: String?,
+        chainStartHost: String? = null,
     ): InterstitialState? {
         val reasons = mutableListOf<WarningReason>()
         val hasUnsafe = !hostAllowed && verdict?.status == SafetyStatus.UNSAFE && unsafeWarning
         val hasPotentiallyUnsafe = !hostAllowed && verdict?.status == SafetyStatus.POTENTIALLY_UNSAFE && potentiallyUnsafeWarning
-        val hasLookalike = !hostAllowed && verdict?.status == SafetyStatus.NO_DATA && !verdict.lookalikes.isNullOrEmpty() && potentiallyUnsafeWarning
+        val hasLookalike = !hostAllowed && verdict?.status == SafetyStatus.NO_DATA && !verdict.lookalikes.isNullOrEmpty() && potentiallyUnsafeWarning &&
+            !LookalikeAllow.isStartSite(verdict.lookalikes, chainStartHost)
 
         if (hasUnsafe) {
             reasons.add(WarningReason.UNSAFE)

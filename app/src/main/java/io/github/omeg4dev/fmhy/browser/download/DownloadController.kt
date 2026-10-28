@@ -848,7 +848,7 @@ class DownloadController(
 
                         val flag = hopChecker.check(nextUrl.toString())
                         val allowed = allowedHosts[id] ?: emptySet()
-                        if (flag != null && !allowed.contains(flag.host)) {
+                        if (flag != null && !allowed.contains(flag.host) && !flag.isStartSiteLookalike(parsedUrl.host)) {
                             pendingFlags[id] = flag
                             val heldItem = edit(id) {
                                 it.copy(

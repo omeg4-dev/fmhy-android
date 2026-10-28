@@ -413,6 +413,7 @@ class DefaultBrowserHooks(
                 potentiallyUnsafeWarning = protectionPrefs.potentiallyUnsafeWarning,
                 hostAllowed = record.allowedHosts.contains(host),
                 filterRule = rule,
+                chainStartHost = record.chainStartHost,
             )
 
             val folderLabel = controller.targetLabel()
@@ -999,6 +1000,7 @@ class DefaultBrowserHooks(
                         potentiallyUnsafeWarning = protectionPrefs.potentiallyUnsafeWarning,
                         hostAllowed = record.allowedHosts.contains(host),
                         filterRule = filterRule,
+                        chainStartHost = record.chainStartHost,
                     )
                 )
 

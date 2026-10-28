@@ -155,4 +155,26 @@ class RedirectPathTest {
         assertFalse(RedirectPath.isInsecureDowngrade("http://a.example/f".toHttpUrl(), "http://b.example/f".toHttpUrl()))
         assertFalse(RedirectPath.isInsecureDowngrade("https://a.example/f".toHttpUrl(), "https://b.example/f".toHttpUrl()))
     }
+
+    @Test
+    fun testStartSiteLookalikeHopIsDropped() = runBlocking {
+        val listed = io.github.omeg4dev.fmhy.data.model.Entry(
+            id = "e", num = 1, sectionId = "s", headingId = null, ord = 1,
+            name = "DropDrive", url = "https://dropdrive.org/", originalUrl = null,
+            description = "", tags = emptyList(), headingPath = "File Tools",
+            tier = io.github.omeg4dev.fmhy.data.model.Tier.NORMAL,
+            isInlineMore = false, isBase64 = false, mirrors = emptyList(), extraLinks = emptyList(),
+            firstSeen = 0L, lastChanged = 0L, starredAt = null,
+        )
+        val hop = HopFlag("dropdrive.rip", "https://dropdrive.rip/f.zip", WarningReason.LOOKALIKE, listOf(listed))
+        val checker = HopChecker { url -> if (url == hop.url) hop else null }
+        val urls = listOf(hop.url)
+
+        assertNull(RedirectPath.firstFlaggedHop(urls, checker, emptySet(), startHost = "dropdrive.org"))
+        assertEquals(hop, RedirectPath.firstFlaggedHop(urls, checker, emptySet(), startHost = "other.com"))
+        assertEquals(hop, RedirectPath.firstFlaggedHop(urls, checker, emptySet()))
+
+        val unsafe = hop.copy(reason = WarningReason.UNSAFE)
+        assertFalse(unsafe.isStartSiteLookalike("dropdrive.org"))
+    }
 }

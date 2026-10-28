@@ -301,6 +301,31 @@ class InterstitialMergeTest {
     }
 
     @Test
+    fun testLookalikeOfChainStartIsSuppressed() {
+        val host = "dropdrive.rip"
+        val url = "https://dropdrive.rip/"
+        val entry = Entry(
+            id = "e2", num = 2, sectionId = "sec", headingId = null, ord = 1,
+            name = "DropDrive", url = "https://dropdrive.org/", originalUrl = null,
+            description = "", tags = emptyList(), headingPath = "File Tools", tier = Tier.NORMAL,
+            isInlineMore = false, isBase64 = false, mirrors = emptyList(), extraLinks = emptyList(),
+            firstSeen = 0L, lastChanged = 0L, starredAt = null,
+        )
+        val v = Verdict(
+            status = SafetyStatus.NO_DATA, input = url, normalizedUrl = url, host = host,
+            reason = null, matches = emptyList(), lookalikes = listOf(entry),
+        )
+        fun combine(start: String?) = InterstitialMerge.combine(
+            host = host, url = url, verdict = v,
+            unsafeWarning = true, potentiallyUnsafeWarning = true,
+            hostAllowed = false, filterRule = null, chainStartHost = start,
+        )
+        assertNull(combine("dropdrive.org"))
+        assertEquals(listOf(WarningReason.LOOKALIKE), combine("somewhere-else.com")!!.reasons)
+        assertEquals(listOf(WarningReason.LOOKALIKE), combine(null)!!.reasons)
+    }
+
+    @Test
     fun testSentence() {
         assertEquals("FMHY lists this site as unsafe", InterstitialMerge.sentence(WarningReason.UNSAFE))
         assertEquals("FMHY flags this site as potentially unsafe", InterstitialMerge.sentence(WarningReason.POTENTIALLY_UNSAFE))

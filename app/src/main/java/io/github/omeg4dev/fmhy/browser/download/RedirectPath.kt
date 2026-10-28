@@ -1,7 +1,9 @@
 package io.github.omeg4dev.fmhy.browser.download
 
 import io.github.omeg4dev.fmhy.browser.InterstitialMerge
+import io.github.omeg4dev.fmhy.browser.LookalikeAllow
 import io.github.omeg4dev.fmhy.browser.WarningReason
+import io.github.omeg4dev.fmhy.data.model.Entry
 import io.github.omeg4dev.fmhy.data.safety.SafeGuard
 import io.github.omeg4dev.fmhy.data.safety.SafetyStatus
 import okhttp3.HttpUrl
@@ -10,7 +12,12 @@ data class HopFlag(
     val host: String,
     val url: String,
     val reason: WarningReason,
-)
+    val lookalikes: List<Entry> = emptyList(),
+) {
+    /** A lookalike flag that only points back at the site the redirect chain started on. */
+    fun isStartSiteLookalike(startHost: String?): Boolean =
+        reason == WarningReason.LOOKALIKE && LookalikeAllow.isStartSite(lookalikes, startHost)
+}
 
 fun interface HopChecker {
     suspend fun check(url: String): HopFlag?
@@ -26,7 +33,7 @@ fun interface HopChecker {
             }
             if (reason != null) {
                 val host = verdict.host ?: SafeGuard.extractHostFromUrl(url) ?: ""
-                HopFlag(host = host, url = url, reason = reason)
+                HopFlag(host = host, url = url, reason = reason, lookalikes = verdict.lookalikes)
             } else {
                 null
             }
@@ -57,10 +64,11 @@ object RedirectPath {
         urls: List<String>,
         checker: HopChecker,
         allowed: Set<String>,
+        startHost: String? = null,
     ): HopFlag? {
         for (url in urls) {
             val flag = checker.check(url) ?: continue
-            if (flag.host !in allowed) {
+            if (flag.host !in allowed && !flag.isStartSiteLookalike(startHost)) {
                 return flag
             }
         }

@@ -514,6 +514,7 @@ class TabManager(
             isPrivate = actualPrivate,
             entryId = entryId,
             entryHost = initialHost,
+            chainStartHost = initialHost,
             lastLoadedHost = initialHost,
             desktopSite = currentBrowserPrefs.desktopByDefault,
             hadSite = !EmptyTabPolicy.isStartUrl(url),
@@ -593,6 +594,7 @@ class TabManager(
             isPrivate = isPrivate,
             entryId = entryId,
             entryHost = initialHost,
+            chainStartHost = initialHost,
             lastLoadedHost = initialHost,
             desktopSite = currentBrowserPrefs.desktopByDefault,
             hadSite = !EmptyTabPolicy.isStartUrl(url),
@@ -1024,6 +1026,7 @@ class TabManager(
         }
         record.url = url
         record.sourceUrl = url
+        record.chainStartHost = try { Uri.parse(url).host } catch (_: Exception) { null }
         if (!EmptyTabPolicy.isStartUrl(url)) record.hadSite = true
         ensureWebView(record)
         if (BrowsePolicy.shouldBlock(url, currentDataUsagePrefs.browseWifiOnly, currentNetworkKind, tabId in mobileOkTabs)) {

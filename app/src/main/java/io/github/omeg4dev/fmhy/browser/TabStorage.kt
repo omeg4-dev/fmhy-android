@@ -45,6 +45,8 @@ class TabRecord(
     @Volatile var desiredRate: Float = 0f,
     var hasStartedFirstLoad: Boolean = false,
     var entryHost: String? = null,
+    /** Host of the last page the user navigated to on purpose; server, JS and meta redirects keep it. */
+    @Volatile var chainStartHost: String? = null,
     var lastLoadedHost: String? = null,
     var lastActiveTime: Long = System.currentTimeMillis(),
     @Volatile var lastTouchAt: Long = 0L,
