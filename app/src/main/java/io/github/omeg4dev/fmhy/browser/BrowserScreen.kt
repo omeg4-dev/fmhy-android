@@ -447,17 +447,19 @@ fun BrowserScreen(
                 .background(MaterialTheme.colorScheme.background)
         ) {
             // 1. Status bar background: solid surfaceContainer at all times (no transparent band)
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .windowInsetsTopHeight(WindowInsets.statusBars)
-                    .background(MaterialTheme.colorScheme.surfaceContainer)
-                    .align(Alignment.TopCenter)
-                    .zIndex(10f),
-            )
+            if (!isInPip) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .windowInsetsTopHeight(WindowInsets.statusBars)
+                        .background(MaterialTheme.colorScheme.surfaceContainer)
+                        .align(Alignment.TopCenter)
+                        .zIndex(10f),
+                )
+            }
 
             // 2. Navigation bar background if toolbar is at bottom
-            if (browserPrefs.toolbarPosition == ToolbarPosition.BOTTOM) {
+            if (browserPrefs.toolbarPosition == ToolbarPosition.BOTTOM && !isInPip) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -546,7 +548,7 @@ fun BrowserScreen(
                         // sits below it; a bottom bar hides over the page. Moving the WebView under a finger flickered.
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(top = if (isTopBar) with(density) { totalBarHeightPx.toDp() } else 0.dp),
+                            .padding(top = if (isTopBar && !isInPip) with(density) { totalBarHeightPx.toDp() } else 0.dp),
                     ) {
                         if (webView != null) {
                             DisposableEffect(webView, isTopBar) {

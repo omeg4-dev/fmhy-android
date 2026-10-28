@@ -140,6 +140,14 @@ class BrowserJsBridge(
         }
     }
 
+    /** The video's bounds inside the WebView, in device pixels. */
+    @JavascriptInterface
+    fun videoRect(left: Int, top: Int, right: Int, bottom: Int) {
+        tabManager.postToMain {
+            tabManager.setVideoRect(tabId, left, top, right, bottom)
+        }
+    }
+
     @JavascriptInterface
     fun mediaEvent(type: String) {
         tabManager.postToMain {

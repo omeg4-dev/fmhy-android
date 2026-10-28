@@ -23,6 +23,9 @@ object VideoJs {
     fun setAutoplayCall(mode: String): String =
         "window.__fmhyVideo&&window.__fmhyVideo.setAutoplay('$mode');"
 
+    /** JS that makes the playing video fill the page (on) or puts the page back (off), for picture-in-picture. */
+    fun pipCall(on: Boolean): String = "window.__fmhyVideo&&window.__fmhyVideo.pip($on);"
+
     fun setRateCall(rate: Float): String =
         "window.__fmhyVideo&&window.__fmhyVideo.setRate(${if (rate > 0f) rate.toString() else "null"});"
 
@@ -41,6 +44,82 @@ object VideoJs {
                 }
             } catch (_) {}
         }
+        // The playing (else first) video's rectangle in device pixels, so picture-in-picture can start from it.
+        // Only the top page reports it: an iframe's rectangle is relative to the frame, not the WebView.
+        var rectTimer = 0;
+        function pickVideo() {
+            var list = document.querySelectorAll('video'), first = null;
+            for (var i = 0; i < list.length; i++) {
+                if (!first) first = list[i];
+                if (!list[i].paused && !list[i].ended) return list[i];
+            }
+            return first;
+        }
+        function reportRect() {
+            rectTimer = 0;
+            try {
+                if (window.top !== window || !B.videoRect) return;
+                var v = pickVideo();
+                if (!v) return;
+                var r = v.getBoundingClientRect(), d = window.devicePixelRatio || 1;
+                B.videoRect(Math.round(r.left * d), Math.round(r.top * d), Math.round(r.right * d), Math.round(r.bottom * d));
+            } catch (_) {}
+        }
+        function scheduleRect() { if (!rectTimer) rectTimer = setTimeout(reportRect, 100); }
+        // Picture-in-picture: the window is the page's viewport, so pin the video to fill it and drop its controls.
+        var PIP_CSS = 'position:fixed;top:0;left:0;width:100vw;height:100vh;max-width:none;max-height:none;' +
+            'margin:0;padding:0;transform:none;object-fit:contain;background:#000;z-index:2147483647;border:0';
+        function pinned(el, on) {
+            if (on) {
+                if (el.__fmhyPip) return;
+                el.__fmhyPip = { style: el.getAttribute('style'), controls: el.controls };
+                el.style.cssText = PIP_CSS.replace(/;/g, ' !important;') + ' !important';
+                if (el.tagName === 'VIDEO') el.controls = false;
+            } else if (el.__fmhyPip) {
+                var o = el.__fmhyPip; el.__fmhyPip = null;
+                if (o.style === null) el.removeAttribute('style'); else el.setAttribute('style', o.style);
+                if (el.tagName === 'VIDEO') el.controls = o.controls;
+            }
+        }
+        // Messages between frames are page-controlled, so they only count while picture-in-picture is on: the app
+        // switches the top page (trusted), the top page switches its frames, and only a parent may switch a frame.
+        var pipActive = false;
+        function applyPip(on) {
+            pipActive = on;
+            try {
+                var v = pickVideo();
+                if (v && (on ? !v.paused : true)) {
+                    pinned(v, on);
+                    document.documentElement.style.setProperty('overflow', on ? 'hidden' : '', on ? 'important' : '');
+                    if (on && window.top !== window) window.parent.postMessage('fmhyPipHit', '*');
+                }
+                var frames = document.querySelectorAll('iframe');
+                for (var i = 0; i < frames.length; i++) {
+                    if (!on) pinned(frames[i], false);
+                    try { frames[i].contentWindow.postMessage(on ? 'fmhyPipOn' : 'fmhyPipOff', '*'); } catch (_) {}
+                }
+            } catch (_) {}
+        }
+        V.pip = applyPip;
+        window.addEventListener('message', function(e) {
+            try {
+                if (e.data === 'fmhyPipOn' || e.data === 'fmhyPipOff') {
+                    if (window.top !== window && e.source === window.parent) applyPip(e.data === 'fmhyPipOn');
+                } else if (e.data === 'fmhyPipHit') {
+                    if (!pipActive) return;
+                    var frames = document.querySelectorAll('iframe');
+                    for (var i = 0; i < frames.length; i++) {
+                        if (frames[i].contentWindow === e.source) {
+                            pinned(frames[i], true);
+                            document.documentElement.style.setProperty('overflow', 'hidden', 'important');
+                            if (window.top !== window) window.parent.postMessage('fmhyPipHit', '*');
+                        }
+                    }
+                }
+            } catch (_) {}
+        });
+        window.addEventListener('scroll', scheduleRect, true);
+        window.addEventListener('resize', scheduleRect);
         // Playback speed. rate === null means the app has no opinion and the page is left alone.
         var rate = null, reported = false;
         function applyRate(m) {
@@ -197,6 +276,7 @@ object VideoJs {
                 if (isMedia(e.target)) {
                     hook(e.target);
                     reportSize(e.target);
+                    scheduleRect();
                     if (evt === 'loadedmetadata' || evt === 'play') scheduleSources();
                 }
             }, true);

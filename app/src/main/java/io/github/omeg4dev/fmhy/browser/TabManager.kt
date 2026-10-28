@@ -1201,6 +1201,7 @@ class TabManager(
         record.desiredRate = 0f
         record.videoWidth = 0
         record.videoHeight = 0
+        record.videoRect = null
         record.videoSources = emptyList()
         record.videoFrames.clear()
         val host = try { Uri.parse(url).host } catch (_: Exception) { null }
@@ -1244,6 +1245,21 @@ class TabManager(
         record.videoHeight = height
         updateTabsFlow()
         if (_currentTabId.value == tabId) onPipStateChanged?.invoke()
+    }
+
+    fun setVideoRect(tabId: Long, left: Int, top: Int, right: Int, bottom: Int) {
+        val record = getTabRecord(tabId) ?: return
+        record.videoRect = if (right > left && bottom > top) intArrayOf(left, top, right, bottom) else null
+        if (_currentTabId.value == tabId) onPipStateChanged?.invoke()
+    }
+
+    /** Makes the active tab's video fill the page while the picture-in-picture window shows it. */
+    fun setPipActive(active: Boolean) {
+        val record = getActiveTabRecord() ?: return
+        val js = VideoJs.pipCall(active)
+        postToMain {
+            try { record.webView?.evaluateJavascript(js, null) } catch (_: Throwable) {}
+        }
     }
 
     fun isVideoPlaying(): Boolean {

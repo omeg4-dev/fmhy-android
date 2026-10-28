@@ -32,6 +32,22 @@ fun pipRatio(width: Int, height: Int): Ratio {
 }
 
 /**
+ * The picture-in-picture source rectangle (left, top, right, bottom in window pixels): the video's
+ * bounds, offset by where the WebView sits on screen and cut to the WebView; the whole WebView when the
+ * video's position is unknown or lies outside it.
+ */
+fun pipSourceRect(webView: IntArray, video: IntArray?): IntArray {
+    if (video == null) return webView
+    val width = webView[2] - webView[0]
+    val height = webView[3] - webView[1]
+    val left = webView[0] + video[0].coerceIn(0, width)
+    val top = webView[1] + video[1].coerceIn(0, height)
+    val right = webView[0] + video[2].coerceIn(0, width)
+    val bottom = webView[1] + video[3].coerceIn(0, height)
+    return if (right > left && bottom > top) intArrayOf(left, top, right, bottom) else webView
+}
+
+/**
  * The requestedOrientation to use while a video is fullscreen. AUTO uses landscape for videos at
  * least as wide as tall (or of unknown shape) and portrait for taller ones.
  */

@@ -35,6 +35,8 @@ class TabRecord(
     var isVideoPlaying: Boolean = false,
     @Volatile var videoWidth: Int = 0,
     @Volatile var videoHeight: Int = 0,
+    /** Bounds of the page's video inside the WebView in device pixels (left, top, right, bottom); null = unknown. */
+    @Volatile var videoRect: IntArray? = null,
     @Volatile var hasMedia: Boolean = false,
     @Volatile var videoSources: List<VideoSource> = emptyList(),
     /** Video lists reported per frame ('' = top page); main thread only. */

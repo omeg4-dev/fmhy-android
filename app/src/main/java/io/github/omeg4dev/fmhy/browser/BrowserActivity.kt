@@ -230,7 +230,11 @@ class BrowserActivity : ComponentActivity() {
             val rect = android.graphics.Rect()
             val wv = record?.webView
             if (wv != null && wv.getGlobalVisibleRect(rect) && !rect.isEmpty) {
-                builder.setSourceRectHint(rect)
+                // Fullscreen video fills the window itself; inline video starts from its own bounds.
+                val hooks = container.browserHooks as? DefaultBrowserHooks
+                val video = if (hooks?.customView != null) null else record.videoRect
+                val r = pipSourceRect(intArrayOf(rect.left, rect.top, rect.right, rect.bottom), video)
+                builder.setSourceRectHint(android.graphics.Rect(r[0], r[1], r[2], r[3]))
             }
         } catch (_: Exception) {}
         return builder
@@ -269,6 +273,7 @@ class BrowserActivity : ComponentActivity() {
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
         isInPipMode = isInPictureInPictureMode
+        (application as FmhyApp).container.tabManager.setPipActive(isInPictureInPictureMode)
     }
 
     /**
