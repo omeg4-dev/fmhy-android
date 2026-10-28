@@ -74,6 +74,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
@@ -82,6 +83,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -164,6 +166,9 @@ fun BrowserToolbar(
     val haptics = rememberHaptics()
     var showMenuSheet by remember { mutableStateOf(false) }
 
+    // The toolbar is a plain background, not a Surface, and the activity's root Surface is transparent,
+    // so untinted icons would resolve LocalContentColor to black. Pin it to the theme.
+    CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onSurface) {
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -273,6 +278,7 @@ fun BrowserToolbar(
         if (toolbarPosition == ToolbarPosition.TOP) {
             HorizontalDivider(thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant)
         }
+    }
     }
 
     if (showMenuSheet) {
