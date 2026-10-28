@@ -35,3 +35,4 @@ NIGHT-REPORT.md
 *.keystore
 keystore.properties
 .env
+/docs/old/

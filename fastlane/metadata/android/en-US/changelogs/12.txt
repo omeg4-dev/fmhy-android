@@ -1,0 +1,5 @@
+- Faster everywhere: a bundled baseline profile means screens are smooth from the first launch
+- Browser: no more flicker while scrolling with a top bar; picture-in-picture now shows just the video
+- Redirects of listed sites (a moved domain) are no longer flagged as imitating
+- Browser toolbar icons follow the theme; onboarding appearance step applies live
+- Settings no longer flicker when scrolling
