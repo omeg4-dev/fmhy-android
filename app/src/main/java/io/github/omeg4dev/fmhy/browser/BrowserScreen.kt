@@ -105,7 +105,6 @@ import io.github.omeg4dev.fmhy.ui.common.LocalBookmarks
 import io.github.omeg4dev.fmhy.ui.common.Motion
 import io.github.omeg4dev.fmhy.ui.common.SavedInfo
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
-import kotlin.math.roundToInt
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
@@ -269,9 +268,7 @@ fun BrowserScreen(
         BarScrollTracker(hideThresholdPx = with(density) { 48.dp.toPx() }, showThresholdPx = with(density) { 32.dp.toPx() })
     }
     val isTopBar = browserPrefs.toolbarPosition == ToolbarPosition.TOP
-    var barTargetHidden by remember { mutableStateOf(false) }
     val applyBars: () -> Unit = {
-        barTargetHidden = bars.hidden
         val hiddenValue = if (browserPrefs.toolbarPosition == ToolbarPosition.TOP) -totalBarHeightPx else totalBarHeightPx
         val target = if (bars.hidden) hiddenValue else 0f
         if (toolbarTranslation.targetValue != target) {
@@ -290,14 +287,12 @@ fun BrowserScreen(
     val navKey = currentTab?.url?.substringBefore('#')
     LaunchedEffect(shouldForceToolbarShown, navKey) {
         bars.hidden = false
-        barTargetHidden = false
         barTracker.reset()
         applyBarsState()
     }
     // Toolbar position changed: reset to shown.
     LaunchedEffect(isTopBar) {
         bars.hidden = false
-        barTargetHidden = false
         snapJob?.cancel()
         toolbarTranslation.snapTo(0f)
     }
@@ -473,7 +468,7 @@ fun BrowserScreen(
                 )
             }
 
-            // 3. WebView container fills whole area between status bar and navigation bar and never resizes
+            // 3. WebView container fills whole area between status bar and navigation bar
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -542,55 +537,19 @@ fun BrowserScreen(
                                 isRefreshing = currentTab.isLoading,
                                 modifier = Modifier
                                     .align(Alignment.TopCenter)
-                                    .padding(top = if (browserPrefs.toolbarPosition == ToolbarPosition.TOP) 64.dp else 16.dp),
+                                    .padding(top = 16.dp),
                                 containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                                 color = MaterialTheme.colorScheme.primary,
                             )
                         },
-                        modifier = Modifier.fillMaxSize(),
+                        // BUG-17: the page never moves or resizes while it scrolls. A top bar stays put and the page
+                        // sits below it; a bottom bar hides over the page. Moving the WebView under a finger flickered.
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(top = if (isTopBar) with(density) { totalBarHeightPx.toDp() } else 0.dp),
                     ) {
                         if (webView != null) {
-                            val tyHolder = remember(webView) { TyHolder(webView.translationY) }
-                            var initializedForWebView by remember(webView, browserPrefs.toolbarPosition) { mutableStateOf(false) }
-
-                            // BUG-15: The WebView translation changes only at the start of a bar animation (once per switch),
-                            // never per frame, compensating scroll in the same frame so content stays fixed on screen.
-                            val targetHidden = barTargetHidden || (isTopBar && toolbarTranslation.targetValue < 0f)
-                            LaunchedEffect(webView, browserPrefs.toolbarPosition, targetHidden, totalBarHeightPx) {
-                                webView.setPadding(0, 0, 0, 0)
-                                if (browserPrefs.toolbarPosition != ToolbarPosition.TOP) {
-                                    if (webView.translationY != 0f) {
-                                        barsLog("webView.translationY=0.0 pointerDown=${barTracker.pointerDown}")
-                                        webView.translationY = 0f
-                                        tyHolder.lastTy = 0f
-                                    }
-                                    initializedForWebView = true
-                                    return@LaunchedEffect
-                                }
-
-                                if (totalBarHeightPx <= 0f) {
-                                    return@LaunchedEffect
-                                }
-
-                                val targetTy = pageOffsetFor(targetHidden, totalBarHeightPx)
-                                if (!initializedForWebView) {
-                                    // On first composition / WebView change / toolbar position change:
-                                    // set translationY directly to the correct resting value without scroll compensation.
-                                    initializedForWebView = true
-                                    if (webView.translationY != targetTy) {
-                                        barsLog("webView.translationY=$targetTy pointerDown=${barTracker.pointerDown}")
-                                        webView.translationY = targetTy
-                                        tyHolder.lastTy = targetTy
-                                    }
-                                    return@LaunchedEffect
-                                }
-
-                                tyHolder.pendingTy = targetTy
-                                // A finger is down: the switch rides on the next MOVE event (see the touch listener).
-                                if (!barTracker.pointerDown) applyPageOffsetAtRest(webView, tyHolder, ::barsLog)
-                            }
-
-                            DisposableEffect(webView) {
+                            DisposableEffect(webView, isTopBar) {
                                 webView.setFindListener { activeMatchOrdinal, numberOfMatches, _ ->
                                     findActiveIndex = activeMatchOrdinal
                                     findTotalMatches = numberOfMatches
@@ -600,7 +559,6 @@ fun BrowserScreen(
                                 // Idle: the glide after a lift ended; make sure the bar rests fully shown/hidden.
                                 val idle = Runnable {
                                     barTracker.onScrollIdle()
-                                    applyPageOffsetAtRest(webView, tyHolder, ::barsLog)
                                     val hiddenValue = if (isTopBar) -totalBarHeightPx else totalBarHeightPx
                                     val target = if (bars.hidden) hiddenValue else 0f
                                     if (!toolbarTranslation.isRunning && toolbarTranslation.value != target) {
@@ -610,14 +568,8 @@ fun BrowserScreen(
                                         snapJob = scope.launch { toolbarTranslation.animateTo(target, Motion.standard()) }
                                     }
                                 }
-                                tyHolder.lastTy = webView.translationY
                                 webView.setOnScrollChangeListener { _, _, scrollY, _, oldScrollY ->
-                                    // Screen-space delta: moving the WebView with a top bar shifts the finger's
-                                    // position in the page and WebView scrolls by the same amount; that is no scroll.
-                                    val ty = webView.translationY
-                                    val dy = (scrollY - oldScrollY) - (ty - tyHolder.lastTy).roundToInt() - tyHolder.pendingScroll
-                                    tyHolder.pendingScroll = 0
-                                    tyHolder.lastTy = ty
+                                    val dy = scrollY - oldScrollY
                                     val isAtTop = !webView.canScrollVertically(-1) || scrollY <= 0
 
                                     if (isAtTop) {
@@ -626,16 +578,11 @@ fun BrowserScreen(
                                             bars.hidden = false
                                             applyBarsState()
                                         }
-                                    } else if (!isFindMode && !isEditMode && !loadingState && totalBarHeightPx > 0f) {
+                                    } else if (!isTopBar && !isFindMode && !isEditMode && !loadingState && totalBarHeightPx > 0f) {
                                         val hide = barTracker.onScroll(dy)
                                         if (hide != null && hide != bars.hidden) {
-                                            if (hide && isTopBar && !canHideTopBar(webView.scrollY, totalBarHeightPx)) {
-                                                // Only allow hiding when webView.scrollY >= H (otherwise the compensation would clamp and the content would jump):
-                                                // if it is smaller, ignore the hide request (leave bars.hidden = false).
-                                            } else {
-                                                bars.hidden = hide
-                                                applyBarsState()
-                                            }
+                                            bars.hidden = hide
+                                            applyBarsState()
                                         }
                                     }
                                     webView.removeCallbacks(idle)
@@ -678,20 +625,6 @@ fun BrowserScreen(
                                 )
 
                                 webView.setOnTouchListener { _, event ->
-                                    if (event.actionMasked == MotionEvent.ACTION_MOVE) {
-                                        val pending = tyHolder.pendingTy
-                                        if (pending != null && pending != webView.translationY) {
-                                            // Move the page and tell the WebView the finger "moved" by the same amount in
-                                            // this very event: it scrolls the content back in the same frame, no flick.
-                                            val old = webView.translationY
-                                            barsLog("webView.translationY=$pending (drag)")
-                                            webView.translationY = pending
-                                            tyHolder.lastTy = pending
-                                            tyHolder.pendingScroll += (pending - old).roundToInt()
-                                            event.offsetLocation(0f, old - pending)
-                                        }
-                                        tyHolder.pendingTy = null
-                                    }
                                     gestureDetector.onTouchEvent(event)
                                     if (event.actionMasked == MotionEvent.ACTION_POINTER_DOWN || event.pointerCount >= 2) {
                                         barTracker.setMultiTouch(true)
@@ -814,7 +747,7 @@ fun BrowserScreen(
                     }
                 }
 
-                // Toolbar overlay in Box (never resizes webview)
+                // Toolbar overlay in Box (moving it never moves the page)
                 if (!isInPip && customView == null) {
                     Box(
                         modifier = Modifier
@@ -1547,25 +1480,6 @@ fun BrowserScreen(
             },
             onDismiss = { pendingExternalApp = null },
         )
-    }
-}
-
-/** [pendingScroll] is the scrollBy this screen applied itself; the scroll listener must not count it as a user scroll. */
-private class TyHolder(var lastTy: Float, var pendingScroll: Int = 0, var pendingTy: Float? = null)
-
-/** No finger down: switch the page offset and keep the content in place with one scrollBy. */
-private fun applyPageOffsetAtRest(webView: WebView, holder: TyHolder, log: (String) -> Unit) {
-    val target = holder.pendingTy ?: return
-    holder.pendingTy = null
-    val old = webView.translationY
-    if (old == target) return
-    val compensation = compensationFor(oldTy = old, newTy = target)
-    log("webView.translationY=$target (rest)")
-    webView.translationY = target
-    holder.lastTy = target
-    if (compensation != 0) {
-        holder.pendingScroll += compensation
-        webView.scrollBy(0, compensation)
     }
 }
 
