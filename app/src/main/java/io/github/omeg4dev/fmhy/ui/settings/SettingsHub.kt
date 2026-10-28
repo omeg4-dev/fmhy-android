@@ -9,6 +9,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
@@ -48,6 +49,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -83,6 +85,9 @@ import io.github.omeg4dev.fmhy.data.ThemeMode
 import io.github.omeg4dev.fmhy.data.adblock.FilterListCatalog
 import io.github.omeg4dev.fmhy.theme.ACCENT_PRESETS
 import io.github.omeg4dev.fmhy.ui.common.Motion
+
+/** Height of the overlaid search field (56dp field + 8dp padding above and below). */
+private val SearchFieldSlot = 72.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -196,7 +201,9 @@ fun SettingsHub(
         contentWindowInsets = WindowInsets.navigationBars,
         modifier = modifier,
     ) { innerPadding ->
-        Column(
+        // The search field overlays the list: revealing it on scroll must not change the
+        // list's size or position, or the content jumps under the finger (BUG-18).
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(
@@ -204,42 +211,14 @@ fun SettingsHub(
                     bottom = innerPadding.calculateBottomPadding(),
                 ),
         ) {
-            AnimatedVisibility(
-                visible = isSearchVisible,
-                enter = slideInVertically(animationSpec = Motion.enter()) { -it } + fadeIn(animationSpec = Motion.enter()),
-                exit = slideOutVertically(animationSpec = Motion.exit()) { -it } + fadeOut(animationSpec = Motion.exit()),
-            ) {
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    placeholder = { Text("Search settings") },
-                    leadingIcon = {
-                        Icon(Icons.Default.Search, contentDescription = "Search")
-                    },
-                    trailingIcon = if (query.isNotEmpty()) {
-                        {
-                            IconButton(onClick = { query = "" }) {
-                                Icon(Icons.Default.Close, contentDescription = "Clear search")
-                            }
-                        }
-                    } else null,
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                        .focusRequester(focusRequester)
-                        .onFocusChanged { isFocused = it.isFocused },
-                    shape = RoundedCornerShape(24.dp),
-                )
-            }
-
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
                     .nestedScroll(nestedScrollConnection),
-                contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp),
+                contentPadding = PaddingValues(
+                    top = if (isFocused || query.isNotEmpty()) SearchFieldSlot else 8.dp,
+                    bottom = 24.dp,
+                ),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 if (query.isNotEmpty()) {
@@ -516,6 +495,43 @@ fun SettingsHub(
                     }
                 }
             }
+
+            AnimatedVisibility(
+                visible = isSearchVisible,
+                modifier = Modifier.align(Alignment.TopCenter),
+                enter = slideInVertically(animationSpec = Motion.enter()) { -it } + fadeIn(animationSpec = Motion.enter()),
+                exit = slideOutVertically(animationSpec = Motion.exit()) { -it } + fadeOut(animationSpec = Motion.exit()),
+            ) {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    placeholder = { Text("Search settings") },
+                    leadingIcon = {
+                        Icon(Icons.Default.Search, contentDescription = "Search")
+                    },
+                    trailingIcon = if (query.isNotEmpty()) {
+                        {
+                            IconButton(onClick = { query = "" }) {
+                                Icon(Icons.Default.Close, contentDescription = "Clear search")
+                            }
+                        }
+                    } else null,
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .focusRequester(focusRequester)
+                        .onFocusChanged { isFocused = it.isFocused },
+                    shape = RoundedCornerShape(24.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                    ),
+                )
+            }
+
         }
     }
 }
