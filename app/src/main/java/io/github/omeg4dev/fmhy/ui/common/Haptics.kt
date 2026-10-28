@@ -120,7 +120,7 @@ fun rememberHaptics(): AppHaptics {
     val enabled = LocalHapticsEnabled.current
     val context = LocalContext.current
     return remember(enabled, context) {
-        if (!enabled) NoOpHaptics else VibratorHaptics.from(context) ?: NoOpHaptics
+        if (!enabled) NoOpHaptics else VibratorHaptics.shared(context) ?: NoOpHaptics
     }
 }
 
@@ -180,7 +180,24 @@ private class VibratorHaptics(private val vibrator: Vibrator) : AppHaptics {
             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
             .build()
 
-        fun from(context: Context): VibratorHaptics? {
+        // Every entry row asks for haptics several times; building the effects queries the vibrator
+        // service, so the app keeps one instance (PERF-01).
+        @Volatile private var resolved = false
+        private var instance: VibratorHaptics? = null
+
+        fun shared(context: Context): VibratorHaptics? {
+            if (!resolved) {
+                synchronized(this) {
+                    if (!resolved) {
+                        instance = from(context.applicationContext)
+                        resolved = true
+                    }
+                }
+            }
+            return instance
+        }
+
+        private fun from(context: Context): VibratorHaptics? {
             val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 context.getSystemService(VibratorManager::class.java)?.defaultVibrator
             } else {

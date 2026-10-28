@@ -128,6 +128,7 @@ import io.github.omeg4dev.fmhy.nav.Tab
 import io.github.omeg4dev.fmhy.ui.common.CrossfadeContent
 import io.github.omeg4dev.fmhy.ui.common.EmptyState
 import io.github.omeg4dev.fmhy.ui.common.EntryRow
+import io.github.omeg4dev.fmhy.ui.common.HEADING_PATH_SEPARATOR
 import io.github.omeg4dev.fmhy.ui.common.LocalSnackbarHost
 import io.github.omeg4dev.fmhy.ui.common.SkeletonRows
 import io.github.omeg4dev.fmhy.ui.common.SwipeToSave
@@ -558,7 +559,7 @@ fun SearchScreen(
                                         ) {
                                             val segments = remember(hit.entry.headingPath) {
                                                 hit.entry.headingPath
-                                                    .split(Regex("""\s*[›>]\s*"""))
+                                                    .split(HEADING_PATH_SEPARATOR)
                                                     .filter { it.isNotBlank() }
                                             }
                                             val headingSegments = if (segments.size > 1) segments.drop(1) else emptyList()

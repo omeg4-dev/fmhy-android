@@ -85,6 +85,9 @@ fun parseHighlight(text: String, highlightColor: Color, background: Color = Colo
     }
 }
 
+/** Splits an entry's heading path ("Section › Category › Sub"); compiled once, rows use it while scrolling. */
+val HEADING_PATH_SEPARATOR = Regex("""\s*[›>]\s*""")
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun EntryRow(
@@ -141,7 +144,7 @@ fun EntryRow(
 
     val categoryTitle = remember(entry.headingPath) {
         val segments = entry.headingPath
-            .split(Regex("""\s*[›>]\s*"""))
+            .split(HEADING_PATH_SEPARATOR)
             .filter { it.isNotBlank() }
             .map { CrossLinks.splitLinkTitle(it).first }
         segments.drop(1).firstOrNull() ?: segments.firstOrNull().orEmpty()
@@ -162,7 +165,7 @@ fun EntryRow(
                     val isCurrentlyFollowing = effectiveFollowState.isFollowing
                     val nextFollowing = !isCurrentlyFollowing
                     val segments = entry.headingPath
-                        .split(Regex("""\s*[›>]\s*"""))
+                        .split(HEADING_PATH_SEPARATOR)
                         .filter { it.isNotBlank() }
                         .map { CrossLinks.splitLinkTitle(it).first }
                     val sectionTitle = segments.firstOrNull() ?: entry.sectionId

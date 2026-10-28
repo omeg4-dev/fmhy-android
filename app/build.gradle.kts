@@ -4,6 +4,7 @@ plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.compose.compiler)
   alias(libs.plugins.kotlin.serialization)
+  alias(libs.plugins.androidx.baselineprofile)
 }
 
 android {
@@ -84,8 +85,16 @@ android {
     }
 }
 
+// Baseline profile is generated on a device (./gw :app:generateBaselineProfile) and
+// checked in under src/main/generated, so release builds (incl. F-Droid) need no device.
+baselineProfile {
+  automaticGenerationDuringBuild = false
+  saveInSrc = true
+  mergeIntoMain = true
+}
 
 dependencies {
+  baselineProfile(project(":baselineprofile"))
   val composeBom = platform(libs.androidx.compose.bom)
   implementation(composeBom)
   androidTestImplementation(composeBom)

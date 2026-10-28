@@ -26,4 +26,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "fmhy-android"
-include(":app", ":core:data")
+include(":app", ":core:data", ":baselineprofile")
