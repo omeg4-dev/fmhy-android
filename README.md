@@ -11,79 +11,79 @@
 [![Stars](https://img.shields.io/github/stars/omeg4-dev/fmhy-android?style=flat)](https://github.com/omeg4-dev/fmhy-android/stargazers)
 [![License](https://img.shields.io/github/license/omeg4-dev/fmhy-android)](https://github.com/omeg4-dev/fmhy-android/blob/main/LICENSE)
 
+**The entire FMHY wiki on your phone. Works offline, includes an ad-blocking browser, and checks links before you open them.**
 
-**The whole FMHY wiki in your pocket: searchable, offline, with an ad-blocking browser and a link checker.**
-
-[**⬇ Download the APK**](https://github.com/omeg4-dev/fmhy-android/releases/latest) · Android 8.0+ · free & open source · no account · no ads · no tracking
+[**⬇ Download APK**](https://github.com/omeg4-dev/fmhy-android/releases/latest) · Android 8.0+ · Free & Open Source · No Ads or Tracking
 
 </div>
 
 <p align="center">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" width="250" alt="The whole wiki, in your pocket">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" width="250" alt="Find anything in a second">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/4.png" width="250" alt="Check a link before you click">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" width="200" alt="The whole wiki, in your pocket">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" width="200" alt="Find anything in a second">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/4.png" width="200" alt="Check a link before you click">
 </p>
 
-## Highlights
+## Features
 
-- ⚡ **Instant offline search** over 21,000+ sites: typo-proof, with filters like `in:video anime`, `is:starred adblock`, `site:github.com`.
-- 🛡️ **Built-in browser with real ad blocking** (uBlock Origin and EasyList lists), pop-up and redirect shield, unsafe-site warnings, and a mirror or Wayback one tap away when a site is down.
-- 🔗 **Check any link before you open it**: paste or share from any app and see if it is on FMHY, starred, or a fake lookalike.
-- 🔔 **What's new**: every site added, starred, removed or moved, plus "Since last visit". Follow sections and get one quiet notification.
-- ⬇️ **Download manager** with pause and resume, and optional VirusTotal / Hybrid Analysis checks (your own free key, off by default).
-- 🎨 **Make it yours**: light, dark or pure black, ten accent palettes or Material You, pins on Home, a widget, saved folders you can share.
-- 🔒 **Private**: no account, no ads, no tracking, no server of ours. In-app updates, and nothing installs without a tap.
+- 🔍 **Fast offline search** across 21,000+ links. Handles typos automatically and supports filters like `in:video anime`, `is:starred`, or `site:github.com`.
+- 🛡️ **Built-in browser** with uBlock Origin/EasyList filter lists, pop-up blocking, unsafe-site warnings, and quick access to mirrors or Wayback Machine if a site is down.
+- 🔗 **Link checker**: Share or paste any URL to see if it's listed on FMHY, starred, or a fake clone.
+- 🔔 **Changelog & notifications**: See what was recently added, removed, or starred. Follow specific categories to get notified when they update.
+- ⬇️ **Download manager** with pause/resume and optional VirusTotal or Hybrid Analysis scans (requires your own free API key).
+- 🎨 **Customizable**: Light, dark, and AMOLED themes, Material You support, home screen widgets, and shareable bookmark folders.
+- 🔒 **Private**: No accounts, no tracking, and no middleman servers.
 
 <p align="center">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" width="250" alt="The best sites, starred">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/5.png" width="250" alt="Never miss what changed">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/6.png" width="250" alt="Make it yours">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" width="200" alt="The best sites, starred">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/5.png" width="200" alt="Never miss what changed">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/6.png" width="200" alt="Make it yours">
 </p>
 
-## More
-
 <details>
-<summary><b>Search and reading</b></summary>
+<summary><b>More details (Search, Browser & Privacy)</b></summary>
 
-- Fuzzy search finds `stremio` when you type `stremo`; switch to exact any time. The 3 best-fitting categories come first, starred picks rank higher, matches are highlighted.
-- Every section in fmhy.net's order with the same stars and icons. One row per wiki line: tap for all its mirrors and extra links, hold to open.
-- The beginner's guide, notes, FAQ and FMHY's posts are readable in the app. Hidden base64 links are decoded for you.
-</details>
+**Search & Reading**
+- Fuzzy search catches typos (like `stremo` for `stremio`), or you can switch to exact match. Starred sites rank higher.
+- Keeps the exact layout, icons, and stars from fmhy.net. Tap an entry to view mirrors and extra links, or hold to open directly.
+- Includes the beginner's guide, FAQs, and automatic base64 decoding.
 
-<details>
-<summary><b>Browser</b></summary>
+**Browser**
+- Address bar badge shows if the current site is listed or starred on FMHY.
+- Supports tab groups, private tabs, picture-in-picture, video speed controls, and double-tap to seek.
 
-- A small icon in the address bar shows whether the page is starred or listed on FMHY.
-- Tabs in list or grid, private tabs kept apart, tab groups, picture-in-picture video, playback speed, double-tap to seek, smooth scrolling and pinch zoom.
-- Wi-Fi only options for downloads, browsing and updates; "Report a problem" never sends anything by itself.
-</details>
-
-<details>
-<summary><b>Privacy details</b></summary>
-
-- The app reads the wiki straight from FMHY's own repository. Release APKs ship with a copy, so they work offline from the first launch and updates only download what changed.
-- If you add a VirusTotal or Hybrid Analysis key, the app sends a link's web address when you tap "Check link first" and a file's SHA-256 for file checks. A file is only uploaded after you agree. Nothing is sent until you add a key.
+**Privacy & Data**
+- The app pulls markdown directly from [fmhy/edit](https://github.com/fmhy/edit) (with jsDelivr as a fallback) and parses it locally on your device.
+- Release APKs come bundled with the wiki so it works offline right away, only downloading diffs when updating.
+- VirusTotal / Hybrid Analysis checks are completely opt-in and only run when you add your own API key.
 </details>
 
 ## Install
 
-Get the APK from [**Releases**](https://github.com/omeg4-dev/fmhy-android/releases/latest). A short setup on first start picks your look, how links open and which sections to follow. If you installed a build older than 0.4.0, uninstall it first: those used a different signing key.
+Download the latest APK from [**Releases**](https://github.com/omeg4-dev/fmhy-android/releases/latest). 
 
-## How it works
-
-No server in between: the app downloads the wiki's markdown from [fmhy/edit](https://github.com/fmhy/edit) (jsDelivr as fallback), parses it on your phone and syncs only changed files. Change history comes from fmhy/edit and [fmhy-tracker](https://fmhy-tracker.pages.dev/); filter lists from uBlock Origin and EasyList; link checks use the same lists as [FMHY SafeGuard](https://github.com/fmhy/FMHY-SafeGuard). Builds made straight from this repo download the wiki on first start.
+*Note: If you're updating from a version older than `0.4.0`, uninstall the old version first (the signing key changed).*
 
 ## Building
 
 ```bash
 ./gradlew :app:assembleRelease      # unsigned unless a release keystore is configured
 ./gradlew :core:data:test :app:testDebugUnitTest
+
 ```
 
-`app/` Android app (Kotlin, Compose) · `core/data/` data layer (parser, SQLite, sync, search, ad-block) · `schema/` · `pipeline/` Python reference parser for parity tests · `tools/` icon and store-frame scripts. Third-party assets: `THIRD_PARTY.md`.
+* `app/` — Android UI (Kotlin, Compose)
+* `core/data/` — Parser, SQLite, sync, search, ad-block
+* `pipeline/` — Python reference parser for tests
+* `tools/` — Icon and store-frame scripts
 
-## Not affiliated with FMHY
+See `THIRD_PARTY.md` for third-party assets and credits (filter lists from uBlock/EasyList, link checks based on [FMHY SafeGuard](https://github.com/fmhy/FMHY-SafeGuard), changelog data via [fmhy-tracker](https://fmhy-tracker.pages.dev/)).
 
-A fan project, not made by the FMHY team. Which sites get listed is up to them: suggestions go to [fmhy.net](https://fmhy.net/other/contributing), app problems to the [issue tracker](https://github.com/omeg4-dev/fmhy-android/issues). License: GPL-3.0-or-later.
+## Disclaimer
 
-Built with the help of AI coding assistants: I decide what the app does and review the changes, but a large part of the code was written by AI. If you find a bug, please open an issue.
+This is an unofficial fan project. Site listings are managed by the FMHY team—submit site suggestions at [fmhy.net](https://fmhy.net/other/contributing) and report app bugs in our [issue tracker](https://github.com/omeg4-dev/fmhy-android/issues). Licensed under GPL-3.0-or-later.
+
+Built with the help of AI coding assistants. I design the features and review everything, but AI wrote a good chunk of the code. If you spot a bug, please open an issue!
+
+```
+
+```
