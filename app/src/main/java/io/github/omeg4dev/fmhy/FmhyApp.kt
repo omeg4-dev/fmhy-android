@@ -8,6 +8,7 @@ import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.lifecycle.lifecycleScope
+import io.github.omeg4dev.fmhy.browser.download.DownloadService
 import io.github.omeg4dev.fmhy.di.AppContainer
 import io.github.omeg4dev.fmhy.di.DefaultAppContainer
 import io.github.omeg4dev.fmhy.work.NetworkPolicy
@@ -142,6 +143,7 @@ class FmhyApp : Application() {
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onStart(owner: LifecycleOwner) {
                 container.visitTracker.onStart()
+                DownloadService.clearFinished(this@FmhyApp)
             }
 
             override fun onStop(owner: LifecycleOwner) {

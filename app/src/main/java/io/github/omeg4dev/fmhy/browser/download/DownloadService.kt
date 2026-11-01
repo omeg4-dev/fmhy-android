@@ -12,6 +12,8 @@ import android.graphics.drawable.Icon
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.ServiceCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ProcessLifecycleOwner
 import io.github.omeg4dev.fmhy.FmhyApp
 import io.github.omeg4dev.fmhy.browser.BrowserActivity
 import kotlinx.coroutines.CoroutineScope
@@ -207,6 +209,7 @@ class DownloadService : Service() {
     companion object {
         const val CHANNEL_ID = "downloads"
         const val NOTIFICATION_ID = 7031
+        const val FILE_CHECKS_CHANNEL_ID = "file_checks"
         const val EXTRA_OPEN_DOWNLOADS = "io.github.omeg4dev.fmhy.extra.OPEN_DOWNLOADS"
         const val EXTRA_ID = "io.github.omeg4dev.fmhy.download.EXTRA_ID"
         const val ACTION_PAUSE = "io.github.omeg4dev.fmhy.download.PAUSE"
@@ -220,7 +223,29 @@ class DownloadService : Service() {
             } catch (_: Exception) {}
         }
 
+        fun isAppInForeground(): Boolean =
+            ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+
+        /**
+         * Which of the posted notifications are finished/failed leftovers: everything in the download and
+         * file-check channels except the foreground notification of the running service.
+         */
+        fun finishedIdsToClear(active: List<Pair<Int, String>>): List<Int> =
+            active.filter { (id, channel) ->
+                id != NOTIFICATION_ID && (channel == CHANNEL_ID || channel == FILE_CHECKS_CHANNEL_ID)
+            }.map { it.first }
+
+        /** Called when the app comes to the foreground: the user has seen the result, so the launcher dot goes. */
+        fun clearFinished(context: Context) {
+            try {
+                val nm = context.getSystemService(NotificationManager::class.java) ?: return
+                val active = nm.activeNotifications.map { it.id to it.notification.channelId }
+                finishedIdsToClear(active).forEach(nm::cancel)
+            } catch (_: Throwable) {}
+        }
+
         fun notifyFinished(context: Context, item: DownloadItem) {
+            if (isAppInForeground()) return
             try {
                 val nm = context.getSystemService(NotificationManager::class.java) ?: return
                 if (!nm.areNotificationsEnabled()) return

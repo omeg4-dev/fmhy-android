@@ -226,12 +226,13 @@ class DownloadChecks(
     }
 
     fun notifyAnalysisDone(id: Int, fileName: String?, result: ScanResult) {
+        if (DownloadService.isAppInForeground()) return
         try {
             val nm = context.getSystemService(NotificationManager::class.java) ?: return
             if (!nm.areNotificationsEnabled()) return
             nm.createNotificationChannel(
                 NotificationChannel(
-                    "file_checks",
+                    DownloadService.FILE_CHECKS_CHANNEL_ID,
                     "File checks",
                     NotificationManager.IMPORTANCE_DEFAULT,
                 ),
@@ -244,7 +245,7 @@ class DownloadChecks(
                     .putExtra(DownloadService.EXTRA_OPEN_DOWNLOADS, true),
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
             )
-            val builder = Notification.Builder(context, "file_checks")
+            val builder = Notification.Builder(context, DownloadService.FILE_CHECKS_CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.stat_sys_download_done)
                 .setContentTitle("Analysis finished")
                 .setContentText("${fileName ?: "File"}: ${result.verdict.label}")
