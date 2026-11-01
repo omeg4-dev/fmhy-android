@@ -60,7 +60,6 @@ import androidx.compose.ui.unit.dp
 import io.github.omeg4dev.fmhy.MainActivity
 import io.github.omeg4dev.fmhy.R
 import io.github.omeg4dev.fmhy.data.DatasetStore
-import io.github.omeg4dev.fmhy.data.ToolbarPosition
 import io.github.omeg4dev.fmhy.data.user.UserBookmark
 import io.github.omeg4dev.fmhy.data.user.UserStore
 import io.github.omeg4dev.fmhy.shortcuts.EXTRA_OPEN
@@ -73,7 +72,6 @@ fun BrowserStartScreen(
     isPrivate: Boolean,
     userStore: UserStore,
     datasetStore: DatasetStore,
-    toolbarPosition: ToolbarPosition,
     contentPadding: PaddingValues,          // space taken by the toolbar overlay (top or bottom)
     onOpenAddressBar: () -> Unit,           // big field tapped → BrowserScreen sets isEditMode = true
     onNavigate: (url: String, entryId: String?) -> Unit,
@@ -141,7 +139,6 @@ fun BrowserStartScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        val isBottom = toolbarPosition == ToolbarPosition.BOTTOM
         val columns = if (maxWidth < 340.dp) 3 else 4
         val scrollState = rememberScrollState()
         val viewportMinusPadding = (maxHeight - contentPadding.calculateTopPadding() - contentPadding.calculateBottomPadding())
@@ -421,38 +418,20 @@ fun BrowserStartScreen(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .verticalScroll(
-                    state = scrollState,
-                    reverseScrolling = isBottom,
-                )
+                .verticalScroll(state = scrollState)
                 .padding(contentPadding)
                 .padding(horizontal = 20.dp, vertical = 16.dp)
                 .heightIn(min = (viewportMinusPadding - 32.dp).coerceAtLeast(0.dp)),
-            verticalArrangement = if (isBottom) {
-                Arrangement.spacedBy(28.dp, Alignment.Bottom)
-            } else {
-                Arrangement.spacedBy(28.dp, Alignment.CenterVertically)
-            },
+            verticalArrangement = Arrangement.spacedBy(28.dp, Alignment.CenterVertically),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             if (isPrivate) {
-                if (isBottom) {
-                    privateBlock()
-                    heroBlock()
-                } else {
-                    heroBlock()
-                    privateBlock()
-                }
+                heroBlock()
+                privateBlock()
             } else {
-                if (isBottom) {
-                    recentBlock()
-                    tilesBlock()
-                    heroBlock()
-                } else {
-                    heroBlock()
-                    tilesBlock()
-                    recentBlock()
-                }
+                heroBlock()
+                tilesBlock()
+                recentBlock()
             }
         }
     }

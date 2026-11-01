@@ -485,7 +485,6 @@ fun BrowserScreen(
                             isPrivate = currentTab?.isPrivate == true,
                             userStore = tabManager.userStore,
                             datasetStore = datasetStore,
-                            toolbarPosition = browserPrefs.toolbarPosition,
                             contentPadding = if (browserPrefs.toolbarPosition == ToolbarPosition.TOP) {
                                 PaddingValues(top = with(density) { totalBarHeightPx.toDp() })
                             } else {
