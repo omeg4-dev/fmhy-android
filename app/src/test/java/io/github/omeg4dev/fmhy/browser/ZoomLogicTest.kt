@@ -15,6 +15,14 @@ class ZoomLogicTest {
         assertEquals(2.5f, ZoomLogic.clamp(2.5f), 0.0001f)
     }
 
+    @Test fun fallbackBaseKeepsTheRealOneXScaleWhileZoomed() {
+        // BRW-20: zoomed to 2.5x on a 2.625 page (6.5625), base lost. The base is still 2.625, not 6.5625.
+        assertEquals(2.625f, ZoomLogic.fallbackBase(6.5625f, 6.0f, 2.5f), 0.0001f)
+        assertEquals(2.625f, ZoomLogic.fallbackBase(2.625f, 2.8f, 1.0f), 0.0001f)
+        assertEquals(2.625f, ZoomLogic.fallbackBase(0f, 2.625f, 1.0f), 0.0001f)
+        assertEquals(2.625f, ZoomLogic.fallbackBase(2.625f, 2.7f, 0.5f), 0.0001f)
+    }
+
     @Test fun stepUpMovesToNextQuarterStrictlyAboveAndClamps() {
         assertEquals(1.25f, ZoomLogic.stepUp(1.0f), 0.0001f)
         assertEquals(1.25f, ZoomLogic.stepUp(1.1f), 0.0001f)

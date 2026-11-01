@@ -42,6 +42,13 @@ object ZoomLogic {
         else -> raw
     }
 
+    /**
+     * The page's 1x scale when none was captured yet: the scale before this change divided by the level the tab
+     * was at. Taking [oldScale] alone is wrong while zoomed, it would make the zoomed scale count as 1x.
+     */
+    fun fallbackBase(oldScale: Float, newScale: Float, level: Float): Float =
+        (if (oldScale > 0f) oldScale else newScale) / level.coerceAtLeast(MIN)
+
     fun doubleTapTarget(level: Float): Float = if (level < 1.5f) 2.5f else 1.0f
 
     fun ignoresBar(pointerCount: Int): Boolean = pointerCount > 1

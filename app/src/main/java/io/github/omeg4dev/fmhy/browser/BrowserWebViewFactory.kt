@@ -219,7 +219,6 @@ class BrowserWebViewFactory(
                 if (isReload || url.substringBefore('#') == record.url.substringBefore('#')) return
                 if (hostOf(url) != hostOf(record.url)) record.favicon = null
                 record.url = url
-                record.zoomBaseScale = 0f
                 tabManager.updateTabUrlAndTitle(record.id, url, view.title ?: record.title)
                 (browserHooks as? DefaultBrowserHooks)?.onPageStarted(record, url)
             }
@@ -276,7 +275,7 @@ class BrowserWebViewFactory(
                 super.onScaleChanged(view, oldScale, newScale)
                 if (record.isProgrammaticZoom) return
                 if (record.zoomBaseScale <= 0f) {
-                    record.zoomBaseScale = if (oldScale > 0f) oldScale else newScale
+                    record.zoomBaseScale = ZoomLogic.fallbackBase(oldScale, newScale, record.zoomLevel)
                 }
                 val baseScale = if (record.zoomBaseScale > 0f) record.zoomBaseScale else 1f
                 val level = newScale / baseScale
