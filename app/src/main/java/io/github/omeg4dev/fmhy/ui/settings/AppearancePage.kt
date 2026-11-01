@@ -555,11 +555,18 @@ fun AppearancePage(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 12.dp),
-                        horizontalArrangement = Arrangement.SpaceAround,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp),
                         maxItemsInEachRow = 4,
                     ) {
-                        AppIcon.entries.forEach { icon ->
+                        listOf("Dark" to false, "Light" to true).forEach { (groupTitle, light) ->
+                        Text(
+                            text = groupTitle,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.fillMaxWidth().padding(start = 8.dp),
+                        )
+                        AppIcon.entries.filter { !it.hidden && it.light == light }.forEach { icon ->
                             val isSelected = selectedIcon == icon
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -629,6 +636,7 @@ fun AppearancePage(
                                     modifier = Modifier.padding(top = 6.dp),
                                 )
                             }
+                        }
                         }
                     }
 
@@ -739,26 +747,23 @@ private fun AppIconPreview(
     }
 }
 
-private fun iconBackgroundColor(icon: AppIcon): Color = when (icon) {
-    AppIcon.DEFAULT -> Color(0xFF000000)
-    AppIcon.UWU -> Color(0xFF000000)
-    AppIcon.MONOCHROME -> Color(0xFF7C5CFF)
-    AppIcon.LIGHT -> Color(0xFFFFFFFF)
-    AppIcon.BLUE -> Color(0xFF1E88E5)
-    AppIcon.GREEN -> Color(0xFF2E7D32)
-    AppIcon.RED -> Color(0xFFE53935)
-    AppIcon.BLACK -> Color(0xFF000000)
-}
+private fun iconBackgroundColor(icon: AppIcon): Color =
+    if (icon.light) Color(0xFFFFFFFF) else Color(0xFF000000)
 
 private fun iconForegroundRes(icon: AppIcon): Int = when (icon) {
-    AppIcon.DEFAULT -> R.drawable.ic_launcher_foreground
+    AppIcon.DEFAULT, AppIcon.BLACK -> R.drawable.ic_launcher_foreground
     AppIcon.UWU -> R.drawable.ic_launcher_uwu_foreground
-    AppIcon.MONOCHROME -> R.drawable.ic_launcher_fg_mono
+    AppIcon.SIMPLE -> R.drawable.ic_launcher_monochrome
     AppIcon.LIGHT -> R.drawable.ic_launcher_fg_light
+    AppIcon.SIMPLE_LIGHT -> R.drawable.ic_launcher_fg_simple_light
+    AppIcon.MONOCHROME -> R.drawable.ic_launcher_fg_purple
+    AppIcon.PURPLE_LIGHT -> R.drawable.ic_launcher_fg_purple_light
     AppIcon.BLUE -> R.drawable.ic_launcher_fg_blue
+    AppIcon.BLUE_LIGHT -> R.drawable.ic_launcher_fg_blue_light
     AppIcon.GREEN -> R.drawable.ic_launcher_fg_green
+    AppIcon.GREEN_LIGHT -> R.drawable.ic_launcher_fg_green_light
     AppIcon.RED -> R.drawable.ic_launcher_fg_red
-    AppIcon.BLACK -> R.drawable.ic_launcher_fg_black
+    AppIcon.RED_LIGHT -> R.drawable.ic_launcher_fg_red_light
 }
 
 @Composable

@@ -11,22 +11,34 @@ import io.github.omeg4dev.fmhy.data.AppIcon
  */
 object AppIconSwitcher {
     const val ALIAS_DEFAULT = ".LauncherDefault"
+    const val ALIAS_SIMPLE = ".LauncherSimple"
+    const val ALIAS_SIMPLE_LIGHT = ".LauncherSimpleLight"
     const val ALIAS_UWU = ".LauncherUwu"
     const val ALIAS_MONO = ".LauncherMono"
     const val ALIAS_LIGHT = ".LauncherLight"
+    const val ALIAS_PURPLE_LIGHT = ".LauncherPurpleLight"
     const val ALIAS_BLUE = ".LauncherBlue"
+    const val ALIAS_BLUE_LIGHT = ".LauncherBlueLight"
     const val ALIAS_GREEN = ".LauncherGreen"
+    const val ALIAS_GREEN_LIGHT = ".LauncherGreenLight"
     const val ALIAS_RED = ".LauncherRed"
+    const val ALIAS_RED_LIGHT = ".LauncherRedLight"
     const val ALIAS_BLACK = ".LauncherBlack"
 
     val ALIAS_BY_ICON: Map<AppIcon, String> = mapOf(
         AppIcon.DEFAULT to ALIAS_DEFAULT,
+        AppIcon.SIMPLE to ALIAS_SIMPLE,
+        AppIcon.LIGHT to ALIAS_LIGHT,
+        AppIcon.SIMPLE_LIGHT to ALIAS_SIMPLE_LIGHT,
         AppIcon.UWU to ALIAS_UWU,
         AppIcon.MONOCHROME to ALIAS_MONO,
-        AppIcon.LIGHT to ALIAS_LIGHT,
+        AppIcon.PURPLE_LIGHT to ALIAS_PURPLE_LIGHT,
         AppIcon.BLUE to ALIAS_BLUE,
+        AppIcon.BLUE_LIGHT to ALIAS_BLUE_LIGHT,
         AppIcon.GREEN to ALIAS_GREEN,
+        AppIcon.GREEN_LIGHT to ALIAS_GREEN_LIGHT,
         AppIcon.RED to ALIAS_RED,
+        AppIcon.RED_LIGHT to ALIAS_RED_LIGHT,
         AppIcon.BLACK to ALIAS_BLACK,
     )
 

@@ -214,6 +214,7 @@ object UpdateChecker {
 
             val notif = NotificationCompat.Builder(context, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_stat_fmhy)
+                .setLargeIcon(android.graphics.BitmapFactory.decodeResource(context.resources, R.drawable.ic_launcher_tile))
                 .setContentTitle(model.title)
                 .setContentText(model.text)
                 .setStyle(inboxStyle)

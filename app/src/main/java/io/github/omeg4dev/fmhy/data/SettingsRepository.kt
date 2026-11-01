@@ -330,7 +330,7 @@ class DefaultSettingsRepository(
         val hapticFeedback = prefs[KEY_HAPTIC_FEEDBACK] ?: true
         val websiteStyle = prefs[KEY_WEBSITE_STYLE] ?: false
         val appIcon = try {
-            prefs[KEY_APP_ICON]?.let { AppIcon.valueOf(it) } ?: AppIcon.DEFAULT
+            prefs[KEY_APP_ICON]?.let { AppIcon.valueOf(it) }?.takeUnless { it.hidden } ?: AppIcon.DEFAULT
         } catch (_: IllegalArgumentException) {
             AppIcon.DEFAULT
         }

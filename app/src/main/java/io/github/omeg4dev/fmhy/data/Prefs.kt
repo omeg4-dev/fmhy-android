@@ -43,15 +43,25 @@ fun resolveFullscreenOrientation(stored: String?, legacyRotate: Boolean?): Fulls
         null -> BrowserPrefs().fullscreenOrientation
     }
 }
-enum class AppIcon(val label: String) {
+/**
+ * [light] icons have a white tile and are listed under "Light" in the picker, the rest under "Dark".
+ * [hidden] icons are kept so an already-selected alias still resolves; they are not offered in the picker.
+ */
+enum class AppIcon(val label: String, val light: Boolean = false, val hidden: Boolean = false) {
     DEFAULT("Default"),
+    SIMPLE("Simple"),
     UWU("UwU"),
     MONOCHROME("Purple"),
-    LIGHT("Light"),
     BLUE("Blue"),
     GREEN("Green"),
     RED("Red"),
-    BLACK("Black"),
+    LIGHT("Default", light = true),
+    SIMPLE_LIGHT("Simple", light = true),
+    PURPLE_LIGHT("Purple", light = true),
+    BLUE_LIGHT("Blue", light = true),
+    GREEN_LIGHT("Green", light = true),
+    RED_LIGHT("Red", light = true),
+    BLACK("Black", hidden = true),
 }
 enum class UpdateInterval(val hours: Long) { H12(12), DAILY(24), WEEKLY(168) }
 

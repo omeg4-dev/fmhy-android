@@ -8,9 +8,11 @@ Outputs:
 - app/src/main/res/drawable-{mdpi,hdpi,xhdpi,xxhdpi,xxxhdpi}/ic_launcher_foreground.png
 - app/src/main/res/mipmap-{mdpi,hdpi,xhdpi,xxhdpi,xxxhdpi}/ic_launcher.webp
 - app/src/main/res/mipmap-{mdpi,hdpi,xhdpi,xxhdpi,xxxhdpi}/ic_launcher_round.webp
-- app/src/main/res/drawable-nodpi/ic_launcher_fg_{mono,blue,green,red,black,light}.png
-  (colour variants: white triangle with a glow in lighter tints of the tile colour; the
-  light variant is a dark triangle with the neon glow)
+- app/src/main/res/drawable-nodpi/ic_launcher_tile.png (default icon as a 192 px black tile: widget logo, notification large icon)
+- app/src/main/res/drawable-nodpi/ic_launcher_fg_light.png (dark triangle, neon glow, white tile)
+- app/src/main/res/drawable-nodpi/ic_launcher_fg_{purple,blue,green,red}[_light].png
+  (colour family: like the default, but the two glow colours are two close hues of the colour;
+  plain = white triangle for a black tile, `_light` = dark triangle for a white tile)
 """
 
 import math
@@ -40,22 +42,20 @@ def hex_to_rgb(hex_str: str) -> tuple[int, int, int]:
     return int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
 
 
-# Colour variants: name -> (tile colour, triangle fill, glow left, glow top, glow right).
-# Glow tints are mixed from the tile colour towards white; None = use the neon defaults.
-VARIANT_BG = {
-    "mono": "#7C5CFF",
-    "blue": "#1E88E5",
-    "green": "#2E7D32",
-    "red": "#E53935",
-    "black": "#000000",
+# Colour family: name -> (left-edge glow, upper-edge glow). Two close but distinct hues each.
+GLOW_COLOURS = {
+    "purple": ("#C084FC", "#6C63FF"),
+    "blue": ("#38BDF8", "#3B5BFF"),
+    "green": ("#4ADE80", "#2DD4BF"),
+    "red": ("#FF5C7A", "#FF8A3D"),
 }
-VARIANT_LIGHT_TRIANGLE = "#1C1B1F"
+DARK_TRIANGLE = (0x1C, 0x1B, 0x1F)
 
 
-def mix_to_white(hex_str: str, amount: float) -> str:
-    r, g, b = hex_to_rgb(hex_str)
-    r, g, b = (int(round(c + (255 - c) * amount)) for c in (r, g, b))
-    return f"#{r:02X}{g:02X}{b:02X}"
+def blend(c1: str, c2: str, t: float) -> str:
+    a, b = hex_to_rgb(c1), hex_to_rgb(c2)
+    r, g, bl = (int(round(x + (y - x) * t)) for x, y in zip(a, b))
+    return f"#{r:02X}{g:02X}{bl:02X}"
 
 
 def render_logo(
@@ -220,24 +220,23 @@ def make_legacy_icon(size: int, is_round: bool, supersample: int = 4) -> Image.I
 def write_variants(res_dir: Path) -> None:
     out = res_dir / "drawable-nodpi"
     out.mkdir(parents=True, exist_ok=True)
-    for name, bg in VARIANT_BG.items():
-        img = render_logo(
-            4.0,
-            cyan_hex=mix_to_white(bg, 0.70),
-            magenta_hex=mix_to_white(bg, 0.85),
-            purple_hex=mix_to_white(bg, 0.50),
-        )
+    jobs = {"light": (CYAN_HEX, MAGENTA_HEX, PURPLE_HEX, DARK_TRIANGLE)}
+    for name, (left, top) in GLOW_COLOURS.items():
+        right = blend(top, left, 0.6)
+        jobs[name] = (left, top, right, (255, 255, 255))
+        jobs[f"{name}_light"] = (left, top, right, DARK_TRIANGLE)
+    for name, (left, top, right, tri) in jobs.items():
+        img = render_logo(4.0, cyan_hex=left, magenta_hex=top, purple_hex=right, triangle_rgb=tri)
         path = out / f"ic_launcher_fg_{name}.png"
         img.save(path, format="PNG")
         print(f"Wrote {path} ({img.size[0]}x{img.size[1]} RGBA)")
-    light = render_logo(4.0, triangle_rgb=hex_to_rgb(VARIANT_LIGHT_TRIANGLE))
-    path = out / "ic_launcher_fg_light.png"
-    light.save(path, format="PNG")
-    print(f"Wrote {path} ({light.size[0]}x{light.size[1]} RGBA)")
 
 
 def main() -> None:
     res_dir = Path("app/src/main/res")
+    tile = make_legacy_icon(192, is_round=False)
+    tile.save(res_dir / "drawable-nodpi" / "ic_launcher_tile.png", format="PNG")
+    print("Wrote ic_launcher_tile.png (192x192 RGBA)")
     write_variants(res_dir)
 
     for density_name, d, legacy_size in DENSITIES:

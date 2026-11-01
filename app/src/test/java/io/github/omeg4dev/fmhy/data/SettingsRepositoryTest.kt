@@ -211,6 +211,15 @@ class SettingsRepositoryTest {
     }
 
     @Test
+    fun hiddenAppIconFallsBackToDefault() = runTest {
+        val (repo, _) = createRepository(this)
+        repo.setAppIcon(AppIcon.BLACK)
+        assertEquals(AppIcon.DEFAULT, repo.appearance.first().appIcon)
+        repo.setAppIcon(AppIcon.BLUE_LIGHT)
+        assertEquals(AppIcon.BLUE_LIGHT, repo.appearance.first().appIcon)
+    }
+
+    @Test
     fun testBottomBarStyleRoundTrip() = runTest {
         val (repo, _) = createRepository(this)
         assertEquals(BottomBarStyle.CLASSIC, repo.appearance.first().bottomBarStyle)

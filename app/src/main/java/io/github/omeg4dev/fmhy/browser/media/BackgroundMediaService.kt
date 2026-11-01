@@ -199,6 +199,7 @@ class BackgroundMediaService : Service() {
         ).build()
         return Notification.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_fmhy)
+            .setLargeIcon(android.graphics.BitmapFactory.decodeResource(this.resources, R.drawable.ic_launcher_tile))
             .setContentTitle(title)
             .setContentText(tab?.let { hostOf(it) })
             .setContentIntent(open)
