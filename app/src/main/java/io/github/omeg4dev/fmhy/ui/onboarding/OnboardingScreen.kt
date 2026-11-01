@@ -68,6 +68,7 @@ import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -94,6 +95,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -131,6 +133,12 @@ fun OnboardingScreen(
     val pagerState = rememberPagerState(pageCount = { visiblePages.size })
     val scope = rememberCoroutineScope()
 
+    // Hoist the ad-block status so it can drive the finish-button gate
+    val adblockStatus = runCatching { container.adblockService.status }
+        .getOrNull()
+        ?.collectAsStateWithLifecycle()
+        ?.value
+
     // Persist previous page choices and track visited pages
     var lastActiveIndex by remember { mutableIntStateOf(0) }
     LaunchedEffect(pagerState.currentPage) {
@@ -152,6 +160,7 @@ fun OnboardingScreen(
 
     val currentPageIndex = pagerState.currentPage
     val isDonePage = currentPageIndex == visiblePages.size - 1
+    val gate = finishGate(state.adblockOn, state.continueWithoutAdblock, adblockStatus)
 
     Scaffold(
         topBar = {
@@ -181,6 +190,9 @@ fun OnboardingScreen(
                         }
                     }
                 },
+                gate = gate,
+                onRetry = viewModel::retryFilterDownload,
+                onContinueWithoutAdblock = viewModel::continueWithoutAdblock,
             )
         },
         contentWindowInsets = WindowInsets(0),
@@ -291,7 +303,7 @@ private fun OnboardingTopBar(
 /**
  * Bottom bar: One full-width primary Button (56 dp tall, 16 dp margins)
  * whose label changes per page with AnimatedContent (slide up + fade):
- * "Get started" -> "Next" -> "Next" -> "Start using FMHY".
+ * "Get started" -> "Next" -> "Next" -> "Start browsing FMHY".
  * A small "Back" text button to its left on pages 2-3 (indices 1 & 2).
  */
 @Composable
@@ -300,11 +312,15 @@ private fun OnboardingBottomBar(
     pageCount: Int,
     onBack: () -> Unit,
     onNext: () -> Unit,
+    gate: FinishGate = FinishGate.READY,
+    onRetry: () -> Unit = {},
+    onContinueWithoutAdblock: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    val isLast = currentPage == pageCount - 1
     val buttonLabel = when (currentPage) {
         0 -> "Get started"
-        pageCount - 1 -> "Start using FMHY"
+        pageCount - 1 -> "Start browsing FMHY"
         else -> "Next"
     }
 
@@ -312,49 +328,100 @@ private fun OnboardingBottomBar(
         color = MaterialTheme.colorScheme.surface,
         modifier = modifier.fillMaxWidth(),
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
                 .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Small "Back" text button on pages 2-3 (indices 1 and 2)
-            AnimatedVisibility(
-                visible = currentPage in 1 until (pageCount - 1),
-                enter = fadeIn(Motion.standard()) + expandHorizontally(Motion.standard()),
-                exit = fadeOut(Motion.standard()) + shrinkHorizontally(Motion.standard()),
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row {
-                    TextButton(
-                        onClick = onBack,
-                        modifier = Modifier.height(56.dp),
-                    ) {
-                        Text("Back")
+                // Small "Back" text button on pages 2-3 (indices 1 and 2)
+                AnimatedVisibility(
+                    visible = currentPage in 1 until (pageCount - 1),
+                    enter = fadeIn(Motion.standard()) + expandHorizontally(Motion.standard()),
+                    exit = fadeOut(Motion.standard()) + shrinkHorizontally(Motion.standard()),
+                ) {
+                    Row {
+                        TextButton(
+                            onClick = onBack,
+                            modifier = Modifier.height(56.dp),
+                        ) {
+                            Text("Back")
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
+                }
+
+                Button(
+                    onClick = onNext,
+                    enabled = !isLast || gate == FinishGate.READY,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(56.dp),
+                    shape = RoundedCornerShape(16.dp),
+                ) {
+                    AnimatedContent(
+                        targetState = buttonLabel,
+                        transitionSpec = {
+                            (slideInVertically(Motion.standard()) { it / 2 } + fadeIn(Motion.standard()))
+                                .togetherWith(slideOutVertically(Motion.standard()) { -it / 2 } + fadeOut(Motion.standard()))
+                        },
+                        label = "bottom_button_label",
+                    ) { label ->
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                    }
                 }
             }
 
-            Button(
-                onClick = onNext,
-                modifier = Modifier
-                    .weight(1f)
-                    .height(56.dp),
-                shape = RoundedCornerShape(16.dp),
+            // Helper area: shown when on the last page and the gate is not READY
+            AnimatedVisibility(
+                visible = isLast && gate != FinishGate.READY,
+                enter = fadeIn(Motion.standard()) + expandVertically(Motion.standard()),
+                exit = fadeOut(Motion.standard()) + shrinkVertically(Motion.standard()),
             ) {
-                AnimatedContent(
-                    targetState = buttonLabel,
-                    transitionSpec = {
-                        (slideInVertically(Motion.standard()) { it / 2 } + fadeIn(Motion.standard()))
-                            .togetherWith(slideOutVertically(Motion.standard()) { -it / 2 } + fadeOut(Motion.standard()))
-                    },
-                    label = "bottom_button_label",
-                ) { label ->
-                    Text(
-                        text = label,
-                        style = MaterialTheme.typography.titleMedium,
-                    )
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    when (gate) {
+                        FinishGate.DOWNLOADING -> {
+                            Text(
+                                text = "Downloading ad-block rules\u2026",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.fillMaxWidth(),
+                                textAlign = TextAlign.Center,
+                            )
+                        }
+                        FinishGate.FAILED -> {
+                            Text(
+                                text = "Couldn't download the ad-block rules",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error,
+                                textAlign = TextAlign.Center,
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                OutlinedButton(onClick = onRetry) {
+                                    Text("Retry")
+                                }
+                                TextButton(onClick = onContinueWithoutAdblock) {
+                                    Text("Continue without ad-block")
+                                }
+                            }
+                        }
+                        FinishGate.READY -> { /* not shown */ }
+                    }
                 }
             }
         }
@@ -834,7 +901,7 @@ private fun DonePageContent(
     container: AppContainer,
     modifier: Modifier = Modifier,
 ) {
-    val isAdblockOn = state.openLinksWith == OpenLinksWith.IN_APP && state.adblockLevel != AdblockLevel.OFF
+    val isAdblockOn = state.adblockOn
     val adblockStatus = runCatching { container.adblockService.status }
         .getOrNull()
         ?.collectAsStateWithLifecycle()

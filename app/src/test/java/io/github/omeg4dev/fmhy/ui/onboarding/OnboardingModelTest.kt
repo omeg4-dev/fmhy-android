@@ -1,6 +1,8 @@
 package io.github.omeg4dev.fmhy.ui.onboarding
 
 import android.content.Context
+import io.github.omeg4dev.fmhy.browser.adblock.AdblockStatus
+import io.github.omeg4dev.fmhy.browser.adblock.FailedList
 import io.github.omeg4dev.fmhy.data.AppIcon
 import io.github.omeg4dev.fmhy.data.Appearance
 import io.github.omeg4dev.fmhy.data.BlockingPrefs
@@ -638,5 +640,166 @@ class OnboardingModelTest {
         assertTrue("Pinned section 'video' should be in pins", "video" in pinnedSectionIds)
         assertFalse("Unpinned section 'audio' should not be in pins", "audio" in pinnedSectionIds)
         assertTrue("Pre-existing pin 'tools' should be preserved", "tools" in pinnedSectionIds)
+    }
+
+    // ==========================================
+    // finishGate() unit tests (ONB-04)
+    // ==========================================
+
+    @Test
+    fun finishGate_adblockOff_returnsReady() {
+        // adblock off -> READY regardless of status
+        val result = finishGate(
+            adblockOn = false,
+            continueWithoutAdblock = false,
+            status = AdblockStatus(updating = true),
+        )
+        assertEquals(FinishGate.READY, result)
+    }
+
+    @Test
+    fun finishGate_continueWithoutAdblock_returnsReady() {
+        // continueWithoutAdblock flag set -> READY even with error status
+        val result = finishGate(
+            adblockOn = true,
+            continueWithoutAdblock = true,
+            status = AdblockStatus(error = "network error"),
+        )
+        assertEquals(FinishGate.READY, result)
+    }
+
+    @Test
+    fun finishGate_adblockOn_nullStatus_returnsDownloading() {
+        val result = finishGate(adblockOn = true, continueWithoutAdblock = false, status = null)
+        assertEquals(FinishGate.DOWNLOADING, result)
+    }
+
+    @Test
+    fun finishGate_adblockOn_updating_returnsDownloading() {
+        // updating = true should return DOWNLOADING even when ready = true
+        val result = finishGate(
+            adblockOn = true,
+            continueWithoutAdblock = false,
+            status = AdblockStatus(ready = true, updating = true),
+        )
+        assertEquals(FinishGate.DOWNLOADING, result)
+    }
+
+    @Test
+    fun finishGate_adblockOn_ready_returnsReady() {
+        val result = finishGate(
+            adblockOn = true,
+            continueWithoutAdblock = false,
+            status = AdblockStatus(ready = true, updating = false),
+        )
+        assertEquals(FinishGate.READY, result)
+    }
+
+    @Test
+    fun finishGate_adblockOn_readyWithFailedLists_returnsReady() {
+        // Partial list failures are fine when the engine exists (ready = true)
+        val result = finishGate(
+            adblockOn = true,
+            continueWithoutAdblock = false,
+            status = AdblockStatus(
+                ready = true,
+                updating = false,
+                failedLists = listOf(FailedList("EasyList", null)),
+            ),
+        )
+        assertEquals(FinishGate.READY, result)
+    }
+
+    @Test
+    fun finishGate_adblockOn_notReadyWithError_returnsFailed() {
+        val result = finishGate(
+            adblockOn = true,
+            continueWithoutAdblock = false,
+            status = AdblockStatus(ready = false, error = "x"),
+        )
+        assertEquals(FinishGate.FAILED, result)
+    }
+
+    @Test
+    fun finishGate_adblockOn_notReadyCancelled_returnsFailed() {
+        val result = finishGate(
+            adblockOn = true,
+            continueWithoutAdblock = false,
+            status = AdblockStatus(ready = false, cancelled = true),
+        )
+        assertEquals(FinishGate.FAILED, result)
+    }
+
+    @Test
+    fun finishGate_adblockOn_notReadyFailedLists_returnsFailed() {
+        val result = finishGate(
+            adblockOn = true,
+            continueWithoutAdblock = false,
+            status = AdblockStatus(
+                ready = false,
+                failedLists = listOf(FailedList("EasyList", null)),
+            ),
+        )
+        assertEquals(FinishGate.FAILED, result)
+    }
+
+    @Test
+    fun finishGate_adblockOn_defaultStatus_returnsDownloading() {
+        // AdblockStatus() default: not ready, not updating, no error -> download not started yet
+        val result = finishGate(adblockOn = true, continueWithoutAdblock = false, status = AdblockStatus())
+        assertEquals(FinishGate.DOWNLOADING, result)
+    }
+
+    // ==========================================
+    // continueWithoutAdblock() and adblockOn tests (ONB-04)
+    // ==========================================
+
+    @Test
+    fun continueWithoutAdblock_setsStateFlag() {
+        val repo = FakeSettingsRepository()
+        val container = FakeContainer(repo, userStore)
+        val model = OnboardingModel(repo, userStore, container)
+
+        assertFalse(model.state.value.continueWithoutAdblock)
+        model.continueWithoutAdblock()
+        assertTrue(model.state.value.continueWithoutAdblock)
+    }
+
+    @Test
+    fun retryFilterDownload_delegatesToContainer() {
+        val repo = FakeSettingsRepository()
+        val container = FakeContainer(repo, userStore)
+        val model = OnboardingModel(repo, userStore, container)
+
+        assertEquals(0, container.filterDownloadStartedCount)
+        model.retryFilterDownload()
+        assertEquals(1, container.filterDownloadStartedCount)
+    }
+
+    @Test
+    fun adblockOn_falseWhenNotInApp() {
+        val state = OnboardingState(
+            openLinksWith = OpenLinksWith.CUSTOM_TAB,
+            adblockLevel = AdblockLevel.BALANCED,
+        )
+        assertFalse(state.adblockOn)
+    }
+
+    @Test
+    fun adblockOn_falseWhenAdblockLevelOff() {
+        val state = OnboardingState(
+            openLinksWith = OpenLinksWith.IN_APP,
+            adblockLevel = AdblockLevel.OFF,
+        )
+        assertFalse(state.adblockOn)
+    }
+
+    @Test
+    fun adblockOn_trueWhenInAppAndBalanced() {
+        val state = OnboardingState(
+            openLinksWith = OpenLinksWith.IN_APP,
+            adblockLevel = AdblockLevel.BALANCED,
+        )
+        assertTrue(state.adblockOn)
     }
 }

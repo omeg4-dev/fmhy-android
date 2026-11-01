@@ -2,6 +2,7 @@ package io.github.omeg4dev.fmhy.ui.onboarding
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import io.github.omeg4dev.fmhy.browser.adblock.AdblockStatus
 import io.github.omeg4dev.fmhy.data.Appearance
 import io.github.omeg4dev.fmhy.data.BlockingPrefs
 import io.github.omeg4dev.fmhy.data.BrowserPrefs
@@ -23,6 +24,31 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 const val ONBOARDING_VERSION = 1
+
+/** Gate state for the finish button on the last onboarding page. */
+enum class FinishGate { READY, DOWNLOADING, FAILED }
+
+/**
+ * Pure function that determines the finish-button gate state.
+ * First-match rules:
+ * 1. !adblockOn || continueWithoutAdblock -> READY
+ * 2. status == null -> DOWNLOADING
+ * 3. status.updating -> DOWNLOADING
+ * 4. status.ready (engine exists; partial list failures are fine) -> READY
+ * 5. not ready, not updating, and (error or failedLists or cancelled) -> FAILED
+ * 6. otherwise (not ready, not updating, no error: download not started yet) -> DOWNLOADING
+ */
+fun finishGate(adblockOn: Boolean, continueWithoutAdblock: Boolean, status: AdblockStatus?): FinishGate {
+    if (!adblockOn || continueWithoutAdblock) return FinishGate.READY
+    if (status == null) return FinishGate.DOWNLOADING
+    if (status.updating) return FinishGate.DOWNLOADING
+    if (status.ready) return FinishGate.READY
+    return if (status.error != null || status.failedLists.isNotEmpty() || status.cancelled) {
+        FinishGate.FAILED
+    } else {
+        FinishGate.DOWNLOADING
+    }
+}
 
 enum class OnboardingPage {
     WELCOME,
@@ -63,7 +89,11 @@ data class OnboardingState(
     val personalHome: Boolean = false,
     val filterDownloadStarted: Boolean = false,
     val isInitialized: Boolean = false,
+    val continueWithoutAdblock: Boolean = false,
 ) {
+    /** True when the in-app browser is chosen and ad-block is not OFF. */
+    val adblockOn: Boolean get() = openLinksWith == OpenLinksWith.IN_APP && adblockLevel != AdblockLevel.OFF
+
     companion object {
         fun fromCurrent(
             appearance: Appearance,
@@ -237,6 +267,19 @@ class OnboardingModel(
 
     fun setPersonalHome(personalHome: Boolean) {
         _state.update { it.copy(personalHome = personalHome) }
+    }
+
+    /** Marks that the user wants to proceed without waiting for ad-block rules. */
+    fun continueWithoutAdblock() {
+        _state.update { it.copy(continueWithoutAdblock = true) }
+    }
+
+    /**
+     * Retries the filter-list download. Deliberately bypasses the [OnboardingState.filterDownloadStarted]
+     * flag so a second attempt can be made after a failure.
+     */
+    fun retryFilterDownload() {
+        appContainer?.startFilterDownload()
     }
 
     fun startFilterDownloadIfNeeded() {
