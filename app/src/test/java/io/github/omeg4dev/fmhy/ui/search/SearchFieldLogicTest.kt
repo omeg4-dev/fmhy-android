@@ -5,7 +5,12 @@ import androidx.compose.ui.text.input.TextFieldValue
 import io.github.omeg4dev.fmhy.data.model.Section
 import io.github.omeg4dev.fmhy.data.search.QueryEdit
 import io.github.omeg4dev.fmhy.data.search.QueryParser
+import io.github.omeg4dev.fmhy.data.sync.SyncProgress
+import io.github.omeg4dev.fmhy.data.sync.SyncResult
+import io.github.omeg4dev.fmhy.di.SyncStatus
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SearchFieldLogicTest {
@@ -74,5 +79,36 @@ class SearchFieldLogicTest {
         assertEquals("site github.com", l("site:www.github.com"))
         assertEquals("not foo", l("-foo"))
         assertEquals("not a b", l("-\"a b\""))
+    }
+
+    @Test
+    fun searchIsOpenWhenNoSyncIsRunning() {
+        assertTrue(searchReady(SyncStatus.Idle, datasetAvailable = true))
+        assertTrue(searchReady(SyncStatus.Finished(SyncResult.UpToDate(1)), datasetAvailable = true))
+    }
+
+    @Test
+    fun searchStaysOpenWhileASyncOnlyDownloadsOrParses() {
+        assertTrue(searchReady(SyncStatus.Syncing(null), datasetAvailable = true))
+        assertTrue(searchReady(SyncStatus.Syncing(SyncProgress.Checking), datasetAvailable = true))
+        assertTrue(searchReady(SyncStatus.Syncing(SyncProgress.Reading(1, 5), userStarted = true), datasetAvailable = true))
+    }
+
+    @Test
+    fun searchClosesWhileTheSyncWritesTheDatabase() {
+        // The write transaction holds the dataset lock, so a query would queue behind it with no feedback.
+        assertFalse(searchReady(SyncStatus.Syncing(SyncProgress.Saving), datasetAvailable = true))
+    }
+
+    @Test
+    fun searchClosesWhileTheFirstDatasetIsStillBeingFetched() {
+        assertFalse(searchReady(SyncStatus.Syncing(null), datasetAvailable = false))
+        assertFalse(searchReady(SyncStatus.Syncing(SyncProgress.Checking), datasetAvailable = false))
+    }
+
+    @Test
+    fun searchReopensAfterASyncEndsEvenWhenItFailed() {
+        assertTrue(searchReady(SyncStatus.Finished(SyncResult.Failed("offline", 0L)), datasetAvailable = false))
+        assertTrue(searchReady(SyncStatus.Finished(SyncResult.Failed("offline", 0L)), datasetAvailable = true))
     }
 }

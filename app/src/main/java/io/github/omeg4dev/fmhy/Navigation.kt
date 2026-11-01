@@ -536,6 +536,7 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                     container.searchEngine,
                     container.settingsRepository,
                     container.safeGuard,
+                    container.syncStatus,
                 )
             }
             SearchScreen(

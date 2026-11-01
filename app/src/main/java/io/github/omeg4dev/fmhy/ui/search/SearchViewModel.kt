@@ -23,6 +23,7 @@ import io.github.omeg4dev.fmhy.data.search.SearchResults
 import io.github.omeg4dev.fmhy.ui.common.NewBadgeLogic
 import io.github.omeg4dev.fmhy.data.safety.SafeGuard
 import io.github.omeg4dev.fmhy.data.safety.Verdict
+import io.github.omeg4dev.fmhy.di.SyncStatus
 import io.github.omeg4dev.fmhy.ui.check.looksLikeUrl
 import io.github.omeg4dev.fmhy.ui.whatsnew.WhatsNewGrouping
 import kotlinx.collections.immutable.ImmutableList
@@ -76,6 +77,7 @@ class SearchViewModel(
     private val searchEngine: SearchEngine,
     private val settingsRepository: SettingsRepository,
     private val safeGuard: SafeGuard = SafeGuard(store),
+    syncStatus: StateFlow<SyncStatus> = MutableStateFlow(SyncStatus.Idle),
 ) : ViewModel() {
 
     /** Canonical raw query: the single source of truth for text, pills and filters. */
@@ -106,11 +108,18 @@ class SearchViewModel(
         }
     }
 
+    /** False while a sync blocks the dataset (see [searchReady]); the field is disabled with a hint then. */
+    val searchEnabled: StateFlow<Boolean> = combine(syncStatus, store.changes) { status, _ -> searchReady(status, store.isAvailable) }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), searchReady(syncStatus.value, store.isAvailable))
+
     private val exactMode = settingsRepository.homePrefs.map { it.searchExact }.distinctUntilChanged()
 
-    private data class SearchParams(val query: String, val exact: Boolean)
+    private data class SearchParams(val query: String, val exact: Boolean, val datasetVersion: Long)
 
-    private val searchParams = combine(query, exactMode) { q, exact -> SearchParams(q, exact) }
+    // The dataset version is part of the key: a query typed before the dataset arrived or while a sync rewrote
+    // it must run again against the new data instead of staying on its empty result.
+    private val searchParams = combine(query, exactMode, store.changes) { q, exact, version -> SearchParams(q, exact, version) }
         .debounce(40L)
         .distinctUntilChanged()
 

@@ -222,6 +222,7 @@ fun SearchScreen(
     var field by remember { mutableStateOf(fieldValueFor(split.free)) }
     var fieldFocused by remember { mutableStateOf(false) }
     val suggestions by viewModel.suggestions.collectAsStateWithLifecycle()
+    val searchEnabled by viewModel.searchEnabled.collectAsStateWithLifecycle()
 
     // The query can change from outside the field (filter sheet, recent search, Try rows, Clear).
     LaunchedEffect(raw) {
@@ -301,6 +302,15 @@ fun SearchScreen(
                     onBack = onBack,
                     onFocusChange = { fieldFocused = it },
                     focusRequester = focusRequester,
+                    enabled = searchEnabled,
+                )
+            }
+            if (!searchEnabled && (split.pills.isNotEmpty() || field.free.isNotEmpty())) {
+                Text(
+                    SEARCH_SYNC_HINT,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 32.dp, end = 16.dp, top = 6.dp),
                 )
             }
 

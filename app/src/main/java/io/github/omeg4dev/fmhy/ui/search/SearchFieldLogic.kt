@@ -6,6 +6,8 @@ import io.github.omeg4dev.fmhy.data.model.Section
 import io.github.omeg4dev.fmhy.data.search.QueryEdit
 import io.github.omeg4dev.fmhy.data.search.Token
 import io.github.omeg4dev.fmhy.data.search.TokenKind
+import io.github.omeg4dev.fmhy.data.sync.SyncProgress
+import io.github.omeg4dev.fmhy.di.SyncStatus
 
 /**
  * The text field shows the free text of the query with a zero-width [SENTINEL] in front. Deleting the sentinel
@@ -21,6 +23,20 @@ internal val TextFieldValue.free: String get() = text.removePrefix(SENTINEL.toSt
 
 /** The caret inside the free text. */
 internal val TextFieldValue.freeCursor: Int get() = (selection.end - 1).coerceIn(0, free.length)
+
+/** Shown in the disabled search field while [searchReady] is false. */
+internal const val SEARCH_SYNC_HINT = "Syncing FMHY wiki… search opens when done"
+
+/**
+ * Whether a query can be answered right now. During a sync the wiki is writable in one transaction
+ * ([SyncProgress.Saving]) that holds the dataset lock, so a search would wait behind it and show nothing;
+ * with no dataset on disk yet there is nothing to search either. Downloading and parsing leave the
+ * dataset readable, and a finished sync (failed or not) always reopens the field.
+ */
+internal fun searchReady(status: SyncStatus, datasetAvailable: Boolean): Boolean = when (status) {
+    is SyncStatus.Syncing -> datasetAvailable && status.progress !is SyncProgress.Saving
+    else -> true
+}
 
 internal data class FieldEdit(val raw: String, val value: TextFieldValue)
 

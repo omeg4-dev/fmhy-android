@@ -42,6 +42,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -114,12 +115,16 @@ internal fun SearchBarField(
     onFocusChange: (Boolean) -> Unit,
     focusRequester: FocusRequester,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
     val scroll = rememberScrollState()
     LaunchedEffect(pills.size, value.text) { scroll.scrollTo(scroll.maxValue) }
     val hasContent = pills.isNotEmpty() || value.free.isNotEmpty()
 
-    Row(modifier = modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        modifier = modifier.fillMaxWidth().alpha(if (enabled) 1f else 0.6f),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         if (showBack) {
             IconButton(onClick = onBack) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -135,6 +140,7 @@ internal fun SearchBarField(
         BasicTextField(
             value = value,
             onValueChange = onValueChange,
+            enabled = enabled,
             singleLine = true,
             textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
             cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
@@ -166,7 +172,7 @@ internal fun SearchBarField(
                         ) {
                             if (!hasContent) {
                                 Text(
-                                    "Search FMHY...",
+                                    if (enabled) "Search FMHY..." else SEARCH_SYNC_HINT,
                                     style = MaterialTheme.typography.bodyLarge,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     maxLines = 1,
