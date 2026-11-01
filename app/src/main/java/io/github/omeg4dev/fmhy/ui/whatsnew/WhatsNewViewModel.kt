@@ -16,6 +16,8 @@ import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -267,7 +269,12 @@ class WhatsNewViewModel(
             query = text,
             cutoffTs = filter.cutoffTs,
         )
-    }.stateIn(
+    }
+        // Collapsing, filtering and grouping every change is heavy: keep it off the main thread so the
+        // screen-open transition stays smooth, and drop intermediate results while a newer one is pending.
+        .flowOn(Dispatchers.Default)
+        .conflate()
+        .stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5000),
         WhatsNewUiState(

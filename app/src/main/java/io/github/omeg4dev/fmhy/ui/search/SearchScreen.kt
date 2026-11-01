@@ -40,7 +40,6 @@ import androidx.compose.material.icons.outlined.SearchOff
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.AutoFixHigh
 import androidx.compose.material.icons.outlined.FormatQuote
-import androidx.compose.material.icons.outlined.NewReleases
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material.icons.outlined.WorkspacePremium
@@ -61,7 +60,6 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.shape.RoundedCornerShape
-import io.github.omeg4dev.fmhy.WhatsNewNavKey
 import io.github.omeg4dev.fmhy.data.search.QueryAssist
 import io.github.omeg4dev.fmhy.data.search.QueryEdit
 import io.github.omeg4dev.fmhy.data.search.QuerySuggestion
@@ -359,7 +357,10 @@ fun SearchScreen(
             ) { mode ->
                 when (mode) {
                     SearchContentMode.RECENT -> {
-                        LazyColumn(modifier = Modifier.fillMaxWidth()) {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxWidth(),
+                            contentPadding = PaddingValues(bottom = 24.dp + bottomBarPadding),
+                        ) {
                             if (state.recentSearches.isNotEmpty()) {
                                 item(key = "hdr_recent") {
                                     Row(
@@ -414,17 +415,6 @@ fun SearchScreen(
                                     example = example,
                                     meaning = meaning,
                                     onClick = { viewModel.setQuery(example) },
-                                )
-                            }
-
-                            item(key = "whats_new") {
-                                WhatsNewCard(
-                                    count = state.whatsNewWeekCount,
-                                    onClick = {
-                                        nav.select(Tab.BROWSE)
-                                        nav.push(WhatsNewNavKey())
-                                    },
-                                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 24.dp + bottomBarPadding),
                                 )
                             }
                         }
@@ -828,47 +818,6 @@ private fun TryRow(example: String, meaning: String, onClick: () -> Unit) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.weight(1f),
         )
-    }
-}
-
-@Composable
-private fun WhatsNewCard(count: Int?, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(20.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        modifier = modifier.fillMaxWidth(),
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-        ) {
-            Icon(
-                Icons.Outlined.NewReleases,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(24.dp),
-            )
-            Spacer(Modifier.width(16.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text("What's new on FMHY", style = MaterialTheme.typography.titleMedium)
-                Text(
-                    text = when (count) {
-                        null -> "See what was added, starred or moved"
-                        0 -> "No changes this week"
-                        1 -> "1 change this week"
-                        else -> "${"%,d".format(count)} changes this week"
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Icon(
-                Icons.Filled.ChevronRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
     }
 }
 

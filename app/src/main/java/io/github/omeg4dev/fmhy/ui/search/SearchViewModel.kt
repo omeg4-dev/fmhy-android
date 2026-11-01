@@ -25,7 +25,6 @@ import io.github.omeg4dev.fmhy.data.safety.SafeGuard
 import io.github.omeg4dev.fmhy.data.safety.Verdict
 import io.github.omeg4dev.fmhy.di.SyncStatus
 import io.github.omeg4dev.fmhy.ui.check.looksLikeUrl
-import io.github.omeg4dev.fmhy.ui.whatsnew.WhatsNewGrouping
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
@@ -56,7 +55,6 @@ data class SearchUiState(
     /** Number of parameter pills in [query] (the "Filters · N" count). */
     val filterCount: Int = 0,
     val exact: Boolean = false,
-    val whatsNewWeekCount: Int? = null,
     val availableSections: ImmutableList<Section> = persistentListOf(),
     val groups: ImmutableList<SearchGroup> = persistentListOf(),
     val categories: ImmutableList<CategoryHit> = persistentListOf(),
@@ -84,7 +82,6 @@ class SearchViewModel(
     val query = MutableStateFlow(QueryEdit.canonical(initialQuery))
     private val allSections = MutableStateFlow<ImmutableList<Section>>(persistentListOf())
     private val searching = MutableStateFlow(false)
-    private val whatsNewWeek = MutableStateFlow<Int?>(null)
 
     init {
         // Reload whenever the dataset changes (first launch without a bundled snapshot, a refresh).
@@ -96,13 +93,6 @@ class SearchViewModel(
                     } catch (_: Exception) {
                     }
                     launch { searchEngine.warmUp() }
-                    whatsNewWeek.value = try {
-                        val since = System.currentTimeMillis() / 1000 - 7 * 86400L
-                        val cards = WhatsNewGrouping.collapseChanges(store.recentChanges(since, emptySet(), limit = 5000))
-                        WhatsNewGrouping.filterByTypes(cards, WhatsNewGrouping.DEFAULT_TYPES).size
-                    } catch (_: Exception) {
-                        null
-                    }
                 }
             }
         }
@@ -180,11 +170,11 @@ class SearchViewModel(
 
     val uiState: StateFlow<SearchUiState> = combine(
         query,
-        combine(searching, whatsNewWeek, exactMode) { s, w, e -> Triple(s, w, e) },
+        combine(searching, exactMode) { s, e -> Pair(s, e) },
         allSections,
         combine(settingsRepository.recentSearches, settingsRepository.homePrefs) { r, h -> RecentsAndPrefs(r, h) },
         searchResults,
-    ) { q, (isSearching, whatsNew, exact), sections, recentsAndPrefs, engineAndVerdict ->
+    ) { q, (isSearching, exact), sections, recentsAndPrefs, engineAndVerdict ->
         val results = engineAndVerdict.results
         val groups: ImmutableList<SearchGroup> = (results?.groups ?: emptyList()).toImmutableList()
         val badgeDays = recentsAndPrefs.homePrefs.newBadgeDays
@@ -205,7 +195,6 @@ class SearchViewModel(
             selectedSectionFilters = QueryEdit.selectedSections(q, sections),
             filterCount = QueryEdit.pills(q).size,
             exact = exact,
-            whatsNewWeekCount = whatsNew,
             availableSections = sections,
             groups = groups,
             categories = (results?.categories ?: emptyList()).toImmutableList(),

@@ -199,6 +199,9 @@ fun HomeScreen(
                     IconButton(onClick = onNavigateToCheckLink) {
                         Icon(Icons.Default.VerifiedUser, contentDescription = "Check a link")
                     }
+                    IconButton(onClick = { nav.push(WhatsNewNavKey()) }) {
+                        Icon(Icons.Outlined.NewReleases, contentDescription = "Recent changes")
+                    }
                     IconButton(onClick = onNavigateToSettings) {
                         Icon(Icons.Default.Settings, contentDescription = "Settings")
                     }
