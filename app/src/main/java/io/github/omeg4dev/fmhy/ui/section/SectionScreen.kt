@@ -161,19 +161,16 @@ fun SectionScreen(
         FollowTree(follows).isSectionFollowed(currentSectionId)
     }
 
-    LaunchedEffect(drawerState.isOpen) {
-        if (drawerState.isOpen) {
-            val sections = if (allSections.isEmpty()) {
-                val loaded = runCatching { container.datasetStore.sections() }.getOrDefault(emptyList())
-                allSections = loaded
-                loaded
-            } else {
-                allSections
-            }
-            val index = sections.indexOfFirst { it.id == currentSectionId }
-            if (index >= 0) {
-                drawerListState.scrollToItem(index)
-            }
+    // Website-style Menu drawer: prepare the list before the first tap so opening only animates.
+    LaunchedEffect(websiteStyle) {
+        if (websiteStyle && allSections.isEmpty()) {
+            allSections = runCatching { container.datasetStore.sections() }.getOrDefault(emptyList())
+        }
+    }
+    LaunchedEffect(allSections, currentSectionId) {
+        val index = allSections.indexOfFirst { it.id == currentSectionId }
+        if (index >= 0) {
+            drawerListState.scrollToItem(index)
         }
     }
 
