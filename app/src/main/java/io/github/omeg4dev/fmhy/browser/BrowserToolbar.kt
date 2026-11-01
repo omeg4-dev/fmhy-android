@@ -16,7 +16,9 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -259,6 +261,8 @@ fun BrowserToolbar(
                     onAddressClick = onAddressClick,
                     onShieldClick = onShieldClick,
                     onSelectTab = onSelectTab,
+                    // Swiping on the last tab opens a new tab; it stays private when the current tab is private.
+                    onNewTabSwipe = { onNewTabClick(tab?.isPrivate == true) },
                     statusIcon = statusIcon,
                     modifier = Modifier.weight(1f),
                 )
@@ -266,14 +270,35 @@ fun BrowserToolbar(
                 Spacer(modifier = Modifier.width(4.dp))
 
                 // Tabs counter: 48 dp clickable box with 26 dp rounded square (8 dp corner) outline 2 dp onSurface
+                var showNewTabMenu by remember { mutableStateOf(false) }
                 Box(
                     modifier = Modifier
                         .size(48.dp)
-                        .clickable(onClick = {
-                            onTabsClick()
-                        }),
+                        .combinedClickable(
+                            onClick = { onTabsClick() },
+                            onLongClick = {
+                                haptics.tick()
+                                showNewTabMenu = true
+                            },
+                        ),
                     contentAlignment = Alignment.Center,
                 ) {
+                    DropdownMenu(expanded = showNewTabMenu, onDismissRequest = { showNewTabMenu = false }) {
+                        DropdownMenuItem(
+                            text = { Text("New tab") },
+                            onClick = {
+                                showNewTabMenu = false
+                                onNewTabClick(false)
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("New private tab") },
+                            onClick = {
+                                showNewTabMenu = false
+                                onNewTabClick(true)
+                            },
+                        )
+                    }
                     Box(
                         modifier = Modifier
                             .size(26.dp)
@@ -413,6 +438,7 @@ private fun AddressPill(
     onAddressClick: () -> Unit,
     onShieldClick: () -> Unit,
     onSelectTab: (Long) -> Unit,
+    onNewTabSwipe: () -> Unit = {},
     statusIcon: @Composable () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -463,11 +489,14 @@ private fun AddressPill(
                     onDragEnd = {
                         scope.launch {
                             val threshold = pillWidthPx * 0.3f
-                            val current = dragOffset.value
-                            if (current > threshold && prevTab != null) {
-                                onSelectTab(prevTab.id)
-                            } else if (current < -threshold && nextTab != null) {
-                                onSelectTab(nextTab.id)
+                            when (TabsLogic.tabSwipeAction(dragOffset.value, threshold, prevTab != null, nextTab != null)) {
+                                TabSwipe.PREVIOUS -> prevTab?.let { onSelectTab(it.id) }
+                                TabSwipe.NEXT -> nextTab?.let { onSelectTab(it.id) }
+                                TabSwipe.NEW_TAB -> if (tab != null) {
+                                    haptics.tick()
+                                    onNewTabSwipe()
+                                }
+                                TabSwipe.NONE -> Unit
                             }
                             dragOffset.animateTo(0f, Motion.standard())
                         }
@@ -588,6 +617,18 @@ private fun AddressPill(
                         modifier = Modifier
                             .fillMaxWidth()
                             .offset { IntOffset((dragOffset.value - pillWidthPx).roundToInt(), 0) },
+                    )
+                } else if (dragOffset.value < 0 && nextTab == null && tab != null && pillWidthPx > 0) {
+                    // Last tab: the swipe opens a new tab, so say so while dragging.
+                    Text(
+                        text = if (tab.isPrivate) "New private tab" else "New tab",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .offset { IntOffset((dragOffset.value + pillWidthPx).roundToInt(), 0) },
                     )
                 } else if (dragOffset.value < 0 && nextTab != null && pillWidthPx > 0) {
                     val nextHost = try {

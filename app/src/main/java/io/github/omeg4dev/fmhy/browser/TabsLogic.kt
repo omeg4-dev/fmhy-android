@@ -24,8 +24,22 @@ sealed interface TabsRow {
     }
 }
 
+/** What a finished horizontal swipe on the address pill does. */
+enum class TabSwipe { NONE, PREVIOUS, NEXT, NEW_TAB }
+
 /** Pure helpers behind the full-screen tab overview. */
 object TabsLogic {
+    /**
+     * Decision of a finished swipe on the address pill: dragging right goes to the previous tab, dragging left to the
+     * next one, and dragging left on the LAST tab opens a new tab. A swipe shorter than [threshold] does nothing.
+     */
+    fun tabSwipeAction(offset: Float, threshold: Float, hasPrevious: Boolean, hasNext: Boolean): TabSwipe = when {
+        offset > threshold && hasPrevious -> TabSwipe.PREVIOUS
+        offset < -threshold && hasNext -> TabSwipe.NEXT
+        offset < -threshold -> TabSwipe.NEW_TAB
+        else -> TabSwipe.NONE
+    }
+
     /** Search field appears from this many tabs on. */
     const val SEARCH_MIN_TABS = 6
 

@@ -43,4 +43,21 @@ class TabsLogicTest {
         assertEquals(-1, TabsLogic.currentIndex(g, 99))
         assertEquals(-1, TabsLogic.currentIndex(g, null))
     }
+
+    @Test fun swipeOnMiddleTabOnlySwitchesTabs() {
+        // Left swipe on a tab that has a next tab goes to it, never opens a new one.
+        assertEquals(TabSwipe.NEXT, TabsLogic.tabSwipeAction(-200f, 100f, hasPrevious = true, hasNext = true))
+        assertEquals(TabSwipe.PREVIOUS, TabsLogic.tabSwipeAction(200f, 100f, hasPrevious = true, hasNext = true))
+    }
+
+    @Test fun leftSwipeOnLastTabOpensNewTab() {
+        assertEquals(TabSwipe.NEW_TAB, TabsLogic.tabSwipeAction(-200f, 100f, hasPrevious = true, hasNext = false))
+        assertEquals(TabSwipe.NEW_TAB, TabsLogic.tabSwipeAction(-200f, 100f, hasPrevious = false, hasNext = false))
+    }
+
+    @Test fun shortSwipeAndRightSwipeOnFirstTabDoNothing() {
+        assertEquals(TabSwipe.NONE, TabsLogic.tabSwipeAction(-99f, 100f, hasPrevious = true, hasNext = false))
+        assertEquals(TabSwipe.NONE, TabsLogic.tabSwipeAction(200f, 100f, hasPrevious = false, hasNext = true))
+        assertEquals(TabSwipe.NONE, TabsLogic.tabSwipeAction(0f, 100f, hasPrevious = false, hasNext = false))
+    }
 }
