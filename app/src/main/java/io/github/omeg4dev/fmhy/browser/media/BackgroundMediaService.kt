@@ -198,7 +198,7 @@ class BackgroundMediaService : Service() {
             Icon.createWithResource(this, android.R.drawable.ic_menu_close_clear_cancel), "Close", serviceIntent(ACTION_CLOSE, 3),
         ).build()
         return Notification.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_monochrome)
+            .setSmallIcon(R.drawable.ic_stat_fmhy)
             .setContentTitle(title)
             .setContentText(tab?.let { hostOf(it) })
             .setContentIntent(open)

@@ -87,7 +87,7 @@ object NewPostsChecker {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         val notif = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_monochrome)
+            .setSmallIcon(R.drawable.ic_stat_fmhy)
             .setContentTitle(title)
             .setContentText(text)
             .setContentIntent(pending)

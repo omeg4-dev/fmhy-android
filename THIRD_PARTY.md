@@ -20,6 +20,7 @@ Brand logos are trademarks of their owners and are used only to label links.
 
 ## FMHY logo (`ic_launcher_*`, `fmhy_logo.png`)
 From [fmhy/edit](https://github.com/fmhy/edit) `docs/public/` (`pwa_icon.png`, `fmhy.ico`).
+Modified: the glow is redrawn and the logo is resized for adaptive icons, notification and widget variants (`tools/make_icons.py`).
 
 ## FMHY-SafeGuard (`core/data/src/main/kotlin/io/github/omeg4dev/fmhy/data/safety/SafeGuard.kt`)
 Ported from [FMHY-SafeGuard](https://github.com/fmhy/FMHY-SafeGuard) (`src/js/catalogue.js`, `resources.js`, `config.js`, `site-metadata.js`), licensed under GPL-3.0.
