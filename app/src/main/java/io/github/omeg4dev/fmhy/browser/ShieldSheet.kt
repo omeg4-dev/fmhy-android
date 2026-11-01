@@ -14,6 +14,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.filled.AutoFixHigh
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.DesktopWindows
 import androidx.compose.material.icons.filled.Javascript
@@ -72,7 +74,8 @@ fun ShieldSheet(
         sitePrefs.popups != null ||
         sitePrefs.javascript != null ||
         sitePrefs.desktop != null ||
-        sitePrefs.dark != null
+        sitePrefs.dark != null ||
+        sitePrefs.fixSite != null
     )
 
     // Effective values
@@ -81,6 +84,7 @@ fun ShieldSheet(
     val jsOn = sitePrefs?.javascript ?: browserPrefs.javascript
     val desktopOn = sitePrefs?.desktop ?: (tab.desktopSite || browserPrefs.desktopByDefault)
     val darkOn = sitePrefs?.dark ?: (browserPrefs.forceDark && isAppDark)
+    val fixOn = sitePrefs?.fixSite == true
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -183,6 +187,39 @@ fun ShieldSheet(
             )
 
             Spacer(modifier = Modifier.height(16.dp))
+
+            // Button "Fix this site": anti-detection bundle for "disable your ad blocker" walls.
+            Button(
+                onClick = { onUpdateSitePref { it.copy(fixSite = if (fixOn) null else true) } },
+                modifier = Modifier.fillMaxWidth(),
+                colors = if (fixOn) {
+                    ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    )
+                } else {
+                    ButtonDefaults.buttonColors()
+                },
+            ) {
+                Icon(
+                    if (fixOn) Icons.Default.Check else Icons.Default.AutoFixHigh,
+                    contentDescription = null,
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(if (fixOn) "Site fix is on · tap to remove" else "Fix this site")
+            }
+            Text(
+                text = if (fixOn) {
+                    "Ads stay blocked; the page is told they loaded and any ad-blocker wall is hidden."
+                } else {
+                    "For pages that say to turn off your ad blocker. Reloads the page."
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp, start = 4.dp),
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
 
             // Button "Hide an element..."
             Button(

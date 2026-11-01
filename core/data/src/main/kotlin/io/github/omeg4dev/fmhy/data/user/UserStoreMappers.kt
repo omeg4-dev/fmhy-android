@@ -42,6 +42,13 @@ internal fun UserStore.migrateIfNeeded(conn: SQLiteConnection) {
     }
 }
 
+internal fun tableExists(conn: SQLiteConnection, table: String): Boolean {
+    return conn.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").use { stmt ->
+        stmt.bindText(1, table)
+        stmt.step()
+    }
+}
+
 internal fun columnExists(conn: SQLiteConnection, table: String, column: String): Boolean {
     return try {
         conn.prepare("PRAGMA table_info($table);").use { stmt ->
@@ -85,6 +92,11 @@ internal fun executeDefaultMigration(conn: SQLiteConnection, fromVersion: Int, t
     if (fromVersion == 4 && toVersion == 5) {
         if (!columnExists(conn, "downloads", "fmhy_json")) {
             conn.execSQL("ALTER TABLE downloads ADD COLUMN fmhy_json TEXT;")
+        }
+    }
+    if (fromVersion == 5 && toVersion == 6) {
+        if (tableExists(conn, "site_prefs") && !columnExists(conn, "site_prefs", "fix_site")) {
+            conn.execSQL("ALTER TABLE site_prefs ADD COLUMN fix_site INTEGER;")
         }
     }
 }
@@ -168,7 +180,8 @@ internal fun readSitePrefs(stmt: SQLiteStatement): SitePrefs {
         javascript = if (stmt.isNull(3)) null else stmt.getLong(3) != 0L,
         desktop = if (stmt.isNull(4)) null else stmt.getLong(4) != 0L,
         dark = if (stmt.isNull(5)) null else stmt.getLong(5) != 0L,
-        updatedAt = stmt.getLong(6),
+        fixSite = if (stmt.isNull(6)) null else stmt.getLong(6) != 0L,
+        updatedAt = stmt.getLong(7),
     )
 }
 

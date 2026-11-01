@@ -808,6 +808,56 @@ class UserStoreTest {
     }
 
     @Test
+    fun testSitePrefsFixSiteRoundTripAndKeepsRowAlive() = runTest {
+        val store = createStore()
+
+        // fixSite alone keeps the row: it is a per-site setting like the switches.
+        store.setSitePrefs(SitePrefs(host = "geotastic.net", fixSite = true))
+        assertEquals(true, store.sitePrefs("geotastic.net")?.fixSite)
+        assertNull(store.sitePrefs("geotastic.net")?.adblock)
+        assertEquals(1, store.allSitePrefs().size)
+
+        // Other switches keep working next to it.
+        store.setSitePrefs(SitePrefs(host = "geotastic.net", adblock = true, fixSite = true))
+        assertEquals(true, store.sitePrefs("geotastic.net")?.fixSite)
+        assertEquals(true, store.sitePrefs("geotastic.net")?.adblock)
+
+        // Clearing the fix (all other values null) removes the row.
+        store.setSitePrefs(SitePrefs(host = "geotastic.net"))
+        assertNull(store.sitePrefs("geotastic.net"))
+
+        // "Reset to defaults" removes the fix too.
+        store.setSitePrefs(SitePrefs(host = "upfilesgo.com", fixSite = true))
+        store.clearSitePrefs("upfilesgo.com")
+        assertNull(store.sitePrefs("upfilesgo.com"))
+
+        store.close()
+    }
+
+    @Test
+    fun testMigrationV5ToV6AddsFixSiteColumnKeepsRows() = runTest {
+        val dbFile = tempFolder.newFile("legacy_v5.db")
+        val rawConn = BundledSQLiteDriver().open(dbFile.absolutePath)
+        rawConn.execSQL("PRAGMA user_version = 5;")
+        rawConn.execSQL(
+            "CREATE TABLE site_prefs (host TEXT PRIMARY KEY, adblock INTEGER, popups INTEGER, javascript INTEGER, " +
+                "desktop INTEGER, dark INTEGER, updated_at INTEGER NOT NULL) WITHOUT ROWID;"
+        )
+        rawConn.execSQL("INSERT INTO site_prefs (host, adblock, updated_at) VALUES ('old.example', 0, 1000);")
+        rawConn.close()
+
+        val store = UserStore(dbFile)
+        val old = store.sitePrefs("old.example")
+        assertNotNull(old)
+        assertEquals(false, old?.adblock)
+        assertNull(old?.fixSite)
+
+        store.setSitePrefs(old!!.copy(fixSite = true))
+        assertEquals(true, store.sitePrefs("old.example")?.fixSite)
+        store.close()
+    }
+
+    @Test
     fun testMigrationFromOldSchemaWithoutExcludedColumn() = runTest {
         val dbFile = tempFolder.newFile("legacy_v1.db")
         val rawConn = BundledSQLiteDriver().open(dbFile.absolutePath)
@@ -845,7 +895,7 @@ class UserStoreTest {
         store.withConnection { conn ->
             conn.prepare("PRAGMA user_version;").use { stmt ->
                 assertTrue(stmt.step())
-                assertEquals(5L, stmt.getLong(0))
+                assertEquals(6L, stmt.getLong(0))
             }
         }
         store.close()
@@ -1105,7 +1155,7 @@ class UserStoreTest {
         store.withConnection { conn ->
             conn.prepare("PRAGMA user_version;").use { stmt ->
                 assertTrue(stmt.step())
-                assertEquals(5L, stmt.getLong(0))
+                assertEquals(6L, stmt.getLong(0))
             }
         }
         store.close()
@@ -1176,7 +1226,7 @@ class UserStoreTest {
         store.withConnection { conn ->
             conn.prepare("PRAGMA user_version;").use { stmt ->
                 assertTrue(stmt.step())
-                assertEquals(5L, stmt.getLong(0))
+                assertEquals(6L, stmt.getLong(0))
             }
         }
         store.close()
@@ -1238,7 +1288,7 @@ class UserStoreTest {
         store.withConnection { conn ->
             conn.prepare("PRAGMA user_version;").use { stmt ->
                 assertTrue(stmt.step())
-                assertEquals(5L, stmt.getLong(0))
+                assertEquals(6L, stmt.getLong(0))
             }
         }
         store.close()

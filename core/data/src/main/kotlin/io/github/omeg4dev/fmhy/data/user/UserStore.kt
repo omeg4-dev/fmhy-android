@@ -699,7 +699,7 @@ open class UserStore(
     // --- Site Prefs ---
 
     suspend fun sitePrefs(host: String): SitePrefs? = withConnection { conn ->
-        val sql = "SELECT host, adblock, popups, javascript, desktop, dark, updated_at FROM site_prefs WHERE host = ?"
+        val sql = "SELECT host, adblock, popups, javascript, desktop, dark, fix_site, updated_at FROM site_prefs WHERE host = ?"
         conn.prepare(sql).use { stmt ->
             stmt.bindText(1, host)
             if (stmt.step()) readSitePrefs(stmt) else null
@@ -708,7 +708,7 @@ open class UserStore(
 
     suspend fun allSitePrefs(): List<SitePrefs> = withConnection { conn ->
         val result = mutableListOf<SitePrefs>()
-        val sql = "SELECT host, adblock, popups, javascript, desktop, dark, updated_at FROM site_prefs ORDER BY host ASC"
+        val sql = "SELECT host, adblock, popups, javascript, desktop, dark, fix_site, updated_at FROM site_prefs ORDER BY host ASC"
         conn.prepare(sql).use { stmt ->
             while (stmt.step()) {
                 result.add(readSitePrefs(stmt))
@@ -718,21 +718,22 @@ open class UserStore(
     }
 
     suspend fun setSitePrefs(p: SitePrefs) = withConnection { conn ->
-        if (p.adblock == null && p.popups == null && p.javascript == null && p.desktop == null && p.dark == null) {
+        if (p.adblock == null && p.popups == null && p.javascript == null && p.desktop == null && p.dark == null && p.fixSite == null) {
             conn.prepare("DELETE FROM site_prefs WHERE host = ?").use { stmt ->
                 stmt.bindText(1, p.host)
                 stmt.step()
             }
         } else {
             val sql = """
-                INSERT INTO site_prefs (host, adblock, popups, javascript, desktop, dark, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO site_prefs (host, adblock, popups, javascript, desktop, dark, fix_site, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(host) DO UPDATE SET
                     adblock = excluded.adblock,
                     popups = excluded.popups,
                     javascript = excluded.javascript,
                     desktop = excluded.desktop,
                     dark = excluded.dark,
+                    fix_site = excluded.fix_site,
                     updated_at = excluded.updated_at
             """.trimIndent()
             conn.prepare(sql).use { stmt ->
@@ -742,7 +743,8 @@ open class UserStore(
                 bindBooleanOrNull(stmt, 4, p.javascript)
                 bindBooleanOrNull(stmt, 5, p.desktop)
                 bindBooleanOrNull(stmt, 6, p.dark)
-                stmt.bindLong(7, if (p.updatedAt > 0) p.updatedAt else clock())
+                bindBooleanOrNull(stmt, 7, p.fixSite)
+                stmt.bindLong(8, if (p.updatedAt > 0) p.updatedAt else clock())
                 stmt.step()
             }
         }
@@ -1175,7 +1177,7 @@ open class UserStore(
     }
 
     companion object {
-        const val USER_DB_VERSION = 5
+        const val USER_DB_VERSION = 6
         const val BACKUP_FORMAT = "fmhy-backup"
         const val BACKUP_VERSION = 1
 

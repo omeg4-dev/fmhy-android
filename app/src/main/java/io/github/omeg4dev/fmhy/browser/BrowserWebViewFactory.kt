@@ -137,10 +137,12 @@ class BrowserWebViewFactory(
 
         val cosmeticsJs = BrowserJsBridge.buildCosmeticsScript(bridgeName, sendGpc = tabManager.currentPrivacyPrefs.sendGpc)
         val videoJs = VideoJs.script(bridgeName)
+        val siteFixJs = SiteFix.script(bridgeName)
         val hasDocumentStartScript = WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)
         if (hasDocumentStartScript) {
             WebViewCompat.addDocumentStartJavaScript(webView, cosmeticsJs, setOf("*"))
             WebViewCompat.addDocumentStartJavaScript(webView, videoJs, setOf("*"))
+            WebViewCompat.addDocumentStartJavaScript(webView, siteFixJs, setOf("*"))
             if (browserPrefs.forceZoom) {
                 try {
                     val handle = WebViewCompat.addDocumentStartJavaScript(webView, FORCE_ZOOM_SCRIPT, setOf("*"))
@@ -200,6 +202,7 @@ class BrowserWebViewFactory(
                 if (!hasDocumentStartScript) {
                     view.evaluateJavascript(cosmeticsJs, null)
                     view.evaluateJavascript(videoJs, null)
+                    view.evaluateJavascript(siteFixJs, null)
                 }
             }
 

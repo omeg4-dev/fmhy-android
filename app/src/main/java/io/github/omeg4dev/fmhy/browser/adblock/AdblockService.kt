@@ -17,6 +17,7 @@ import io.github.omeg4dev.fmhy.data.adblock.MatchResult
 import io.github.omeg4dev.fmhy.data.adblock.NeuteredResources
 import io.github.omeg4dev.fmhy.data.adblock.ResourceType
 import io.github.omeg4dev.fmhy.data.adblock.ResourceTypes
+import io.github.omeg4dev.fmhy.browser.SiteFix
 import io.github.omeg4dev.fmhy.data.user.SitePrefs
 import io.github.omeg4dev.fmhy.work.NetworkMonitor
 import io.github.omeg4dev.fmhy.work.NetworkPolicy
@@ -351,6 +352,12 @@ class AdblockService(
         onMainFrameBlocked: (rule: String) -> Unit = {},
     ): WebResourceResponse? {
         val prefs = currentBlockingPrefs
+        val fixSite = sitePrefs?.fixSite == true
+        // "Fix this site": a known ad-block detector script is replaced by an empty one, even when
+        // ad blocking itself is off for the page.
+        if (fixSite && !request.isForMainFrame && SiteFix.isDetectorUrl(request.url.toString())) {
+            return emptyResponse(ResourceType.SCRIPT)
+        }
         if (!prefs.adblock) return null
         if (sitePrefs?.adblock == false) return null
 
@@ -446,7 +453,8 @@ class AdblockService(
                         )
                     )
                     // 404 (not an empty 200) so <script>/<img> fire onerror like a cancelled request.
-                    emptyResponse(type, failed = true)
+                    // With "Fix this site" the answer is an empty 200: detectors read the 404 as "blocked".
+                    emptyResponse(type, failed = !fixSite)
                 }
             }
         }

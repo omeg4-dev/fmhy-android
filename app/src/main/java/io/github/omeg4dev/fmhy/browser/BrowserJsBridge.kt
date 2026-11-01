@@ -51,6 +51,15 @@ class BrowserJsBridge(
         return Json.encodeToString(CosmeticsResponse(css, scriptletsCode, generic))
     }
 
+    /** Whether "Fix this site" is on for the page at [href] (its host must be the one the pref was saved for). */
+    @JavascriptInterface
+    fun fixSite(href: String): Boolean {
+        val prefs = tabManager.getTabRecord(tabId)?.sitePrefs ?: return false
+        if (prefs.fixSite != true) return false
+        val host = try { Uri.parse(href).host.orEmpty() } catch (_: Exception) { "" }
+        return host.equals(prefs.host, ignoreCase = true)
+    }
+
     @JavascriptInterface
     fun generic(href: String, classesJson: String, idsJson: String): String {
         val tab = tabManager.getTabRecord(tabId) ?: return ""

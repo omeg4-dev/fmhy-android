@@ -120,6 +120,7 @@ fun SiteSettingsScreen(
                                     if (site.javascript != null) add(if (site.javascript == false) "JS off" else "JS on")
                                     if (site.desktop != null) add(if (site.desktop == true) "desktop UA" else "mobile UA")
                                     if (site.dark != null) add(if (site.dark == false) "light theme" else "dark theme")
+                                    if (site.fixSite == true) add("site fix")
                                 }
                             }
 
@@ -210,8 +211,7 @@ fun SiteSettingsScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        val updated = SitePrefs(
-                            host = site.host,
+                        val updated = site.copy(
                             adblock = adblock,
                             popups = popups,
                             javascript = javascript,
