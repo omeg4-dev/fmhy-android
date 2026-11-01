@@ -8,6 +8,9 @@ Outputs:
 - app/src/main/res/drawable-{mdpi,hdpi,xhdpi,xxhdpi,xxxhdpi}/ic_launcher_foreground.png
 - app/src/main/res/mipmap-{mdpi,hdpi,xhdpi,xxhdpi,xxxhdpi}/ic_launcher.webp
 - app/src/main/res/mipmap-{mdpi,hdpi,xhdpi,xxhdpi,xxxhdpi}/ic_launcher_round.webp
+- app/src/main/res/drawable-nodpi/ic_launcher_fg_{mono,blue,green,red,black,light}.png
+  (colour variants: white triangle with a glow in lighter tints of the tile colour; the
+  light variant is a dark triangle with the neon glow)
 """
 
 import math
@@ -37,7 +40,32 @@ def hex_to_rgb(hex_str: str) -> tuple[int, int, int]:
     return int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
 
 
-def render_logo(d: float, supersample: int = 4) -> Image.Image:
+# Colour variants: name -> (tile colour, triangle fill, glow left, glow top, glow right).
+# Glow tints are mixed from the tile colour towards white; None = use the neon defaults.
+VARIANT_BG = {
+    "mono": "#7C5CFF",
+    "blue": "#1E88E5",
+    "green": "#2E7D32",
+    "red": "#E53935",
+    "black": "#000000",
+}
+VARIANT_LIGHT_TRIANGLE = "#1C1B1F"
+
+
+def mix_to_white(hex_str: str, amount: float) -> str:
+    r, g, b = hex_to_rgb(hex_str)
+    r, g, b = (int(round(c + (255 - c) * amount)) for c in (r, g, b))
+    return f"#{r:02X}{g:02X}{b:02X}"
+
+
+def render_logo(
+    d: float,
+    supersample: int = 4,
+    cyan_hex: str = CYAN_HEX,
+    magenta_hex: str = MAGENTA_HEX,
+    purple_hex: str = PURPLE_HEX,
+    triangle_rgb: tuple[int, int, int] = (255, 255, 255),
+) -> Image.Image:
     """Render the logo on a transparent canvas of 108*d px at supersample x supersample."""
     scale = d * supersample
     size_ss = int(round(108.0 * scale))
@@ -71,7 +99,7 @@ def render_logo(d: float, supersample: int = 4) -> Image.Image:
         lut_c = [min(255, int(round(a * (target_c_alpha / max_c)))) for a in range(256)]
         b_cmask = b_cmask.point(lut_c)
 
-    cyan_rgb = hex_to_rgb(CYAN_HEX)
+    cyan_rgb = hex_to_rgb(cyan_hex)
     cyan_layer = Image.new("RGBA", (size_ss, size_ss), (*cyan_rgb, 0))
     cyan_layer.putalpha(b_cmask)
     canvas.alpha_composite(cyan_layer)
@@ -87,10 +115,10 @@ def render_logo(d: float, supersample: int = 4) -> Image.Image:
     thick = 3.0 * scale
     overlap_in = 0.5 * scale
 
-    c_top = hex_to_rgb(MAGENTA_HEX)
-    c_right = hex_to_rgb(PURPLE_HEX)
+    c_top = hex_to_rgb(magenta_hex)
+    c_right = hex_to_rgb(purple_hex)
 
-    rgb_layer = Image.new("RGB", (size_ss, size_ss), (0, 0, 0))
+    rgb_layer = Image.new("RGB", (size_ss, size_ss), c_right)
     d_rgb = ImageDraw.Draw(rgb_layer)
     mag_mask = Image.new("L", (size_ss, size_ss), 0)
     d_mmask = ImageDraw.Draw(mag_mask)
@@ -152,7 +180,7 @@ def render_logo(d: float, supersample: int = 4) -> Image.Image:
     # (c) Crisp white triangle on top
     tri_layer = Image.new("RGBA", (size_ss, size_ss), (0, 0, 0, 0))
     d_tri = ImageDraw.Draw(tri_layer)
-    d_tri.polygon([p_top, p_bot, p_right], fill=(255, 255, 255, 255))
+    d_tri.polygon([p_top, p_bot, p_right], fill=(*triangle_rgb, 255))
     canvas.alpha_composite(tri_layer)
 
     # Downscale supersampled canvas to target size with Lanczos
@@ -189,8 +217,28 @@ def make_legacy_icon(size: int, is_round: bool, supersample: int = 4) -> Image.I
     return icon
 
 
+def write_variants(res_dir: Path) -> None:
+    out = res_dir / "drawable-nodpi"
+    out.mkdir(parents=True, exist_ok=True)
+    for name, bg in VARIANT_BG.items():
+        img = render_logo(
+            4.0,
+            cyan_hex=mix_to_white(bg, 0.70),
+            magenta_hex=mix_to_white(bg, 0.85),
+            purple_hex=mix_to_white(bg, 0.50),
+        )
+        path = out / f"ic_launcher_fg_{name}.png"
+        img.save(path, format="PNG")
+        print(f"Wrote {path} ({img.size[0]}x{img.size[1]} RGBA)")
+    light = render_logo(4.0, triangle_rgb=hex_to_rgb(VARIANT_LIGHT_TRIANGLE))
+    path = out / "ic_launcher_fg_light.png"
+    light.save(path, format="PNG")
+    print(f"Wrote {path} ({light.size[0]}x{light.size[1]} RGBA)")
+
+
 def main() -> None:
     res_dir = Path("app/src/main/res")
+    write_variants(res_dir)
 
     for density_name, d, legacy_size in DENSITIES:
         # 1. Launcher foreground PNG (RGBA with transparent background)

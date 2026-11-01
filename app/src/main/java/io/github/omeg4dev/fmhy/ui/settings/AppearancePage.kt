@@ -753,12 +753,12 @@ private fun iconBackgroundColor(icon: AppIcon): Color = when (icon) {
 private fun iconForegroundRes(icon: AppIcon): Int = when (icon) {
     AppIcon.DEFAULT -> R.drawable.ic_launcher_foreground
     AppIcon.UWU -> R.drawable.ic_launcher_uwu_foreground
-    AppIcon.MONOCHROME -> R.drawable.ic_launcher_monochrome
-    AppIcon.LIGHT -> R.drawable.ic_launcher_fg_dark
-    AppIcon.BLUE -> R.drawable.ic_launcher_monochrome
-    AppIcon.GREEN -> R.drawable.ic_launcher_monochrome
-    AppIcon.RED -> R.drawable.ic_launcher_monochrome
-    AppIcon.BLACK -> R.drawable.ic_launcher_monochrome
+    AppIcon.MONOCHROME -> R.drawable.ic_launcher_fg_mono
+    AppIcon.LIGHT -> R.drawable.ic_launcher_fg_light
+    AppIcon.BLUE -> R.drawable.ic_launcher_fg_blue
+    AppIcon.GREEN -> R.drawable.ic_launcher_fg_green
+    AppIcon.RED -> R.drawable.ic_launcher_fg_red
+    AppIcon.BLACK -> R.drawable.ic_launcher_fg_black
 }
 
 @Composable
