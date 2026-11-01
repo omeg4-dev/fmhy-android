@@ -362,6 +362,11 @@ fun SectionScreen(
         val currentCleanTitle = if (websiteStyle) {
             currentCategory?.let { CrossLinks.splitLinkTitle(it.heading.title).first }
         } else null
+        val currentTitle = currentCategory?.let { cat ->
+            val currentSecId = state.section?.id ?: viewModel.sectionId
+            val raw = CrossLinks.splitLinkTitle(cat.heading.title).first
+            flagFor(currentSecId, cat.heading.title)?.let { flag -> "$flag $raw" } ?: raw
+        }
         val isCurrentFollowed = if (websiteStyle && currentCategory != null) {
             FollowTree(follows).isSubsectionFollowed(currentSectionId, currentCategory.heading.id)
         } else false
@@ -382,12 +387,23 @@ fun SectionScreen(
                 ) {
                     TopAppBar(
                         title = {
-                            Text(
-                                text = state.section?.displayTitle ?: sectionDisplayTitle(viewModel.sectionId, "Section"),
-                                style = MaterialTheme.typography.titleLarge,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
+                            Column {
+                                Text(
+                                    text = state.section?.displayTitle ?: sectionDisplayTitle(viewModel.sectionId, "Section"),
+                                    style = MaterialTheme.typography.titleLarge,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                if (currentTitle != null) {
+                                    Text(
+                                        text = currentTitle,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                            }
                         },
                         navigationIcon = {
                             IconButton(onClick = onBack) {
@@ -567,14 +583,7 @@ fun SectionScreen(
                     )
 
                     if (websiteStyle) {
-                        val currentSecId = state.section?.id ?: viewModel.sectionId
-                        val currentTitle = currentCategory?.let { cat ->
-                            val raw = CrossLinks.splitLinkTitle(cat.heading.title).first
-                            flagFor(currentSecId, cat.heading.title)?.let { flag -> "$flag $raw" } ?: raw
-                        }
-
                         WebsiteSectionRow(
-                            currentTitle = currentTitle,
                             onOpenMenu = {
                                 scope.launch { drawerState.open() }
                             },

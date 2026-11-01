@@ -478,7 +478,6 @@ fun SubsectionBell(
 
 @Composable
 fun WebsiteSectionRow(
-    currentTitle: String?,        // current subsection, with flag if any; null = none
     onOpenMenu: () -> Unit,
     onOpenOnThisPage: () -> Unit,
     modifier: Modifier = Modifier,
@@ -517,17 +516,6 @@ fun WebsiteSectionRow(
         }
 
         Spacer(Modifier.weight(1f))
-
-        if (currentTitle != null) {
-            Text(
-                text = currentTitle,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f, fill = false),
-            )
-        }
 
         Row(
             verticalAlignment = Alignment.CenterVertically,
