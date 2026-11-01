@@ -9,10 +9,12 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import android.view.ContextThemeWrapper
 import android.view.ViewGroup
 import android.webkit.WebView
 import androidx.core.view.drawToBitmap
 import io.github.omeg4dev.fmhy.FmhyApp
+import io.github.omeg4dev.fmhy.R
 import io.github.omeg4dev.fmhy.SettingsPage
 import io.github.omeg4dev.fmhy.SettingsPageNavKey
 import io.github.omeg4dev.fmhy.browser.adblock.AdblockService
@@ -370,8 +372,19 @@ class TabManager(
         attachedActivity = activity
         isAppDark = isDark
         for (r in records) {
-            r.mutableContext?.baseContext = activity
+            rebaseWebViewContext(r)
         }
+    }
+
+    /**
+     * WebView derives dark mode (algorithmic darkening and `prefers-color-scheme`) from the context theme's
+     * `isLightTheme`; the app theme is Material.Light, so a tab that should be dark needs a dark theme overlay.
+     */
+    private fun webViewBase(base: Context, record: TabRecord): Context =
+        if (shouldDarken(currentBrowserPrefs, isAppDark, record)) ContextThemeWrapper(base, R.style.Theme_FMHY_WebDark) else base
+
+    private fun rebaseWebViewContext(record: TabRecord) {
+        record.mutableContext?.baseContext = webViewBase(attachedActivity ?: appContext, record)
     }
 
     fun detachActivity(activity: Activity? = null) {
@@ -380,7 +393,7 @@ class TabManager(
         }
         attachedActivity = null
         for (r in records) {
-            r.mutableContext?.baseContext = appContext
+            rebaseWebViewContext(r)
         }
     }
 
@@ -864,7 +877,7 @@ class TabManager(
                 }
             }
 
-            val wrapper = MutableContextWrapper(attachedActivity ?: appContext)
+            val wrapper = MutableContextWrapper(webViewBase(attachedActivity ?: appContext, record))
             val webView = webViewFactory.createWebView(
                 context = wrapper,
                 record = record,
@@ -1381,6 +1394,7 @@ class TabManager(
                 record.sitePrefs = updated
                 record.webView?.let { wv ->
                     postToMain {
+                        rebaseWebViewContext(record)
                         webViewFactory.applySettings(
                             wv,
                             record,
@@ -1405,6 +1419,7 @@ class TabManager(
                 record.sitePrefs = null
                 record.webView?.let { wv ->
                     postToMain {
+                        rebaseWebViewContext(record)
                         webViewFactory.applySettings(
                             wv,
                             record,
@@ -1430,6 +1445,7 @@ class TabManager(
             updateSitePrefs(tabId, host) { it.copy(desktop = newDesktop) }
         } else {
             record.webView?.let { wv ->
+                rebaseWebViewContext(record)
                 webViewFactory.applySettings(wv, record, currentBrowserPrefs, currentProtectionPrefs, currentAppearance, isAppDark)
                 wv.reload()
             }

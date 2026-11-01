@@ -26,6 +26,10 @@ import io.github.omeg4dev.fmhy.data.BrowserPrefs
 import io.github.omeg4dev.fmhy.data.ProtectionPrefs
 import io.github.omeg4dev.fmhy.data.user.SitePrefs
 
+/** Dark mode for a tab: the global force-dark setting, a dark app, and no per-site opt-out. */
+internal fun shouldDarken(browserPrefs: BrowserPrefs, isAppDark: Boolean, record: TabRecord): Boolean =
+    browserPrefs.forceDark && isAppDark && (record.sitePrefs?.dark != false)
+
 class BrowserWebViewFactory(
     private val adblockService: AdblockService,
     private val scriptletLibrary: ScriptletLibrary,
@@ -79,7 +83,7 @@ class BrowserWebViewFactory(
         }
 
         // Force dark / Algorithmic darkening
-        val shouldDarken = browserPrefs.forceDark && isAppDark && (record.sitePrefs?.dark != false)
+        val shouldDarken = shouldDarken(browserPrefs, isAppDark, record)
         if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING)) {
             WebSettingsCompat.setAlgorithmicDarkeningAllowed(settings, shouldDarken)
         }
@@ -518,7 +522,7 @@ class BrowserWebViewFactory(
             settings.textZoom = Math.round(appearance.textScale * 100)
         }
 
-        val shouldDarken = browserPrefs.forceDark && isAppDark && (record.sitePrefs?.dark != false)
+        val shouldDarken = shouldDarken(browserPrefs, isAppDark, record)
         if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING)) {
             WebSettingsCompat.setAlgorithmicDarkeningAllowed(settings, shouldDarken)
         }
