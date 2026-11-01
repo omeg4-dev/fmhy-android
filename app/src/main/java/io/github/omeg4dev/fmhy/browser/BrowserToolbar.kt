@@ -93,13 +93,16 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.Role
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
@@ -197,12 +200,39 @@ fun BrowserToolbar(
                     .padding(horizontal = 4.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                // Back to FMHY (48 dp target, always enabled): the FMHY logo, never an arrow, so it can't be mistaken for web back.
-                IconButton(onClick = onBackToFmhyClick, modifier = Modifier.size(48.dp)) {
+                // Back to FMHY: 48 dp touch target (same footprint as old IconButton).
+                // A thin black "tab" bleeds 4 dp left through the row padding to touch the screen edge;
+                // it is 44 dp tall (address-pill height), flat on the start side, fully rounded (22 dp) on the end side.
+                // The 28 dp logo is centred on the black tab (5 dp toward the screen edge from the touch box centre).
+                val tabShape = RoundedCornerShape(topStart = 0.dp, bottomStart = 0.dp, topEnd = 22.dp, bottomEnd = 22.dp)
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clickable(
+                            onClick = onBackToFmhyClick,
+                            role = Role.Button,
+                        )
+                        .semantics { contentDescription = "Back to FMHY" },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    // Black tab: drawn behind the logo; bleeds 4 dp into the row's start padding so its
+                    // flat left edge sits at the physical screen edge.
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.CenterStart)
+                            .offset(x = (-4).dp)
+                            .width(46.dp)
+                            .height(44.dp)
+                            .clip(tabShape)
+                            .background(Color.Black),
+                    )
                     Image(
                         painter = painterResource(R.drawable.fmhy_logo),
-                        contentDescription = "Back to FMHY",
-                        modifier = Modifier.size(28.dp).clip(CircleShape),
+                        contentDescription = null, // description is on the outer Box
+                        modifier = Modifier
+                            .offset(x = (-5).dp) // centre of the black tab (-4..42 dp) is 19 dp, the touch box centre is 24 dp
+                            .size(28.dp)
+                            .clip(CircleShape),
                     )
                 }
 
