@@ -11,11 +11,15 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
-import androidx.compose.runtime.remember
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.omeg4dev.fmhy.data.Appearance
 import io.github.omeg4dev.fmhy.data.HomePrefs
@@ -27,6 +31,8 @@ import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+
+val LocalForceDarkBars = staticCompositionLocalOf<MutableState<Boolean>> { mutableStateOf(false) }
 
 class MainActivity : ComponentActivity() {
 
@@ -47,6 +53,7 @@ class MainActivity : ComponentActivity() {
         intent?.let { intentFlow.tryEmit(it) }
 
         setContent {
+            val forceDarkBars = remember { mutableStateOf(false) }
             val appearance by container.settingsRepository.appearance.collectAsStateWithLifecycle(initialValue = Appearance())
             val homePrefs by container.settingsRepository.homePrefs.collectAsStateWithLifecycle(initialValue = HomePrefs())
             val gesturePrefs = remember(homePrefs.swipeToBookmark, homePrefs.swapTapHold) {
@@ -62,27 +69,28 @@ class MainActivity : ComponentActivity() {
                 ThemeMode.DARK -> true
             }
 
-            DisposableEffect(dark, appearance.themeMode) {
-                val statusBarStyle = when (appearance.themeMode) {
-                    ThemeMode.SYSTEM -> SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT) { dark }
-                    ThemeMode.LIGHT -> SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
-                    ThemeMode.DARK -> SystemBarStyle.dark(Color.TRANSPARENT)
-                }
-                val navBarStyle = when (appearance.themeMode) {
-                    ThemeMode.SYSTEM -> SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT) { dark }
-                    ThemeMode.LIGHT -> SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
-                    ThemeMode.DARK -> SystemBarStyle.dark(Color.TRANSPARENT)
+            DisposableEffect(dark, appearance.themeMode, forceDarkBars.value) {
+                val barStyle = if (forceDarkBars.value) {
+                    SystemBarStyle.dark(Color.TRANSPARENT)
+                } else {
+                    when (appearance.themeMode) {
+                        ThemeMode.SYSTEM -> SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT) { dark }
+                        ThemeMode.LIGHT -> SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
+                        ThemeMode.DARK -> SystemBarStyle.dark(Color.TRANSPARENT)
+                    }
                 }
                 enableEdgeToEdge(
-                    statusBarStyle = statusBarStyle,
-                    navigationBarStyle = navBarStyle,
+                    statusBarStyle = barStyle,
+                    navigationBarStyle = barStyle,
                 )
                 onDispose {}
             }
 
-            FMHYTheme(appearance, gesturePrefs) {
-                Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    MainNavigation(intentFlow = intentFlow)
+            CompositionLocalProvider(LocalForceDarkBars provides forceDarkBars) {
+                FMHYTheme(appearance, gesturePrefs) {
+                    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                        MainNavigation(intentFlow = intentFlow)
+                    }
                 }
             }
         }

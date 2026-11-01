@@ -268,7 +268,7 @@ private fun WelcomeGlow(modifier: Modifier = Modifier) {
     Canvas(modifier = modifier) {
         val w = size.width
         val h = size.height
-        val r = h * 0.9f
+        val r = h * 0.5f
         val blobs = listOf(
             Triple(LogoCyan, -0.20f, 0.0f),
             Triple(LogoViolet, -0.07f, 0.1f),
@@ -280,7 +280,9 @@ private fun WelcomeGlow(modifier: Modifier = Modifier) {
             val center = Offset(w / 2 + w * x * 1.6f + dx, h / 2)
             drawCircle(
                 brush = Brush.radialGradient(
-                    colors = listOf(color.copy(alpha = 0.22f), Color.Transparent),
+                    0f to color.copy(alpha = 0.26f),
+                    0.55f to color.copy(alpha = 0.10f),
+                    1f to Color.Transparent,
                     center = center,
                     radius = r,
                 ),

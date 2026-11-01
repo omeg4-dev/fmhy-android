@@ -75,6 +75,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -100,12 +101,16 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import io.github.omeg4dev.fmhy.LocalForceDarkBars
+import io.github.omeg4dev.fmhy.data.Appearance
 import io.github.omeg4dev.fmhy.data.ColorSource
 import io.github.omeg4dev.fmhy.data.OpenLinksWith
 import io.github.omeg4dev.fmhy.data.ThemeMode
 import io.github.omeg4dev.fmhy.data.model.Section
 import io.github.omeg4dev.fmhy.di.AppContainer
 import io.github.omeg4dev.fmhy.theme.ACCENT_PRESETS
+import io.github.omeg4dev.fmhy.theme.FMHYTheme
+import io.github.omeg4dev.fmhy.ui.common.LocalGesturePrefs
 import io.github.omeg4dev.fmhy.ui.common.Motion
 import io.github.omeg4dev.fmhy.ui.common.enterStagger
 import io.github.omeg4dev.fmhy.ui.shell.adblockStep
@@ -129,6 +134,7 @@ fun OnboardingScreen(
     },
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val appearance by container.settingsRepository.appearance.collectAsStateWithLifecycle(initialValue = Appearance())
     val visiblePages = viewModel.visiblePages
     val pagerState = rememberPagerState(pageCount = { visiblePages.size })
     val scope = rememberCoroutineScope()
@@ -162,68 +168,83 @@ fun OnboardingScreen(
     val isDonePage = currentPageIndex == visiblePages.size - 1
     val gate = finishGate(state.adblockOn, state.continueWithoutAdblock, adblockStatus)
 
-    Scaffold(
-        topBar = {
-            OnboardingTopBar(
-                currentPage = currentPageIndex,
-                pageCount = visiblePages.size,
-                onSkip = {
-                    viewModel.skip(onComplete = onFinished)
-                },
-            )
-        },
-        bottomBar = {
-            OnboardingBottomBar(
-                currentPage = currentPageIndex,
-                pageCount = visiblePages.size,
-                onBack = {
-                    scope.launch {
-                        pagerState.animateScrollToPage(pagerState.currentPage - 1)
-                    }
-                },
-                onNext = {
-                    if (isDonePage) {
-                        viewModel.finish(onFinished)
-                    } else {
+    val forceDark = pagerState.currentPage == 0
+    val effectiveAppearance = if (forceDark) {
+        appearance.copy(themeMode = ThemeMode.DARK, textScale = 1f)
+    } else {
+        appearance.copy(textScale = 1f)
+    }
+
+    val forceDarkBars = LocalForceDarkBars.current
+    DisposableEffect(forceDark) {
+        forceDarkBars.value = forceDark
+        onDispose { forceDarkBars.value = false }
+    }
+
+    FMHYTheme(effectiveAppearance, LocalGesturePrefs.current) {
+        Scaffold(
+            topBar = {
+                OnboardingTopBar(
+                    currentPage = currentPageIndex,
+                    pageCount = visiblePages.size,
+                    onSkip = {
+                        viewModel.skip(onComplete = onFinished)
+                    },
+                )
+            },
+            bottomBar = {
+                OnboardingBottomBar(
+                    currentPage = currentPageIndex,
+                    pageCount = visiblePages.size,
+                    onBack = {
                         scope.launch {
-                            pagerState.animateScrollToPage(pagerState.currentPage + 1)
+                            pagerState.animateScrollToPage(pagerState.currentPage - 1)
                         }
-                    }
-                },
-                gate = gate,
-                onRetry = viewModel::retryFilterDownload,
-                onContinueWithoutAdblock = viewModel::continueWithoutAdblock,
-            )
-        },
-        contentWindowInsets = WindowInsets(0),
-        modifier = modifier.fillMaxSize(),
-    ) { innerPadding ->
-        HorizontalPager(
-            state = pagerState,
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-        ) { pageIndex ->
-            val page = visiblePages.getOrElse(pageIndex) { OnboardingPage.WELCOME }
-            when (page) {
-                OnboardingPage.WELCOME -> WelcomePageContent()
-                OnboardingPage.HELLO -> HelloPageContent(
-                    state = state,
-                    model = viewModel,
+                    },
+                    onNext = {
+                        if (isDonePage) {
+                            viewModel.finish(onFinished)
+                        } else {
+                            scope.launch {
+                                pagerState.animateScrollToPage(pagerState.currentPage + 1)
+                            }
+                        }
+                    },
+                    gate = gate,
+                    onRetry = viewModel::retryFilterDownload,
+                    onContinueWithoutAdblock = viewModel::continueWithoutAdblock,
                 )
-                OnboardingPage.BROWSING -> BrowsingPageContent(
-                    state = state,
-                    model = viewModel,
-                )
-                OnboardingPage.FOLLOW -> FollowPageContent(
-                    state = state,
-                    model = viewModel,
-                    container = container,
-                )
-                OnboardingPage.DONE -> DonePageContent(
-                    state = state,
-                    container = container,
-                )
+            },
+            contentWindowInsets = WindowInsets(0),
+            modifier = modifier.fillMaxSize(),
+        ) { innerPadding ->
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+            ) { pageIndex ->
+                val page = visiblePages.getOrElse(pageIndex) { OnboardingPage.WELCOME }
+                when (page) {
+                    OnboardingPage.WELCOME -> WelcomePageContent()
+                    OnboardingPage.HELLO -> HelloPageContent(
+                        state = state,
+                        model = viewModel,
+                    )
+                    OnboardingPage.BROWSING -> BrowsingPageContent(
+                        state = state,
+                        model = viewModel,
+                    )
+                    OnboardingPage.FOLLOW -> FollowPageContent(
+                        state = state,
+                        model = viewModel,
+                        container = container,
+                    )
+                    OnboardingPage.DONE -> DonePageContent(
+                        state = state,
+                        container = container,
+                    )
+                }
             }
         }
     }
