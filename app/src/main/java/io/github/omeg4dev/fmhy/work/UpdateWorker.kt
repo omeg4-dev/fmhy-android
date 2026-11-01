@@ -17,6 +17,8 @@ import io.github.omeg4dev.fmhy.di.AppContainer
 import io.github.omeg4dev.fmhy.MainActivity
 import io.github.omeg4dev.fmhy.R
 import io.github.omeg4dev.fmhy.data.model.ChangeKind
+import io.github.omeg4dev.fmhy.ui.common.SectionNamePrefs
+import io.github.omeg4dev.fmhy.ui.common.displayTitle
 import kotlinx.coroutines.flow.first
 
 class UpdateWorker(
@@ -80,8 +82,9 @@ object UpdateChecker {
             emptyList()
         }
 
+        runCatching { SectionNamePrefs.websiteNames = container.settingsRepository.homePrefs.first().websiteCategoryNames }
         val sectionTitles = try {
-            container.datasetStore.sections().associate { it.id to it.title }
+            container.datasetStore.sections().associate { it.id to it.displayTitle }
         } catch (_: Exception) {
             emptyMap()
         }

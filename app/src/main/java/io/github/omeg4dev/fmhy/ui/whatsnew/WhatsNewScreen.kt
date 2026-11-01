@@ -80,6 +80,7 @@ import io.github.omeg4dev.fmhy.ui.common.PasteAction
 import io.github.omeg4dev.fmhy.ui.common.SkeletonRows
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
 import io.github.omeg4dev.fmhy.ui.common.enterStagger
+import io.github.omeg4dev.fmhy.ui.common.displayTitle
 import io.github.omeg4dev.fmhy.ui.common.linkText
 import io.github.omeg4dev.fmhy.ui.common.pinItem
 import io.github.omeg4dev.fmhy.ui.common.rememberFollowNotifyPromptState
@@ -145,7 +146,7 @@ fun WhatsNewScreen(
     var detailHistory by remember { mutableStateOf<List<ChangeItem>?>(null) }
 
     val sectionTitles = remember(state.availableSections) {
-        state.availableSections.associate { it.id to it.title }
+        state.availableSections.associate { it.id to it.displayTitle }
     }
 
     LaunchedEffect(selectedDetailEntry?.id) {

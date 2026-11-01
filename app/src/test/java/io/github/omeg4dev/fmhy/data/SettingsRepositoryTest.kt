@@ -342,6 +342,15 @@ class SettingsRepositoryTest {
     }
 
     @Test
+    fun testWebsiteCategoryNamesDefaultOnAndPersist() = runTest {
+        val (repo, _) = createRepository(this)
+        assertTrue(repo.homePrefs.first().websiteCategoryNames)
+
+        repo.updateHome { it.copy(websiteCategoryNames = false) }
+        assertFalse(repo.homePrefs.first().websiteCategoryNames)
+    }
+
+    @Test
     fun testGestureHintShownRoundTrip() = runTest {
         val (repo, _) = createRepository(this)
         assertFalse(repo.gestureHintShown.first())

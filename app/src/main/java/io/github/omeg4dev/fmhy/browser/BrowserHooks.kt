@@ -47,6 +47,7 @@ import kotlinx.coroutines.flow.first
 import io.github.omeg4dev.fmhy.ui.common.Motion
 import io.github.omeg4dev.fmhy.ui.common.PasteAction
 import io.github.omeg4dev.fmhy.ui.common.PasteDecodeUi
+import io.github.omeg4dev.fmhy.ui.common.displayTitle
 import io.github.omeg4dev.fmhy.ui.common.linkText
 import io.github.omeg4dev.fmhy.ui.common.rememberPasteDecoder
 import io.github.omeg4dev.fmhy.data.BrowserPrefs
@@ -1009,7 +1010,7 @@ class DefaultBrowserHooks(
                     val isRedirected = record.entryHost != null && !record.entryHost.equals(host, ignoreCase = true)
                     val isDismissed = record.dismissedSiteBarHosts.contains(host)
                     val sectionTitle = verdict.matches.firstOrNull()?.sectionId?.let { secId ->
-                        datasetStore?.sections()?.firstOrNull { it.id == secId }?.title
+                        datasetStore?.sections()?.firstOrNull { it.id == secId }?.displayTitle
                     }
                     val siteBarState = SiteBarModel.from(
                         verdict = verdict,

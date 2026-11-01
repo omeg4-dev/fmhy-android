@@ -37,6 +37,7 @@ import io.github.omeg4dev.fmhy.data.model.Entry
 import io.github.omeg4dev.fmhy.data.model.Section
 import io.github.omeg4dev.fmhy.ui.common.EntryRow
 import io.github.omeg4dev.fmhy.ui.common.SwipeToSave
+import io.github.omeg4dev.fmhy.ui.common.displayTitle
 import io.github.omeg4dev.fmhy.ui.common.sectionIcon
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -164,7 +165,7 @@ internal fun ChooseSectionsBottomSheet(
                             tint = MaterialTheme.colorScheme.primary,
                         )
                         Text(
-                            text = section.title,
+                            text = section.displayTitle,
                             style = MaterialTheme.typography.bodyLarge,
                             modifier = Modifier.weight(1f),
                         )

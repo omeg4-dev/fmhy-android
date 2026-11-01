@@ -61,6 +61,7 @@ import io.github.omeg4dev.fmhy.ui.common.FollowTree
 import io.github.omeg4dev.fmhy.ui.common.LocalAppContainer
 import io.github.omeg4dev.fmhy.ui.common.LocalSnackbarHost
 import io.github.omeg4dev.fmhy.ui.common.SectionFollowState
+import io.github.omeg4dev.fmhy.ui.common.displayTitle
 import io.github.omeg4dev.fmhy.ui.common.pinItem
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import io.github.omeg4dev.fmhy.ui.common.rememberIsPinned
@@ -208,7 +209,7 @@ fun FollowingScreen(
                                 },
                                 headlineContent = {
                                     Text(
-                                        text = section.title,
+                                        text = section.displayTitle,
                                         style = MaterialTheme.typography.bodyLarge,
                                     )
                                 },
@@ -250,7 +251,7 @@ fun FollowingScreen(
                                                                 haptics = haptics,
                                                                 sectionId = section.id,
                                                                 headingId = "",
-                                                                title = section.title,
+                                                                title = section.displayTitle,
                                                             )
                                                         } else {
                                                             pinItem(
@@ -258,7 +259,7 @@ fun FollowingScreen(
                                                                 snackbarHostState = snackbarHostState,
                                                                 sectionId = section.id,
                                                                 headingId = "",
-                                                                title = section.title,
+                                                                title = section.displayTitle,
                                                             )
                                                         }
                                                     }
@@ -276,7 +277,7 @@ fun FollowingScreen(
                                             onCheckedChange = { checked ->
                                                 scope.launch {
                                                     if (checked) {
-                                                        userStore.followSection(section.id, section.title)
+                                                        userStore.followSection(section.id, section.displayTitle)
                                                     } else {
                                                         userStore.unfollowSection(section.id)
                                                     }
@@ -382,7 +383,7 @@ fun FollowingScreen(
                                                                     userStore.setSubsectionFollowed(
                                                                         section.id,
                                                                         heading.id,
-                                                                        "${section.title} › $subTitle",
+                                                                        "${section.displayTitle} › $subTitle",
                                                                         on,
                                                                     )
                                                                 }
@@ -398,7 +399,7 @@ fun FollowingScreen(
                                                             userStore.setSubsectionFollowed(
                                                                 section.id,
                                                                 heading.id,
-                                                                "${section.title} › $subTitle",
+                                                                "${section.displayTitle} › $subTitle",
                                                                 !isFollowed,
                                                             )
                                                         }

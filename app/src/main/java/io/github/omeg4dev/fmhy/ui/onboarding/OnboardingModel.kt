@@ -15,6 +15,8 @@ import io.github.omeg4dev.fmhy.data.SettingsRepository
 import io.github.omeg4dev.fmhy.data.ThemeMode
 import io.github.omeg4dev.fmhy.data.adblock.FilterListCatalog
 import io.github.omeg4dev.fmhy.data.user.UserStore
+import io.github.omeg4dev.fmhy.ui.common.displayTitle
+import io.github.omeg4dev.fmhy.ui.common.sectionDisplayTitle
 import io.github.omeg4dev.fmhy.di.AppContainer
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -338,7 +340,7 @@ class OnboardingModel(
                     val onlySubFollowedSecIds = existingSectionIds - existingFollows.filter { it.headingId.isEmpty() }.map { it.sectionId }.toSet()
 
                     val titles = runCatching { appContainer?.datasetStore?.sections() }.getOrNull()
-                        ?.associate { it.id to it.title }
+                        ?.associate { it.id to it.displayTitle }
                         ?: emptyMap()
 
                     for (secId in s.followedSections) {
@@ -346,7 +348,8 @@ class OnboardingModel(
                             continue
                         }
                         if (secId !in wholeFollowedSecIds) {
-                            val title = titles[secId] ?: existingFollows.firstOrNull { it.sectionId == secId }?.title?.substringBefore(" › ") ?: secId.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+                            val raw = titles[secId] ?: existingFollows.firstOrNull { it.sectionId == secId }?.title?.substringBefore(" › ") ?: secId.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+                            val title = sectionDisplayTitle(secId, raw)
                             userStore.followSection(secId, title)
                         }
                     }
@@ -358,7 +361,8 @@ class OnboardingModel(
                     }
 
                     for (secId in s.pinnedSections) {
-                        val title = titles[secId] ?: existingFollows.firstOrNull { it.sectionId == secId }?.title?.substringBefore(" › ") ?: secId.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+                        val raw = titles[secId] ?: existingFollows.firstOrNull { it.sectionId == secId }?.title?.substringBefore(" › ") ?: secId.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+                        val title = sectionDisplayTitle(secId, raw)
                         userStore.pin(secId, "", title)
                     }
                 } catch (_: Exception) {}

@@ -92,6 +92,8 @@ import io.github.omeg4dev.fmhy.ui.common.CrossfadeContent
 import io.github.omeg4dev.fmhy.ui.common.EntryRow
 import io.github.omeg4dev.fmhy.ui.common.LocalSnackbarHost
 import io.github.omeg4dev.fmhy.ui.common.LocalWebsiteStyle
+import io.github.omeg4dev.fmhy.ui.common.displayTitle
+import io.github.omeg4dev.fmhy.ui.common.sectionDisplayTitle
 import io.github.omeg4dev.fmhy.ui.common.SkeletonRows
 import io.github.omeg4dev.fmhy.ui.common.SwipeToSave
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
@@ -154,7 +156,7 @@ fun SectionScreen(
         follows = container.userStore.follows()
     }
     val currentSectionId = state.section?.id ?: viewModel.sectionId
-    val currentSectionTitle = state.section?.title ?: "Section"
+    val currentSectionTitle = state.section?.displayTitle ?: sectionDisplayTitle(viewModel.sectionId, "Section")
     val isSectionFollowed = remember(follows, currentSectionId) {
         FollowTree(follows).isSectionFollowed(currentSectionId)
     }
@@ -216,7 +218,7 @@ fun SectionScreen(
 
     val homePrefs by container.settingsRepository.homePrefs.collectAsStateWithLifecycle(initialValue = HomePrefs())
     val secId = state.section?.id ?: viewModel.sectionId
-    val secTitle = state.section?.title ?: secId
+    val secTitle = state.section?.displayTitle ?: sectionDisplayTitle(secId, secId)
     val isSectionPinned = rememberIsPinned(container, secId, "")
     var isSectionHidden by remember { mutableStateOf(false) }
     var actionsMenuCategoryIndex by remember { mutableStateOf<Int?>(null) }
@@ -381,7 +383,7 @@ fun SectionScreen(
                     TopAppBar(
                         title = {
                             Text(
-                                text = state.section?.title ?: "Section",
+                                text = state.section?.displayTitle ?: sectionDisplayTitle(viewModel.sectionId, "Section"),
                                 style = MaterialTheme.typography.titleLarge,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
@@ -903,7 +905,7 @@ fun SectionScreen(
                     ) {
                         items(allSections, key = { it.id }) { section ->
                             NavigationDrawerItem(
-                                label = { Text(section.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                label = { Text(section.displayTitle, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                 selected = section.id == currentSectionId,
                                 onClick = {
                                     scope.launch { drawerState.close() }

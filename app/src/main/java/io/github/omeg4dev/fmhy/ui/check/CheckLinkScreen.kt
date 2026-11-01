@@ -77,6 +77,7 @@ import io.github.omeg4dev.fmhy.data.safety.SafetyStatus
 import io.github.omeg4dev.fmhy.data.safety.Verdict
 import io.github.omeg4dev.fmhy.di.AppContainer
 import io.github.omeg4dev.fmhy.ui.common.EmptyState
+import io.github.omeg4dev.fmhy.ui.common.displayTitle
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
 import io.github.omeg4dev.fmhy.ui.common.enterStagger
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
@@ -224,7 +225,7 @@ fun CheckLinkScreen(
     LaunchedEffect(container.datasetStore.isAvailable) {
         if (container.datasetStore.isAvailable) {
             try {
-                sectionTitles = container.datasetStore.sections().associate { it.id to it.title }
+                sectionTitles = container.datasetStore.sections().associate { it.id to it.displayTitle }
             } catch (_: Exception) {}
         }
     }

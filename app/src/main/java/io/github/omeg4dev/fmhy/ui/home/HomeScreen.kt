@@ -104,6 +104,8 @@ import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
 import io.github.omeg4dev.fmhy.ui.common.enterStagger
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
+import io.github.omeg4dev.fmhy.ui.common.displayTitle
+import io.github.omeg4dev.fmhy.ui.common.sectionDisplayTitle
 import io.github.omeg4dev.fmhy.ui.common.sectionIcon
 import io.github.omeg4dev.fmhy.ui.common.showUndo
 import io.github.omeg4dev.fmhy.ui.common.unpinItem
@@ -416,7 +418,7 @@ fun HomeScreen(
                     // Random pick row
                     state.randomPick?.let { pick ->
                         item(key = "random-pick") {
-                            val sectionTitle = state.sections.firstOrNull { it.id == pick.sectionId }?.title
+                            val sectionTitle = state.sections.firstOrNull { it.id == pick.sectionId }?.displayTitle
                             val category = remember(pick.headingPath, sectionTitle) {
                                 val segments = pick.headingPath
                                     .split(Regex("""\s*[›>]\s*"""))
@@ -694,7 +696,7 @@ fun HomeScreen(
                                         Spacer(Modifier.width(16.dp))
                                         Column(modifier = Modifier.weight(1f)) {
                                             Text(
-                                                text = section.title,
+                                                text = section.displayTitle,
                                                 style = MaterialTheme.typography.titleMedium,
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis,
@@ -884,15 +886,16 @@ private fun PinTile(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.Center,
                 ) {
+                    val displayTitle = if (pin.headingId.isEmpty()) sectionDisplayTitle(pin.sectionId, pin.title) else pin.title
                     Text(
-                        text = pin.title,
+                        text = displayTitle,
                         style = MaterialTheme.typography.labelLarge,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                     if (pin.parentTitle != null) {
                         Text(
-                            text = pin.parentTitle,
+                            text = sectionDisplayTitle(pin.sectionId, pin.parentTitle),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,

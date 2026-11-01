@@ -73,6 +73,8 @@ import io.github.omeg4dev.fmhy.data.ColorSource
 import io.github.omeg4dev.fmhy.data.OpenLinksWith
 import io.github.omeg4dev.fmhy.data.ThemeMode
 import io.github.omeg4dev.fmhy.data.model.Entry
+import io.github.omeg4dev.fmhy.ui.common.displayTitle
+import io.github.omeg4dev.fmhy.ui.common.sectionDisplayTitle
 import io.github.omeg4dev.fmhy.data.model.Link
 import io.github.omeg4dev.fmhy.data.model.Section
 import io.github.omeg4dev.fmhy.data.model.Tier
@@ -709,7 +711,7 @@ fun StayUpdatedPreview(
 
     val firstFollowedTitle = remember(followedSections, sections) {
         if (followedSections.isEmpty()) null
-        else sections.firstOrNull { it.id in followedSections }?.title ?: followedSections.first()
+        else sections.firstOrNull { it.id in followedSections }?.displayTitle ?: sectionDisplayTitle(followedSections.first(), followedSections.first())
     }
 
     Surface(

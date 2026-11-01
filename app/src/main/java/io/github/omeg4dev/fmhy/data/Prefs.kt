@@ -72,6 +72,8 @@ data class HomePrefs(
     val swipeToBookmark: Boolean = false,
     val swapTapHold: Boolean = false,
     val swipeBetweenScreens: Boolean = true,
+    /** Main category names from the FMHY website (Streaming, Listening…). Off = the wiki titles used before 1.1.0. */
+    val websiteCategoryNames: Boolean = true,
 )
 
 data class BrowserPrefs(

@@ -17,6 +17,9 @@ import io.github.omeg4dev.fmhy.shortcuts.EXTRA_ENTRY_ID
 import io.github.omeg4dev.fmhy.shortcuts.EXTRA_HEADING_ID
 import io.github.omeg4dev.fmhy.shortcuts.EXTRA_OPEN
 import io.github.omeg4dev.fmhy.shortcuts.EXTRA_SECTION_ID
+import io.github.omeg4dev.fmhy.ui.common.SectionNamePrefs
+import io.github.omeg4dev.fmhy.ui.common.displayTitle
+import io.github.omeg4dev.fmhy.ui.common.sectionDisplayTitle
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -67,6 +70,7 @@ class FmhyWidgetProvider : AppWidgetProvider() {
                 val app = context.applicationContext as FmhyApp
                 val container = app.container
                 val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                runCatching { SectionNamePrefs.websiteNames = container.settingsRepository.homePrefs.first().websiteCategoryNames }
 
                 var pick = if (newPick) null else readPick(prefs)
                 if (pick == null) {
@@ -74,7 +78,8 @@ class FmhyWidgetProvider : AppWidgetProvider() {
                         val store = container.datasetStore
                         val entry = store.randomTopPick()
                         entry?.let {
-                            val title = store.sections().firstOrNull { s -> s.id == it.sectionId }?.title ?: it.sectionId
+                            val sec = store.sections().firstOrNull { s -> s.id == it.sectionId }
+                            val title = sec?.displayTitle ?: sectionDisplayTitle(it.sectionId, it.sectionId)
                             WidgetPick(it.id, it.name, title)
                         }
                     }.getOrNull() ?: readPick(prefs)
@@ -109,7 +114,8 @@ class FmhyWidgetProvider : AppWidgetProvider() {
                                 views.setViewVisibility(viewId, View.GONE)
                             } else {
                                 views.setViewVisibility(viewId, View.VISIBLE)
-                                views.setTextViewText(viewId, pin.title)
+                                val pinTitle = if (pin.headingId.isEmpty()) sectionDisplayTitle(pin.sectionId, pin.title) else pin.title
+                                views.setTextViewText(viewId, pinTitle)
                                 views.setOnClickPendingIntent(viewId, activity(context, 10 + i, "pin") {
                                     putExtra(EXTRA_SECTION_ID, pin.sectionId)
                                     putExtra(EXTRA_HEADING_ID, pin.headingId)

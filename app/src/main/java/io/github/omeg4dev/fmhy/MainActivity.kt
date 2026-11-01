@@ -14,6 +14,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -27,6 +28,7 @@ import io.github.omeg4dev.fmhy.data.ThemeMode
 import io.github.omeg4dev.fmhy.di.AppContainer
 import io.github.omeg4dev.fmhy.theme.FMHYTheme
 import io.github.omeg4dev.fmhy.ui.common.GesturePrefs
+import io.github.omeg4dev.fmhy.ui.common.SectionNamePrefs
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
@@ -56,6 +58,7 @@ class MainActivity : ComponentActivity() {
             val forceDarkBars = remember { mutableStateOf(false) }
             val appearance by container.settingsRepository.appearance.collectAsStateWithLifecycle(initialValue = Appearance())
             val homePrefs by container.settingsRepository.homePrefs.collectAsStateWithLifecycle(initialValue = HomePrefs())
+            SideEffect { SectionNamePrefs.websiteNames = homePrefs.websiteCategoryNames }
             val gesturePrefs = remember(homePrefs.swipeToBookmark, homePrefs.swapTapHold) {
                 GesturePrefs(
                     swipeToBookmark = homePrefs.swipeToBookmark,

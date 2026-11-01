@@ -76,6 +76,8 @@ import io.github.omeg4dev.fmhy.ui.common.enterStagger
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
 import io.github.omeg4dev.fmhy.ui.common.showUndo
+import io.github.omeg4dev.fmhy.ui.common.displayTitle
+import io.github.omeg4dev.fmhy.ui.common.sectionDisplayTitle
 import io.github.omeg4dev.fmhy.ui.common.pinItem
 import io.github.omeg4dev.fmhy.ui.common.unpinItem
 import io.github.omeg4dev.fmhy.ui.common.showFollowing
@@ -117,7 +119,7 @@ fun CategoryScreen(
         follows = container.userStore.follows()
     }
     val currentSectionId = state.section?.id ?: key.sectionId
-    val currentSectionTitle = state.section?.title ?: "Section"
+    val currentSectionTitle = state.section?.displayTitle ?: sectionDisplayTitle(key.sectionId, "Section")
 
     val isFilterActive = state.starredOnly || !state.showIndexes
 
@@ -267,7 +269,7 @@ fun CategoryScreen(
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
-                            val sectionTitle = state.section?.title
+                            val sectionTitle = state.section?.displayTitle
                             if (!sectionTitle.isNullOrEmpty()) {
                                 Text(
                                     text = sectionTitle,

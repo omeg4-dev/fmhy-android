@@ -36,6 +36,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.omeg4dev.fmhy.data.SectionOrder
+import io.github.omeg4dev.fmhy.ui.common.displayTitle
+import io.github.omeg4dev.fmhy.ui.common.sectionDisplayTitle
 import io.github.omeg4dev.fmhy.ui.common.sectionIcon
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -141,7 +143,7 @@ fun HomePage(
                         } else {
                             pins.forEachIndexed { index, pin ->
                                 if (index > 0) SettingsDivider()
-                                val sectionTitle = allSections.firstOrNull { it.id == pin.sectionId }?.title ?: pin.sectionId
+                                val sectionTitle = allSections.firstOrNull { it.id == pin.sectionId }?.displayTitle ?: sectionDisplayTitle(pin.sectionId, pin.sectionId)
                                 val titleText = if (pin.headingId.isEmpty()) sectionTitle else "$sectionTitle › ${pin.title}"
                                 ListItem(
                                     leadingContent = {
@@ -220,7 +222,7 @@ fun HomePage(
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
                                 },
-                                headlineContent = { Text(section.title) },
+                                headlineContent = { Text(section.displayTitle) },
                                 trailingContent = {
                                     Checkbox(
                                         checked = isHidden,

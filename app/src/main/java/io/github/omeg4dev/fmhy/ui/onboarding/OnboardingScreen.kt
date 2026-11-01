@@ -116,6 +116,7 @@ import io.github.omeg4dev.fmhy.ui.common.enterStagger
 import io.github.omeg4dev.fmhy.ui.shell.adblockStep
 import kotlin.math.floor
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
+import io.github.omeg4dev.fmhy.ui.common.displayTitle
 import io.github.omeg4dev.fmhy.ui.common.sectionIcon
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -780,7 +781,7 @@ private fun FollowPageContent(
                                 haptics.toggle(!isSelected)
                                 model.toggleSectionFollowed(section.id)
                             },
-                            label = { Text(section.title) },
+                            label = { Text(section.displayTitle) },
                             leadingIcon = {
                                 Icon(
                                     imageVector = sectionIcon(section.id),

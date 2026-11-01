@@ -93,6 +93,7 @@ import io.github.omeg4dev.fmhy.ui.common.LocalSnackbarHost
 import io.github.omeg4dev.fmhy.ui.common.SkeletonRows
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
 import io.github.omeg4dev.fmhy.ui.common.enterStagger
+import io.github.omeg4dev.fmhy.ui.common.sectionDisplayTitle
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
 import io.github.omeg4dev.fmhy.ui.common.rememberSaveActions
@@ -402,8 +403,9 @@ fun SavedScreen(
                                     } else {
                                         folderGroups.forEach { group ->
                                             item(key = "header_${group.sectionTitle}") {
+                                                val displayTitle = sectionDisplayTitle(group.items.firstOrNull()?.bookmark?.sectionId.orEmpty(), group.sectionTitle)
                                                 Text(
-                                                    text = group.sectionTitle,
+                                                    text = displayTitle,
                                                     style = MaterialTheme.typography.labelLarge,
                                                     color = MaterialTheme.colorScheme.primary,
                                                     modifier = Modifier
@@ -508,8 +510,9 @@ fun SavedScreen(
                                 ) {
                                     state.groups.forEach { group ->
                                         item(key = "header_${group.sectionTitle}") {
+                                            val displayTitle = sectionDisplayTitle(group.items.firstOrNull()?.bookmark?.sectionId.orEmpty(), group.sectionTitle)
                                             Text(
-                                                text = group.sectionTitle,
+                                                text = displayTitle,
                                                 style = MaterialTheme.typography.labelLarge,
                                                 color = MaterialTheme.colorScheme.primary,
                                                 modifier = Modifier
@@ -883,7 +886,7 @@ fun SavedScreen(
                     )
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        text = "Other sites in ${bm.headingPath.ifEmpty { bm.sectionTitle }}",
+                        text = "Other sites in ${bm.headingPath.ifEmpty { sectionDisplayTitle(bm.sectionId, bm.sectionTitle) }}",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

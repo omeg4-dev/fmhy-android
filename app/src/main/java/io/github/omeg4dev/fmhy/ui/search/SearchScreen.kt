@@ -134,6 +134,8 @@ import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
 import io.github.omeg4dev.fmhy.ui.common.enterStagger
 import io.github.omeg4dev.fmhy.ui.common.parseHighlight
 import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
+import io.github.omeg4dev.fmhy.ui.common.displayTitle
+import io.github.omeg4dev.fmhy.ui.common.sectionDisplayTitle
 import io.github.omeg4dev.fmhy.ui.common.sectionIcon
 import io.github.omeg4dev.fmhy.ui.check.VerdictCard
 import kotlinx.coroutines.flow.filter
@@ -543,7 +545,7 @@ fun SearchScreen(
                                             color = MaterialTheme.colorScheme.surface,
                                         ) {
                                             Text(
-                                                text = group.section.title,
+                                                text = group.section.displayTitle,
                                                 style = MaterialTheme.typography.labelLarge,
                                                 color = MaterialTheme.colorScheme.primary,
                                                 modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 6.dp),
@@ -704,7 +706,7 @@ fun SearchScreen(
                                 modifier = Modifier.size(24.dp),
                             )
                         },
-                        headlineContent = { Text(sec.title) },
+                        headlineContent = { Text(sec.displayTitle) },
                         trailingContent = {
                             Checkbox(
                                 checked = isChecked,
@@ -750,7 +752,7 @@ private fun CategoryRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val title = hit.heading?.title ?: hit.section.title
+    val title = hit.heading?.title ?: hit.section.displayTitle
     val words = remember(query) { plainQueryWords(query) }
     val hlColor = MaterialTheme.colorScheme.onPrimaryContainer
     val hlBackground = MaterialTheme.colorScheme.primaryContainer
@@ -769,8 +771,15 @@ private fun CategoryRow(
         },
         supportingContent = if (hit.path.isNotEmpty()) {
             {
+                val displayPath = remember(hit.path, hit.section) {
+                    if (hit.path.isNotEmpty() && (hit.path[0] == hit.section.title || hit.path[0] == hit.section.id)) {
+                        listOf(hit.section.displayTitle) + hit.path.drop(1)
+                    } else {
+                        hit.path
+                    }
+                }
                 Text(
-                    text = hit.path.joinToString(" › "),
+                    text = displayPath.joinToString(" › "),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -854,8 +863,14 @@ private fun SuggestionPanel(
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                         leadingContent = { Icon(suggestionIcon(sug), contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
                         headlineContent = {
+                            val secId = sug.sectionId
+                            val labelText = if (sug.kind == SuggestionKind.SECTION && secId != null) {
+                                sectionDisplayTitle(secId, sug.label)
+                            } else {
+                                sug.label
+                            }
                             Text(
-                                text = sug.label,
+                                text = labelText,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                                 style = if (sug.kind == SuggestionKind.OPERATOR || sug.kind == SuggestionKind.SITE)

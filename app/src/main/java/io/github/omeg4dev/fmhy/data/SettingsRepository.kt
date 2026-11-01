@@ -138,6 +138,7 @@ class DefaultSettingsRepository(
         private val KEY_HOME_SWIPE_TO_BOOKMARK = booleanPreferencesKey("home_swipe_to_bookmark")
         private val KEY_HOME_SWAP_TAP_HOLD = booleanPreferencesKey("home_swap_tap_hold")
         private val KEY_HOME_SWIPE_BETWEEN_SCREENS = booleanPreferencesKey("home_swipe_between_screens")
+        private val KEY_HOME_WEBSITE_CATEGORY_NAMES = booleanPreferencesKey("home_website_category_names")
 
         // Browser
         private val KEY_BROWSER_OPEN_LINKS_WITH = stringPreferencesKey("browser_open_links_with")
@@ -447,6 +448,7 @@ class DefaultSettingsRepository(
             swipeToBookmark = prefs[KEY_HOME_SWIPE_TO_BOOKMARK] ?: default.swipeToBookmark,
             swapTapHold = prefs[KEY_HOME_SWAP_TAP_HOLD] ?: default.swapTapHold,
             swipeBetweenScreens = prefs[KEY_HOME_SWIPE_BETWEEN_SCREENS] ?: default.swipeBetweenScreens,
+            websiteCategoryNames = prefs[KEY_HOME_WEBSITE_CATEGORY_NAMES] ?: default.websiteCategoryNames,
         )
     }
 
@@ -457,6 +459,7 @@ class DefaultSettingsRepository(
         prefs[KEY_HOME_SWIPE_TO_BOOKMARK] = p.swipeToBookmark
         prefs[KEY_HOME_SWAP_TAP_HOLD] = p.swapTapHold
         prefs[KEY_HOME_SWIPE_BETWEEN_SCREENS] = p.swipeBetweenScreens
+        prefs[KEY_HOME_WEBSITE_CATEGORY_NAMES] = p.websiteCategoryNames
     }
 
     override val homePrefs: Flow<HomePrefs> = dataStore.data.map { prefs ->

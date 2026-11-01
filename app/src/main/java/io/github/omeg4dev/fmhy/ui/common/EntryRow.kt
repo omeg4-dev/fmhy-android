@@ -168,7 +168,8 @@ fun EntryRow(
                         .split(HEADING_PATH_SEPARATOR)
                         .filter { it.isNotBlank() }
                         .map { CrossLinks.splitLinkTitle(it).first }
-                    val sectionTitle = segments.firstOrNull() ?: entry.sectionId
+                    val rawSec = segments.firstOrNull() ?: entry.sectionId
+                    val sectionTitle = sectionDisplayTitle(entry.sectionId, rawSec)
                     val title = if (segments.size >= 2) "$sectionTitle › ${effectiveFollowState.categoryTitle}" else effectiveFollowState.categoryTitle
 
                     userStore.setSubsectionFollowed(entry.sectionId, targetHeadingId, title, nextFollowing)

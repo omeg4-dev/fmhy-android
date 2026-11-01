@@ -39,6 +39,7 @@ fun ListsPage(
     // Website style
     val eWebsiteStyle = SettingsCatalog.listsWebsiteStyle
     val eSectionLayout = SettingsCatalog.listsSectionLayout
+    val eCategoryNames = SettingsCatalog.listsCategoryNames
     val eStarredOnly = SettingsCatalog.listsStarredOnly
     // Show indexes
     val eShowIndexes = SettingsCatalog.listsShowIndexes
@@ -56,6 +57,7 @@ fun ListsPage(
             listOf(
                 eWebsiteStyle.id,
                 eSectionLayout.id,
+                eCategoryNames.id,
                 eStarredOnly.id,
                 eShowIndexes.id,
                 eNewBadges.id,
@@ -114,6 +116,16 @@ fun ListsPage(
                         selected = appearance.sectionLayout,
                         settingId = eSectionLayout.id,
                         onSelect = { viewModel.setSectionLayout(it) },
+                    )
+                    SettingsDivider()
+                    SwitchRow(
+                        title = eCategoryNames.title,
+                        summary = eCategoryNames.description,
+                        checked = homePrefs.websiteCategoryNames,
+                        settingId = eCategoryNames.id,
+                        onChange = { checked ->
+                            viewModel.updateHome { it.copy(websiteCategoryNames = checked) }
+                        },
                     )
                     SettingsDivider()
                     SwitchRow(

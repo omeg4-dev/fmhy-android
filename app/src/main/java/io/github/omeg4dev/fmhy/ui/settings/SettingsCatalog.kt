@@ -143,6 +143,13 @@ object SettingsCatalog {
         description = "Swipe an entry sideways to save or remove it",
         keywords = listOf("swipe", "bookmark", "save", "gesture"),
     )
+    val listsCategoryNames = SettingEntry(
+        id = "lists.category_names",
+        page = SettingsPage.LISTS,
+        title = "Category names from the FMHY website",
+        description = "On: Streaming, Listening, Gaming. Off: the wiki titles used before, like Movies / TV / Anime",
+        keywords = listOf("category", "names", "titles", "wiki", "website", "streaming", "listening", "movies"),
+    )
     val listsSwipeBetweenScreens = SettingEntry(
         id = "lists.swipe_between_screens",
         page = SettingsPage.LISTS,
@@ -791,6 +798,7 @@ object SettingsCatalog {
         // Lists & gestures
         listsWebsiteStyle,
         listsSectionLayout,
+        listsCategoryNames,
         listsStarredOnly,
         listsShowIndexes,
         listsNewBadges,

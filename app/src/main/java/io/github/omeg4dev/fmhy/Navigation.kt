@@ -43,6 +43,7 @@ import io.github.omeg4dev.fmhy.ui.shell.BrowserMenuSheet
 import io.github.omeg4dev.fmhy.ui.shell.StatusNoticeOverlay
 import io.github.omeg4dev.fmhy.ui.shell.AppBottomBar
 import io.github.omeg4dev.fmhy.data.Appearance
+import io.github.omeg4dev.fmhy.ui.common.displayTitle
 import io.github.omeg4dev.fmhy.nav.contentPaddingDp
 import io.github.omeg4dev.fmhy.nav.metrics
 import io.github.omeg4dev.fmhy.browser.bringBrowserToFront
@@ -348,7 +349,7 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
     LaunchedEffect(container.datasetStore.changes) {
         if (container.datasetStore.isAvailable) {
             try {
-                sectionTitles = container.datasetStore.sections().associate { it.id to it.title }
+                sectionTitles = container.datasetStore.sections().associate { it.id to it.displayTitle }
             } catch (_: Exception) {}
         }
     }
