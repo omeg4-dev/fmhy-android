@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -82,6 +83,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -166,9 +168,11 @@ fun HeadingHeader(
                         bottom = 8.dp,
                     )
             ) {
+                // Stronger than the subcategory banner (10 % tint, no border): 18 % primary wash plus a hairline primary border.
                 Surface(
-                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f),
                     shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)),
                     modifier = Modifier
                         .fillMaxWidth()
                         .then(clickModifier),
@@ -202,12 +206,19 @@ fun HeadingHeader(
                                 }
                             }
                             if (entryCount != null) {
-                                Spacer(Modifier.height(4.dp))
-                                Text(
-                                    text = "$entryCount sites",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
+                                Spacer(Modifier.height(8.dp))
+                                Surface(
+                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.16f),
+                                    shape = CircleShape,
+                                ) {
+                                    Text(
+                                        text = "$entryCount sites",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
+                                    )
+                                }
                             }
                         }
                     }
@@ -215,44 +226,60 @@ fun HeadingHeader(
             }
         }
         2 -> {
+            val bannerShape = RoundedCornerShape(12.dp)
             Box(
                 modifier = modifier
                     .fillMaxWidth()
-                    .jumpHighlight(active = isHighlighted)
-                    .then(if (url != null) Modifier.clickable { onOpenUrl(url) } else Modifier)
                     .padding(
-                        start = 16.dp,
-                        end = 16.dp,
-                        top = 24.dp,
-                        bottom = 6.dp,
+                        start = 12.dp,
+                        end = 12.dp,
+                        top = if (isFirstItem) 12.dp else 32.dp,
+                        bottom = 8.dp,
                     )
+                    .clip(bannerShape)
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.10f))
+                    .jumpHighlight(active = isHighlighted, shape = bannerShape)
+                    .then(clickModifier)
+                    .semantics { heading() },
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                // Accent bar: 4 dp wide, inset 8 dp from top/bottom of banner, 10 dp from start edge
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .padding(start = 10.dp, top = 8.dp, bottom = 8.dp)
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(width = 3.dp, height = 18.dp)
+                            .fillMaxHeight()
+                            .width(4.dp)
                             .background(
                                 color = MaterialTheme.colorScheme.primary,
-                                shape = RoundedCornerShape(1.5.dp),
+                                shape = RoundedCornerShape(2.dp),
                             )
                     )
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 24.dp, end = 14.dp, top = 10.dp, bottom = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     Text(
                         text = splitTitle,
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false),
                     )
                     if (url != null) {
+                        Spacer(modifier = Modifier.width(8.dp))
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(16.dp),
+                            modifier = Modifier.size(18.dp),
                         )
                     }
                 }
