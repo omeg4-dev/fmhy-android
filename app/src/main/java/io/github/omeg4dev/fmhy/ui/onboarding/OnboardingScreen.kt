@@ -52,11 +52,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.NewReleases
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Tab
+import androidx.compose.material.icons.outlined.NewReleases
 import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.outlined.TouchApp
 import androidx.compose.material3.Button
@@ -1039,7 +1039,7 @@ private fun DonePageContent(
         val tips = listOf(
             Icons.Outlined.TouchApp to "Tap a site to open it, hold it for more options",
             Icons.Default.Share to "Share a link to FMHY to check it",
-            Icons.Default.NewReleases to "Open What's new to see the latest changes",
+            Icons.Outlined.NewReleases to "Tap the What's new icon on the Home screen to see the latest changes",
         )
 
         Column(

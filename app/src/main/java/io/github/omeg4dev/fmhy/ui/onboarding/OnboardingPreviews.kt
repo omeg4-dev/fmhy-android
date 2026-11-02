@@ -1,23 +1,20 @@
 package io.github.omeg4dev.fmhy.ui.onboarding
 
 import android.os.Build
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.animation.scaleOut
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.expandVertically
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.togetherWith
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,21 +23,28 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.RemoveModerator
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.Public
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -53,28 +57,30 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
+import io.github.omeg4dev.fmhy.R
 import io.github.omeg4dev.fmhy.data.ColorSource
 import io.github.omeg4dev.fmhy.data.OpenLinksWith
 import io.github.omeg4dev.fmhy.data.ThemeMode
 import io.github.omeg4dev.fmhy.data.model.Entry
-import io.github.omeg4dev.fmhy.ui.common.displayTitle
-import io.github.omeg4dev.fmhy.ui.common.sectionDisplayTitle
 import io.github.omeg4dev.fmhy.data.model.Link
 import io.github.omeg4dev.fmhy.data.model.Section
 import io.github.omeg4dev.fmhy.data.model.Tier
@@ -89,6 +95,9 @@ import io.github.omeg4dev.fmhy.ui.common.LocalBookmarks
 import io.github.omeg4dev.fmhy.ui.common.LocalHapticsEnabled
 import io.github.omeg4dev.fmhy.ui.common.LocalWebsiteStyle
 import io.github.omeg4dev.fmhy.ui.common.Motion
+import io.github.omeg4dev.fmhy.ui.common.displayTitle
+import io.github.omeg4dev.fmhy.ui.common.sectionDisplayTitle
+import io.github.omeg4dev.fmhy.ui.common.sectionIcon
 import kotlinx.coroutines.delay
 
 private fun sampleLookEntry(withLinks: Boolean = false): Entry = Entry(
@@ -196,75 +205,23 @@ fun LookPreview(
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
-                    // Mini Home header
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = "FMHY",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                        Surface(
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                            shape = CircleShape,
-                        ) {
-                            Text(
-                                text = if (isDark) "Dark" else "Light",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    // 2 sample section rows
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(MaterialTheme.colorScheme.surfaceContainerLow)
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = "Video / Movies & TV",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowForward,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(16.dp),
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(MaterialTheme.colorScheme.surfaceContainerLow)
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = "Audio / Music Streaming",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowForward,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(16.dp),
-                        )
-                    }
+                    MockHomeRow(
+                        icon = sectionIcon("video"),
+                        title = "Streaming",
+                        description = "Movies, TV shows, anime, live TV and sports",
+                        sites = "412 sites",
+                    )
+                    HorizontalDivider(
+                        modifier = Modifier.padding(start = 64.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant,
+                        thickness = 0.5.dp,
+                    )
+                    MockHomeRow(
+                        icon = sectionIcon("audio"),
+                        title = "Listening",
+                        description = "Music, podcasts, audiobooks and radio",
+                        sites = "238 sites",
+                    )
                     Spacer(modifier = Modifier.height(10.dp))
 
                     // Sample EntryRow
@@ -281,6 +238,63 @@ fun LookPreview(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun MockHomeRow(
+    icon: ImageVector,
+    title: String,
+    description: String,
+    sites: String,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 64.dp)
+            .padding(horizontal = 4.dp, vertical = 8.dp),
+    ) {
+        Surface(
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.secondaryContainer,
+            modifier = Modifier.size(40.dp),
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+        }
+        Spacer(modifier = Modifier.width(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = sites,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
@@ -421,55 +435,28 @@ private fun InAppBrowsingMock(adblockLevel: AdblockLevel) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 8.dp),
+                .padding(end = 4.dp, top = 4.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Shield badge counter with animated slide-up numbers
-            Surface(
-                color = if (adblockLevel == AdblockLevel.OFF) {
-                    MaterialTheme.colorScheme.surfaceContainerHighest
-                } else {
-                    MaterialTheme.colorScheme.primaryContainer
-                },
-                shape = CircleShape,
+            // Back-to-FMHY half pill
+            Box(
+                modifier = Modifier
+                    .width(46.dp)
+                    .height(44.dp)
+                    .clip(RoundedCornerShape(topStart = 0.dp, bottomStart = 0.dp, topEnd = 22.dp, bottomEnd = 22.dp))
+                    .background(Color.Black),
+                contentAlignment = Alignment.Center,
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    Icon(
-                        Icons.Default.Shield,
-                        contentDescription = null,
-                        tint = if (adblockLevel == AdblockLevel.OFF) {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        } else {
-                            MaterialTheme.colorScheme.primary
-                        },
-                        modifier = Modifier.size(16.dp),
-                    )
-                    AnimatedContent(
-                        targetState = if (adblockLevel == AdblockLevel.OFF) "Off" else "$blockedCount blocked",
-                        transitionSpec = {
-                            (slideInVertically(Motion.standard(Motion.SHORT)) { it } + fadeIn(Motion.standard(Motion.SHORT)))
-                                .togetherWith(slideOutVertically(Motion.standard(Motion.SHORT)) { -it } + fadeOut(Motion.standard(Motion.SHORT)))
-                        },
-                        label = "shield_badge_counter",
-                    ) { counterText ->
-                        Text(
-                            text = counterText,
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                            color = if (adblockLevel == AdblockLevel.OFF) {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            } else {
-                                MaterialTheme.colorScheme.onPrimaryContainer
-                            },
-                        )
-                    }
-                }
+                Image(
+                    painter = painterResource(R.drawable.fmhy_logo),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(CircleShape),
+                )
             }
 
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(4.dp))
 
             // Address pill
             Surface(
@@ -478,60 +465,100 @@ private fun InAppBrowsingMock(adblockLevel: AdblockLevel) {
                 modifier = Modifier.weight(1f),
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                    modifier = Modifier.padding(start = 8.dp, top = 6.dp, end = 4.dp, bottom = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(
-                        Icons.Default.Lock,
+                        imageVector = Icons.Filled.Star,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.tertiary,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Icon(
+                        imageVector = Icons.Outlined.Public,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(13.dp),
+                        modifier = Modifier.size(20.dp),
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = "streamsite.example",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
                     )
+                    Box(
+                        modifier = Modifier.padding(horizontal = 8.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (adblockLevel != AdblockLevel.OFF && blockedCount > 0) {
+                            BadgedBox(
+                                badge = {
+                                    Badge(
+                                        containerColor = MaterialTheme.colorScheme.primary,
+                                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                                    ) {
+                                        Text(blockedCount.toString())
+                                    }
+                                }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Shield,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp),
+                                )
+                            }
+                        } else if (adblockLevel != AdblockLevel.OFF) {
+                            Icon(
+                                imageVector = Icons.Default.Shield,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp),
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.RemoveModerator,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp),
+                            )
+                        }
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(4.dp))
 
-            // Tabs "2"
-            Surface(
-                shape = RoundedCornerShape(4.dp),
-                border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.onSurface),
-                modifier = Modifier.size(20.dp),
-                color = Color.Transparent,
+            // Tab counter
+            Box(
+                modifier = Modifier
+                    .size(26.dp)
+                    .border(
+                        BorderStroke(2.dp, MaterialTheme.colorScheme.onSurface),
+                        RoundedCornerShape(8.dp),
+                    ),
+                contentAlignment = Alignment.Center,
             ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Text(
-                        text = "2",
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                }
+                Text(
+                    text = "2",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
             }
-        }
-    }
 
-    Spacer(modifier = Modifier.height(6.dp))
-
-    // FMHY site bar
-    Surface(
-        color = MaterialTheme.colorScheme.secondaryContainer,
-        shape = RoundedCornerShape(8.dp),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = "★ Starred on FMHY · Video › Streaming",
-                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                color = MaterialTheme.colorScheme.onSecondaryContainer,
+            // Menu
+            Icon(
+                imageVector = Icons.Default.MoreVert,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier
+                    .padding(horizontal = 4.dp)
+                    .size(24.dp),
             )
         }
     }
@@ -738,61 +765,87 @@ fun StayUpdatedPreview(
                         scaleY = bounce.value
                     },
             ) {
-                Row(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(12.dp),
-                    verticalAlignment = Alignment.Top,
                 ) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.primary,
-                        shape = CircleShape,
-                        modifier = Modifier.size(36.dp),
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                Icons.Default.Notifications,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.size(20.dp),
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                text = "FMHY",
-                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.primary,
-                            )
-                            Text(
-                                text = "just now",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(2.dp))
+                        Icon(
+                            painter = painterResource(R.drawable.ic_stat_fmhy),
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(14.dp),
+                        )
                         Text(
-                            text = if (firstFollowedTitle != null) {
-                                "3 new sites in $firstFollowedTitle"
-                            } else {
-                                "Follow a section to get updates"
-                            },
+                            text = "FMHY",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            text = "·",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            text = "now",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    if (firstFollowedTitle != null) {
+                        Text(
+                            text = "$firstFollowedTitle: 2 new",
                             style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
                             color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = if (firstFollowedTitle != null) {
-                                "Fresh sites and resources added to community lists."
-                            } else {
-                                "Choose sections below to receive notifications when new sites are added."
-                            },
+                            text = "uBlock Origin, AdGuard, Bitwarden",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "$firstFollowedTitle › Extensions: uBlock Origin, AdGuard",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            text = "$firstFollowedTitle › Tools: Bitwarden",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            text = "$firstFollowedTitle › Guides: Privacy Guide",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    } else {
+                        Text(
+                            text = "Follow a section to get updates",
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "Choose sections below to receive notifications when new sites are added.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
