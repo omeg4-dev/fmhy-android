@@ -30,7 +30,6 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material.icons.outlined.Casino
 import androidx.compose.material.icons.outlined.NewReleases
 import androidx.compose.material3.AlertDialog
@@ -64,6 +63,7 @@ import io.github.omeg4dev.fmhy.WhatsNewNavKey
 import io.github.omeg4dev.fmhy.ui.shell.SyncStatusIcon
 import io.github.omeg4dev.fmhy.data.link.CrossLinks
 import io.github.omeg4dev.fmhy.data.user.Pin
+import io.github.omeg4dev.fmhy.ui.common.CheckLinkIcon
 import io.github.omeg4dev.fmhy.ui.common.EntryDetailBottomSheet
 import io.github.omeg4dev.fmhy.ui.onboarding.ONBOARDING_VERSION
 import android.content.ClipData
@@ -201,7 +201,7 @@ fun HomeScreen(
                 actions = {
                     SyncStatusIcon(container.statusNotices)
                     IconButton(onClick = onNavigateToCheckLink) {
-                        Icon(Icons.Default.VerifiedUser, contentDescription = "Check a link")
+                        Icon(CheckLinkIcon, contentDescription = "Check a link")
                     }
                     IconButton(onClick = { nav.push(WhatsNewNavKey()) }) {
                         Icon(Icons.Outlined.NewReleases, contentDescription = "Recent changes")

@@ -47,7 +47,6 @@ import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material.icons.filled.Wallpaper
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -84,6 +83,7 @@ import io.github.omeg4dev.fmhy.data.ColorSource
 import io.github.omeg4dev.fmhy.data.ThemeMode
 import io.github.omeg4dev.fmhy.theme.ACCENT_PRESETS
 import io.github.omeg4dev.fmhy.theme.paletteColorScheme
+import io.github.omeg4dev.fmhy.ui.common.CheckLinkIcon
 import io.github.omeg4dev.fmhy.ui.common.enterStagger
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 
@@ -178,7 +178,7 @@ fun WelcomePageContent(modifier: Modifier = Modifier) {
                         modifier = Modifier.enterStagger(index = 2, key = key),
                     )
                     ValueRow(
-                        icon = Icons.Default.VerifiedUser,
+                        icon = CheckLinkIcon,
                         tint = LogoViolet,
                         title = "Check a link",
                         text = "See if a site is listed on FMHY or a known fake before you open it.",
