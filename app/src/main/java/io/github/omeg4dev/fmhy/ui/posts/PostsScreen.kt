@@ -46,6 +46,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.omeg4dev.fmhy.di.AppContainer
 import io.github.omeg4dev.fmhy.nav.LocalBottomBarPadding
+import io.github.omeg4dev.fmhy.ui.shell.SyncStatusIcon
 import java.time.LocalDate
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -89,6 +90,7 @@ fun PostsScreen(
                     }
                 },
                 actions = {
+                    SyncStatusIcon(container.statusNotices)
                     IconButton(onClick = {
                         viewModel.refresh()
                     }) {

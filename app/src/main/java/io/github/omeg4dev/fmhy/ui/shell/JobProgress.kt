@@ -108,10 +108,9 @@ fun formatDataDate(
 }
 
 const val SYNC_CANCELLED = "Cancelled"
-const val SHOW_DELAY_MS = 1000L
 const val STALL_MS = 30_000L
-const val DONE_MS = 3000L
-const val PROBLEM_MS = 6000L
+const val DONE_MS = 1500L
+const val PROBLEM_MS = 4000L
 
 sealed interface ProgressLineUiState {
     data class Running(
@@ -179,7 +178,11 @@ class JobTracker {
     fun start(kind: JobKind, userStarted: Boolean, now: Long) {
         val existing = jobs[kind]
         if (existing != null) {
-            jobs[kind] = existing.copy(userStarted = existing.userStarted || userStarted)
+            val newUserStarted = existing.userStarted || userStarted
+            jobs[kind] = existing.copy(
+                userStarted = newUserStarted,
+                wasVisible = existing.wasVisible || newUserStarted,
+            )
         } else {
             jobs[kind] = RunningJob(
                 kind = kind,
@@ -188,7 +191,7 @@ class JobTracker {
                 userStarted = userStarted,
                 startedAt = now,
                 lastMovedAt = now,
-                wasVisible = false,
+                wasVisible = userStarted,
             )
         }
     }
@@ -234,11 +237,12 @@ class JobTracker {
     fun line(now: Long): ProgressLineUiState.Running? {
         if (jobs.isEmpty()) return null
 
+        val anyUserStarted = jobs.values.any { it.userStarted }
+        if (!anyUserStarted) return null
+
         for ((k, job) in jobs) {
-            if (job.userStarted || now - job.startedAt >= SHOW_DELAY_MS) {
-                if (!job.wasVisible) {
-                    jobs[k] = job.copy(wasVisible = true)
-                }
+            if (!job.wasVisible) {
+                jobs[k] = job.copy(wasVisible = true)
             }
         }
 
@@ -302,9 +306,9 @@ fun failedListDetail(
     }
 }
 
-fun adblockSuccessResult(): ProgressLineUiState.Done = ProgressLineUiState.Done("Ad-block lists updated")
+fun adblockSuccessResult(): ProgressLineUiState.Done = ProgressLineUiState.Done("Updated")
 
-fun adblockCancelledResult(): ProgressLineUiState.Done = ProgressLineUiState.Done("Update cancelled")
+fun adblockCancelledResult(): ProgressLineUiState.Done = ProgressLineUiState.Done("Cancelled")
 
 fun adblockPartialResult(
     total: Int,
@@ -351,17 +355,11 @@ fun adblockFailedResult(
     )
 }
 
-fun wikiUpdatedResult(added: Int, removed: Int): ProgressLineUiState.Done {
-    val extra = buildString {
-        if (added > 0) append(" · $added new")
-        if (removed > 0) append(" · $removed removed")
-    }
-    return ProgressLineUiState.Done("Wiki updated$extra")
-}
+fun wikiUpdatedResult(added: Int, removed: Int): ProgressLineUiState.Done = ProgressLineUiState.Done("Updated")
 
-fun wikiUpToDateResult(): ProgressLineUiState.Done = ProgressLineUiState.Done("Wiki is up to date")
+fun wikiUpToDateResult(): ProgressLineUiState.Done = ProgressLineUiState.Done("Up to date")
 
-fun wikiCancelledResult(): ProgressLineUiState.Done = ProgressLineUiState.Done("Update cancelled")
+fun wikiCancelledResult(): ProgressLineUiState.Done = ProgressLineUiState.Done("Cancelled")
 
 fun wikiFailedResult(
     reason: String,

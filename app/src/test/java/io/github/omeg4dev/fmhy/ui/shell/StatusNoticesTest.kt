@@ -9,6 +9,8 @@ import io.github.omeg4dev.fmhy.di.SyncStatus
 import java.time.Instant
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
@@ -67,10 +69,13 @@ class StatusNoticesTest {
     }
 
     @Test
-    fun fastBackgroundSyncUpToDateLineStaysNullThroughout() = runTest(UnconfinedTestDispatcher()) {
+    fun backgroundSyncNeverProducesNonNullLine() = runTest(UnconfinedTestDispatcher()) {
         val r = rig()
-        r.sync.value = SyncStatus.Syncing(progress = null, userStarted = false)
-        advanceTimeBy(500)
+        r.sync.value = SyncStatus.Syncing(progress = SyncProgress.Checking, userStarted = false)
+        runCurrent()
+        assertNull(r.notices.line.value)
+
+        advanceTimeBy(60_000)
         runCurrent()
         assertNull(r.notices.line.value)
 
@@ -78,24 +83,192 @@ class StatusNoticesTest {
         runCurrent()
         assertNull(r.notices.line.value)
 
-        advanceTimeBy(4000)
+        advanceTimeBy(60_000)
         runCurrent()
         assertNull(r.notices.line.value)
     }
 
     @Test
-    fun slowSyncRunningAfter1000msWithCheckingForUpdates() = runTest(UnconfinedTestDispatcher()) {
+    fun backgroundSyncSuccessNeverProducesNonNullLine() = runTest(UnconfinedTestDispatcher()) {
         val r = rig()
-        r.sync.value = SyncStatus.Syncing(progress = SyncProgress.Checking, userStarted = false)
-        advanceTimeBy(999)
+        r.sync.value = SyncStatus.Syncing(progress = SyncProgress.Files(5, 10, 1000L, false), userStarted = false)
         runCurrent()
         assertNull(r.notices.line.value)
 
-        advanceTimeBy(1)
+        advanceTimeBy(60_000)
         runCurrent()
+        assertNull(r.notices.line.value)
+
+        r.sync.value = SyncStatus.Finished(SyncResult.Updated(5, 2, changedSections = 0, tookMs = 0L))
+        runCurrent()
+        assertNull(r.notices.line.value)
+
+        advanceTimeBy(60_000)
+        runCurrent()
+        assertNull(r.notices.line.value)
+    }
+
+    @Test
+    fun userStartedSyncUpdatedLifecycle() = runTest(UnconfinedTestDispatcher()) {
+        val r = rig()
+        r.sync.value = SyncStatus.Syncing(progress = SyncProgress.Checking, userStarted = true)
+        runCurrent()
+        val running = r.notices.line.value
+        assertTrue(running is ProgressLineUiState.Running)
+
+        r.sync.value = SyncStatus.Finished(SyncResult.Updated(3, 1, changedSections = 0, tookMs = 0L))
+        runCurrent()
+        val done = r.notices.line.value
+        assertTrue(done is ProgressLineUiState.Done)
+        assertEquals("Updated", (done as ProgressLineUiState.Done).text)
+
+        advanceTimeBy(1400)
+        runCurrent()
+        assertNotNull(r.notices.line.value)
+
+        advanceTimeBy(101)
+        runCurrent()
+        assertNull(r.notices.line.value)
+    }
+
+    @Test
+    fun userStartedSyncUpToDateLifecycle() = runTest(UnconfinedTestDispatcher()) {
+        val r = rig()
+        r.sync.value = SyncStatus.Syncing(progress = null, userStarted = true)
+        runCurrent()
+        assertTrue(r.notices.line.value is ProgressLineUiState.Running)
+
+        r.sync.value = SyncStatus.Finished(SyncResult.UpToDate(100))
+        runCurrent()
+        val done = r.notices.line.value
+        assertTrue(done is ProgressLineUiState.Done)
+        assertEquals("Up to date", (done as ProgressLineUiState.Done).text)
+
+        advanceTimeBy(1400)
+        runCurrent()
+        assertNotNull(r.notices.line.value)
+
+        advanceTimeBy(101)
+        runCurrent()
+        assertNull(r.notices.line.value)
+    }
+
+    @Test
+    fun failedBackgroundWikiSyncEmitsOnFailuresAndLineStaysNull() = runTest(UnconfinedTestDispatcher()) {
+        val r = rig()
+        val failures = mutableListOf<ProgressLineUiState.Problem>()
+        backgroundScope.launch { r.notices.failures.toList(failures) }
+
+        r.wikiLastUpdated = Instant.parse("2026-10-12T10:00:00Z").toEpochMilli()
+        r.sync.value = SyncStatus.Syncing(progress = null, userStarted = false)
+        runCurrent()
+        assertNull(r.notices.line.value)
+
+        r.sync.value = SyncStatus.Finished(SyncResult.Failed("Network error", 100))
+        runCurrent()
+        assertNull(r.notices.line.value)
+
+        assertEquals(1, failures.size)
+        assertTrue(failures.first().text.contains("Couldn't update the wiki. Still using the data from"))
+        assertEquals(setOf(JobKind.WIKI), failures.first().retry)
+    }
+
+    @Test
+    fun failedUserStartedAdblockSyncEmitsOnFailuresWithRetry() = runTest(UnconfinedTestDispatcher()) {
+        val r = rig()
+        val failures = mutableListOf<ProgressLineUiState.Problem>()
+        backgroundScope.launch { r.notices.failures.toList(failures) }
+
+        r.adblockIn.value = true to AdblockStatus(updating = true, userStarted = true)
+        runCurrent()
+        assertTrue(r.notices.line.value is ProgressLineUiState.Running)
+
+        r.adblockIn.value = true to AdblockStatus(updating = false, ready = true, error = "Failed to download", userStarted = true)
+        runCurrent()
+        assertNull(r.notices.line.value)
+
+        assertEquals(1, failures.size)
+        assertEquals(setOf(JobKind.ADBLOCK), failures.first().retry)
+    }
+
+    @Test
+    fun wikiAndAdblockTogetherUserStartedCombinedDone() = runTest(UnconfinedTestDispatcher()) {
+        val r = rig()
+        r.sync.value = SyncStatus.Syncing(progress = SyncProgress.Files(10, 40, 1000L, false), userStarted = true)
+        r.adblockIn.value = true to AdblockStatus(updating = true, step = FilterListProgress.Downloading(1, 5), userStarted = true)
+        runCurrent()
+
         val line = r.notices.line.value
         assertTrue(line is ProgressLineUiState.Running)
-        assertEquals("Checking for updates", (line as ProgressLineUiState.Running).text)
+        val running = line as ProgressLineUiState.Running
+        assertTrue(running.text.startsWith("Updating ad-block lists and wiki"))
+        assertEquals(2, r.notices.jobs.value.size)
+        assertEquals(2, running.jobs.size)
+
+        // Adblock finishes
+        r.adblockIn.value = true to AdblockStatus(updating = false, ready = true, userStarted = true)
+        runCurrent()
+        assertTrue(r.notices.line.value is ProgressLineUiState.Running)
+
+        // Wiki finishes
+        r.sync.value = SyncStatus.Finished(SyncResult.Updated(1, 0, changedSections = 0, tookMs = 0L))
+        runCurrent()
+
+        val done = r.notices.line.value
+        assertTrue(done is ProgressLineUiState.Done)
+        assertEquals("Updated", (done as ProgressLineUiState.Done).text)
+    }
+
+    @Test
+    fun retryCallsInjectedRetryForKinds() = runTest(UnconfinedTestDispatcher()) {
+        val r = rig()
+        r.notices.retry(setOf(JobKind.WIKI))
+        assertEquals(listOf(JobKind.WIKI), r.retriedKinds)
+
+        r.notices.retry(setOf(JobKind.ADBLOCK, JobKind.WIKI))
+        assertEquals(listOf(JobKind.WIKI, JobKind.ADBLOCK, JobKind.WIKI), r.retriedKinds)
+    }
+
+    @Test
+    fun cancelledUserJobBecomesDoneCancelledAndCancelledBackgroundIsNull() = runTest(UnconfinedTestDispatcher()) {
+        val r = rig()
+
+        // Cancelled background sync
+        r.sync.value = SyncStatus.Syncing(progress = null, userStarted = false)
+        runCurrent()
+        r.sync.value = SyncStatus.Finished(SyncResult.Failed(SYNC_CANCELLED, 0L))
+        runCurrent()
+        assertNull(r.notices.line.value)
+
+        // Cancelled user-started sync
+        r.sync.value = SyncStatus.Syncing(progress = null, userStarted = true)
+        runCurrent()
+        assertTrue(r.notices.line.value is ProgressLineUiState.Running)
+        r.sync.value = SyncStatus.Finished(SyncResult.Failed(SYNC_CANCELLED, 0L))
+        runCurrent()
+        val line = r.notices.line.value
+        assertTrue(line is ProgressLineUiState.Done)
+        assertEquals("Cancelled", (line as ProgressLineUiState.Done).text)
+
+        // Cancelled background adblock
+        advanceTimeBy(2000)
+        runCurrent()
+        assertNull(r.notices.line.value)
+        r.adblockIn.value = true to AdblockStatus(updating = true, userStarted = false)
+        runCurrent()
+        r.adblockIn.value = true to AdblockStatus(updating = false, cancelled = true, userStarted = false)
+        runCurrent()
+        assertNull(r.notices.line.value)
+
+        // Cancelled user-started adblock
+        r.adblockIn.value = true to AdblockStatus(updating = true, userStarted = true)
+        runCurrent()
+        assertTrue(r.notices.line.value is ProgressLineUiState.Running)
+        r.adblockIn.value = true to AdblockStatus(updating = false, cancelled = true, userStarted = true)
+        runCurrent()
+        val adblockLine = r.notices.line.value
+        assertTrue(adblockLine is ProgressLineUiState.Done)
+        assertEquals("Cancelled", (adblockLine as ProgressLineUiState.Done).text)
     }
 
     @Test
@@ -116,92 +289,6 @@ class StatusNoticesTest {
         val line = r.notices.line.value
         assertNotNull(line)
         assertTrue(line is ProgressLineUiState.Running)
-    }
-
-    @Test
-    fun doneAutoHidesAfter3000ms() = runTest(UnconfinedTestDispatcher()) {
-        val r = rig()
-        r.sync.value = SyncStatus.Syncing(progress = null, userStarted = true)
-        runCurrent()
-        r.sync.value = SyncStatus.Finished(SyncResult.UpToDate(100))
-        runCurrent()
-        val line = r.notices.line.value
-        assertTrue(line is ProgressLineUiState.Done)
-        assertEquals("Wiki is up to date", (line as ProgressLineUiState.Done).text)
-
-        advanceTimeBy(2999)
-        runCurrent()
-        assertNotNull(r.notices.line.value)
-
-        advanceTimeBy(2)
-        runCurrent()
-        assertNull(r.notices.line.value)
-    }
-
-    @Test
-    fun failedBackgroundWikiProblemNonStickyHidesAfter6000msWithDateText() = runTest(UnconfinedTestDispatcher()) {
-        val r = rig()
-        r.wikiLastUpdated = Instant.parse("2026-10-12T10:00:00Z").toEpochMilli()
-        r.sync.value = SyncStatus.Syncing(progress = null, userStarted = false)
-        runCurrent()
-        r.sync.value = SyncStatus.Finished(SyncResult.Failed("Network error", 100))
-        runCurrent()
-        val line = r.notices.line.value
-        assertTrue(line is ProgressLineUiState.Problem)
-        val prob = line as ProgressLineUiState.Problem
-        assertTrue(prob.text.contains("Couldn't update the wiki. Still using the data from"))
-        assertFalse(prob.sticky)
-
-        advanceTimeBy(5999)
-        runCurrent()
-        assertNotNull(r.notices.line.value)
-
-        advanceTimeBy(2)
-        runCurrent()
-        assertNull(r.notices.line.value)
-    }
-
-    @Test
-    fun adblockRunWithFailedListsShowsProblemWithDetails() = runTest(UnconfinedTestDispatcher()) {
-        val r = rig()
-        val listTime = Instant.parse("2026-10-12T10:00:00Z").toEpochMilli()
-        val failed = listOf(FailedList("EasyList", listTime))
-        r.adblockIn.value = true to AdblockStatus(updating = true, userStarted = true)
-        runCurrent()
-        r.adblockIn.value = true to AdblockStatus(updating = false, ready = true, failedLists = failed, totalLists = 5, userStarted = true)
-        runCurrent()
-        val line = r.notices.line.value
-        assertTrue(line is ProgressLineUiState.Problem)
-        val prob = line as ProgressLineUiState.Problem
-        assertEquals("4 of 5 ad-block lists updated", prob.text)
-        assertTrue(prob.details.any { it.contains("Not updated: EasyList") })
-        assertEquals(setOf(JobKind.ADBLOCK), prob.retry)
-    }
-
-    @Test
-    fun adblockCancelledShowsUpdateCancelled() = runTest(UnconfinedTestDispatcher()) {
-        val r = rig()
-        r.adblockIn.value = true to AdblockStatus(updating = true, userStarted = true)
-        runCurrent()
-        r.adblockIn.value = true to AdblockStatus(updating = false, cancelled = true)
-        runCurrent()
-        val line = r.notices.line.value
-        assertTrue(line is ProgressLineUiState.Done)
-        assertEquals("Update cancelled", (line as ProgressLineUiState.Done).text)
-    }
-
-    @Test
-    fun bothJobsRunningCombinedTextAndJobsHas2Rows() = runTest(UnconfinedTestDispatcher()) {
-        val r = rig()
-        r.sync.value = SyncStatus.Syncing(progress = SyncProgress.Files(10, 40, 1000L, false), userStarted = true)
-        r.adblockIn.value = true to AdblockStatus(updating = true, step = FilterListProgress.Downloading(1, 5), userStarted = true)
-        runCurrent()
-        val line = r.notices.line.value
-        assertTrue(line is ProgressLineUiState.Running)
-        val running = line as ProgressLineUiState.Running
-        assertTrue(running.text.startsWith("Updating ad-block lists and wiki"))
-        assertEquals(2, r.notices.jobs.value.size)
-        assertEquals(2, running.jobs.size)
     }
 
     @Test
@@ -232,20 +319,6 @@ class StatusNoticesTest {
         runCurrent()
         r.notices.cancel()
         assertEquals(listOf(JobKind.ADBLOCK, JobKind.WIKI), r.cancelledKinds.sorted())
-    }
-
-    @Test
-    fun retryCallsFakeForProblemKinds() = runTest(UnconfinedTestDispatcher()) {
-        val r = rig()
-        r.sync.value = SyncStatus.Syncing(progress = null, userStarted = true)
-        runCurrent()
-        r.sync.value = SyncStatus.Finished(SyncResult.Failed("network error", 100))
-        runCurrent()
-        assertTrue(r.notices.line.value is ProgressLineUiState.Problem)
-
-        r.notices.retry()
-        assertEquals(listOf(JobKind.WIKI), r.retriedKinds)
-        assertNull(r.notices.line.value)
     }
 
     @Test

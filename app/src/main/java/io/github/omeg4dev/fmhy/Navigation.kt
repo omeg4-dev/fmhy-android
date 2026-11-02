@@ -174,8 +174,10 @@ import io.github.omeg4dev.fmhy.ui.common.NoteSheet
 import io.github.omeg4dev.fmhy.nav.resolveFmhyUri
 import io.github.omeg4dev.fmhy.nav.FmhyLinkDestination
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 fun interface BottomBarController {
     fun show()
@@ -233,6 +235,20 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
     }
 
     val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(container.statusNotices) {
+        container.statusNotices.failures.collectLatest { problem ->
+            val result = withTimeoutOrNull(4000L) {
+                snackbarHostState.showSnackbar(
+                    message = problem.text,
+                    actionLabel = "Retry",
+                    duration = SnackbarDuration.Indefinite,
+                )
+            }
+            if (result == SnackbarResult.ActionPerformed) {
+                container.statusNotices.retry(problem.retry)
+            }
+        }
+    }
     val scope = rememberCoroutineScope()
     val linkOpener = rememberLinkOpener(container, onShowSnackbar = { msg ->
         scope.launch { snackbarHostState.showSnackbar(msg) }
@@ -895,8 +911,12 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                     )
                 }
 
-                // Sync / ad-block pills: an overlay at the top, takes no layout space
-                if (!showOnboarding) {
+                // Sync / ad-block progress line and done pill: an overlay at the top, takes no layout space
+                val showStatusOverlay = !showOnboarding &&
+                    (showsBarScreen && highlightedTab != Tab.SEARCH ||
+                        currentTopKey is SettingsNavKey ||
+                        currentTopKey is SettingsPageNavKey)
+                if (showStatusOverlay) {
                     StatusNoticeOverlay(
                         notices = remember(container) { container.statusNotices },
                         modifier = Modifier

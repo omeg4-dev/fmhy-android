@@ -7,8 +7,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -31,6 +34,9 @@ class StatusNotices(
 
     private val _line = MutableStateFlow<ProgressLineUiState?>(null)
     val line: StateFlow<ProgressLineUiState?> = _line.asStateFlow()
+
+    private val _failures = MutableSharedFlow<ProgressLineUiState.Problem>(extraBufferCapacity = 4)
+    val failures: SharedFlow<ProgressLineUiState.Problem> = _failures.asSharedFlow()
 
     private val _jobs = MutableStateFlow<List<JobRowUi>>(emptyList())
     val jobs: StateFlow<List<JobRowUi>> = _jobs.asStateFlow()
@@ -169,33 +175,34 @@ class StatusNotices(
             tickerJob?.cancel()
             tickerJob = null
             _jobs.value = emptyList()
-            if (finishedResults.isEmpty()) {
-                _line.value = null
-            } else {
-                val problems = finishedResults.filterIsInstance<ProgressLineUiState.Problem>()
-                if (problems.isNotEmpty()) {
-                    val firstProblem = problems.first()
-                    val allDetails = problems.flatMap { it.details }
-                    val allRetry = problems.flatMap { it.retry }.toSet()
-                    val anySticky = problems.any { it.sticky }
-                    val finalProblem = ProgressLineUiState.Problem(
-                        text = firstProblem.text,
-                        details = allDetails,
-                        retry = allRetry,
-                        sticky = anySticky,
-                    )
-                    _line.value = finalProblem
-                    if (!finalProblem.sticky) {
-                        launchAutoHide(PROBLEM_MS)
-                    }
-                } else {
-                    val dones = finishedResults.filterIsInstance<ProgressLineUiState.Done>()
-                    val combinedText = dones.joinToString(" · ") { it.text }
-                    _line.value = ProgressLineUiState.Done(combinedText)
-                    launchAutoHide(DONE_MS)
-                }
-                finishedResults.clear()
+            val problems = finishedResults.filterIsInstance<ProgressLineUiState.Problem>()
+            if (problems.isNotEmpty()) {
+                val firstProblem = problems.first()
+                val allDetails = problems.flatMap { it.details }
+                val allRetry = problems.flatMap { it.retry }.toSet()
+                val anySticky = problems.any { it.sticky }
+                val finalProblem = ProgressLineUiState.Problem(
+                    text = firstProblem.text,
+                    details = allDetails,
+                    retry = allRetry,
+                    sticky = anySticky,
+                )
+                _failures.tryEmit(finalProblem)
+                markSyncBannerConsumed()
             }
+            val dones = finishedResults.filterIsInstance<ProgressLineUiState.Done>()
+            if (dones.isNotEmpty()) {
+                val combinedText = when {
+                    dones.any { it.text == "Updated" } -> "Updated"
+                    dones.all { it.text == "Cancelled" } -> "Cancelled"
+                    else -> "Up to date"
+                }
+                _line.value = ProgressLineUiState.Done(combinedText)
+                launchAutoHide(DONE_MS)
+            } else {
+                _line.value = null
+            }
+            finishedResults.clear()
         }
     }
 
@@ -215,18 +222,14 @@ class StatusNotices(
         return when (result) {
             is SyncResult.Skipped -> null
             is SyncResult.UpToDate -> {
-                if (!job.wasVisible) null else wikiUpToDateResult()
+                if (!job.userStarted) null else wikiUpToDateResult()
             }
             is SyncResult.Updated -> {
-                if (!job.wasVisible && (result.added == 0 && result.removed == 0)) {
-                    null
-                } else {
-                    wikiUpdatedResult(result.added, result.removed)
-                }
+                if (!job.userStarted) null else wikiUpdatedResult(result.added, result.removed)
             }
             is SyncResult.Failed -> {
                 if (result.reason == SYNC_CANCELLED) {
-                    if (!job.wasVisible) null else wikiCancelledResult()
+                    if (!job.userStarted) null else wikiCancelledResult()
                 } else {
                     val lastSuccess = lastUpdated(JobKind.WIKI)
                     wikiFailedResult(
@@ -242,7 +245,7 @@ class StatusNotices(
 
     private fun computeAdblockResult(job: RunningJob, status: AdblockStatus): ProgressLineUiState? {
         if (status.cancelled) {
-            return if (!job.wasVisible) null else adblockCancelledResult()
+            return if (!job.userStarted) null else adblockCancelledResult()
         }
         if (status.error != null) {
             val lastUp = lastUpdated(JobKind.ADBLOCK)
@@ -262,7 +265,7 @@ class StatusNotices(
                 nowMs = clock(),
             )
         }
-        return if (!job.wasVisible) null else adblockSuccessResult()
+        return if (!job.userStarted) null else adblockSuccessResult()
     }
 
     fun keepWaiting() = synchronized(lock) {
@@ -279,28 +282,15 @@ class StatusNotices(
         cancel.invoke(kind)
     }
 
-    fun retry() {
-        val current = _line.value
-        if (current is ProgressLineUiState.Problem) {
-            val kinds = current.retry
-            dismiss()
-            kinds.forEach { retry(it) }
-        }
-    }
-
-    fun dismiss(): Unit = synchronized(lock) {
-        autoHideJob?.cancel()
-        autoHideJob = null
-        _line.value = null
-        markSyncBannerConsumed()
+    fun retry(kinds: Set<JobKind>) {
+        kinds.forEach { retry.invoke(it) }
     }
 
     fun lastUpdated(kind: JobKind): Long? = lastUpdated.invoke(kind)
 
     companion object {
-        const val SHOW_DELAY_MS = 1000L
         const val STALL_MS = 30_000L
-        const val DONE_MS = 3000L
-        const val PROBLEM_MS = 6000L
+        const val DONE_MS = 1500L
+        const val PROBLEM_MS = 4000L
     }
 }

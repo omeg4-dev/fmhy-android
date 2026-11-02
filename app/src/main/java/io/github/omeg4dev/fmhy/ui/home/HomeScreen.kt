@@ -61,6 +61,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import io.github.omeg4dev.fmhy.SectionNavKey
 import io.github.omeg4dev.fmhy.WhatsNewNavKey
+import io.github.omeg4dev.fmhy.ui.shell.SyncStatusIcon
 import io.github.omeg4dev.fmhy.data.link.CrossLinks
 import io.github.omeg4dev.fmhy.data.user.Pin
 import io.github.omeg4dev.fmhy.ui.common.EntryDetailBottomSheet
@@ -198,6 +199,7 @@ fun HomeScreen(
                     }
                 },
                 actions = {
+                    SyncStatusIcon(container.statusNotices)
                     IconButton(onClick = onNavigateToCheckLink) {
                         Icon(Icons.Default.VerifiedUser, contentDescription = "Check a link")
                     }

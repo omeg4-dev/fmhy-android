@@ -132,12 +132,12 @@ class JobProgressTest {
     // ---- JobTracker ----
 
     @Test
-    fun trackerHiddenBeforeShowDelayAndVisibleAtOnceWhenUserStarted() {
+    fun trackerSilentWhenBackgroundAndVisibleAtOnceWhenUserStarted() {
         val tracker = JobTracker()
         tracker.start(JobKind.WIKI, userStarted = false, now = 0L)
         assertNull(tracker.line(now = 500L))
-        assertNull(tracker.line(now = 999L))
-        assertNotNull(tracker.line(now = 1000L))
+        assertNull(tracker.line(now = 1000L))
+        assertNull(tracker.line(now = 60_000L))
 
         val trackerUser = JobTracker()
         trackerUser.start(JobKind.WIKI, userStarted = true, now = 0L)
@@ -228,10 +228,20 @@ class JobProgressTest {
     // ---- Result Texts (§2.2) ----
 
     @Test
+    fun constantsValues() {
+        assertEquals(1500L, DONE_MS)
+        assertEquals(4000L, PROBLEM_MS)
+    }
+
+    @Test
     fun adblockResultTexts() {
         // Success
         val succ = adblockSuccessResult()
-        assertEquals("Ad-block lists updated", succ.text)
+        assertEquals("Updated", succ.text)
+
+        // Cancelled
+        val canc = adblockCancelledResult()
+        assertEquals("Cancelled", canc.text)
 
         // Partial
         val zone = ZoneId.of("UTC")
@@ -269,22 +279,22 @@ class JobProgressTest {
     @Test
     fun wikiResultTexts() {
         val upBoth = wikiUpdatedResult(added = 3, removed = 2)
-        assertEquals("Wiki updated · 3 new · 2 removed", upBoth.text)
+        assertEquals("Updated", upBoth.text)
 
         val upAdded = wikiUpdatedResult(added = 3, removed = 0)
-        assertEquals("Wiki updated · 3 new", upAdded.text)
+        assertEquals("Updated", upAdded.text)
 
         val upRemoved = wikiUpdatedResult(added = 0, removed = 2)
-        assertEquals("Wiki updated · 2 removed", upRemoved.text)
+        assertEquals("Updated", upRemoved.text)
 
         val upNeither = wikiUpdatedResult(added = 0, removed = 0)
-        assertEquals("Wiki updated", upNeither.text)
+        assertEquals("Updated", upNeither.text)
 
         val upToDate = wikiUpToDateResult()
-        assertEquals("Wiki is up to date", upToDate.text)
+        assertEquals("Up to date", upToDate.text)
 
         val cancelled = wikiCancelledResult()
-        assertEquals("Update cancelled", cancelled.text)
+        assertEquals("Cancelled", cancelled.text)
 
         val zone = ZoneId.of("UTC")
         val locale = Locale.UK
@@ -293,7 +303,7 @@ class JobProgressTest {
 
         // Cancelled via wikiFailedResult
         val failCancelled = wikiFailedResult(SYNC_CANCELLED, lastSuccess, userStarted = false, nowMs = nowMs, zone = zone, locale = locale)
-        assertEquals(ProgressLineUiState.Done("Update cancelled"), failCancelled)
+        assertEquals(ProgressLineUiState.Done("Cancelled"), failCancelled)
 
         // Failed with lastSuccess
         val failWithHistory = wikiFailedResult("network error", lastSuccess, userStarted = false, nowMs = nowMs, zone = zone, locale = locale)

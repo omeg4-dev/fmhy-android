@@ -67,6 +67,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import io.github.omeg4dev.fmhy.ui.common.SwipeAction
 import io.github.omeg4dev.fmhy.ui.common.SwipeActionRow
+import io.github.omeg4dev.fmhy.ui.shell.SyncStatusIcon
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -171,6 +172,7 @@ fun SavedScreen(
             TopAppBar(
                 title = { Text("Saved") },
                 actions = {
+                    SyncStatusIcon(container.statusNotices)
                     if (selectedTab == "history" && state.historyGroups.isNotEmpty()) {
                         IconButton(onClick = { showClearHistoryDialog = true }) {
                             Icon(Icons.Default.DeleteOutline, contentDescription = "Clear history")
