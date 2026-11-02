@@ -78,6 +78,7 @@ class TabRecord(
     @Volatile var blockedMainFrameRule: String? = null,
     var showsBlockPage: Boolean = false,
     var showsWifiOnlyPage: Boolean = false,
+    var showsNoVpnPage: Boolean = false,
     var restoredAt: Long = 0L,
     @Volatile var isWaitingRetry: Boolean = false,
     @Volatile var isWaitingGraceRetry: Boolean = false,

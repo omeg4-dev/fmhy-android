@@ -207,6 +207,7 @@ class DefaultAppContainer(
             browserHooks = browserHooks,
             appScope = appScope,
             networkMonitor = networkMonitor,
+            vpnMonitor = vpnMonitor,
         )
     }
 

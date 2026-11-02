@@ -151,6 +151,7 @@ data class ProtectionPrefs(
     val showVpnState: Boolean = true,
     val showVpnHomeIcon: Boolean = false,
     val showIpCountry: Boolean = false,
+    val blockWithoutVpn: Boolean = false,
 )
 
 data class PrivacyPrefs(

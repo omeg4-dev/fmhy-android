@@ -104,6 +104,24 @@ class BrowserJsBridge(
     }
 
     @JavascriptInterface
+    fun loadWithoutVpnOnce() {
+        if (!isNullOrDataOrigin()) return
+        tabManager.postToMain {
+            val record = tabManager.getTabRecord(tabId) ?: return@postToMain
+            tabManager.allowWithoutVpnOnce(tabId)
+            tabManager.loadUrl(tabId, record.url)
+        }
+    }
+
+    @JavascriptInterface
+    fun openVpnSettings() {
+        if (!isNullOrDataOrigin()) return
+        tabManager.postToMain {
+            tabManager.openVpnSettings()
+        }
+    }
+
+    @JavascriptInterface
     fun pickerResult(selector: String) {
         tabManager.postToMain {
             onPickerResult(tabId, selector)

@@ -35,6 +35,8 @@ import io.github.omeg4dev.fmhy.data.user.SitePrefs
 import io.github.omeg4dev.fmhy.data.user.UserStore
 import io.github.omeg4dev.fmhy.work.NetworkKind
 import io.github.omeg4dev.fmhy.work.NetworkMonitor
+import io.github.omeg4dev.fmhy.work.VpnMonitor
+import io.github.omeg4dev.fmhy.work.VpnState
 import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -59,6 +61,7 @@ class TabManager(
     private val browserHooks: BrowserHooks,
     val appScope: CoroutineScope,
     networkMonitor: NetworkMonitor? = null,
+    vpnMonitor: VpnMonitor? = null,
 ) {
     fun isOnline(): Boolean {
         return try {
@@ -265,6 +268,8 @@ class TabManager(
     @Volatile var currentAppearance = Appearance()
     @Volatile var isAppDark = false
     val mobileOkTabs: MutableSet<Long> = java.util.concurrent.ConcurrentHashMap.newKeySet()
+    @Volatile var currentVpnState = VpnState.ACTIVE
+    val vpnOkTabs: MutableSet<Long> = java.util.concurrent.ConcurrentHashMap.newKeySet()
     var onOpenDataUsageSettings: (() -> Unit)? = null
 
     init {
@@ -324,6 +329,19 @@ class TabManager(
                     currentNetworkKind = kind
                     if (hadKind == NetworkKind.NONE && kind != NetworkKind.NONE) {
                         onNetworkBecameReady()
+                    }
+                }
+            }
+        }
+        if (vpnMonitor != null) {
+            appScope.launch {
+                var prev = vpnMonitor.state.value
+                currentVpnState = prev
+                vpnMonitor.state.collect { s ->
+                    currentVpnState = s
+                    if (s != prev) {
+                        prev = s
+                        vpnOkTabs.clear()
                     }
                 }
             }
@@ -637,6 +655,7 @@ class TabManager(
 
     fun closeTab(tabId: Long) {
         mobileOkTabs.remove(tabId)
+        vpnOkTabs.remove(tabId)
         releaseThumbnail(tabId)
         if (previousTabId == tabId) {
             previousTabId = null
@@ -688,6 +707,7 @@ class TabManager(
 
     fun closeAllTabs() {
         mobileOkTabs.clear()
+        vpnOkTabs.clear()
         releaseAllThumbnails()
         previousTabId = null
         val hadPrivate: Boolean
@@ -910,16 +930,22 @@ class TabManager(
                 if (restored == null && record.url.isNotEmpty() && record.url != "about:blank") {
                     if (BrowsePolicy.shouldBlock(record.url, currentDataUsagePrefs.browseWifiOnly, currentNetworkKind, record.id in mobileOkTabs)) {
                         loadWifiOnlyPage(record)
+                    } else if (blocksWithoutVpn(record.url, record.id)) {
+                        loadNoVpnPage(record)
                     } else {
                         record.showsWifiOnlyPage = false
+                        record.showsNoVpnPage = false
                         webView.loadUrl(record.url)
                     }
                 }
             } else if (record.url.isNotEmpty() && record.url != "about:blank") {
                 if (BrowsePolicy.shouldBlock(record.url, currentDataUsagePrefs.browseWifiOnly, currentNetworkKind, record.id in mobileOkTabs)) {
                     loadWifiOnlyPage(record)
+                } else if (blocksWithoutVpn(record.url, record.id)) {
+                    loadNoVpnPage(record)
                 } else {
                     record.showsWifiOnlyPage = false
+                    record.showsNoVpnPage = false
                     webView.loadUrl(record.url)
                 }
             }
@@ -938,6 +964,23 @@ class TabManager(
         mobileOkTabs.add(tabId)
     }
 
+    fun allowWithoutVpnOnce(tabId: Long) {
+        vpnOkTabs.add(tabId)
+    }
+
+    fun openVpnSettings() {
+        io.github.omeg4dev.fmhy.ui.vpn.openVpnSettings(appContext)
+    }
+
+    fun blocksWithoutVpn(url: String, tabId: Long): Boolean =
+        VpnGate.shouldBlock(
+            url = url,
+            blockWithoutVpn = currentProtectionPrefs.blockWithoutVpn,
+            showVpnState = currentProtectionPrefs.showVpnState,
+            vpn = currentVpnState,
+            tabOverride = tabId in vpnOkTabs,
+        )
+
     fun openDataUsageSettings() {
         onOpenDataUsageSettings?.invoke() ?: run {
             val container = (appContext as? FmhyApp)?.container
@@ -952,7 +995,13 @@ class TabManager(
         bringFmhyToFront(appContext)
     }
 
-    fun buildWifiOnlyHtml(): String {
+    private data class HtmlThemeColors(
+        val accentHex: String,
+        val surfaceHex: String,
+        val onSurfaceHex: String,
+    )
+
+    private fun htmlThemeColors(): HtmlThemeColors {
         val accent = String.format("#%06X", 0xFFFFFF and currentAppearance.accentSeed)
         val surface = if (isAppDark) {
             if (currentAppearance.pureBlack) "#121212" else "#1e1e1e"
@@ -960,12 +1009,17 @@ class TabManager(
             "#ffffff"
         }
         val onSurface = if (isAppDark) "#e0e0e0" else "#1f1f1f"
+        return HtmlThemeColors(accent, surface, onSurface)
+    }
+
+    fun buildWifiOnlyHtml(): String {
+        val colors = htmlThemeColors()
         return WifiOnlyPage.html(
             isDark = isAppDark,
             isBlack = isAppDark && currentAppearance.pureBlack,
-            accentHex = accent,
-            surfaceHex = surface,
-            onSurfaceHex = onSurface,
+            accentHex = colors.accentHex,
+            surfaceHex = colors.surfaceHex,
+            onSurfaceHex = colors.onSurfaceHex,
             bridgeName = bridgeName,
         )
     }
@@ -973,6 +1027,24 @@ class TabManager(
     fun loadWifiOnlyPage(record: TabRecord) {
         record.showsWifiOnlyPage = true
         record.webView?.loadDataWithBaseURL(null, buildWifiOnlyHtml(), "text/html", "utf-8", null)
+        updateTabsFlow()
+    }
+
+    fun buildNoVpnHtml(): String {
+        val colors = htmlThemeColors()
+        return NoVpnPage.html(
+            isDark = isAppDark,
+            isBlack = isAppDark && currentAppearance.pureBlack,
+            accentHex = colors.accentHex,
+            surfaceHex = colors.surfaceHex,
+            onSurfaceHex = colors.onSurfaceHex,
+            bridgeName = bridgeName,
+        )
+    }
+
+    fun loadNoVpnPage(record: TabRecord) {
+        record.showsNoVpnPage = true
+        record.webView?.loadDataWithBaseURL(null, buildNoVpnHtml(), "text/html", "utf-8", null)
         updateTabsFlow()
     }
 
@@ -985,8 +1057,11 @@ class TabManager(
         } else {
             if (BrowsePolicy.shouldBlock(record.url, currentDataUsagePrefs.browseWifiOnly, currentNetworkKind, tabId in mobileOkTabs)) {
                 loadWifiOnlyPage(record)
+            } else if (blocksWithoutVpn(record.url, tabId)) {
+                loadNoVpnPage(record)
             } else {
                 record.showsWifiOnlyPage = false
+                record.showsNoVpnPage = false
                 val currentWvUrl = record.webView?.url
                 if (currentWvUrl == null || currentWvUrl == "about:blank" || currentWvUrl.startsWith("data:")) {
                     if (currentPrivacyPrefs.sendGpc) {
@@ -1044,8 +1119,11 @@ class TabManager(
         ensureWebView(record)
         if (BrowsePolicy.shouldBlock(url, currentDataUsagePrefs.browseWifiOnly, currentNetworkKind, tabId in mobileOkTabs)) {
             loadWifiOnlyPage(record)
+        } else if (blocksWithoutVpn(url, tabId)) {
+            loadNoVpnPage(record)
         } else {
             record.showsWifiOnlyPage = false
+            record.showsNoVpnPage = false
             if (currentPrivacyPrefs.sendGpc) {
                 record.webView?.loadUrl(url, mapOf("Sec-GPC" to "1", "DNT" to "1"))
             } else {

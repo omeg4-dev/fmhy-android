@@ -38,6 +38,7 @@ fun ProtectionPage(
     val eShowVpnState = SettingsCatalog.protectionShowVpnState
     val eShowVpnHomeIcon = SettingsCatalog.protectionShowVpnHomeIcon
     val eShowIpCountry = SettingsCatalog.protectionShowIpCountry
+    val eBlockWithoutVpn = SettingsCatalog.protectionBlockWithoutVpn
     val eBlockPopups = SettingsCatalog.protectionBlockPopups
     val eBlockRedirects = SettingsCatalog.protectionBlockRedirects
     val eBlockAppLinks = SettingsCatalog.protectionBlockAppLinks
@@ -51,6 +52,7 @@ fun ProtectionPage(
         eShowVpnState.id,
         eShowVpnHomeIcon.id,
         eShowIpCountry.id,
+        eBlockWithoutVpn.id,
         eBlockPopups.id,
         eBlockRedirects.id,
         eBlockAppLinks.id,
@@ -142,6 +144,17 @@ fun ProtectionPage(
                         settingId = eShowIpCountry.id,
                         onChange = { checked ->
                             viewModel.updateProtection { it.copy(showIpCountry = checked) }
+                        },
+                    )
+                    SettingsDivider()
+                    SwitchRow(
+                        title = eBlockWithoutVpn.title,
+                        summary = eBlockWithoutVpn.description,
+                        checked = protectionPrefs.blockWithoutVpn,
+                        enabled = protectionPrefs.showVpnState,
+                        settingId = eBlockWithoutVpn.id,
+                        onChange = { checked ->
+                            viewModel.updateProtection { it.copy(blockWithoutVpn = checked) }
                         },
                     )
                     SettingsDivider()

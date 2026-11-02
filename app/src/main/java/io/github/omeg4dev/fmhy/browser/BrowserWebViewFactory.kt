@@ -172,6 +172,11 @@ class BrowserWebViewFactory(
                         if (!EmptyTabPolicy.isStartUrl(url)) record.hadSite = true
                         tabManager.loadWifiOnlyPage(record)
                         return true
+                    } else if (tabManager.blocksWithoutVpn(url, record.id)) {
+                        record.url = url
+                        if (!EmptyTabPolicy.isStartUrl(url)) record.hadSite = true
+                        tabManager.loadNoVpnPage(record)
+                        return true
                     }
                 }
                 return browserHooks.shouldOverrideNavigation(context, record.toState(), request, onExternalAppRequest)
@@ -180,7 +185,7 @@ class BrowserWebViewFactory(
             override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
                 super.onPageStarted(view, url, favicon)
                 record.sourceUrl = url
-                if (!record.showsWifiOnlyPage && !url.startsWith("data:")) {
+                if (!record.showsWifiOnlyPage && !record.showsNoVpnPage && !url.startsWith("data:")) {
                     record.url = url
                 }
                 if (!record.isBackForwardNavigation) {

@@ -192,6 +192,7 @@ class DefaultSettingsRepository(
         private val KEY_PROTECTION_SHOW_VPN_STATE = booleanPreferencesKey("protection_show_vpn_state")
         private val KEY_PROTECTION_SHOW_VPN_HOME_ICON = booleanPreferencesKey("protection_show_vpn_home_icon")
         private val KEY_PROTECTION_SHOW_IP_COUNTRY = booleanPreferencesKey("protection_show_ip_country")
+        private val KEY_PROTECTION_BLOCK_WITHOUT_VPN = booleanPreferencesKey("protection_block_without_vpn")
 
         // Privacy
         private val KEY_PRIVACY_BLOCK_THIRD_PARTY_COOKIES = booleanPreferencesKey("privacy_block_third_party_cookies")
@@ -635,6 +636,7 @@ class DefaultSettingsRepository(
             showVpnState = prefs[KEY_PROTECTION_SHOW_VPN_STATE] ?: default.showVpnState,
             showVpnHomeIcon = prefs[KEY_PROTECTION_SHOW_VPN_HOME_ICON] ?: default.showVpnHomeIcon,
             showIpCountry = prefs[KEY_PROTECTION_SHOW_IP_COUNTRY] ?: default.showIpCountry,
+            blockWithoutVpn = prefs[KEY_PROTECTION_BLOCK_WITHOUT_VPN] ?: default.blockWithoutVpn,
         )
     }
 
@@ -650,6 +652,7 @@ class DefaultSettingsRepository(
         prefs[KEY_PROTECTION_SHOW_VPN_STATE] = p.showVpnState
         prefs[KEY_PROTECTION_SHOW_VPN_HOME_ICON] = p.showVpnHomeIcon
         prefs[KEY_PROTECTION_SHOW_IP_COUNTRY] = p.showIpCountry
+        prefs[KEY_PROTECTION_BLOCK_WITHOUT_VPN] = p.blockWithoutVpn
     }
 
     override val protectionPrefs: Flow<ProtectionPrefs> = dataStore.data.map { prefs ->

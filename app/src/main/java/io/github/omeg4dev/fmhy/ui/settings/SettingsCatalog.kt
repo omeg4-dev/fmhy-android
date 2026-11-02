@@ -516,6 +516,13 @@ object SettingsCatalog {
         description = "Sends your IP address to Mullvad (am.i.mullvad.net) when you open the connection details or tap the VPN icon on Home. Off by default",
         keywords = listOf("ip", "country", "location", "mullvad", "vpn"),
     )
+    val protectionBlockWithoutVpn = SettingEntry(
+        id = "protection.block_without_vpn",
+        page = SettingsPage.PROTECTION,
+        title = "Disable browsing without VPN",
+        description = "Shows a \"No VPN active\" page instead of loading sites while no VPN is on. Needs \"Show VPN and HTTPS ring\". Load anyway once is always offered",
+        keywords = listOf("vpn", "block", "disable", "browsing", "without", "kill", "switch"),
+    )
     val protectionBlockPopups = SettingEntry(
         id = "protection.block_popups",
         page = SettingsPage.PROTECTION,
@@ -880,6 +887,7 @@ object SettingsCatalog {
         protectionShowVpnState,
         protectionShowVpnHomeIcon,
         protectionShowIpCountry,
+        protectionBlockWithoutVpn,
         protectionBlockPopups,
         protectionBlockRedirects,
         protectionBlockAppLinks,
