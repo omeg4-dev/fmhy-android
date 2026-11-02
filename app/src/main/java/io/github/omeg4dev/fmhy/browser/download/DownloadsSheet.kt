@@ -7,6 +7,7 @@ import android.provider.OpenableColumns
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -258,6 +259,16 @@ fun DownloadsSheet(
             else -> {
                 showSetUpChecksDialog = true
             }
+        }
+    }
+
+    fun requestUpload(item: DownloadItem, service: ScanService) {
+        val fileSize = if (item.totalBytes > 0) item.totalBytes else item.downloadedBytes
+        val maxBytes = checks.client(service).maxUploadBytes
+        if (fileSize > maxBytes) {
+            pendingUploadTooBigService = service
+        } else {
+            pendingUploadWarning = service to item.id
         }
     }
 
@@ -559,13 +570,10 @@ fun DownloadsSheet(
                                         },
                                         onCheckHeldClick = { triggerCheck(it, isHeld = true) },
                                         onUploadHeldClick = { heldItem, service ->
-                                            val fileSize = if (heldItem.totalBytes > 0) heldItem.totalBytes else heldItem.downloadedBytes
-                                            val maxBytes = checks.client(service).maxUploadBytes
-                                            if (fileSize > maxBytes) {
-                                                pendingUploadTooBigService = service
-                                            } else {
-                                                pendingUploadWarning = service to heldItem.id
-                                            }
+                                            requestUpload(heldItem, service)
+                                        },
+                                        onUploadChip = { downloadItem, service ->
+                                            requestUpload(downloadItem, service)
                                         },
                                         onShowResult = { viewingResultItem = it },
                                         onDangerousOpenClick = { pendingDangerousOpenItem = it },
@@ -813,6 +821,11 @@ fun DownloadsSheet(
                         modifier = Modifier.verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
+                        Text(
+                            text = CheckUiText.checkedLine(result, nowMs),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                         ScanResultView(
                             result = result,
                             onOpenReport = onOpenUrl,
@@ -853,13 +866,7 @@ fun DownloadsSheet(
                         if (unknownReadyService != null) {
                             TextButton(
                                 onClick = {
-                                    val fileSize = if (item.totalBytes > 0) item.totalBytes else item.downloadedBytes
-                                    val maxBytes = checks.client(unknownReadyService).maxUploadBytes
-                                    if (fileSize > maxBytes) {
-                                        pendingUploadTooBigService = unknownReadyService
-                                    } else {
-                                        pendingUploadWarning = unknownReadyService to item.id
-                                    }
+                                    requestUpload(item, unknownReadyService)
                                 }
                             ) {
                                 Text("Upload for analysis")
@@ -1063,6 +1070,7 @@ private fun DownloadEntryRow(
     onDiscardClick: (DownloadItem) -> Unit,
     onCheckHeldClick: (DownloadItem) -> Unit,
     onUploadHeldClick: (DownloadItem, ScanService) -> Unit,
+    onUploadChip: (DownloadItem, ScanService) -> Unit,
     onShowResult: (DownloadItem) -> Unit,
     onDangerousOpenClick: (DownloadItem) -> Unit,
     onDangerousInstallClick: (DownloadItem) -> Unit,
@@ -1073,9 +1081,12 @@ private fun DownloadEntryRow(
     var showFmhyStatusDialog by remember { mutableStateOf(false) }
 
     val isFinished = item.status == DownloadStatus.FINISHED
-    val baseModifier = Modifier
+    var baseModifier = Modifier
         .fillMaxWidth()
         .defaultMinSize(minHeight = 72.dp)
+    if (item.check?.verdict == ScanVerdict.DANGEROUS) {
+        baseModifier = baseModifier.background(MaterialTheme.colorScheme.error.copy(alpha = 0.08f))
+    }
     val rowModifier = if (isFinished) {
         baseModifier
             .clickable {
@@ -1306,19 +1317,37 @@ private fun DownloadEntryRow(
                 }
             }
 
-            // Label line on any entry with check != null
+            // Check chips on any entry with check != null
             if (item.check != null) {
-                val checkColor = when (item.check.verdict) {
-                    ScanVerdict.DANGEROUS -> MaterialTheme.colorScheme.error
-                    ScanVerdict.SUSPICIOUS -> MaterialTheme.colorScheme.tertiary
-                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                val fileSize = if (item.totalBytes > 0) item.totalBytes else item.downloadedBytes
+                val chips = remember(item.check, checkPrefs.readyServices, item.totalBytes, item.downloadedBytes) {
+                    CheckChips.build(
+                        result = item.check,
+                        readyServices = checkPrefs.readyServices,
+                        fileSize = fileSize,
+                        maxUploadBytes = { checks.client(it).maxUploadBytes },
+                    )
                 }
-                Text(
-                    text = CheckUiText.label(item.check, nowMs),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = checkColor,
-                    modifier = Modifier.clickable { onShowResult(item) },
-                )
+                if (chips.isNotEmpty()) {
+                    CheckChipRow(
+                        chips = chips,
+                        onClick = { chip ->
+                            when (chip.action) {
+                                CheckChipAction.SHOW_RESULT -> onShowResult(item)
+                                CheckChipAction.UPLOAD, CheckChipAction.TOO_BIG -> onUploadChip(item, chip.service)
+                                CheckChipAction.RETRY -> {
+                                    val isHeld = item.status == DownloadStatus.AWAITING_DECISION || item.status == DownloadStatus.CHECKING
+                                    if (isHeld) {
+                                        onCheckHeldClick(item)
+                                    } else {
+                                        onCheckFinished(item)
+                                    }
+                                }
+                            }
+                        },
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
             }
 
             // Checking indicator

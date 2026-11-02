@@ -7,32 +7,13 @@ import java.util.Locale
 
 object CheckUiText {
 
-    fun label(result: ScanResult, nowMs: Long, zone: ZoneId = ZoneId.systemDefault()): String {
-        if (result.isRunning) {
-            val service = result.pending.firstOrNull()?.service?.label ?: ""
-            return "$service · analysis running"
-        }
-
-        val nonErrorServices = result.services.filter { it.error == null }
-        val servicesText = if (nonErrorServices.isNotEmpty()) {
-            nonErrorServices.map { it.service.label }.joinToString(" + ")
-        } else {
-            result.services.firstOrNull()?.service?.label.orEmpty()
-        }
-
+    fun checkedLine(result: ScanResult, nowMs: Long, zone: ZoneId = ZoneId.systemDefault()): String {
         val checkedZdt = Instant.ofEpochMilli(result.checkedAt).atZone(zone)
         val nowZdt = Instant.ofEpochMilli(nowMs).atZone(zone)
         val pattern = if (checkedZdt.year == nowZdt.year) "d MMM" else "d MMM yyyy"
         val formatter = DateTimeFormatter.ofPattern(pattern, Locale.getDefault())
         val dateStr = formatter.format(checkedZdt)
-
-        val verdictStr = result.verdict.label
-
-        return if (servicesText.isNotEmpty()) {
-            "$servicesText · $dateStr · $verdictStr"
-        } else {
-            "$dateStr · $verdictStr"
-        }
+        return "Checked $dateStr"
     }
 
     fun serviceLine(r: ServiceResult): String {

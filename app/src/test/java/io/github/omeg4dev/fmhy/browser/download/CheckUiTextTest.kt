@@ -18,12 +18,12 @@ class CheckUiTextTest {
         .toEpochMilli()
 
     @Test
-    fun testLabelNormal() {
-        val checkedAt = LocalDateTime.of(2026, 10, 20, 10, 0)
+    fun testCheckedLine() {
+        val checkedAtSameYear = LocalDateTime.of(2026, 10, 20, 10, 0)
             .atZone(zone)
             .toInstant()
             .toEpochMilli()
-        val result = ScanResult(
+        val resultSameYear = ScanResult(
             kind = ScanKind.FILE,
             sha256 = "abc",
             services = listOf(
@@ -32,92 +32,17 @@ class CheckUiTextTest {
                     verdict = ScanVerdict.NO_FLAGS,
                 )
             ),
-            checkedAt = checkedAt,
+            checkedAt = checkedAtSameYear,
         )
-        val expectedDate = DateTimeFormatter.ofPattern("d MMM", Locale.getDefault())
+        val expectedDateSameYear = DateTimeFormatter.ofPattern("d MMM", Locale.getDefault())
             .format(LocalDateTime.of(2026, 10, 20, 10, 0).atZone(zone))
-        assertEquals("VirusTotal · $expectedDate · No flags", CheckUiText.label(result, nowMs, zone))
-    }
+        assertEquals("Checked $expectedDateSameYear", CheckUiText.checkedLine(resultSameYear, nowMs, zone))
 
-    @Test
-    fun testLabelTwoServices() {
-        val checkedAt = LocalDateTime.of(2026, 10, 25, 10, 0)
+        val checkedAtOtherYear = LocalDateTime.of(2025, 5, 15, 10, 0)
             .atZone(zone)
             .toInstant()
             .toEpochMilli()
-        val result = ScanResult(
-            kind = ScanKind.FILE,
-            sha256 = "abc",
-            services = listOf(
-                ServiceResult(
-                    service = ScanService.VIRUSTOTAL,
-                    verdict = ScanVerdict.NO_FLAGS,
-                ),
-                ServiceResult(
-                    service = ScanService.HYBRID_ANALYSIS,
-                    verdict = ScanVerdict.SUSPICIOUS,
-                )
-            ),
-            checkedAt = checkedAt,
-        )
-        val expectedDate = DateTimeFormatter.ofPattern("d MMM", Locale.getDefault())
-            .format(LocalDateTime.of(2026, 10, 25, 10, 0).atZone(zone))
-        assertEquals("VirusTotal + Hybrid Analysis · $expectedDate · Suspicious", CheckUiText.label(result, nowMs, zone))
-    }
-
-    @Test
-    fun testLabelErrorsOnly() {
-        val checkedAt = LocalDateTime.of(2026, 10, 25, 10, 0)
-            .atZone(zone)
-            .toInstant()
-            .toEpochMilli()
-        val result = ScanResult(
-            kind = ScanKind.FILE,
-            sha256 = "abc",
-            services = listOf(
-                ServiceResult(
-                    service = ScanService.VIRUSTOTAL,
-                    verdict = ScanVerdict.UNKNOWN,
-                    error = ScanError.BAD_KEY,
-                ),
-                ServiceResult(
-                    service = ScanService.HYBRID_ANALYSIS,
-                    verdict = ScanVerdict.UNKNOWN,
-                    error = ScanError.OFFLINE,
-                )
-            ),
-            checkedAt = checkedAt,
-        )
-        val expectedDate = DateTimeFormatter.ofPattern("d MMM", Locale.getDefault())
-            .format(LocalDateTime.of(2026, 10, 25, 10, 0).atZone(zone))
-        assertEquals("VirusTotal · $expectedDate · Unknown", CheckUiText.label(result, nowMs, zone))
-    }
-
-    @Test
-    fun testLabelRunning() {
-        val result = ScanResult(
-            kind = ScanKind.FILE,
-            sha256 = "abc",
-            services = emptyList(),
-            checkedAt = nowMs,
-            pending = listOf(
-                PendingAnalysis(
-                    service = ScanService.VIRUSTOTAL,
-                    analysisId = "123",
-                    startedAt = nowMs,
-                )
-            ),
-        )
-        assertEquals("VirusTotal · analysis running", CheckUiText.label(result, nowMs, zone))
-    }
-
-    @Test
-    fun testLabelOtherYear() {
-        val checkedAt = LocalDateTime.of(2025, 5, 15, 10, 0)
-            .atZone(zone)
-            .toInstant()
-            .toEpochMilli()
-        val result = ScanResult(
+        val resultOtherYear = ScanResult(
             kind = ScanKind.FILE,
             sha256 = "abc",
             services = listOf(
@@ -126,11 +51,11 @@ class CheckUiTextTest {
                     verdict = ScanVerdict.DANGEROUS,
                 )
             ),
-            checkedAt = checkedAt,
+            checkedAt = checkedAtOtherYear,
         )
-        val expectedDate = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.getDefault())
+        val expectedDateOtherYear = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.getDefault())
             .format(LocalDateTime.of(2025, 5, 15, 10, 0).atZone(zone))
-        assertEquals("Hybrid Analysis · $expectedDate · Dangerous", CheckUiText.label(result, nowMs, zone))
+        assertEquals("Checked $expectedDateOtherYear", CheckUiText.checkedLine(resultOtherYear, nowMs, zone))
     }
 
     @Test
