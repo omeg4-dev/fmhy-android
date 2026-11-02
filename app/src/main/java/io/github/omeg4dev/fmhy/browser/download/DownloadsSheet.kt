@@ -2,35 +2,44 @@ package io.github.omeg4dev.fmhy.browser.download
 
 import android.content.ActivityNotFoundException
 import android.content.Context
-import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Android
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.FolderZip
@@ -39,6 +48,7 @@ import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -46,36 +56,48 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Surface
 import io.github.omeg4dev.fmhy.browser.RiskyDownload
 import io.github.omeg4dev.fmhy.browser.SiteBarKind
-import io.github.omeg4dev.fmhy.browser.StatusTone
 import io.github.omeg4dev.fmhy.browser.statusIconSpec
 import io.github.omeg4dev.fmhy.browser.statusToneColor
 import io.github.omeg4dev.fmhy.data.CheckPrefs
@@ -102,27 +124,21 @@ fun DownloadsSheet(
     val scope = rememberCoroutineScope()
     val nowMs = remember { System.currentTimeMillis() }
     val items by controller.items.collectAsStateWithLifecycle()
-    val activeItems = remember(items) {
-        items.filter {
-            it.status == DownloadStatus.WAITING ||
-                it.status == DownloadStatus.WAITING_WIFI ||
-                it.status == DownloadStatus.RUNNING ||
-                it.status == DownloadStatus.PAUSED ||
-                it.status == DownloadStatus.FAILED ||
-                it.status == DownloadStatus.CHECKING ||
-                it.status == DownloadStatus.AWAITING_DECISION
-        }
-    }
-    val finishedItems = remember(items) {
-        items.filter { it.status == DownloadStatus.FINISHED }
-    }
 
+    var isSearchOpen by rememberSaveable { mutableStateOf(false) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    var sort by rememberSaveable { mutableStateOf(DownloadSort.NEWEST) }
+    var filter by rememberSaveable { mutableStateOf(DownloadFilter.ALL) }
+
+    var sortMenuExpanded by remember { mutableStateOf(false) }
+    var headerMenuExpanded by remember { mutableStateOf(false) }
+    var showPasteDialog by remember { mutableStateOf(false) }
     var pasteText by remember { mutableStateOf("") }
     var pasteError by remember { mutableStateOf<String?>(null) }
+
     var pendingDeleteItem by remember { mutableStateOf<DownloadItem?>(null) }
     var pendingDiscardItem by remember { mutableStateOf<DownloadItem?>(null) }
     var pendingInstallPermissionItem by remember { mutableStateOf<DownloadItem?>(null) }
-    var headerMenuExpanded by remember { mutableStateOf(false) }
 
     var showSetUpChecksDialog by remember { mutableStateOf(false) }
     var pendingCheckChooserItem by remember { mutableStateOf<Pair<DownloadItem, Boolean>?>(null) }
@@ -212,6 +228,7 @@ fun DownloadsSheet(
             pasteError = "Enter a web address starting with http:// or https://"
         } else {
             pasteError = null
+            showPasteDialog = false
             onPasteLink(trimmed)
             pasteText = ""
             onDismiss()
@@ -282,218 +299,359 @@ fun DownloadsSheet(
         }
     }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+    val handleDismiss: () -> Unit = {
+        if (isSearchOpen) {
+            isSearchOpen = false
+        } else {
+            onDismiss()
+        }
+    }
+
+    Dialog(
+        onDismissRequest = handleDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false,
+        ),
     ) {
-        LazyColumn(
-            modifier = Modifier.fillMaxWidth(),
-            contentPadding = PaddingValues(
-                start = 16.dp,
-                end = 16.dp,
-                top = 8.dp,
-                bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 24.dp,
-            ),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+        BackHandler(enabled = isSearchOpen) {
+            isSearchOpen = false
+        }
+
+        Surface(
+            color = MaterialTheme.colorScheme.background,
+            modifier = Modifier.fillMaxSize(),
         ) {
-            // Header row
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Text(
-                        text = "Downloads",
-                        style = MaterialTheme.typography.titleLarge,
-                    )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(
-                            onClick = { controller.clearFinished() },
-                            enabled = finishedItems.isNotEmpty(),
-                        ) {
-                            Text("Clear finished")
-                        }
-                        Box {
-                            IconButton(onClick = { headerMenuExpanded = true }) {
-                                Icon(Icons.Default.MoreVert, contentDescription = "More")
+            Scaffold(
+                contentWindowInsets = WindowInsets.systemBars,
+                topBar = {
+                    TopAppBar(
+                        navigationIcon = {
+                            IconButton(onClick = handleDismiss) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = "Back",
+                                )
                             }
-                            DropdownMenu(
-                                expanded = headerMenuExpanded,
-                                onDismissRequest = { headerMenuExpanded = false },
-                            ) {
-                                DropdownMenuItem(
-                                    text = { Text("Check a file from the phone") },
-                                    onClick = {
-                                        headerMenuExpanded = false
-                                        pickFileLauncher.launch(arrayOf("*/*"))
+                        },
+                        title = {
+                            if (isSearchOpen) {
+                                val focusRequester = remember { FocusRequester() }
+                                LaunchedEffect(Unit) {
+                                    focusRequester.requestFocus()
+                                }
+                                TextField(
+                                    value = searchQuery,
+                                    onValueChange = { searchQuery = it },
+                                    placeholder = { Text("Search downloads") },
+                                    singleLine = true,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .focusRequester(focusRequester),
+                                    colors = TextFieldDefaults.colors(
+                                        focusedContainerColor = Color.Transparent,
+                                        unfocusedContainerColor = Color.Transparent,
+                                        disabledContainerColor = Color.Transparent,
+                                        focusedIndicatorColor = Color.Transparent,
+                                        unfocusedIndicatorColor = Color.Transparent,
+                                    ),
+                                    trailingIcon = {
+                                        IconButton(
+                                            onClick = {
+                                                if (searchQuery.isNotEmpty()) {
+                                                    searchQuery = ""
+                                                } else {
+                                                    isSearchOpen = false
+                                                }
+                                            }
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Close,
+                                                contentDescription = "Clear search",
+                                            )
+                                        }
                                     },
                                 )
+                            } else {
+                                Text("Downloads")
+                            }
+                        },
+                        actions = {
+                            if (!isSearchOpen) {
+                                IconButton(onClick = { isSearchOpen = true }) {
+                                    Icon(
+                                        imageVector = Icons.Default.Search,
+                                        contentDescription = "Search",
+                                    )
+                                }
+                            }
+                            Box {
+                                IconButton(onClick = { sortMenuExpanded = true }) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.Sort,
+                                        contentDescription = "Sort",
+                                    )
+                                }
+                                DropdownMenu(
+                                    expanded = sortMenuExpanded,
+                                    onDismissRequest = { sortMenuExpanded = false },
+                                ) {
+                                    for (sortOption in DownloadSort.entries) {
+                                        DropdownMenuItem(
+                                            text = { Text(sortOption.label) },
+                                            trailingIcon = if (sort == sortOption) {
+                                                {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Check,
+                                                        contentDescription = null,
+                                                    )
+                                                }
+                                            } else null,
+                                            onClick = {
+                                                sort = sortOption
+                                                sortMenuExpanded = false
+                                            },
+                                        )
+                                    }
+                                }
+                            }
+                            Box {
+                                IconButton(onClick = { headerMenuExpanded = true }) {
+                                    Icon(
+                                        imageVector = Icons.Default.MoreVert,
+                                        contentDescription = "More",
+                                    )
+                                }
+                                DropdownMenu(
+                                    expanded = headerMenuExpanded,
+                                    onDismissRequest = { headerMenuExpanded = false },
+                                ) {
+                                    val hasFinishedItems = items.any { it.status == DownloadStatus.FINISHED }
+                                    DropdownMenuItem(
+                                        text = { Text("Clear finished") },
+                                        enabled = hasFinishedItems,
+                                        onClick = {
+                                            headerMenuExpanded = false
+                                            controller.clearFinished()
+                                        },
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Paste a link") },
+                                        onClick = {
+                                            headerMenuExpanded = false
+                                            showPasteDialog = true
+                                        },
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Check a file from the phone") },
+                                        onClick = {
+                                            headerMenuExpanded = false
+                                            pickFileLauncher.launch(arrayOf("*/*"))
+                                        },
+                                    )
+                                }
+                            }
+                        },
+                    )
+                },
+            ) { innerPadding ->
+                BoxWithConstraints(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(top = innerPadding.calculateTopPadding()),
+                    contentAlignment = Alignment.TopCenter,
+                ) {
+                    val isTablet = maxWidth >= 840.dp
+                    Column(
+                        modifier = if (isTablet) {
+                            Modifier
+                                .widthIn(max = 720.dp)
+                                .fillMaxHeight()
+                        } else {
+                            Modifier.fillMaxSize()
+                        },
+                    ) {
+                        // Filter chips row
+                        val counts = remember(items) { DownloadsView.counts(items) }
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState())
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            for (chipFilter in DownloadFilter.entries) {
+                                FilterChip(
+                                    selected = filter == chipFilter,
+                                    onClick = { filter = chipFilter },
+                                    label = { Text("${chipFilter.label} ${counts[chipFilter] ?: 0}") },
+                                )
+                            }
+                        }
+
+                        // Visible items
+                        val visibleItems = remember(items, filter, searchQuery, sort) {
+                            DownloadsView.apply(items, filter, searchQuery, sort)
+                        }
+
+                        if (visibleItems.isEmpty()) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f)
+                                    .padding(24.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    val emptyText = if (items.isEmpty()) "No downloads yet" else "No downloads match"
+                                    Text(
+                                        text = emptyText,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                    if (items.isNotEmpty() && searchQuery.isNotBlank()) {
+                                        TextButton(onClick = { searchQuery = "" }) {
+                                            Text("Clear search")
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            LazyColumn(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f),
+                                contentPadding = PaddingValues(
+                                    start = 0.dp,
+                                    end = 0.dp,
+                                    top = 0.dp,
+                                    bottom = innerPadding.calculateBottomPadding() + 24.dp,
+                                ),
+                            ) {
+                                items(
+                                    items = visibleItems,
+                                    key = { it.id },
+                                    contentType = { "download_row" },
+                                ) { item ->
+                                    DownloadEntryRow(
+                                        item = item,
+                                        controller = controller,
+                                        checkPrefs = checkPrefs,
+                                        checks = checks,
+                                        nowMs = nowMs,
+                                        onOpenUrl = onOpenUrl,
+                                        onMessage = onMessage,
+                                        onInstallClick = { installFile(item) },
+                                        onDeleteClick = { pendingDeleteItem = item },
+                                        onCheckFinished = { triggerCheck(it, isHeld = false) },
+                                        onKeepClick = { heldItem ->
+                                            if (heldItem.check?.verdict == ScanVerdict.DANGEROUS) {
+                                                pendingDangerousKeepItem = heldItem
+                                            } else {
+                                                controller.keep(heldItem.id)
+                                            }
+                                        },
+                                        onDiscardClick = { heldItem ->
+                                            pendingDiscardItem = heldItem
+                                        },
+                                        onCheckHeldClick = { triggerCheck(it, isHeld = true) },
+                                        onUploadHeldClick = { heldItem, service ->
+                                            val fileSize = if (heldItem.totalBytes > 0) heldItem.totalBytes else heldItem.downloadedBytes
+                                            val maxBytes = checks.client(service).maxUploadBytes
+                                            if (fileSize > maxBytes) {
+                                                pendingUploadTooBigService = service
+                                            } else {
+                                                pendingUploadWarning = service to heldItem.id
+                                            }
+                                        },
+                                        onShowResult = { viewingResultItem = it },
+                                        onDangerousOpenClick = { pendingDangerousOpenItem = it },
+                                        onDangerousInstallClick = { pendingDangerousInstallItem = it },
+                                        onShowInSection = onShowInSection,
+                                    )
+                                    HorizontalDivider(
+                                        modifier = Modifier.padding(horizontal = 16.dp),
+                                    )
+                                }
                             }
                         }
                     }
-                }
-            }
-
-            // Paste row
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = if (pasteError != null) Alignment.Top else Alignment.CenterVertically,
-                ) {
-                    OutlinedTextField(
-                        value = pasteText,
-                        onValueChange = {
-                            pasteText = it
-                            if (pasteError != null) pasteError = null
-                        },
-                        placeholder = { Text("Paste a link") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Uri,
-                            imeAction = ImeAction.Go,
-                        ),
-                        keyboardActions = KeyboardActions(onGo = { submitPaste() }),
-                        trailingIcon = {
-                            IconButton(
-                                onClick = {
-                                    val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
-                                    val text = cm?.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.text?.toString()
-                                    if (!text.isNullOrBlank()) {
-                                        pasteText = text
-                                        if (pasteError != null) pasteError = null
-                                    }
-                                }
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.ContentPaste,
-                                    contentDescription = "Paste",
-                                )
-                            }
-                        },
-                        isError = pasteError != null,
-                        supportingText = if (pasteError != null) {
-                            {
-                                Text(
-                                    text = pasteError!!,
-                                    color = MaterialTheme.colorScheme.error,
-                                )
-                            }
-                        } else null,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    FilledTonalButton(
-                        onClick = { submitPaste() },
-                        modifier = Modifier.padding(top = if (pasteError != null) 8.dp else 0.dp),
-                    ) {
-                        Text("Download")
-                    }
-                }
-            }
-
-            // Section: Active
-            item {
-                Text(
-                    text = "Active",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(top = 8.dp),
-                )
-            }
-
-            if (activeItems.isEmpty()) {
-                item {
-                    Text(
-                        text = "No active downloads",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            } else {
-                items(activeItems, key = { it.id }) { item ->
-                    DownloadEntryRow(
-                        item = item,
-                        controller = controller,
-                        checkPrefs = checkPrefs,
-                        checks = checks,
-                        nowMs = nowMs,
-                        onOpenUrl = onOpenUrl,
-                        onMessage = onMessage,
-                        onInstallClick = { installFile(item) },
-                        onDeleteClick = { pendingDeleteItem = item },
-                        onCheckFinished = { triggerCheck(it, isHeld = false) },
-                        onKeepClick = { heldItem ->
-                            if (heldItem.check?.verdict == ScanVerdict.DANGEROUS) {
-                                pendingDangerousKeepItem = heldItem
-                            } else {
-                                controller.keep(heldItem.id)
-                            }
-                        },
-                        onDiscardClick = { heldItem ->
-                            pendingDiscardItem = heldItem
-                        },
-                        onCheckHeldClick = { triggerCheck(it, isHeld = true) },
-                        onUploadHeldClick = { heldItem, service ->
-                            val fileSize = if (heldItem.totalBytes > 0) heldItem.totalBytes else heldItem.downloadedBytes
-                            val maxBytes = checks.client(service).maxUploadBytes
-                            if (fileSize > maxBytes) {
-                                pendingUploadTooBigService = service
-                            } else {
-                                pendingUploadWarning = service to heldItem.id
-                            }
-                        },
-                        onShowResult = { viewingResultItem = it },
-                        onDangerousOpenClick = { pendingDangerousOpenItem = it },
-                        onDangerousInstallClick = { pendingDangerousInstallItem = it },
-                        onShowInSection = onShowInSection,
-                    )
-                }
-            }
-
-            // Section: Finished
-            item {
-                Text(
-                    text = "Finished",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(top = 16.dp),
-                )
-            }
-
-            if (finishedItems.isEmpty()) {
-                item {
-                    Text(
-                        text = "No finished downloads",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            } else {
-                items(finishedItems, key = { it.id }) { item ->
-                    DownloadEntryRow(
-                        item = item,
-                        controller = controller,
-                        checkPrefs = checkPrefs,
-                        checks = checks,
-                        nowMs = nowMs,
-                        onOpenUrl = onOpenUrl,
-                        onMessage = onMessage,
-                        onInstallClick = { installFile(item) },
-                        onDeleteClick = { pendingDeleteItem = item },
-                        onCheckFinished = { triggerCheck(it, isHeld = false) },
-                        onKeepClick = {},
-                        onDiscardClick = { pendingDiscardItem = it },
-                        onCheckHeldClick = {},
-                        onUploadHeldClick = { _, _ -> },
-                        onShowResult = { viewingResultItem = it },
-                        onDangerousOpenClick = { pendingDangerousOpenItem = it },
-                        onDangerousInstallClick = { pendingDangerousInstallItem = it },
-                        onShowInSection = onShowInSection,
-                    )
                 }
             }
         }
+    }
+
+    if (showPasteDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showPasteDialog = false
+                pasteError = null
+            },
+            title = { Text("Paste a link") },
+            text = {
+                OutlinedTextField(
+                    value = pasteText,
+                    onValueChange = {
+                        pasteText = it
+                        if (pasteError != null) pasteError = null
+                    },
+                    placeholder = { Text("Paste a link") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Uri,
+                        imeAction = ImeAction.Go,
+                    ),
+                    keyboardActions = KeyboardActions(onGo = { submitPaste() }),
+                    trailingIcon = {
+                        IconButton(
+                            onClick = {
+                                val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                                val text = cm?.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.text?.toString()
+                                if (!text.isNullOrBlank()) {
+                                    pasteText = text
+                                    if (pasteError != null) pasteError = null
+                                }
+                            }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ContentPaste,
+                                contentDescription = "Paste",
+                            )
+                        }
+                    },
+                    isError = pasteError != null,
+                    supportingText = if (pasteError != null) {
+                        {
+                            Text(
+                                text = pasteError!!,
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                        }
+                    } else null,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            },
+            confirmButton = {
+                FilledTonalButton(
+                    onClick = { submitPaste() },
+                ) {
+                    Text("Download")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showPasteDialog = false
+                        pasteError = null
+                    }
+                ) {
+                    Text("Cancel")
+                }
+            },
+        )
     }
 
     if (pendingDeleteItem != null) {
@@ -915,9 +1073,11 @@ private fun DownloadEntryRow(
     var showFmhyStatusDialog by remember { mutableStateOf(false) }
 
     val isFinished = item.status == DownloadStatus.FINISHED
+    val baseModifier = Modifier
+        .fillMaxWidth()
+        .defaultMinSize(minHeight = 72.dp)
     val rowModifier = if (isFinished) {
-        Modifier
-            .fillMaxWidth()
+        baseModifier
             .clickable {
                 if (CheckPolicy.needsExtraConfirm(item)) {
                     onDangerousOpenClick(item)
@@ -936,54 +1096,102 @@ private fun DownloadEntryRow(
                     }
                 }
             }
-            .padding(vertical = 4.dp)
+            .padding(horizontal = 16.dp, vertical = 12.dp)
     } else {
-        Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
+        baseModifier.padding(horizontal = 16.dp, vertical = 12.dp)
     }
 
     Row(
         modifier = rowModifier,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(
-            imageVector = itemIcon(item),
-            contentDescription = null,
-            modifier = Modifier.size(28.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        val isFailed = item.status == DownloadStatus.FAILED
+        val iconContainerColor = if (isFailed) {
+            MaterialTheme.colorScheme.errorContainer
+        } else {
+            MaterialTheme.colorScheme.secondaryContainer
+        }
+        val iconContentColor = if (isFailed) {
+            MaterialTheme.colorScheme.onErrorContainer
+        } else {
+            MaterialTheme.colorScheme.onSecondaryContainer
+        }
+
+        Surface(
+            shape = RoundedCornerShape(10.dp),
+            color = iconContainerColor,
+            modifier = Modifier.size(40.dp),
+        ) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                Icon(
+                    imageVector = itemIcon(item),
+                    contentDescription = null,
+                    modifier = Modifier.size(24.dp),
+                    tint = iconContentColor,
+                )
+            }
+        }
+
         Spacer(modifier = Modifier.width(16.dp))
+
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = item.fileName,
                 style = MaterialTheme.typography.bodyLarge,
-                maxLines = 1,
+                fontWeight = FontWeight.Medium,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
 
-            // Second line: <sourceHost> · <size> + FMHY badge
-            val sizePart = if (item.totalBytes > 0) DownloadPolicy.formatBytes(item.totalBytes) else null
-            val secondLine = listOfNotNull(item.sourceHost.ifBlank { null }, sizePart).joinToString(" · ")
-            val showFmhyBadge = item.fmhy != null && checkPrefs.fmhyDownloadStatus
+            val sizeKnown = when {
+                item.totalBytes > 0 -> DownloadPolicy.formatBytes(item.totalBytes)
+                item.downloadedBytes > 0 -> DownloadPolicy.formatBytes(item.downloadedBytes)
+                else -> null
+            }
 
-            if (secondLine.isNotEmpty() || showFmhyBadge) {
+            val metaLine = when (item.status) {
+                DownloadStatus.RUNNING -> {
+                    DownloadPolicy.progressLine(
+                        downloaded = item.downloadedBytes,
+                        total = item.totalBytes,
+                        speedBps = item.speedBps,
+                        etaSeconds = item.etaSeconds,
+                    )
+                }
+                DownloadStatus.FINISHED -> {
+                    listOfNotNull(sizeKnown, item.sourceHost.ifBlank { null }).joinToString(" · ")
+                }
+                DownloadStatus.FAILED -> {
+                    if (!item.error.isNullOrBlank()) "Failed: ${item.error}" else "Failed"
+                }
+                else -> {
+                    listOfNotNull(item.status.label, sizeKnown).joinToString(" · ")
+                }
+            }
+
+            val fmhy = item.fmhy
+            val showFmhyBadge = fmhy != null && checkPrefs.fmhyDownloadStatus
+
+            if (metaLine.isNotEmpty() || showFmhyBadge) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    if (secondLine.isNotEmpty()) {
+                    if (metaLine.isNotEmpty()) {
                         Text(
-                            text = secondLine,
+                            text = metaLine,
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
+                            color = if (item.status == DownloadStatus.FAILED) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = if (item.status == DownloadStatus.FAILED) 2 else 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = if (showFmhyBadge) Modifier.weight(1f, fill = false) else Modifier,
                         )
                     }
-                    if (showFmhyBadge && item.fmhy != null) {
-                        val siteBarKind = when (item.fmhy.kind) {
+                    if (fmhy != null && checkPrefs.fmhyDownloadStatus) {
+                        val siteBarKind = when (fmhy.kind) {
                             SourceKind.STARRED -> SiteBarKind.STARRED
                             SourceKind.LISTED -> SiteBarKind.LISTED
                             SourceKind.NOT_LISTED -> SiteBarKind.NOT_ON_FMHY
@@ -999,7 +1207,7 @@ private fun DownloadEntryRow(
                             modifier = Modifier.clickable { showFmhyStatusDialog = true },
                         ) {
                             Text(
-                                text = DownloadSourceText.badge(item.fmhy.kind),
+                                text = DownloadSourceText.badge(fmhy.kind),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = toneColor,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
@@ -1080,13 +1288,19 @@ private fun DownloadEntryRow(
                             progress = { fraction },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 4.dp),
+                                .padding(vertical = 4.dp)
+                                .height(6.dp)
+                                .clip(RoundedCornerShape(3.dp)),
+                            strokeCap = StrokeCap.Round,
                         )
                     } else if (item.status == DownloadStatus.RUNNING) {
                         LinearProgressIndicator(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 4.dp),
+                                .padding(vertical = 4.dp)
+                                .height(6.dp)
+                                .clip(RoundedCornerShape(3.dp)),
+                            strokeCap = StrokeCap.Round,
                         )
                     }
                 }
@@ -1135,84 +1349,35 @@ private fun DownloadEntryRow(
                 )
             }
 
-            // Status line
-            when (item.status) {
-                DownloadStatus.RUNNING -> {
-                    Text(
-                        text = DownloadPolicy.progressLine(
-                            downloaded = item.downloadedBytes,
-                            total = item.totalBytes,
-                            speedBps = item.speedBps,
-                            etaSeconds = item.etaSeconds,
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    if (item.restartNote) {
-                        Text(
-                            text = "Started again from the beginning",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-                DownloadStatus.FAILED -> {
-                    val errorPrefix = if (!item.error.isNullOrBlank()) "Failed: ${item.error}" else "Failed"
-                    Text(
-                        text = errorPrefix,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                    if (!item.resumable) {
-                        Text(
-                            text = "This site doesn't allow resuming. Retry starts again.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-                DownloadStatus.FINISHED -> {
-                    Text(
-                        text = "Finished",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                DownloadStatus.AWAITING_DECISION -> {
-                    Text(
-                        text = item.status.label,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    if (item.check == null && !item.checking) {
-                        Text(
-                            text = "Not checked yet",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-                DownloadStatus.CHECKING -> {
-                    Text(
-                        text = item.status.label,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                else -> {
-                    Text(
-                        text = item.status.label,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    if (item.restartNote && item.status == DownloadStatus.WAITING) {
-                        Text(
-                            text = "Started again from the beginning",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
+            // Status notes
+            if (item.status == DownloadStatus.RUNNING && item.restartNote) {
+                Text(
+                    text = "Started again from the beginning",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else if (item.status == DownloadStatus.WAITING && item.restartNote) {
+                Text(
+                    text = "Started again from the beginning",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            if (item.status == DownloadStatus.FAILED && !item.resumable) {
+                Text(
+                    text = "This site doesn't allow resuming. Retry starts again.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            if (item.status == DownloadStatus.AWAITING_DECISION && item.check == null && !item.checking) {
+                Text(
+                    text = "Not checked yet",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
 
             // Buttons row for AWAITING_DECISION
@@ -1230,6 +1395,7 @@ private fun DownloadEntryRow(
                     fun DeleteButton() {
                         TextButton(
                             onClick = { onDiscardClick(item) },
+                            modifier = Modifier.defaultMinSize(minHeight = 48.dp),
                             colors = if (isDangerous) {
                                 ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                             } else {
@@ -1242,7 +1408,10 @@ private fun DownloadEntryRow(
 
                     @Composable
                     fun KeepButton() {
-                        TextButton(onClick = { onKeepClick(item) }) {
+                        TextButton(
+                            onClick = { onKeepClick(item) },
+                            modifier = Modifier.defaultMinSize(minHeight = 48.dp),
+                        ) {
                             Text("Keep")
                         }
                     }
@@ -1256,7 +1425,10 @@ private fun DownloadEntryRow(
                     }
 
                     if (item.check == null && !item.checking) {
-                        TextButton(onClick = { onCheckHeldClick(item) }) {
+                        TextButton(
+                            onClick = { onCheckHeldClick(item) },
+                            modifier = Modifier.defaultMinSize(minHeight = 48.dp),
+                        ) {
                             Text("Check")
                         }
                     }
@@ -1266,7 +1438,10 @@ private fun DownloadEntryRow(
                         sr?.verdict == ScanVerdict.UNKNOWN && sr?.error == null
                     }
                     if (unknownReadyService != null) {
-                        TextButton(onClick = { onUploadHeldClick(item, unknownReadyService) }) {
+                        TextButton(
+                            onClick = { onUploadHeldClick(item, unknownReadyService) },
+                            modifier = Modifier.defaultMinSize(minHeight = 48.dp),
+                        ) {
                             Text("Upload for analysis")
                         }
                     }
@@ -1281,7 +1456,10 @@ private fun DownloadEntryRow(
                         .padding(top = 4.dp),
                     horizontalArrangement = Arrangement.Start,
                 ) {
-                    TextButton(onClick = { onDiscardClick(item) }) {
+                    TextButton(
+                        onClick = { onDiscardClick(item) },
+                        modifier = Modifier.defaultMinSize(minHeight = 48.dp),
+                    ) {
                         Text("Delete")
                     }
                 }
@@ -1299,6 +1477,7 @@ private fun DownloadEntryRow(
                 ) {
                     TextButton(
                         onClick = { onCheckFinished(item) },
+                        modifier = Modifier.defaultMinSize(minHeight = 48.dp),
                         contentPadding = PaddingValues(horizontal = 0.dp, vertical = 2.dp),
                     ) {
                         Text("Check file")
@@ -1328,7 +1507,7 @@ private fun DownloadEntryRow(
                             Icon(Icons.Default.Refresh, contentDescription = "Retry")
                         }
                     }
-                    else -> {}
+                    DownloadStatus.CHECKING, DownloadStatus.AWAITING_DECISION, DownloadStatus.FINISHED -> {}
                 }
                 IconButton(onClick = { controller.cancel(item.id) }) {
                     Icon(Icons.Default.Close, contentDescription = "Cancel")
