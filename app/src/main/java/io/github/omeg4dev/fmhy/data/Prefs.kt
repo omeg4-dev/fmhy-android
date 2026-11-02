@@ -148,6 +148,9 @@ data class ProtectionPrefs(
     val askBeforeDownload: Boolean = true,
     val warnRiskyDownloads: Boolean = true,
     val safeBrowsing: Boolean = true,
+    val showVpnState: Boolean = true,
+    val showVpnHomeIcon: Boolean = false,
+    val showIpCountry: Boolean = false,
 )
 
 data class PrivacyPrefs(

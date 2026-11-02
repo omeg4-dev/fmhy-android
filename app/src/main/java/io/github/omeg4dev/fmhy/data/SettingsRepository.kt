@@ -189,6 +189,9 @@ class DefaultSettingsRepository(
         private val KEY_PROTECTION_ASK_BEFORE_DOWNLOAD = booleanPreferencesKey("protection_ask_before_download")
         private val KEY_PROTECTION_WARN_RISKY_DOWNLOADS = booleanPreferencesKey("protection_warn_risky_downloads")
         private val KEY_PROTECTION_SAFE_BROWSING = booleanPreferencesKey("protection_safe_browsing")
+        private val KEY_PROTECTION_SHOW_VPN_STATE = booleanPreferencesKey("protection_show_vpn_state")
+        private val KEY_PROTECTION_SHOW_VPN_HOME_ICON = booleanPreferencesKey("protection_show_vpn_home_icon")
+        private val KEY_PROTECTION_SHOW_IP_COUNTRY = booleanPreferencesKey("protection_show_ip_country")
 
         // Privacy
         private val KEY_PRIVACY_BLOCK_THIRD_PARTY_COOKIES = booleanPreferencesKey("privacy_block_third_party_cookies")
@@ -629,6 +632,9 @@ class DefaultSettingsRepository(
             askBeforeDownload = prefs[KEY_PROTECTION_ASK_BEFORE_DOWNLOAD] ?: default.askBeforeDownload,
             warnRiskyDownloads = prefs[KEY_PROTECTION_WARN_RISKY_DOWNLOADS] ?: default.warnRiskyDownloads,
             safeBrowsing = prefs[KEY_PROTECTION_SAFE_BROWSING] ?: default.safeBrowsing,
+            showVpnState = prefs[KEY_PROTECTION_SHOW_VPN_STATE] ?: default.showVpnState,
+            showVpnHomeIcon = prefs[KEY_PROTECTION_SHOW_VPN_HOME_ICON] ?: default.showVpnHomeIcon,
+            showIpCountry = prefs[KEY_PROTECTION_SHOW_IP_COUNTRY] ?: default.showIpCountry,
         )
     }
 
@@ -641,6 +647,9 @@ class DefaultSettingsRepository(
         prefs[KEY_PROTECTION_ASK_BEFORE_DOWNLOAD] = p.askBeforeDownload
         prefs[KEY_PROTECTION_WARN_RISKY_DOWNLOADS] = p.warnRiskyDownloads
         prefs[KEY_PROTECTION_SAFE_BROWSING] = p.safeBrowsing
+        prefs[KEY_PROTECTION_SHOW_VPN_STATE] = p.showVpnState
+        prefs[KEY_PROTECTION_SHOW_VPN_HOME_ICON] = p.showVpnHomeIcon
+        prefs[KEY_PROTECTION_SHOW_IP_COUNTRY] = p.showIpCountry
     }
 
     override val protectionPrefs: Flow<ProtectionPrefs> = dataStore.data.map { prefs ->

@@ -105,6 +105,10 @@ import io.github.omeg4dev.fmhy.ui.common.LocalBookmarks
 import io.github.omeg4dev.fmhy.ui.common.Motion
 import io.github.omeg4dev.fmhy.ui.common.SavedInfo
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
+import io.github.omeg4dev.fmhy.ui.vpn.ConnectionSafety
+import io.github.omeg4dev.fmhy.ui.vpn.openVpnSettings
+import io.github.omeg4dev.fmhy.ui.vpn.rememberIpLine
+import io.github.omeg4dev.fmhy.work.VpnPolicy
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
@@ -152,6 +156,7 @@ fun BrowserScreen(
         isEditMode = false
     }
     var showShieldSheet by remember { mutableStateOf(false) }
+    var showConnectionSheet by remember { mutableStateOf(false) }
     var showBlockedSheet by remember { mutableStateOf(false) }
     var showTabsSheet by remember { mutableStateOf(false) }
     var showDownloadsSheet by remember { mutableStateOf(false) }
@@ -193,6 +198,8 @@ fun BrowserScreen(
     val customView = hooks?.customView
 
     val container = remember(context) { (context.applicationContext as FmhyApp).container }
+    val vpnState by container.vpnMonitor.state.collectAsStateWithLifecycle()
+    val connectionVpn = VpnPolicy.markFor(vpnState, protectionPrefs.showVpnState)
     val downloadController = container.downloads
     val downloadSummary by downloadController.activeSummary.collectAsStateWithLifecycle()
     val updatePrefs by settingsRepository.updatePrefs.collectAsStateWithLifecycle(initialValue = UpdatePrefs())
@@ -772,6 +779,8 @@ fun BrowserScreen(
                                 findTotalMatches = findTotalMatches,
                                 showBlockedCount = blockingPrefs.showBlockedCount,
                                 isSaved = isSaved,
+                                connectionVpn = connectionVpn,
+                                onConnectionClick = { showConnectionSheet = true },
                                 onShieldClick = { showShieldSheet = true },
                                 onAddressClick = { isEditMode = true },
                                 onTabsClick = { showTabsSheet = true },
@@ -1166,6 +1175,23 @@ fun BrowserScreen(
                 },
                 onDismiss = { hooks.pendingExternalAppDialog = null },
             )
+        }
+    }
+
+    // Connection details behind the ring around the site icon
+    if (showConnectionSheet && currentTab != null) {
+        val level = connectionVpn?.let { ConnectionSafety.levelOf(currentTab.url, it) }
+        if (level != null && connectionVpn != null) {
+            ConnectionSheet(
+                url = currentTab.url,
+                level = level,
+                vpnState = connectionVpn,
+                ipLine = rememberIpLine(container.ipInfoRepository, protectionPrefs.showIpCountry, connectionVpn, active = true),
+                onOpenVpnSettings = { openVpnSettings(context) },
+                onDismiss = { showConnectionSheet = false },
+            )
+        } else {
+            showConnectionSheet = false
         }
     }
 

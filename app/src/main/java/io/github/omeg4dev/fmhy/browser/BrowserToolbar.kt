@@ -123,6 +123,9 @@ import io.github.omeg4dev.fmhy.data.BookmarksRepository
 import io.github.omeg4dev.fmhy.data.ToolbarPosition
 import io.github.omeg4dev.fmhy.ui.common.Motion
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
+import io.github.omeg4dev.fmhy.ui.vpn.ConnectionRing
+import io.github.omeg4dev.fmhy.ui.vpn.ConnectionSafety
+import io.github.omeg4dev.fmhy.work.VpnState
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 
@@ -138,6 +141,8 @@ fun BrowserToolbar(
     findTotalMatches: Int = 0,
     showBlockedCount: Boolean = true,
     isSaved: Boolean = false,
+    connectionVpn: VpnState? = null,
+    onConnectionClick: () -> Unit = {},
     onShieldClick: () -> Unit = {},
     onAddressClick: () -> Unit = {},
     onTabsClick: () -> Unit = {},
@@ -264,6 +269,8 @@ fun BrowserToolbar(
                     // Swiping on the last tab opens a new tab; it stays private when the current tab is private.
                     onNewTabSwipe = { onNewTabClick(tab?.isPrivate == true) },
                     statusIcon = statusIcon,
+                    connectionVpn = connectionVpn,
+                    onConnectionClick = onConnectionClick,
                     modifier = Modifier.weight(1f),
                 )
 
@@ -440,6 +447,8 @@ private fun AddressPill(
     onSelectTab: (Long) -> Unit,
     onNewTabSwipe: () -> Unit = {},
     statusIcon: @Composable () -> Unit,
+    connectionVpn: VpnState? = null,
+    onConnectionClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val haptics = rememberHaptics()
@@ -447,6 +456,15 @@ private fun AddressPill(
     val url = tab?.url.orEmpty()
     val isBlank = tab == null || url.isEmpty() || url == "about:blank"
     val isHttp = url.startsWith("http://", ignoreCase = true)
+    // Ring around the site icon: colour = connection level; null (no ring) when the setting is off or the page is not a web page
+    val connection = if (!isBlank && tab?.interstitialState == null && tab?.showsBlockPage != true) {
+        connectionVpn?.let { ConnectionSafety.levelOf(url, it) }
+    } else {
+        null
+    }
+    val ringed: @Composable (@Composable () -> Unit) -> Unit = { glyph ->
+        if (connection != null) ConnectionRing(connection, onConnectionClick) { glyph() } else glyph()
+    }
 
     val host = try {
         if (isBlank) "Search or type link"
@@ -512,7 +530,7 @@ private fun AddressPill(
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(start = if (tab?.siteBarState != null) 4.dp else 12.dp, end = 4.dp),
+                .padding(start = if (tab?.siteBarState != null || connection != null) 4.dp else 12.dp, end = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             // FMHY status icon (32 dp touch box, 18 dp glyph) with its own tap popover
@@ -546,32 +564,38 @@ private fun AddressPill(
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             } else if (tab?.favicon != null && !tab.isPrivate) {
-                Image(
-                    bitmap = tab.favicon.asImageBitmap(),
-                    contentDescription = null,
-                    modifier = Modifier
-                        .size(20.dp)
-                        .clip(CircleShape),
-                )
+                ringed {
+                    Image(
+                        bitmap = tab.favicon.asImageBitmap(),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(20.dp)
+                            .clip(CircleShape),
+                    )
+                }
             } else if (tab?.isPrivate == true) {
-                Icon(
-                    imageVector = Icons.Default.Security,
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp),
-                    tint = MaterialTheme.colorScheme.primary,
-                )
-            } else if (tab?.siteBarState == null) {
-                // Placeholder only when there's no status icon, so the pill stays uncluttered
-                Icon(
-                    imageVector = Icons.Outlined.Public,
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                ringed {
+                    Icon(
+                        imageVector = Icons.Default.Security,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            } else if (tab?.siteBarState == null || connection != null) {
+                // Placeholder only when there's no status icon (or the ring needs something to wrap), so the pill stays uncluttered
+                ringed {
+                    Icon(
+                        imageVector = Icons.Outlined.Public,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
 
             // Only flag insecure pages; HTTPS is the normal case and needs no lock
-            if (isHttp && url.isNotEmpty() && url != "about:blank") {
+            if (connection == null && isHttp && url.isNotEmpty() && url != "about:blank") {
                 Spacer(modifier = Modifier.width(6.dp))
                 Icon(
                     imageVector = Icons.Default.Warning,

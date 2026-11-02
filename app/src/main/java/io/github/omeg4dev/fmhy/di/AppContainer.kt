@@ -34,6 +34,9 @@ import io.github.omeg4dev.fmhy.data.adblock.FilterListUpdater
 import io.github.omeg4dev.fmhy.data.adblock.OkHttpListFetcher
 import io.github.omeg4dev.fmhy.data.OpenLinksWith
 import io.github.omeg4dev.fmhy.work.NetworkMonitor
+import io.github.omeg4dev.fmhy.work.VpnMonitor
+import io.github.omeg4dev.fmhy.work.IpLookup
+import io.github.omeg4dev.fmhy.work.IpInfoRepository
 import io.github.omeg4dev.fmhy.ui.shell.JobKind
 import io.github.omeg4dev.fmhy.ui.shell.SYNC_CANCELLED
 import io.github.omeg4dev.fmhy.ui.shell.StatusNotices
@@ -103,6 +106,8 @@ interface AppContainer : OnboardingActions {
     val browserHooks: BrowserHooks get() = error("Not supported")
     val statusNotices: StatusNotices get() = error("Not supported")
     val networkMonitor: NetworkMonitor get() = error("Not supported")
+    val vpnMonitor: VpnMonitor get() = error("Not supported")
+    val ipInfoRepository: IpInfoRepository get() = error("Not supported")
     val updateController: io.github.omeg4dev.fmhy.update.UpdateController get() = io.github.omeg4dev.fmhy.update.NoOpUpdateController
     val downloads: DownloadController get() = error("Not supported")
     val checks: DownloadChecks get() = error("Not supported")
@@ -286,6 +291,14 @@ class DefaultAppContainer(
 
     override val networkMonitor: NetworkMonitor by lazy {
         NetworkMonitor(context)
+    }
+
+    override val vpnMonitor: VpnMonitor by lazy {
+        VpnMonitor(context)
+    }
+
+    override val ipInfoRepository: IpInfoRepository by lazy {
+        IpInfoRepository(IpLookup(okHttpClient), networkMonitor, vpnMonitor)
     }
 
     override val updateController by lazy {

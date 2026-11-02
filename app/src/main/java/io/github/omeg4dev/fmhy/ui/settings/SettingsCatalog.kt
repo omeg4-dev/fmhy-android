@@ -495,6 +495,27 @@ object SettingsCatalog {
         description = "Check web addresses against Google Safe Browsing threat databases",
         keywords = listOf("google", "safe", "browsing", "phishing", "malware"),
     )
+    val protectionShowVpnState = SettingEntry(
+        id = "protection.show_vpn_state",
+        page = SettingsPage.PROTECTION,
+        title = "Show VPN and HTTPS ring",
+        description = "Ring around the site icon in the address bar: green = HTTPS and VPN, amber = HTTPS without VPN, red = not secure. Tap it for details",
+        keywords = listOf("vpn", "ring", "https", "secure", "lock", "protected", "favicon"),
+    )
+    val protectionShowVpnHomeIcon = SettingEntry(
+        id = "protection.show_vpn_home_icon",
+        page = SettingsPage.PROTECTION,
+        title = "Show VPN icon on Home",
+        description = "Adds a lock to the Home bar: green when a VPN is active, amber when not. Tap it for details. Off by default",
+        keywords = listOf("vpn", "lock", "home", "icon", "protected"),
+    )
+    val protectionShowIpCountry = SettingEntry(
+        id = "protection.show_ip_country",
+        page = SettingsPage.PROTECTION,
+        title = "Show my IP and country",
+        description = "Sends your IP address to Mullvad (am.i.mullvad.net) when you open the connection details or tap the VPN icon on Home. Off by default",
+        keywords = listOf("ip", "country", "location", "mullvad", "vpn"),
+    )
     val protectionBlockPopups = SettingEntry(
         id = "protection.block_popups",
         page = SettingsPage.PROTECTION,
@@ -856,6 +877,9 @@ object SettingsCatalog {
         protectionWarnUnsafeSites,
         protectionWarnPotentiallyUnsafeSites,
         protectionGoogleSafeBrowsing,
+        protectionShowVpnState,
+        protectionShowVpnHomeIcon,
+        protectionShowIpCountry,
         protectionBlockPopups,
         protectionBlockRedirects,
         protectionBlockAppLinks,

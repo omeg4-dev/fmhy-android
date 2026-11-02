@@ -60,17 +60,26 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import io.github.omeg4dev.fmhy.SectionNavKey
 import io.github.omeg4dev.fmhy.WhatsNewNavKey
-import io.github.omeg4dev.fmhy.ui.shell.SyncStatusIcon
+import io.github.omeg4dev.fmhy.data.ProtectionPrefs
 import io.github.omeg4dev.fmhy.data.link.CrossLinks
 import io.github.omeg4dev.fmhy.data.user.Pin
 import io.github.omeg4dev.fmhy.ui.common.CheckLinkIcon
 import io.github.omeg4dev.fmhy.ui.common.EntryDetailBottomSheet
 import io.github.omeg4dev.fmhy.ui.onboarding.ONBOARDING_VERSION
+import io.github.omeg4dev.fmhy.ui.shell.SyncStatusIcon
+import io.github.omeg4dev.fmhy.ui.vpn.IpLine
+import io.github.omeg4dev.fmhy.ui.vpn.openVpnSettings
+import io.github.omeg4dev.fmhy.ui.vpn.rememberIpLine
+import io.github.omeg4dev.fmhy.ui.vpn.vpnColor
+import io.github.omeg4dev.fmhy.ui.vpn.vpnIcon
+import io.github.omeg4dev.fmhy.ui.vpn.vpnStateHint
+import io.github.omeg4dev.fmhy.ui.vpn.vpnStateText
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import androidx.compose.runtime.Composable
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -140,6 +149,7 @@ fun HomeScreen(
     var showRandomPickDetails by remember { mutableStateOf(false) }
 
     val offerCrashes by container.settingsRepository.reportOfferCrashes.collectAsStateWithLifecycle(initialValue = true)
+    val protectionPrefs by container.settingsRepository.protectionPrefs.collectAsStateWithLifecycle(initialValue = ProtectionPrefs())
     var pendingCrash by remember { mutableStateOf(container.crashReportStore.peek()) }
     val reportRequest by container.reportRequest.collectAsStateWithLifecycle()
     LaunchedEffect(reportRequest) {
@@ -199,15 +209,21 @@ fun HomeScreen(
                     }
                 },
                 actions = {
-                    SyncStatusIcon(container.statusNotices)
-                    IconButton(onClick = onNavigateToCheckLink) {
-                        Icon(CheckLinkIcon, contentDescription = "Check a link")
-                    }
-                    IconButton(onClick = { nav.push(WhatsNewNavKey()) }) {
-                        Icon(Icons.Outlined.NewReleases, contentDescription = "Recent changes")
-                    }
-                    IconButton(onClick = onNavigateToSettings) {
-                        Icon(Icons.Default.Settings, contentDescription = "Settings")
+                    // Tighter action row: 40 dp buttons instead of the 48 dp default.
+                    CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 40.dp) {
+                        SyncStatusIcon(container.statusNotices)
+                        if (protectionPrefs.showVpnHomeIcon) {
+                            VpnStatusAction(container = container, protectionPrefs = protectionPrefs)
+                        }
+                        IconButton(onClick = onNavigateToCheckLink) {
+                            Icon(CheckLinkIcon, contentDescription = "Check a link")
+                        }
+                        IconButton(onClick = { nav.push(WhatsNewNavKey()) }) {
+                            Icon(Icons.Outlined.NewReleases, contentDescription = "Recent changes")
+                        }
+                        IconButton(onClick = onNavigateToSettings) {
+                            Icon(Icons.Default.Settings, contentDescription = "Settings")
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -923,6 +939,78 @@ private fun PinTile(
                 onClick = {
                     menuExpanded = false
                     onToggleFollow()
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun VpnStatusAction(
+    container: AppContainer,
+    protectionPrefs: ProtectionPrefs,
+) {
+    val context = LocalContext.current
+    val vpnState by container.vpnMonitor.state.collectAsStateWithLifecycle()
+    var expanded by remember { mutableStateOf(false) }
+    val ipLine = rememberIpLine(
+        repo = container.ipInfoRepository,
+        enabled = protectionPrefs.showIpCountry,
+        vpn = vpnState,
+        active = expanded,
+    )
+
+    Box {
+        IconButton(onClick = { expanded = true }) {
+            Icon(
+                imageVector = vpnIcon(vpnState),
+                contentDescription = vpnStateText(vpnState),
+                tint = vpnColor(vpnState),
+            )
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            Column(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            ) {
+                Text(
+                    text = vpnStateText(vpnState),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = vpnColor(vpnState),
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = vpnStateHint(vpnState),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                when (ipLine) {
+                    is IpLine.Loading -> {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Checking IP…",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    is IpLine.Text -> {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = ipLine.text,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                    IpLine.Hidden -> Unit
+                }
+            }
+            DropdownMenuItem(
+                text = { Text("Open VPN settings") },
+                onClick = {
+                    expanded = false
+                    openVpnSettings(context)
                 },
             )
         }
