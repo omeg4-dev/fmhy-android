@@ -57,7 +57,7 @@ data class SitePrefs(
     val javascript: Boolean? = null,
     val desktop: Boolean? = null,
     val dark: Boolean? = null,
-    /** "Fix this site": anti-detection bundle for pages that demand the ad blocker be turned off. */
+    /** "Fix this site": allow every ad on this host (blocking, element hiding and scriptlets off). */
     val fixSite: Boolean? = null,
     val updatedAt: Long = 0,
 )

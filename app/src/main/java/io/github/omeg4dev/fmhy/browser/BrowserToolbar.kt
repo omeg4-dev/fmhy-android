@@ -701,7 +701,7 @@ private fun AddressPill(
 
             // Shield with blocked count badge INSIDE the pill on the right
             if (!isBlank) {
-                val isBlockingOn = tab?.sitePrefs?.adblock ?: true
+                val isBlockingOn = tab?.sitePrefs?.adblock != false && tab?.sitePrefs?.fixSite != true
                 val shieldIcon = if (isBlockingOn) Icons.Default.Shield else Icons.Default.RemoveModerator
 
                 Box(

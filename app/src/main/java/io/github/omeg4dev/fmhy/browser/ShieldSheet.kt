@@ -79,12 +79,12 @@ fun ShieldSheet(
     )
 
     // Effective values
-    val adblockOn = sitePrefs?.adblock ?: blockingPrefs.adblock
+    val fixOn = sitePrefs?.fixSite == true
+    val adblockOn = !fixOn && (sitePrefs?.adblock ?: blockingPrefs.adblock)
     val popupsBlockerOn = sitePrefs?.popups?.let { !it } ?: protectionPrefs.popupBlocker
     val jsOn = sitePrefs?.javascript ?: browserPrefs.javascript
     val desktopOn = sitePrefs?.desktop ?: (tab.desktopSite || browserPrefs.desktopByDefault)
     val darkOn = sitePrefs?.dark ?: (browserPrefs.forceDark && isAppDark)
-    val fixOn = sitePrefs?.fixSite == true
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -155,7 +155,7 @@ fun ShieldSheet(
                 icon = Icons.Default.Shield,
                 title = "Ad blocking",
                 checked = adblockOn,
-                onChange = { v -> onUpdateSitePref { it.copy(adblock = v) } },
+                onChange = { v -> onUpdateSitePref { it.copy(adblock = v, fixSite = null) } },
             )
 
             SwitchRow(
@@ -188,7 +188,7 @@ fun ShieldSheet(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Button "Fix this site": anti-detection bundle for "disable your ad blocker" walls.
+            // Button "Fix this site": lets every ad load on this host, for pages that demand the blocker be off.
             Button(
                 onClick = { onUpdateSitePref { it.copy(fixSite = if (fixOn) null else true) } },
                 modifier = Modifier.fillMaxWidth(),
@@ -210,9 +210,9 @@ fun ShieldSheet(
             }
             Text(
                 text = if (fixOn) {
-                    "Ads stay blocked; the page is told they loaded and any ad-blocker wall is hidden."
+                    "All ads load on this site; nothing is blocked, hidden or faked here."
                 } else {
-                    "For pages that say to turn off your ad blocker. Reloads the page."
+                    "For pages that say to turn off your ad blocker: allows all ads on this site. Reloads the page."
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

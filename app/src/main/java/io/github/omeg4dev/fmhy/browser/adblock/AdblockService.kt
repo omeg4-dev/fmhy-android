@@ -352,14 +352,7 @@ class AdblockService(
         onMainFrameBlocked: (rule: String) -> Unit = {},
     ): WebResourceResponse? {
         val prefs = currentBlockingPrefs
-        val fixSite = sitePrefs?.fixSite == true
-        // "Fix this site": a known ad-block detector script is replaced by an empty one, even when
-        // ad blocking itself is off for the page.
-        if (fixSite && !request.isForMainFrame && SiteFix.isDetectorUrl(request.url.toString())) {
-            return emptyResponse(ResourceType.SCRIPT)
-        }
-        if (!prefs.adblock) return null
-        if (sitePrefs?.adblock == false) return null
+        if (!SiteFix.adblockActive(prefs.adblock, sitePrefs)) return null
 
         val urlStr = request.url.toString()
         if (skipBlockingFor != null && (RescueDecision.sameAddress(sourceUrl ?: urlStr, skipBlockingFor) ||
@@ -453,8 +446,7 @@ class AdblockService(
                         )
                     )
                     // 404 (not an empty 200) so <script>/<img> fire onerror like a cancelled request.
-                    // With "Fix this site" the answer is an empty 200: detectors read the 404 as "blocked".
-                    emptyResponse(type, failed = !fixSite)
+                    emptyResponse(type, failed = true)
                 }
             }
         }

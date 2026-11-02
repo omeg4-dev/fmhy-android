@@ -1,32 +1,41 @@
 package io.github.omeg4dev.fmhy.browser
 
+import io.github.omeg4dev.fmhy.data.user.SitePrefs
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SiteFixTest {
+    private val host = "upfilesgo.com"
+
     @Test
-    fun knownDetectorScriptsAreRecognised() {
-        assertTrue(SiteFix.isDetectorUrl("https://cdn.example.com/js/fuckadblock.min.js"))
-        assertTrue(SiteFix.isDetectorUrl("https://example.com/assets/BlockAdBlock.js?v=3"))
-        assertTrue(SiteFix.isDetectorUrl("https://example.com/js/adblock-detect.js"))
-        assertTrue(SiteFix.isDetectorUrl("https://example.com/anti-adblock/loader.js"))
+    fun blockingAppliesByDefault() {
+        assertTrue(SiteFix.adblockActive(globalOn = true, sitePrefs = null))
+        assertTrue(SiteFix.adblockActive(globalOn = true, sitePrefs = SitePrefs(host = host)))
     }
 
     @Test
-    fun ordinaryUrlsAreNotDetectors() {
-        assertFalse(SiteFix.isDetectorUrl("https://example.com/app.js"))
-        assertFalse(SiteFix.isDetectorUrl("https://example.com/jquery.min.js"))
-        // Only the path counts: a tracking query string must not turn a normal script into a "detector".
-        assertFalse(SiteFix.isDetectorUrl("https://example.com/app.js?ref=adblock-detect"))
+    fun fixThisSiteAllowsAllAds() {
+        assertFalse(SiteFix.adblockActive(globalOn = true, sitePrefs = SitePrefs(host = host, fixSite = true)))
     }
 
     @Test
-    fun scriptAsksTheBridgeBeforeDoingAnything() {
-        val js = SiteFix.script("FmhyBridge")
-        assertTrue(js.contains("window[\"FmhyBridge\"]"))
-        assertTrue(js.contains("bridge.fixSite(window.location.href)"))
-        // Guard comes before the first stub.
-        assertTrue(js.indexOf("bridge.fixSite") < js.indexOf("window.adsbygoogle"))
+    fun fixWinsOverAnExplicitBlockingOverride() {
+        val prefs = SitePrefs(host = host, adblock = true, fixSite = true)
+        assertFalse(SiteFix.adblockActive(globalOn = true, sitePrefs = prefs))
+    }
+
+    @Test
+    fun resetToDefaultsBringsBlockingBack() {
+        val fixed = SitePrefs(host = host, fixSite = true)
+        assertFalse(SiteFix.adblockActive(globalOn = true, sitePrefs = fixed))
+        // "Reset to defaults" clears the row, and turning blocking on in the sheet clears fixSite.
+        assertTrue(SiteFix.adblockActive(globalOn = true, sitePrefs = fixed.copy(fixSite = null)))
+    }
+
+    @Test
+    fun globalSwitchAndSiteOffStillWin() {
+        assertFalse(SiteFix.adblockActive(globalOn = false, sitePrefs = null))
+        assertFalse(SiteFix.adblockActive(globalOn = true, sitePrefs = SitePrefs(host = host, adblock = false)))
     }
 }

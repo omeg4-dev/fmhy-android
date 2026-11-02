@@ -878,7 +878,7 @@ class DefaultBrowserHooks(
 
     private fun adblockActive(record: TabRecord): Boolean {
         val tm = tabManager ?: return false
-        return tm.adblockService.currentBlockingPrefs.adblock && record.sitePrefs?.adblock != false
+        return SiteFix.adblockActive(tm.adblockService.currentBlockingPrefs.adblock, record.sitePrefs)
     }
 
     private fun buildRescueState(
