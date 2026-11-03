@@ -51,10 +51,6 @@ fun ProtectionPage(
         eWarnUnsafeSites.id,
         eWarnPotentiallyUnsafeSites.id,
         eGoogleSafeBrowsing.id,
-        eShowVpnState.id,
-        eShowVpnHomeIcon.id,
-        eShowIpCountry.id,
-        eBlockWithoutVpn.id,
         eBlockPopups.id,
         eBlockRedirects.id,
         eBlockAppLinks.id,
@@ -62,7 +58,13 @@ fun ProtectionPage(
         eWarnRiskyDownloads.id,
         eForgetVtChecks.id,
     )
-    val sectionSettingIds = remember { listOf(protectionIds) }
+    val vpnIds = listOf(
+        eShowVpnState.id,
+        eShowVpnHomeIcon.id,
+        eShowIpCountry.id,
+        eBlockWithoutVpn.id,
+    )
+    val sectionSettingIds = remember { listOf(protectionIds, vpnIds) }
     val listState = rememberFocusedListState(sectionSettingIds)
 
     Scaffold(
@@ -117,47 +119,6 @@ fun ProtectionPage(
                         settingId = eGoogleSafeBrowsing.id,
                         onChange = { checked ->
                             viewModel.updateProtection { it.copy(safeBrowsing = checked) }
-                        },
-                    )
-                    SettingsDivider()
-                    SwitchRow(
-                        title = eShowVpnState.title,
-                        summary = eShowVpnState.description,
-                        checked = protectionPrefs.showVpnState,
-                        settingId = eShowVpnState.id,
-                        onChange = { checked ->
-                            viewModel.updateProtection { it.copy(showVpnState = checked) }
-                        },
-                    )
-                    SettingsDivider()
-                    SwitchRow(
-                        title = eShowVpnHomeIcon.title,
-                        summary = eShowVpnHomeIcon.description,
-                        checked = protectionPrefs.showVpnHomeIcon,
-                        settingId = eShowVpnHomeIcon.id,
-                        onChange = { checked ->
-                            viewModel.updateProtection { it.copy(showVpnHomeIcon = checked) }
-                        },
-                    )
-                    SettingsDivider()
-                    SwitchRow(
-                        title = eShowIpCountry.title,
-                        summary = eShowIpCountry.description,
-                        checked = protectionPrefs.showIpCountry,
-                        settingId = eShowIpCountry.id,
-                        onChange = { checked ->
-                            viewModel.updateProtection { it.copy(showIpCountry = checked) }
-                        },
-                    )
-                    SettingsDivider()
-                    SwitchRow(
-                        title = eBlockWithoutVpn.title,
-                        summary = eBlockWithoutVpn.description,
-                        checked = protectionPrefs.blockWithoutVpn,
-                        enabled = protectionPrefs.showVpnState,
-                        settingId = eBlockWithoutVpn.id,
-                        onChange = { checked ->
-                            viewModel.updateProtection { it.copy(blockWithoutVpn = checked) }
                         },
                     )
                     SettingsDivider()
@@ -217,6 +178,51 @@ fun ProtectionPage(
                         settingId = eForgetVtChecks.id,
                         onClick = {
                             viewModel.clearVtChecks { onShowSnackbar("Checked sites forgotten") }
+                        },
+                    )
+                }
+            }
+
+            item {
+                SettingsSection(title = "VPN") {
+                    SwitchRow(
+                        title = eShowVpnState.title,
+                        summary = eShowVpnState.description,
+                        checked = protectionPrefs.showVpnState,
+                        settingId = eShowVpnState.id,
+                        onChange = { checked ->
+                            viewModel.updateProtection { it.copy(showVpnState = checked) }
+                        },
+                    )
+                    SettingsDivider()
+                    SwitchRow(
+                        title = eShowVpnHomeIcon.title,
+                        summary = eShowVpnHomeIcon.description,
+                        checked = protectionPrefs.showVpnHomeIcon,
+                        settingId = eShowVpnHomeIcon.id,
+                        onChange = { checked ->
+                            viewModel.updateProtection { it.copy(showVpnHomeIcon = checked) }
+                        },
+                    )
+                    SettingsDivider()
+                    SwitchRow(
+                        title = eShowIpCountry.title,
+                        summary = eShowIpCountry.description,
+                        checked = protectionPrefs.showIpCountry,
+                        settingId = eShowIpCountry.id,
+                        onChange = { checked ->
+                            viewModel.updateProtection { it.copy(showIpCountry = checked) }
+                        },
+                    )
+                    SettingsDivider()
+                    SwitchRow(
+                        title = eBlockWithoutVpn.title,
+                        summary = eBlockWithoutVpn.description,
+                        checked = protectionPrefs.blockWithoutVpn,
+                        enabled = protectionPrefs.showVpnState,
+                        settingId = eBlockWithoutVpn.id,
+                        onChange = { checked ->
+                            viewModel.updateProtection { it.copy(blockWithoutVpn = checked) }
                         },
                     )
                 }
