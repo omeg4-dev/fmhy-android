@@ -28,6 +28,7 @@ fun ProtectionPage(
     viewModel: SettingsViewModel,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    onShowSnackbar: (String) -> Unit = {},
     extraRows: LazyListScope.() -> Unit = {},
 ) {
     val protectionPrefs by viewModel.protectionPrefs.collectAsStateWithLifecycle()
@@ -44,6 +45,7 @@ fun ProtectionPage(
     val eBlockAppLinks = SettingsCatalog.protectionBlockAppLinks
     val eAskBeforeDownloads = SettingsCatalog.protectionAskBeforeDownloads
     val eWarnRiskyDownloads = SettingsCatalog.protectionWarnRiskyDownloads
+    val eForgetVtChecks = SettingsCatalog.protectionForgetVtChecks
 
     val protectionIds = listOf(
         eWarnUnsafeSites.id,
@@ -58,6 +60,7 @@ fun ProtectionPage(
         eBlockAppLinks.id,
         eAskBeforeDownloads.id,
         eWarnRiskyDownloads.id,
+        eForgetVtChecks.id,
     )
     val sectionSettingIds = remember { listOf(protectionIds) }
     val listState = rememberFocusedListState(sectionSettingIds)
@@ -205,6 +208,15 @@ fun ProtectionPage(
                         settingId = eWarnRiskyDownloads.id,
                         onChange = { checked ->
                             viewModel.updateProtection { it.copy(warnRiskyDownloads = checked) }
+                        },
+                    )
+                    SettingsDivider()
+                    NavRow(
+                        title = eForgetVtChecks.title,
+                        summary = eForgetVtChecks.description,
+                        settingId = eForgetVtChecks.id,
+                        onClick = {
+                            viewModel.clearVtChecks { onShowSnackbar("Checked sites forgotten") }
                         },
                     )
                 }

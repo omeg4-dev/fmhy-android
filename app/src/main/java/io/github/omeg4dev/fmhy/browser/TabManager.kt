@@ -989,9 +989,9 @@ class TabManager(
         }
     }
 
-    fun openFileCheckSettings() {
+    fun openFileCheckSettings(focusSetting: String? = null) {
         val container = (appContext as? FmhyApp)?.container
-        container?.pushNavigation(SettingsPageNavKey(SettingsPage.DOWNLOADS))
+        container?.pushNavigation(SettingsPageNavKey(SettingsPage.DOWNLOADS, focusSetting))
         bringFmhyToFront(appContext)
     }
 

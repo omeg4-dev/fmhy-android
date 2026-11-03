@@ -283,7 +283,7 @@ private fun CheckChipItem(
     }
 }
 
-private fun chipColors(tone: CheckChipTone, isDark: Boolean, colorScheme: ColorScheme): Pair<Color, Color> {
+internal fun chipColors(tone: CheckChipTone, isDark: Boolean, colorScheme: ColorScheme): Pair<Color, Color> {
     return when (tone) {
         CheckChipTone.OK -> if (isDark) {
             Color(0xFF1D3B26) to Color(0xFF9BE0AC)

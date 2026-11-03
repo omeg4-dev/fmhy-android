@@ -558,6 +558,14 @@ object SettingsCatalog {
         description = "Show an extra warning when downloading executable files, installers, and Android packages",
         keywords = listOf("apk", "exe", "executable", "warning", "installers"),
     )
+    val protectionForgetVtChecks = SettingEntry(
+        id = "protection.forget_vt_checks",
+        page = SettingsPage.PROTECTION,
+        title = "Forget checked sites",
+        description = "Removes the sites you checked with VirusTotal from this device. Their green badge goes away",
+        keywords = listOf("virustotal", "checked", "forget", "badge", "safe"),
+        advanced = false,
+    )
 
     // Privacy & history
     val privacyBlockThirdPartyCookies = SettingEntry(
@@ -893,6 +901,7 @@ object SettingsCatalog {
         protectionBlockAppLinks,
         protectionAskBeforeDownloads,
         protectionWarnRiskyDownloads,
+        protectionForgetVtChecks,
         // Privacy & history
         privacyBlockThirdPartyCookies,
         privacyHideCookieBanners,

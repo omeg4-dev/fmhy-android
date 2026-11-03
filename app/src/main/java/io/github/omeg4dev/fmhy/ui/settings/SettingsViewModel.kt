@@ -455,6 +455,13 @@ class SettingsViewModel(
         }
     }
 
+    fun clearVtChecks(onDone: () -> Unit = {}) {
+        viewModelScope.launch {
+            container.vtChecks.forgetAll()
+            onDone()
+        }
+    }
+
     fun updateBrowser(f: (BrowserPrefs) -> BrowserPrefs) {
         viewModelScope.launch {
             settingsRepository.updateBrowser(f)

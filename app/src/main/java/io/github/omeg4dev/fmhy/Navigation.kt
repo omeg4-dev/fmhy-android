@@ -634,6 +634,9 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                     SettingsPage.PROTECTION -> ProtectionPage(
                         viewModel = settingsViewModel,
                         onBack = { if (!nav.back()) activity?.finish() },
+                        onShowSnackbar = { msg ->
+                            scope.launch { snackbarHostState.showSnackbar(msg) }
+                        },
                     )
                     SettingsPage.PRIVACY -> PrivacyPage(
                         viewModel = settingsViewModel,

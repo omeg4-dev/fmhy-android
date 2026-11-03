@@ -19,12 +19,20 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -32,17 +40,23 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import io.github.omeg4dev.fmhy.FmhyApp
+import io.github.omeg4dev.fmhy.browser.download.CheckChipTone
 import io.github.omeg4dev.fmhy.browser.download.DownloadOffer
 import io.github.omeg4dev.fmhy.browser.download.DownloadOfferText
 import io.github.omeg4dev.fmhy.browser.download.DownloadPolicy
 import io.github.omeg4dev.fmhy.browser.download.DownloadRequest
 import io.github.omeg4dev.fmhy.browser.download.DownloadSourceStatus
 import io.github.omeg4dev.fmhy.browser.download.NewDownload
+import io.github.omeg4dev.fmhy.browser.download.ScanService
+import io.github.omeg4dev.fmhy.browser.download.VtSiteChecks
 import io.github.omeg4dev.fmhy.browser.download.buildOffer
+import io.github.omeg4dev.fmhy.browser.download.chipColors
 import kotlinx.coroutines.flow.first
 import io.github.omeg4dev.fmhy.ui.common.Motion
 import io.github.omeg4dev.fmhy.ui.common.PasteAction
@@ -1026,6 +1040,12 @@ class DefaultBrowserHooks(
         }
     }
 
+    private fun hostOf(url: String?): String? {
+        if (url == null || !DownloadRequest.isHttpUrl(url)) return null
+        val h = DownloadRequest.hostOf(url)
+        return h.ifBlank { null }
+    }
+
     override val siteStatusIcon: @Composable (TabState) -> Unit = { tab ->
         val state = tab.siteBarState
         AnimatedVisibility(
@@ -1044,6 +1064,11 @@ class DefaultBrowserHooks(
                 var showPopover by remember { mutableStateOf(false) }
                 var detailEntry by remember { mutableStateOf<Entry?>(null) }
                 val state = st
+
+                val host = remember(tab.url) { hostOf(tab.url) }
+                val marks by container.vtChecks.checked.collectAsState()
+                LaunchedEffect(Unit) { container.vtChecks.load() }
+                val mark = host?.let { marks[VtSiteChecks.normalizeHost(it)] }?.takeIf { container.vtChecks.markFor(host) != null }
 
                 PasteDecodeUi(pasteDecoder)
 
@@ -1065,6 +1090,26 @@ class DefaultBrowserHooks(
                             )
                         }
                     }
+                    if (mark != null && state.kind != SiteBarKind.FMHY_SITE && state.kind != SiteBarKind.UNSAFE) {
+                        val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+                        val (_, okContent) = chipColors(CheckChipTone.OK, isDark, MaterialTheme.colorScheme)
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .offset(x = (-2).dp, y = (-2).dp)
+                                .size(10.dp)
+                                .border(width = 1.5.dp, color = MaterialTheme.colorScheme.surface, shape = CircleShape)
+                                .background(color = okContent, shape = CircleShape),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Check,
+                                contentDescription = "Checked with VirusTotal",
+                                tint = Color.White,
+                                modifier = Modifier.size(7.dp),
+                            )
+                        }
+                    }
                     if (showPopover) {
                         val preferAbove = tabManager?.currentBrowserPrefs?.toolbarPosition ==
                             io.github.omeg4dev.fmhy.data.ToolbarPosition.BOTTOM
@@ -1080,6 +1125,22 @@ class DefaultBrowserHooks(
                             onEntryDetails = { entry ->
                                 showPopover = false
                                 detailEntry = entry
+                            },
+                            host = host,
+                            isPrivate = tab.isPrivate,
+                            vtMark = mark,
+                            vtReady = ScanService.VIRUSTOTAL in container.checks.prefs.value.readyServices,
+                            onSetupVt = {
+                                showPopover = false
+                                tabManager?.openFileCheckSettings("downloads.virustotal_key")
+                            },
+                            onCheckVt = {
+                                val r = container.checks.checkLink("https://$host/", listOf(ScanService.VIRUSTOTAL))
+                                val vt = r.services.firstOrNull { it.service == ScanService.VIRUSTOTAL }
+                                if (host != null && vt != null && VtSiteChecks.shouldRemember(vt.verdict) && vt.error == null && !tab.isPrivate) {
+                                    container.vtChecks.remember(host, vt.flagged, vt.engines)
+                                }
+                                r
                             },
                         )
                     }

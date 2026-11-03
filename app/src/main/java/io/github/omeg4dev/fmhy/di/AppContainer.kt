@@ -27,6 +27,7 @@ import io.github.omeg4dev.fmhy.browser.TabManager
 import io.github.omeg4dev.fmhy.browser.download.DownloadChecks
 import io.github.omeg4dev.fmhy.browser.download.DownloadController
 import io.github.omeg4dev.fmhy.browser.download.HopChecker
+import io.github.omeg4dev.fmhy.browser.download.VtSiteChecks
 import io.github.omeg4dev.fmhy.browser.adblock.AdblockService
 import io.github.omeg4dev.fmhy.browser.adblock.DefaultAdblockUpdater
 import io.github.omeg4dev.fmhy.browser.adblock.ScriptletLibrary
@@ -111,6 +112,7 @@ interface AppContainer : OnboardingActions {
     val updateController: io.github.omeg4dev.fmhy.update.UpdateController get() = io.github.omeg4dev.fmhy.update.NoOpUpdateController
     val downloads: DownloadController get() = error("Not supported")
     val checks: DownloadChecks get() = error("Not supported")
+    val vtChecks: VtSiteChecks get() = error("Not supported")
     val firstWikiNeedsMobilePermission: MutableStateFlow<Boolean> get() = MutableStateFlow(false)
     val isSyncWaitingForWifi: MutableStateFlow<Boolean> get() = MutableStateFlow(false)
     val hasBuiltInWiki: Boolean get() = false
@@ -328,6 +330,8 @@ class DefaultAppContainer(
         )
     }
 
+    override val vtChecks by lazy { VtSiteChecks(userStore) }
+
     override val firstWikiNeedsMobilePermission = MutableStateFlow(false)
     override val isSyncWaitingForWifi = MutableStateFlow(false)
 
@@ -492,6 +496,7 @@ class DefaultAppContainer(
         appScope.launch(Dispatchers.IO) {
             try {
                 downloads.start()
+                vtChecks.load()
                 bookmarks.migrateLegacyIfNeeded()
                 if (!dbFile.exists() || !datasetStore.isSchemaCurrent()) {
                     datasetStore.close()
