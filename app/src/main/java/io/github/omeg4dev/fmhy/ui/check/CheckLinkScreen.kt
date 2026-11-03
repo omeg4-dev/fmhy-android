@@ -97,6 +97,8 @@ data class RecentCheck(
     val ts: Long = System.currentTimeMillis(),
 )
 
+private const val PUSH_TRANSITION_MS = 220L
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CheckLinkScreen(
@@ -214,9 +216,12 @@ fun CheckLinkScreen(
         }
     }
 
-    // Autofocus when initial is empty
+    // Autofocus when initial is empty. Wait for the push transition (220 ms slide): focusing a field
+    // that is still sliding in makes the tab pager scroll sideways to reveal it and flashes the
+    // Search tab over this screen.
     LaunchedEffect(Unit) {
         if (initialQuery.isEmpty()) {
+            delay(PUSH_TRANSITION_MS + 40)
             focusRequester.requestFocus()
         }
     }
