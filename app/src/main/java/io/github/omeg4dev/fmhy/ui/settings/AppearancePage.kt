@@ -37,6 +37,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -49,6 +51,9 @@ import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -545,12 +550,60 @@ fun AppearancePage(
                 var selectedIcon by remember(appearance.appIcon) {
                     mutableStateOf(appearance.appIcon)
                 }
+                var showLight by remember { mutableStateOf(appearance.appIcon.light) }
                 val hasChanged = selectedIcon != appearance.appIcon
 
                 SettingsSection(
                     title = eAppIcon.title,
                     modifier = Modifier.settingHighlight(eAppIcon.id),
                 ) {
+                    SingleChoiceSegmentedButtonRow(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                    ) {
+                        SegmentedButton(
+                            selected = !showLight,
+                            onClick = {
+                                if (showLight) {
+                                    haptics.tick()
+                                    showLight = false
+                                }
+                            },
+                            shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                            icon = {
+                                SegmentedButtonDefaults.Icon(active = !showLight) {
+                                    Icon(
+                                        imageVector = Icons.Default.DarkMode,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(SegmentedButtonDefaults.IconSize),
+                                    )
+                                }
+                            },
+                            label = { Text("Dark") },
+                        )
+                        SegmentedButton(
+                            selected = showLight,
+                            onClick = {
+                                if (!showLight) {
+                                    haptics.tick()
+                                    showLight = true
+                                }
+                            },
+                            shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                            icon = {
+                                SegmentedButtonDefaults.Icon(active = showLight) {
+                                    Icon(
+                                        imageVector = Icons.Default.LightMode,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(SegmentedButtonDefaults.IconSize),
+                                    )
+                                }
+                            },
+                            label = { Text("Light") },
+                        )
+                    }
+
                     FlowRow(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -559,14 +612,7 @@ fun AppearancePage(
                         verticalArrangement = Arrangement.spacedBy(16.dp),
                         maxItemsInEachRow = 4,
                     ) {
-                        listOf("Dark" to false, "Light" to true).forEach { (groupTitle, light) ->
-                        Text(
-                            text = groupTitle,
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.fillMaxWidth().padding(start = 8.dp),
-                        )
-                        AppIcon.entries.filter { !it.hidden && it.light == light }.forEach { icon ->
+                        AppIcon.entries.filter { !it.hidden && it.light == showLight }.forEach { icon ->
                             val isSelected = selectedIcon == icon
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -636,7 +682,6 @@ fun AppearancePage(
                                     modifier = Modifier.padding(top = 6.dp),
                                 )
                             }
-                        }
                         }
                     }
 
