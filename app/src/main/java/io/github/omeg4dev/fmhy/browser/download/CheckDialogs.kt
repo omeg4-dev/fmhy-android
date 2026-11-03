@@ -14,6 +14,35 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
 @Composable
+fun SubmitLinkDialog(
+    service: ScanService,
+    host: String,
+    onSubmit: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Submit for scan?") },
+        text = {
+            Text("Nobody has checked $host on ${service.label} yet. Submitting sends the address to ${service.label}, which scans it and keeps the result visible to everyone. The scan takes about a minute.")
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                onSubmit()
+                onDismiss()
+            }) {
+                Text("Submit")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        },
+    )
+}
+
+@Composable
 fun UploadWarningDialog(
     service: ScanService,
     onUpload: () -> Unit,

@@ -39,6 +39,7 @@ import io.github.omeg4dev.fmhy.browser.download.ScanResult
 import io.github.omeg4dev.fmhy.browser.download.ScanService
 import io.github.omeg4dev.fmhy.browser.download.ScanText
 import io.github.omeg4dev.fmhy.browser.download.ScanVerdict
+import io.github.omeg4dev.fmhy.browser.download.SubmitLinkDialog
 import io.github.omeg4dev.fmhy.browser.download.VtMark
 import io.github.omeg4dev.fmhy.browser.download.chipColors
 import java.text.DateFormat
@@ -54,19 +55,40 @@ internal fun VtCheckSection(
     isPrivate: Boolean,
     vtMark: VtMark?,
     vtReady: Boolean,
+    host: String,
     onCheckVt: suspend () -> ScanResult?,
+    onSubmitVt: suspend () -> ScanResult?,
     onSetupVt: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
     var isRunning by remember { mutableStateOf(false) }
     var localResult by remember { mutableStateOf<ScanResult?>(null) }
+    var isSubmitting by remember { mutableStateOf(false) }
+    var askSubmit by remember { mutableStateOf(false) }
     val runCheck: () -> Unit = {
         isRunning = true
+        isSubmitting = false
         scope.launch {
             localResult = onCheckVt()
             isRunning = false
         }
+    }
+    val runSubmit: () -> Unit = {
+        isRunning = true
+        isSubmitting = true
+        scope.launch {
+            localResult = onSubmitVt()
+            isRunning = false
+        }
+    }
+    if (askSubmit) {
+        SubmitLinkDialog(
+            service = ScanService.VIRUSTOTAL,
+            host = host,
+            onSubmit = runSubmit,
+            onDismiss = { askSubmit = false },
+        )
     }
     fun dateText(at: Long) = DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(at))
     fun flagsText(label: String, flagged: Int?, engines: Int?) =
@@ -77,7 +99,7 @@ internal fun VtCheckSection(
         val vt = result?.services?.firstOrNull { it.service == ScanService.VIRUSTOTAL }
         when {
             isRunning -> {
-                VtChip(CheckChipTone.RUNNING, "Checking with VirusTotal…") { tint ->
+                VtChip(CheckChipTone.RUNNING, if (isSubmitting) "Scanning with VirusTotal…" else "Checking with VirusTotal…") { tint ->
                     CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp, color = tint)
                 }
             }
@@ -105,6 +127,7 @@ internal fun VtCheckSection(
                 ScanVerdict.UNKNOWN -> {
                     VtChip(CheckChipTone.NEUTRAL, "Not known to VirusTotal yet", icon = chipIcon(Icons.Filled.GppMaybe))
                     VtNote("Not remembered.")
+                    FilledTonalButton(onClick = { askSubmit = true }) { Text("Submit for scan") }
                 }
             }
             vtMark != null -> {

@@ -163,6 +163,8 @@ class HybridAnalysisClient(
         }
     }
 
+    override suspend fun submitLink(url: String): PendingAnalysis = throw ScanException(ScanError.OTHER)
+
     override suspend fun upload(
         fileName: String,
         size: Long,

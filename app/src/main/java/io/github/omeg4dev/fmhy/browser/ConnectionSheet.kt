@@ -45,10 +45,12 @@ import io.github.omeg4dev.fmhy.work.VpnState
 
 /** What the site menu needs for its VirusTotal block. */
 class VtSheetState(
+    val host: String,
     val isPrivate: Boolean,
     val mark: VtMark?,
     val ready: Boolean,
     val onCheck: suspend () -> ScanResult?,
+    val onSubmit: suspend () -> ScanResult?,
     val onSetup: () -> Unit,
 )
 
@@ -141,7 +143,9 @@ fun ConnectionSheet(
                     isPrivate = vt.isPrivate,
                     vtMark = vt.mark,
                     vtReady = vt.ready,
+                    host = vt.host,
                     onCheckVt = vt.onCheck,
+                    onSubmitVt = vt.onSubmit,
                     onSetupVt = vt.onSetup,
                 )
             }

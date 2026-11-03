@@ -9,6 +9,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import okhttp3.FormBody
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
@@ -144,6 +145,28 @@ class VirusTotalClient(
                 reportUrl = reportUrl,
                 error = ScanError.OFFLINE,
             )
+        }
+    }
+
+    override suspend fun submitLink(url: String): PendingAnalysis = withContext(Dispatchers.IO) {
+        try {
+            waitRateLimit()
+            val request = newRequestBuilder("https://www.virustotal.com/api/v3/urls")
+                .post(FormBody.Builder().add("url", url).build())
+                .build()
+            val analysisId = client.newCall(request).execute().use { resp ->
+                val body = resp.body?.string().orEmpty()
+                val err = ScanParsers.errorFor(resp.code)
+                if (err != null) throw ScanException(err)
+                ScanParsers.vtAnalysisId(body) ?: throw ScanException(ScanError.OTHER)
+            }
+            PendingAnalysis(ScanService.VIRUSTOTAL, analysisId, clock())
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: ScanException) {
+            throw e
+        } catch (_: IOException) {
+            throw ScanException(ScanError.OFFLINE)
         }
     }
 

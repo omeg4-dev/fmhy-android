@@ -1196,11 +1196,20 @@ fun BrowserScreen(
             val vtMarks by container.vtChecks.checked.collectAsStateWithLifecycle()
             val vtState = if (vtAllowed && vtHost != null) {
                 VtSheetState(
+                    host = vtHost,
                     isPrivate = sheetTab.isPrivate,
                     mark = vtMarks[VtSiteChecks.normalizeHost(vtHost)]?.takeIf { container.vtChecks.markFor(vtHost) != null },
                     ready = ScanService.VIRUSTOTAL in container.checks.prefs.value.readyServices,
                     onCheck = {
                         val result = container.checks.checkLink("https://$vtHost/", listOf(ScanService.VIRUSTOTAL))
+                        val vt = result.services.firstOrNull { it.service == ScanService.VIRUSTOTAL }
+                        if (vt != null && vt.error == null && VtSiteChecks.shouldRemember(vt.verdict) && !sheetTab.isPrivate) {
+                            container.vtChecks.remember(vtHost, vt.flagged, vt.engines)
+                        }
+                        result
+                    },
+                    onSubmit = {
+                        val result = container.checks.submitLink("https://$vtHost/", ScanService.VIRUSTOTAL)
                         val vt = result.services.firstOrNull { it.service == ScanService.VIRUSTOTAL }
                         if (vt != null && vt.error == null && VtSiteChecks.shouldRemember(vt.verdict) && !sheetTab.isPrivate) {
                             container.vtChecks.remember(vtHost, vt.flagged, vt.engines)

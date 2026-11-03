@@ -158,7 +158,24 @@ class DownloadChecks(
         }
     }
 
-    suspend fun awaitPending(result: ScanResult): ScanResult {
+    /** Asks [service] to scan [url], then waits for the verdict. Failures come back as an error result. */
+    suspend fun submitLink(url: String, service: ScanService): ScanResult {
+        val reportUrl = ScanLinks.linkReport(service, url)
+        val pending = try {
+            client(service).submitLink(url)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            return ScanResult(ScanKind.LINK, null, listOf(failed(service, errorOf(e))), clock())
+        }
+        val done = awaitPending(
+            ScanResult(ScanKind.LINK, null, emptyList(), clock(), pending = listOf(pending)),
+            pollEveryMs = 5_000L,
+        )
+        return done.copy(services = done.services.map { it.copy(reportUrl = reportUrl) })
+    }
+
+    suspend fun awaitPending(result: ScanResult, pollEveryMs: Long = 30_000L): ScanResult {
         val maxWaitMs = 20 * 60 * 1000L
         val start = clock()
         var current = result
@@ -200,7 +217,7 @@ class DownloadChecks(
                 if (clock() - start >= maxWaitMs) {
                     continue
                 }
-                delay(30_000L)
+                delay(pollEveryMs)
             }
         }
         return current

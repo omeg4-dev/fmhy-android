@@ -205,6 +205,8 @@ interface ScanClient {
     suspend fun lookupFile(sha256: String): ServiceResult
     suspend fun lookupLink(url: String): ServiceResult
     suspend fun upload(fileName: String, size: Long, open: () -> InputStream): PendingAnalysis
+    /** Asks the service to scan a web address it hasn't seen yet. */
+    suspend fun submitLink(url: String): PendingAnalysis
     suspend fun poll(pending: PendingAnalysis, sha256: String?): ServiceResult?
 }
 
