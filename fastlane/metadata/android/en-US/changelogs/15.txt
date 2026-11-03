@@ -1,0 +1,3 @@
+- What's new now shows the real history: 24 hours, 7 days and 30 days no longer repeat the same changes, and fresh installs are no longer empty
+- The history updates itself from a feed, so it also fills in for existing installs
+- A note under the title says when the history starts if it is shorter than the chosen period
