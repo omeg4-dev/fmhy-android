@@ -57,19 +57,26 @@ object SettingsCatalog {
     )
 
     // Home
-    val homePersonalHome = SettingEntry(
-        id = "home.personal_home",
+    val homeBlocks = SettingEntry(
+        id = "home.blocks",
         page = SettingsPage.HOME,
-        title = "Personal Home",
-        description = "Pin categories and hide sections you do not use",
-        keywords = listOf("personal", "home", "pin", "hide", "sections"),
-    )
-    val homeRandomPick = SettingEntry(
-        id = "home.random_pick",
-        page = SettingsPage.HOME,
-        title = "Show random pick",
-        description = "Show a random recommended site on the Browse tab",
-        keywords = listOf("random", "pick", "recommendation", "browse", "suggest"),
+        title = "Build your Home",
+        description = "Choose which blocks Home shows and in what order",
+        keywords = listOf(
+            "blocks",
+            "reorder",
+            "personal home",
+            "random pick",
+            "favourites",
+            "favorites",
+            "suggestions",
+            "pinned",
+            "search",
+            "new since last visit",
+            "pinned categories",
+            "new in pinned categories",
+            "sections list",
+        ),
     )
     val homeSectionOrder = SettingEntry(
         id = "home.section_order",
@@ -826,8 +833,7 @@ object SettingsCatalog {
         appearanceTextSize,
         appearanceAppIcon,
         // Home
-        homePersonalHome,
-        homeRandomPick,
+        homeBlocks,
         homeSectionOrder,
         homePinnedSections,
         homeHiddenSections,

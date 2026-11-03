@@ -48,6 +48,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import io.github.omeg4dev.fmhy.ui.home.HomeBlock
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
@@ -286,7 +287,7 @@ fun SettingsHub(
                         } else {
                             ACCENT_PRESETS.firstOrNull { it.seed == state.appearance.accentSeed }?.name ?: "Custom"
                         }
-                        val homeSummary = if (homePrefs.personalHome) "Personal Home on" else "Personal Home off"
+                        val homeSummary = "${homePrefs.blocks.enabledCount} of ${HomeBlock.entries.size} blocks on"
                         val listsSummary = when (state.appearance.sectionLayout) {
                             SectionLayout.CONTINUOUS -> "Continuous"
                             SectionLayout.CATEGORIES -> "Categories"

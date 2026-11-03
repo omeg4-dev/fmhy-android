@@ -2,6 +2,8 @@ package io.github.omeg4dev.fmhy.data
 
 import io.github.omeg4dev.fmhy.browser.download.ScanService
 import io.github.omeg4dev.fmhy.data.adblock.FilterListCatalog
+import io.github.omeg4dev.fmhy.ui.home.HomeBlock
+import io.github.omeg4dev.fmhy.ui.home.HomeLayout
 
 // Preference groups added in 0.5. The older prefs stay in [Appearance]. Defaults here are the
 // defaults for new installs; DataStore keys live in DefaultSettingsRepository.
@@ -74,7 +76,7 @@ enum class SearchEngine(val label: String, val queryUrl: String) {
 }
 
 data class HomePrefs(
-    val personalHome: Boolean = false,
+    val blocks: HomeLayout = HomeLayout.default(),
     /** 0 = NEW badges off. */
     val newBadgeDays: Int = 7,
     /** Search: whole words only. Off = fuzzy (prefix + typo-tolerant trigram matches). */
@@ -84,7 +86,10 @@ data class HomePrefs(
     val swipeBetweenScreens: Boolean = true,
     /** Main category names from the FMHY website (Streaming, Listening…). Off = the wiki titles used before 1.1.0. */
     val websiteCategoryNames: Boolean = true,
-)
+) {
+    val personalHome: Boolean
+        get() = blocks.isEnabled(HomeBlock.PINNED)
+}
 
 data class BrowserPrefs(
     val openLinksWith: OpenLinksWith = OpenLinksWith.IN_APP,

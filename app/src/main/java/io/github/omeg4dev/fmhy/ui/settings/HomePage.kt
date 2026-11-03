@@ -1,21 +1,38 @@
 package io.github.omeg4dev.fmhy.ui.settings
 
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Casino
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DragHandle
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.NewReleases
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -24,14 +41,21 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -39,6 +63,58 @@ import io.github.omeg4dev.fmhy.data.SectionOrder
 import io.github.omeg4dev.fmhy.ui.common.displayTitle
 import io.github.omeg4dev.fmhy.ui.common.sectionDisplayTitle
 import io.github.omeg4dev.fmhy.ui.common.sectionIcon
+import io.github.omeg4dev.fmhy.ui.home.HomeBlock
+import io.github.omeg4dev.fmhy.ui.home.HomeLayout
+import sh.calvin.reorderable.ReorderableColumn
+
+private data class HomeBlockInfo(
+    val title: String,
+    val summary: String,
+    val icon: ImageVector,
+)
+
+private fun homeBlockInfo(block: HomeBlock): HomeBlockInfo = when (block) {
+    HomeBlock.SEARCH -> HomeBlockInfo(
+        title = "Search",
+        summary = "The search bar",
+        icon = Icons.Default.Search,
+    )
+    HomeBlock.NEW_SINCE -> HomeBlockInfo(
+        title = "New since last visit",
+        summary = "A card with the number of sites added since you last opened the app",
+        icon = Icons.Outlined.NewReleases,
+    )
+    HomeBlock.RANDOM_PICK -> HomeBlockInfo(
+        title = "Random pick",
+        summary = "One random recommended site",
+        icon = Icons.Default.Casino,
+    )
+    HomeBlock.PINNED -> HomeBlockInfo(
+        title = "Pinned categories",
+        summary = "Tiles for the sections and categories you pinned",
+        icon = Icons.Default.PushPin,
+    )
+    HomeBlock.NEW_IN_PINNED -> HomeBlockInfo(
+        title = "New in pinned categories",
+        summary = "Sites added to your pinned categories since your last visit",
+        icon = Icons.Default.Notifications,
+    )
+    HomeBlock.FAVOURITES -> HomeBlockInfo(
+        title = "Favourites",
+        summary = "Your latest saved sites",
+        icon = Icons.Default.Star,
+    )
+    HomeBlock.SUGGESTIONS -> HomeBlockInfo(
+        title = "Suggestions",
+        summary = "A random pick plus sites from the sections you open most",
+        icon = Icons.Default.AutoAwesome,
+    )
+    HomeBlock.SECTIONS -> HomeBlockInfo(
+        title = "Sections list",
+        summary = "All FMHY sections, grouped like the website",
+        icon = Icons.AutoMirrored.Filled.List,
+    )
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,19 +131,18 @@ fun HomePage(
     val allSections by viewModel.allSections.collectAsStateWithLifecycle()
     val appearance = state.appearance
 
-    val ePersonalHome = SettingsCatalog.homePersonalHome
-    val eRandomPick = SettingsCatalog.homeRandomPick
+    val eBlocks = SettingsCatalog.homeBlocks
     val eSectionOrder = SettingsCatalog.homeSectionOrder
     val ePinned = SettingsCatalog.homePinnedSections
     val eHidden = SettingsCatalog.homeHiddenSections
 
-    val sectionSettingIds = remember(homePrefs.personalHome) {
-        val base = listOf(listOf(ePersonalHome.id, eRandomPick.id, eSectionOrder.id))
-        if (homePrefs.personalHome) {
-            base + listOf(listOf(ePinned.id), listOf(eHidden.id))
-        } else {
-            base
-        }
+    val sectionSettingIds = remember {
+        listOf(
+            listOf(eBlocks.id),
+            listOf(eSectionOrder.id),
+            listOf(ePinned.id),
+            listOf(eHidden.id),
+        )
     }
     val listState = rememberFocusedListState(sectionSettingIds)
 
@@ -94,27 +169,131 @@ fun HomePage(
             ),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            // Build your Home section
+            item {
+                SettingsSection(
+                    title = eBlocks.title,
+                    modifier = Modifier.settingHighlight(eBlocks.id),
+                ) {
+                    Text(
+                        text = "Switch blocks on or off and drag the handle to reorder them.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 8.dp),
+                    )
+                    ReorderableColumn(
+                        list = homePrefs.blocks.entries,
+                        onSettle = { from, to ->
+                            viewModel.updateHome { it.copy(blocks = it.blocks.move(from, to)) }
+                        },
+                    ) { index, entry, isDragging ->
+                        val elevation by animateDpAsState(
+                            targetValue = if (isDragging) 4.dp else 0.dp,
+                            label = "elevation",
+                        )
+                        val blockInfo = homeBlockInfo(entry.block)
+                        val actions = remember(index, homePrefs.blocks.entries.size) {
+                            buildList {
+                                if (index > 0) {
+                                    add(
+                                        CustomAccessibilityAction("Move up") {
+                                            viewModel.updateHome { it.copy(blocks = it.blocks.move(index, index - 1)) }
+                                            true
+                                        }
+                                    )
+                                }
+                                if (index < homePrefs.blocks.entries.lastIndex) {
+                                    add(
+                                        CustomAccessibilityAction("Move down") {
+                                            viewModel.updateHome { it.copy(blocks = it.blocks.move(index, index + 1)) }
+                                            true
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .shadow(elevation)
+                                .background(MaterialTheme.colorScheme.surfaceContainerLow),
+                        ) {
+                            if (index > 0) {
+                                SettingsDivider()
+                            }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = 64.dp)
+                                    .semantics { customActions = actions }
+                                    .padding(horizontal = 16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.DragHandle,
+                                    contentDescription = "Reorder ${blockInfo.title}",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier
+                                        .draggableHandle()
+                                        .size(24.dp),
+                                )
+                                Spacer(modifier = Modifier.width(16.dp))
+                                Icon(
+                                    imageVector = blockInfo.icon,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(24.dp),
+                                )
+                                Spacer(modifier = Modifier.width(16.dp))
+                                Column(
+                                    modifier = Modifier.weight(1f),
+                                ) {
+                                    Text(
+                                        text = blockInfo.title,
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    Text(
+                                        text = blockInfo.summary,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Switch(
+                                    checked = entry.enabled,
+                                    onCheckedChange = { on ->
+                                        viewModel.updateHome { it.copy(blocks = it.blocks.withEnabled(entry.block, on)) }
+                                    },
+                                )
+                            }
+                        }
+                    }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                        contentAlignment = Alignment.CenterEnd,
+                    ) {
+                        TextButton(
+                            onClick = {
+                                viewModel.updateHome { it.copy(blocks = it.blocks.reset()) }
+                            },
+                            enabled = homePrefs.blocks != HomeLayout.default(),
+                        ) {
+                            Text("Reset to default")
+                        }
+                    }
+                }
+            }
+
             // General Home section
             item {
                 SettingsSection(title = "Home") {
-                    SwitchRow(
-                        title = ePersonalHome.title,
-                        summary = ePersonalHome.description,
-                        checked = homePrefs.personalHome,
-                        settingId = ePersonalHome.id,
-                        onChange = { vmVal ->
-                            viewModel.updateHome { it.copy(personalHome = vmVal) }
-                        },
-                    )
-                    SettingsDivider()
-                    SwitchRow(
-                        title = eRandomPick.title,
-                        summary = eRandomPick.description,
-                        checked = appearance.showRandomPick,
-                        settingId = eRandomPick.id,
-                        onChange = { viewModel.setShowRandomPick(it) },
-                    )
-                    SettingsDivider()
                     ChoiceRow(
                         title = eSectionOrder.title,
                         options = listOf(
@@ -128,117 +307,115 @@ fun HomePage(
                 }
             }
 
-            if (homePrefs.personalHome) {
-                // Pinned sections
-                item {
-                    SettingsSection(
-                        title = ePinned.title,
-                        modifier = Modifier.settingHighlight(ePinned.id),
-                    ) {
-                        if (pins.isEmpty()) {
-                            InfoRow(
-                                title = "No pins yet",
-                                value = "Pin sections or categories from their menus to see them here",
-                            )
-                        } else {
-                            pins.forEachIndexed { index, pin ->
-                                if (index > 0) SettingsDivider()
-                                val sectionTitle = allSections.firstOrNull { it.id == pin.sectionId }?.displayTitle ?: sectionDisplayTitle(pin.sectionId, pin.sectionId)
-                                val titleText = if (pin.headingId.isEmpty()) sectionTitle else "$sectionTitle › ${pin.title}"
-                                ListItem(
-                                    leadingContent = {
-                                        Icon(
-                                            imageVector = sectionIcon(pin.sectionId),
-                                            contentDescription = null,
-                                            modifier = Modifier.size(24.dp),
-                                            tint = MaterialTheme.colorScheme.primary,
-                                        )
-                                    },
-                                    headlineContent = {
-                                        Text(
-                                            text = titleText,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                        )
-                                    },
-                                    trailingContent = {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            IconButton(
-                                                onClick = { viewModel.movePinUp(index) },
-                                                enabled = index > 0,
-                                                modifier = Modifier.size(36.dp),
-                                            ) {
-                                                Icon(
-                                                    Icons.Default.ArrowUpward,
-                                                    contentDescription = "Move up",
-                                                    modifier = Modifier.size(20.dp),
-                                                )
-                                            }
-                                            IconButton(
-                                                onClick = { viewModel.movePinDown(index) },
-                                                enabled = index < pins.lastIndex,
-                                                modifier = Modifier.size(36.dp),
-                                            ) {
-                                                Icon(
-                                                    Icons.Default.ArrowDownward,
-                                                    contentDescription = "Move down",
-                                                    modifier = Modifier.size(20.dp),
-                                                )
-                                            }
-                                            IconButton(
-                                                onClick = { viewModel.removePin(pin.sectionId, pin.headingId) },
-                                                modifier = Modifier.size(36.dp),
-                                            ) {
-                                                Icon(
-                                                    Icons.Default.Close,
-                                                    contentDescription = "Remove pin",
-                                                    modifier = Modifier.size(20.dp),
-                                                )
-                                            }
-                                        }
-                                    },
-                                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // Hidden sections
-                item {
-                    SettingsSection(
-                        title = eHidden.title,
-                        modifier = Modifier.settingHighlight(eHidden.id),
-                    ) {
-                        allSections.forEachIndexed { index, section ->
+            // Pinned sections
+            item {
+                SettingsSection(
+                    title = ePinned.title,
+                    modifier = Modifier.settingHighlight(ePinned.id),
+                ) {
+                    if (pins.isEmpty()) {
+                        InfoRow(
+                            title = "No pins yet",
+                            value = "Pin sections or categories from their menus to see them here",
+                        )
+                    } else {
+                        pins.forEachIndexed { index, pin ->
                             if (index > 0) SettingsDivider()
-                            val isHidden = section.id in hiddenSections
+                            val sectionTitle = allSections.firstOrNull { it.id == pin.sectionId }?.displayTitle ?: sectionDisplayTitle(pin.sectionId, pin.sectionId)
+                            val titleText = if (pin.headingId.isEmpty()) sectionTitle else "$sectionTitle › ${pin.title}"
                             ListItem(
                                 leadingContent = {
                                     Icon(
-                                        imageVector = sectionIcon(section.id),
+                                        imageVector = sectionIcon(pin.sectionId),
                                         contentDescription = null,
                                         modifier = Modifier.size(24.dp),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        tint = MaterialTheme.colorScheme.primary,
                                     )
                                 },
-                                headlineContent = { Text(section.displayTitle) },
-                                trailingContent = {
-                                    Checkbox(
-                                        checked = isHidden,
-                                        onCheckedChange = { checked ->
-                                            viewModel.setSectionHidden(section.id, checked)
-                                        },
+                                headlineContent = {
+                                    Text(
+                                        text = titleText,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
                                     )
+                                },
+                                trailingContent = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        IconButton(
+                                            onClick = { viewModel.movePinUp(index) },
+                                            enabled = index > 0,
+                                            modifier = Modifier.size(36.dp),
+                                        ) {
+                                            Icon(
+                                                Icons.Default.ArrowUpward,
+                                                contentDescription = "Move up",
+                                                modifier = Modifier.size(20.dp),
+                                            )
+                                        }
+                                        IconButton(
+                                            onClick = { viewModel.movePinDown(index) },
+                                            enabled = index < pins.lastIndex,
+                                            modifier = Modifier.size(36.dp),
+                                        ) {
+                                            Icon(
+                                                Icons.Default.ArrowDownward,
+                                                contentDescription = "Move down",
+                                                modifier = Modifier.size(20.dp),
+                                            )
+                                        }
+                                        IconButton(
+                                            onClick = { viewModel.removePin(pin.sectionId, pin.headingId) },
+                                            modifier = Modifier.size(36.dp),
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Close,
+                                                contentDescription = "Remove pin",
+                                                modifier = Modifier.size(20.dp),
+                                            )
+                                        }
+                                    }
                                 },
                                 colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        viewModel.setSectionHidden(section.id, !isHidden)
-                                    },
                             )
                         }
+                    }
+                }
+            }
+
+            // Hidden sections
+            item {
+                SettingsSection(
+                    title = eHidden.title,
+                    modifier = Modifier.settingHighlight(eHidden.id),
+                ) {
+                    allSections.forEachIndexed { index, section ->
+                        if (index > 0) SettingsDivider()
+                        val isHidden = section.id in hiddenSections
+                        ListItem(
+                            leadingContent = {
+                                Icon(
+                                    imageVector = sectionIcon(section.id),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(24.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            },
+                            headlineContent = { Text(section.displayTitle) },
+                            trailingContent = {
+                                Checkbox(
+                                    checked = isHidden,
+                                    onCheckedChange = { checked ->
+                                        viewModel.setSectionHidden(section.id, checked)
+                                    },
+                                )
+                            },
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    viewModel.setSectionHidden(section.id, !isHidden)
+                                },
+                        )
                     }
                 }
             }

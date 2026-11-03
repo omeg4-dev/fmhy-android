@@ -17,6 +17,9 @@ import io.github.omeg4dev.fmhy.data.SectionOrder
 import io.github.omeg4dev.fmhy.data.SettingsRepository
 import io.github.omeg4dev.fmhy.data.VisitTracker
 import io.github.omeg4dev.fmhy.data.ThemeMode
+import io.github.omeg4dev.fmhy.data.Bookmark
+import io.github.omeg4dev.fmhy.data.model.ChangeItem
+import io.github.omeg4dev.fmhy.data.model.ChangeKind
 import io.github.omeg4dev.fmhy.data.model.Entry
 import io.github.omeg4dev.fmhy.data.model.Section
 import io.github.omeg4dev.fmhy.data.model.SectionItem
@@ -95,6 +98,19 @@ class HomeViewModelTest {
         override suspend fun entry(id: String): Entry? = (pickSequence + listOfNotNull(topPick)).firstOrNull { it.id == id }
         override suspend fun countAddedSince(ts: Long): Int = 5
         override suspend fun sectionItems(sectionId: String): List<SectionItem> = emptyList()
+        var recentChangesResult: List<ChangeItem> = emptyList()
+        override suspend fun recentChanges(
+            sinceTs: Long,
+            kinds: Set<ChangeKind>,
+            sectionIds: Set<String>?,
+            headingIds: Set<String>?,
+            limit: Int,
+        ): List<ChangeItem> = recentChangesResult
+
+        var randomTopEntriesMap: Map<String, List<Entry>> = emptyMap()
+        override suspend fun randomTopEntries(sectionId: String, limit: Int): List<Entry> =
+            randomTopEntriesMap[sectionId]?.take(limit) ?: emptyList()
+
         override suspend fun meta(): Map<String, String> = mapOf(
             "version" to versionVal.toString(),
             "created" to "1700000000"
@@ -106,7 +122,8 @@ class HomeViewModelTest {
         override val settingsRepository: SettingsRepository,
         initialStatus: SyncStatus = SyncStatus.Idle,
         override val userStore: io.github.omeg4dev.fmhy.data.user.UserStore = io.github.omeg4dev.fmhy.data.user.UserStore(
-            File.createTempFile("fake_user", ".db").apply { deleteOnExit() }
+            File.createTempFile("fake_user", ".db").apply { deleteOnExit() },
+            dispatcher = Dispatchers.Unconfined,
         ),
     ) : AppContainer {
         override val context: Context get() = error("Not needed")
@@ -119,7 +136,8 @@ class HomeViewModelTest {
             override fun onStart() {}
             override fun onStop() {}
         }
-        override val bookmarks: io.github.omeg4dev.fmhy.data.BookmarksRepository get() = error("Not needed")
+        override val bookmarks: io.github.omeg4dev.fmhy.data.BookmarksRepository =
+            io.github.omeg4dev.fmhy.data.BookmarksRepository(userStore)
         override val docFetcher: io.github.omeg4dev.fmhy.data.doc.DocFetcher get() = error("Not needed")
         override val safeGuard: io.github.omeg4dev.fmhy.data.safety.SafeGuard get() = io.github.omeg4dev.fmhy.data.safety.SafeGuard(datasetStore)
         override val crossLinks: StateFlow<io.github.omeg4dev.fmhy.data.link.CrossLinks?> = MutableStateFlow(null)
@@ -274,7 +292,7 @@ class HomeViewModelTest {
         assertEquals("a", first)
         repeat(5) { i ->
             fakeSettings.setTextScale(1f + (i + 1) / 10f)
-            fakeSettings.updateHome { it.copy(personalHome = !it.personalHome) }
+            fakeSettings.updateHome { it.copy(blocks = it.blocks.withEnabled(HomeBlock.PINNED, !it.personalHome)) }
             store.changes.value = 11L + i
             testDispatcher.scheduler.runCurrent()
             assertEquals(first, viewModel.uiState.value.randomPick?.id)
@@ -337,6 +355,7 @@ class HomeViewModelTest {
                 sectionOrder = SectionOrder.ALPHABETICAL,
             )
         )
+        fakeSettings.updateHome { it.copy(blocks = it.blocks.withEnabled(HomeBlock.RANDOM_PICK, false)) }
         val fakeContainer = FakeContainer(store, fakeSettings)
 
         val viewModel = HomeViewModel(store, fakeSettings, fakeContainer)
@@ -405,4 +424,227 @@ class HomeViewModelTest {
         assertEquals(7, counted["educational-tools"])
     }
 
+    @Test
+    fun testFilterSectionsNewSignature() {
+        val s1 = Section(id = "s1", title = "S1", description = "", ord = 1, entryCount = 1)
+        val s2 = Section(id = "s2", title = "S2", description = "", ord = 2, entryCount = 2)
+        val all = listOf(s1, s2)
+
+        // Hidden applied
+        val filtered = filterSections(all, hiddenSections = setOf("s1"), showHiddenSession = false)
+        assertEquals(listOf(s2), filtered)
+
+        // Session toggle shows all
+        val showingHidden = filterSections(all, hiddenSections = setOf("s1"), showHiddenSession = true)
+        assertEquals(all, showingHidden)
+
+        // Empty hidden sections
+        val emptyHidden = filterSections(all, hiddenSections = emptySet(), showHiddenSession = false)
+        assertEquals(all, emptyHidden)
+    }
+
+    @Test
+    fun testMergeNewInPinned() {
+        fun makeChange(id: Long, url: String, ts: Long) = ChangeItem(
+            id = id,
+            ts = ts,
+            kind = ChangeKind.ADDED,
+            entryId = "e$id",
+            sectionId = "sec",
+            name = "Item $id",
+            url = url,
+            detail = "",
+            entry = null,
+        )
+
+        val pin1Changes = listOf(
+            makeChange(1, "https://a.com", ts = 100),
+            makeChange(2, "https://b.com", ts = 300),
+        )
+        val pin2Changes = listOf(
+            makeChange(3, "https://a.com", ts = 200),
+            makeChange(4, "https://c.com", ts = 400),
+            makeChange(5, "https://d.com", ts = 50),
+            makeChange(6, "https://e.com", ts = 500),
+            makeChange(7, "https://f.com", ts = 600),
+        )
+
+        val merged = mergeNewInPinned(listOf(pin1Changes, pin2Changes), limit = 5)
+        assertEquals(5, merged.size)
+        assertEquals(listOf(7L, 6L, 4L, 2L, 3L), merged.map { it.id })
+        assertEquals(1, merged.count { it.url == "https://a.com" })
+        assertEquals(200L, merged.first { it.url == "https://a.com" }.ts)
+
+        assertTrue(mergeNewInPinned(listOf(pin1Changes), limit = 0).isEmpty())
+    }
+
+    @Test
+    fun testLatestFavourites() {
+        fun makeBookmark(id: String, savedAt: Long) = Bookmark(
+            entryId = id,
+            name = id,
+            url = "https://$id.com",
+            sectionId = "sec",
+            sectionTitle = "Sec",
+            headingPath = "Sec",
+            savedAt = savedAt,
+        )
+
+        val list = listOf(
+            makeBookmark("b1", 100),
+            makeBookmark("b2", 500),
+            makeBookmark("b3", 300),
+            makeBookmark("b4", 200),
+            makeBookmark("b5", 400),
+            makeBookmark("b6", 50),
+        )
+
+        val top5 = latestFavourites(list, limit = 5)
+        assertEquals(5, top5.size)
+        assertEquals(listOf("b2", "b5", "b3", "b4", "b1"), top5.map { it.entryId })
+
+        assertTrue(latestFavourites(list, limit = 0).isEmpty())
+        assertTrue(latestFavourites(emptyList(), limit = 5).isEmpty())
+    }
+
+    @Test
+    fun testBuildSuggestions() {
+        fun makeEntry(id: String) = Entry(
+            num = 1, id = id, sectionId = "sec", headingId = null, ord = 1, name = id,
+            url = "https://$id.com", originalUrl = null, description = "", tags = emptyList(),
+            headingPath = "Sec", tier = Tier.TOP, isInlineMore = false, isBase64 = false,
+            mirrors = emptyList(), extraLinks = emptyList(), firstSeen = 1, lastChanged = 1, starredAt = 1,
+        )
+
+        // 1. Exclude: randomPick id in exclude is dropped
+        val rand = makeEntry("random_block_entry")
+        val s1 = listOf(makeEntry("s1_1"), makeEntry("s1_2"))
+        val s2 = listOf(makeEntry("s2_1"), makeEntry("random_block_entry"))
+        val fill = listOf(makeEntry("f1"), makeEntry("f2"))
+        val excluded = buildSuggestions(
+            randomPick = rand,
+            perSection = listOf(s1, s2),
+            fillPicks = fill,
+            exclude = setOf("random_block_entry"),
+        )
+        assertFalse(excluded.any { it.id == "random_block_entry" })
+
+        // 2. Dedupe: round-robin duplicate IDs kept only once
+        val dupPerSection = listOf(
+            listOf(makeEntry("e1"), makeEntry("e2")),
+            listOf(makeEntry("e1"), makeEntry("e3")),
+        )
+        val deduped = buildSuggestions(
+            randomPick = makeEntry("p1"),
+            perSection = dupPerSection,
+            fillPicks = listOf(makeEntry("e1"), makeEntry("f1")),
+            exclude = emptySet(),
+        )
+        assertEquals(listOf("p1", "e1", "e2", "e3", "f1"), deduped.map { it.id })
+
+        // 3. Padding: fillPicks pads up to 5 total when sections have fewer
+        val sparseSections = listOf(listOf(makeEntry("s1")))
+        val padded = buildSuggestions(
+            randomPick = makeEntry("p1"),
+            perSection = sparseSections,
+            fillPicks = listOf(makeEntry("f1"), makeEntry("f2"), makeEntry("f3"), makeEntry("f4")),
+            exclude = emptySet(),
+        )
+        assertEquals(5, padded.size)
+        assertEquals(listOf("p1", "s1", "f1", "f2", "f3"), padded.map { it.id })
+
+        // 4. No sections -> only picks: 1 random pick + fill picks up to 5
+        val onlyPicks = buildSuggestions(
+            randomPick = makeEntry("p1"),
+            perSection = emptyList(),
+            fillPicks = listOf(makeEntry("f1"), makeEntry("f2"), makeEntry("f3"), makeEntry("f4")),
+            exclude = emptySet(),
+        )
+        assertEquals(5, onlyPicks.size)
+        assertEquals(listOf("p1", "f1", "f2", "f3", "f4"), onlyPicks.map { it.id })
+
+        // 5. Empty inputs -> empty
+        val empty = buildSuggestions(
+            randomPick = null,
+            perSection = emptyList(),
+            fillPicks = emptyList(),
+            exclude = emptySet(),
+        )
+        assertTrue(empty.isEmpty())
+    }
+
+    @Test
+    fun testShortAge() {
+        val now = 100_000L
+        // Just now (< 60s)
+        assertEquals("just now", shortAge(now, now))
+        assertEquals("just now", shortAge(now, now - 30))
+        assertEquals("just now", shortAge(now, now - 59))
+        assertEquals("just now", shortAge(now, now + 10))
+
+        // Minutes (< 3600s)
+        assertEquals("1m", shortAge(now, now - 60))
+        assertEquals("5m", shortAge(now, now - 300))
+        assertEquals("59m", shortAge(now, now - 3599))
+
+        // Hours (< 86400s)
+        assertEquals("1h", shortAge(now, now - 3600))
+        assertEquals("5h", shortAge(now, now - 5 * 3600))
+        assertEquals("23h", shortAge(now, now - 23 * 3600))
+
+        // Days (>= 86400s)
+        assertEquals("1d", shortAge(now, now - 86400))
+        assertEquals("2d", shortAge(now, now - 2 * 86400))
+        assertEquals("30d", shortAge(now, now - 30 * 86400))
+    }
+
+    @Test
+    fun testUiStateBlocksFollowsHomePrefsOrderAndEnabledFlags() = runTest(testDispatcher) {
+        val sampleSections = listOf(
+            Section(id = "video", title = "Video", description = "Streaming", ord = 1, entryCount = 42),
+        )
+        val samplePick = Entry(
+            num = 1, id = "e1", sectionId = "video", headingId = null, ord = 1, name = "Pick",
+            url = "https://pick.org", originalUrl = null, description = "", tags = emptyList(),
+            headingPath = "Video", tier = Tier.TOP, isInlineMore = false, isBase64 = false,
+            mirrors = emptyList(), extraLinks = emptyList(), firstSeen = 1, lastChanged = 1, starredAt = 1,
+        )
+
+        val store = FakeDatasetStore(sectionsList = sampleSections, topPick = samplePick, versionVal = 10L)
+        val fakeSettings = FakeSettingsRepository()
+        val fakeContainer = FakeContainer(store, fakeSettings)
+
+        val viewModel = HomeViewModel(store, fakeSettings, fakeContainer)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect() }
+        testDispatcher.scheduler.runCurrent()
+
+        val initialState = viewModel.uiState.filter { it.isReady }.first()
+        // Default enabled blocks: SEARCH, NEW_SINCE, RANDOM_PICK, SECTIONS
+        assertEquals(
+            listOf(HomeBlock.SEARCH, HomeBlock.NEW_SINCE, HomeBlock.RANDOM_PICK, HomeBlock.SECTIONS),
+            initialState.blocks,
+        )
+        assertNotNull(initialState.randomPick)
+
+        // Disable RANDOM_PICK
+        fakeSettings.updateHome { it.copy(blocks = it.blocks.withEnabled(HomeBlock.RANDOM_PICK, false)) }
+        testDispatcher.scheduler.advanceUntilIdle()
+        val withoutRandomPick = viewModel.uiState.value
+        assertFalse(withoutRandomPick.blocks.contains(HomeBlock.RANDOM_PICK))
+        assertNull(withoutRandomPick.randomPick)
+
+        // Enable PINNED, FAVOURITES and reorder: PINNED first
+        fakeSettings.updateHome {
+            var layout = it.blocks
+                .withEnabled(HomeBlock.PINNED, true)
+                .withEnabled(HomeBlock.FAVOURITES, true)
+            val pinnedIdx = layout.entries.indexOfFirst { entry -> entry.block == HomeBlock.PINNED }
+            layout = layout.move(pinnedIdx, 0)
+            it.copy(blocks = layout)
+        }
+        testDispatcher.scheduler.advanceUntilIdle()
+        val updated = viewModel.uiState.value
+        assertEquals(HomeBlock.PINNED, updated.blocks.first())
+        assertTrue(updated.blocks.contains(HomeBlock.FAVOURITES))
+    }
 }

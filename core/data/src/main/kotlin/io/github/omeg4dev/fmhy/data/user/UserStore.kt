@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.intOrNull
@@ -35,6 +36,7 @@ open class UserStore(
 ) : Closeable {
 
     private val mutex = Mutex()
+    private val sectionOpensMutex = Mutex()
     private var connection: SQLiteConnection? = null
     private val json = Json {
         ignoreUnknownKeys = true
@@ -778,6 +780,15 @@ open class UserStore(
         bumpChanges()
     }
 
+    private suspend fun putQuiet(key: String, value: String) = withConnection { conn ->
+        val sql = "INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+        conn.prepare(sql).use { stmt ->
+            stmt.bindText(1, key)
+            stmt.bindText(2, value)
+            stmt.step()
+        }
+    }
+
     /** Deletes every key/value row whose key starts with [prefix]. Returns the number removed. */
     suspend fun deleteKvPrefix(prefix: String): Int = withConnection { conn ->
         val n = conn.prepare("SELECT COUNT(*) FROM kv WHERE substr(key, 1, ?) = ?").use { stmt ->
@@ -792,6 +803,54 @@ open class UserStore(
         }
         if (n > 0) bumpChanges()
         n
+    }
+
+    // --- Section Opens ---
+
+    suspend fun recordSectionOpen(sectionId: String) {
+        if (sectionId.isBlank()) return
+        sectionOpensMutex.withLock {
+            val raw = get(KEY_SECTION_OPENS)
+            val currentMap = if (raw.isNullOrBlank()) {
+                emptyMap()
+            } else {
+                try {
+                    json.decodeFromString<Map<String, Int>>(raw)
+                } catch (_: Exception) {
+                    emptyMap()
+                }
+            }
+            val mutable = currentMap.toMutableMap()
+            mutable[sectionId] = (mutable[sectionId] ?: 0) + 1
+            val finalMap = if (mutable.size > MAX_SECTION_OPENS) {
+                mutable.entries
+                    .sortedWith(
+                        compareByDescending<Map.Entry<String, Int>> { it.value }
+                            .thenByDescending { it.key == sectionId }
+                            .thenBy { it.key }
+                    )
+                    .take(MAX_SECTION_OPENS)
+                    .associate { it.key to it.value }
+            } else {
+                mutable
+            }
+            putQuiet(KEY_SECTION_OPENS, json.encodeToString(finalMap))
+        }
+    }
+
+    suspend fun topOpenedSections(n: Int): List<String> {
+        if (n <= 0) return emptyList()
+        val raw = get(KEY_SECTION_OPENS) ?: return emptyList()
+        if (raw.isBlank()) return emptyList()
+        return try {
+            val map = json.decodeFromString<Map<String, Int>>(raw)
+            map.entries
+                .sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { it.key })
+                .take(n)
+                .map { it.key }
+        } catch (_: Exception) {
+            emptyList()
+        }
     }
 
     // --- Backup & Restore ---
@@ -1180,6 +1239,8 @@ open class UserStore(
         const val USER_DB_VERSION = 6
         const val BACKUP_FORMAT = "fmhy-backup"
         const val BACKUP_VERSION = 1
+        const val KEY_SECTION_OPENS = "section_opens"
+        private const val MAX_SECTION_OPENS = 200
 
         fun loadSchemaSql(): String {
             val stream = UserStore::class.java.getResourceAsStream("/user.sql")

@@ -220,4 +220,19 @@ class SettingsSearchIndexTest {
         state.hide()
         assertFalse(state.isRevealed)
     }
+
+    @Test
+    fun homeBlocksFoundByKeywords() {
+        val randomPickResults = SettingsSearchIndex.search("random pick")
+        assertTrue(
+            "Searching 'random pick' must find home.blocks",
+            randomPickResults.any { it.entry.id == "home.blocks" },
+        )
+
+        val personalHomeResults = SettingsSearchIndex.search("personal home")
+        assertTrue(
+            "Searching 'personal home' must find home.blocks",
+            personalHomeResults.any { it.entry.id == "home.blocks" },
+        )
+    }
 }

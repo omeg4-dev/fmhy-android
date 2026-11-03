@@ -517,7 +517,7 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
 
         entry<SectionNavKey> { key ->
             val sectionViewModel: SectionViewModel = viewModel(key = key.sectionId) {
-                SectionViewModel(key.sectionId, key.anchor, container.datasetStore, container.settingsRepository)
+                SectionViewModel(key.sectionId, key.anchor, container.datasetStore, container.settingsRepository, container.userStore)
             }
             SectionScreen(
                 viewModel = sectionViewModel,
@@ -532,7 +532,7 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
 
         entry<CategoryNavKey> { key ->
             val sectionViewModel: SectionViewModel = viewModel(key = key.sectionId) {
-                SectionViewModel(key.sectionId, null, container.datasetStore, container.settingsRepository)
+                SectionViewModel(key.sectionId, null, container.datasetStore, container.settingsRepository, container.userStore)
             }
             CategoryScreen(
                 key = key,

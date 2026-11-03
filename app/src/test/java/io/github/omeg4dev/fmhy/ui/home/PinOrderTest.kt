@@ -80,25 +80,10 @@ class PinOrderTest {
     }
 
     @Test
-    fun testHomeFilteringWhenPersonalHomeOff() {
+    fun testHomeFilteringHiddenApplied() {
         val hidden = setOf("video")
         val filtered = filterSections(
             sections = sections,
-            personalHome = false,
-            hiddenSections = hidden,
-            showHiddenSession = false,
-        )
-
-        assertEquals(3, filtered.size)
-        assertEquals(listOf("audio", "video", "gaming"), filtered.map { it.id })
-    }
-
-    @Test
-    fun testHomeFilteringWhenPersonalHomeOn() {
-        val hidden = setOf("video")
-        val filtered = filterSections(
-            sections = sections,
-            personalHome = true,
             hiddenSections = hidden,
             showHiddenSession = false,
         )
@@ -112,9 +97,20 @@ class PinOrderTest {
         val hidden = setOf("video")
         val filtered = filterSections(
             sections = sections,
-            personalHome = true,
             hiddenSections = hidden,
             showHiddenSession = true,
+        )
+
+        assertEquals(3, filtered.size)
+        assertEquals(listOf("audio", "video", "gaming"), filtered.map { it.id })
+    }
+
+    @Test
+    fun testHomeFilteringEmptyHidden() {
+        val filtered = filterSections(
+            sections = sections,
+            hiddenSections = emptySet(),
+            showHiddenSession = false,
         )
 
         assertEquals(3, filtered.size)

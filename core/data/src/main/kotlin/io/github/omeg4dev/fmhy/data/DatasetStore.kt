@@ -330,6 +330,32 @@ open class DatasetStore(
         return candidates.firstOrNull { unsafeReason(it.url) == null }
     }
 
+    /** Random safe starred entries in a section.
+     *  Filter: tier >= 1 AND kind = 0 AND is_base64 = 0 AND section_id = ?, ORDER BY RANDOM(),
+     *  over-fetch 5x limit, drop unsafe links, take limit. */
+    open suspend fun randomTopEntries(sectionId: String, limit: Int): List<Entry> {
+        if (limit <= 0) return emptyList()
+        val candidates = withConnection { conn ->
+            val sql = """
+                SELECT num, id, section_id, heading_id, ord, name, url, original_url,
+                       description, tags, heading_path, tier, kind, line, is_inline_more, is_base64,
+                       mirrors, extra_links, first_seen, last_changed, starred_at
+                FROM entries
+                WHERE tier >= 1 AND kind = 0 AND is_base64 = 0 AND section_id = ?
+                ORDER BY RANDOM()
+                LIMIT ?
+            """.trimIndent()
+            conn.prepare(sql).use { stmt ->
+                stmt.bindText(1, sectionId)
+                stmt.bindLong(2, (limit * 5).toLong())
+                buildList { while (stmt.step()) add(readEntry(stmt)) }
+            }
+        }
+        return candidates
+            .filter { unsafeReason(it.url) == null }
+            .take(limit)
+    }
+
     open suspend fun changes(
         kinds: Set<ChangeKind> = emptySet(),
         sinceTs: Long? = null,

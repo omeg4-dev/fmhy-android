@@ -7,6 +7,7 @@ import io.github.omeg4dev.fmhy.data.DatasetStore
 import io.github.omeg4dev.fmhy.data.HomePrefs
 import io.github.omeg4dev.fmhy.data.SectionLayout
 import io.github.omeg4dev.fmhy.data.SettingsRepository
+import io.github.omeg4dev.fmhy.data.user.UserStore
 import io.github.omeg4dev.fmhy.data.model.Heading
 import io.github.omeg4dev.fmhy.data.model.Section
 import io.github.omeg4dev.fmhy.data.model.SectionItem
@@ -41,7 +42,18 @@ class SectionViewModel(
     val anchor: String?,
     private val store: DatasetStore,
     private val settingsRepository: SettingsRepository,
+    private val userStore: UserStore? = null,
 ) : ViewModel() {
+
+    init {
+        viewModelScope.launch {
+            runCatching {
+                if (userStore != null && store.sections().any { it.id == sectionId }) {
+                    userStore.recordSectionOpen(sectionId)
+                }
+            }
+        }
+    }
 
     private val _refreshTrigger = MutableStateFlow(0)
 

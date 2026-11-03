@@ -6,6 +6,8 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import io.github.omeg4dev.fmhy.data.adblock.FilterListCatalog
 import io.github.omeg4dev.fmhy.nav.BottomBarStyle
+import io.github.omeg4dev.fmhy.ui.home.HomeBlock
+import io.github.omeg4dev.fmhy.ui.home.HomeLayout
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestScope
@@ -35,9 +37,44 @@ class SettingsRepositoryTest {
     @Test
     fun testHomePrefsRoundTrip() = runTest {
         val (repo, _) = createRepository(this)
-        val expected = HomePrefs(personalHome = true, newBadgeDays = 14)
+        val customBlocks = HomeLayout.default()
+            .withEnabled(HomeBlock.PINNED, true)
+            .withEnabled(HomeBlock.RANDOM_PICK, false)
+            .move(0, 3)
+        val expected = HomePrefs(blocks = customBlocks, newBadgeDays = 14)
         repo.updateHome { expected }
         assertEquals(expected, repo.homePrefs.first())
+    }
+
+    @Test
+    fun testHomePrefsLegacyMigration() = runTest {
+        val legacyPersonalHome = booleanPreferencesKey("home_personal_home")
+        val legacyShowRandomPick = booleanPreferencesKey("show_random_pick")
+        val (repo, rawStore) = createRepository(this)
+
+        rawStore.edit {
+            it[legacyPersonalHome] = true
+            it[legacyShowRandomPick] = false
+        }
+
+        val initial = repo.homePrefs.first()
+        assertTrue(initial.blocks.isEnabled(HomeBlock.PINNED))
+        assertFalse(initial.blocks.isEnabled(HomeBlock.RANDOM_PICK))
+        assertEquals(true, initial.personalHome)
+
+        // After updateHome { it }, the new KEY_HOME_BLOCKS is written
+        repo.updateHome { it }
+
+        // Even if legacy keys change afterwards, the new key wins
+        rawStore.edit {
+            it[legacyPersonalHome] = false
+            it[legacyShowRandomPick] = true
+        }
+
+        val afterUpdate = repo.homePrefs.first()
+        assertTrue(afterUpdate.blocks.isEnabled(HomeBlock.PINNED))
+        assertFalse(afterUpdate.blocks.isEnabled(HomeBlock.RANDOM_PICK))
+        assertEquals(true, afterUpdate.personalHome)
     }
 
     @Test

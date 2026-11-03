@@ -15,6 +15,7 @@ import io.github.omeg4dev.fmhy.data.SettingsRepository
 import io.github.omeg4dev.fmhy.data.ThemeMode
 import io.github.omeg4dev.fmhy.data.adblock.FilterListCatalog
 import io.github.omeg4dev.fmhy.data.user.UserStore
+import io.github.omeg4dev.fmhy.ui.home.HomeBlock
 import io.github.omeg4dev.fmhy.ui.common.displayTitle
 import io.github.omeg4dev.fmhy.ui.common.sectionDisplayTitle
 import io.github.omeg4dev.fmhy.di.AppContainer
@@ -329,7 +330,7 @@ class OnboardingModel(
             }
             OnboardingPage.FOLLOW -> {
                 settingsRepository.updateNotifications { it.copy(enabled = s.notifyChanges) }
-                settingsRepository.updateHome { it.copy(personalHome = s.personalHome) }
+                settingsRepository.updateHome { it.copy(blocks = it.blocks.withEnabled(HomeBlock.PINNED, s.personalHome)) }
                 try {
                     val existingFollows = userStore.follows()
                     val existingSectionIds = existingFollows.map { it.sectionId }.toSet()

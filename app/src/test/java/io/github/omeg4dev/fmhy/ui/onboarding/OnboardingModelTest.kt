@@ -10,6 +10,8 @@ import io.github.omeg4dev.fmhy.data.BrowserPrefs
 import io.github.omeg4dev.fmhy.data.ColorSource
 import io.github.omeg4dev.fmhy.data.DataPrefs
 import io.github.omeg4dev.fmhy.data.HomePrefs
+import io.github.omeg4dev.fmhy.ui.home.HomeBlock
+import io.github.omeg4dev.fmhy.ui.home.HomeLayout
 import io.github.omeg4dev.fmhy.data.NotificationPrefs
 import io.github.omeg4dev.fmhy.data.OpenLinksWith
 import io.github.omeg4dev.fmhy.data.PrivacyPrefs
@@ -208,7 +210,7 @@ class OnboardingModelTest {
             popupBlocker = false,
             redirectGuard = false,
         )
-        val customHome = HomePrefs(personalHome = true)
+        val customHome = HomePrefs(blocks = HomeLayout.default().withEnabled(HomeBlock.PINNED, true))
         val customNotification = NotificationPrefs(enabled = true)
 
         userStore.follow("video", "", "Video")
@@ -399,7 +401,7 @@ class OnboardingModelTest {
     fun testSkipPersistsOnlyVisitedPages() = runTest {
         val initialAppearance = Appearance(themeMode = ThemeMode.LIGHT)
         val initialBrowser = BrowserPrefs(openLinksWith = OpenLinksWith.CUSTOM_TAB)
-        val initialHome = HomePrefs(personalHome = false)
+        val initialHome = HomePrefs(blocks = HomeLayout.default().withEnabled(HomeBlock.PINNED, false))
         val initialNotification = NotificationPrefs(enabled = false)
 
         val repo = FakeSettingsRepository(

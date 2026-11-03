@@ -6,8 +6,11 @@ import io.github.omeg4dev.fmhy.data.SectionOrder
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.omeg4dev.fmhy.data.Appearance
+import io.github.omeg4dev.fmhy.data.Bookmark
 import io.github.omeg4dev.fmhy.data.DatasetStore
 import io.github.omeg4dev.fmhy.data.SettingsRepository
+import io.github.omeg4dev.fmhy.data.model.ChangeItem
+import io.github.omeg4dev.fmhy.data.model.ChangeKind
 import io.github.omeg4dev.fmhy.data.model.Entry
 import io.github.omeg4dev.fmhy.data.link.CrossLinks
 import io.github.omeg4dev.fmhy.data.model.Section
@@ -49,12 +52,15 @@ data class HomeUiState(
     val newSinceLastVisitCount: Int = 0,
     val randomPick: Entry? = null,
     val isEmptyState: Boolean = false,
-    val personalHome: Boolean = false,
     val pins: ImmutableList<ResolvedPin> = persistentListOf(),
     val followedKeys: Set<Pair<String, String>> = emptySet(),
     val hiddenSectionsCount: Int = 0,
     val showingHiddenSections: Boolean = false,
     val unreadPosts: Int = 0,
+    val blocks: ImmutableList<HomeBlock> = persistentListOf(),
+    val newInPinned: ImmutableList<ChangeItem> = persistentListOf(),
+    val favourites: ImmutableList<Bookmark> = persistentListOf(),
+    val suggestions: ImmutableList<Entry> = persistentListOf(),
 )
 
 /** A titled block of sections on Home; [title] is null when the list is not grouped (A–Z). */
@@ -212,14 +218,81 @@ internal fun isPinFollowed(pin: ResolvedPin, follows: List<Follow>): Boolean {
 
 internal fun filterSections(
     sections: List<Section>,
-    personalHome: Boolean,
     hiddenSections: Set<String>,
     showHiddenSession: Boolean,
 ): List<Section> {
-    if (!personalHome || showHiddenSession || hiddenSections.isEmpty()) {
+    if (showHiddenSession || hiddenSections.isEmpty()) {
         return sections
     }
     return sections.filter { it.id !in hiddenSections }
+}
+
+internal fun mergeNewInPinned(
+    perPin: List<List<ChangeItem>>,
+    limit: Int = 5,
+): List<ChangeItem> {
+    if (limit <= 0) return emptyList()
+    return perPin.flatten()
+        .sortedByDescending { it.ts }
+        .distinctBy { it.url }
+        .take(limit)
+}
+
+internal fun latestFavourites(
+    list: List<Bookmark>,
+    limit: Int = 5,
+): List<Bookmark> {
+    if (limit <= 0) return emptyList()
+    return list.sortedByDescending { it.savedAt }.take(limit)
+}
+
+internal fun buildSuggestions(
+    randomPick: Entry?,
+    perSection: List<List<Entry>>,
+    fillPicks: List<Entry>,
+    exclude: Set<String>,
+): List<Entry> {
+    val result = mutableListOf<Entry>()
+    val seenIds = exclude.toMutableSet()
+
+    if (randomPick != null && seenIds.add(randomPick.id)) {
+        result.add(randomPick)
+    }
+
+    var addedFromSections = 0
+    val maxLen = perSection.maxOfOrNull { it.size } ?: 0
+    for (col in 0 until maxLen) {
+        for (secList in perSection) {
+            if (addedFromSections >= 4 || result.size >= 5) break
+            if (col < secList.size) {
+                val entry = secList[col]
+                if (seenIds.add(entry.id)) {
+                    result.add(entry)
+                    addedFromSections++
+                }
+            }
+        }
+        if (addedFromSections >= 4 || result.size >= 5) break
+    }
+
+    for (pick in fillPicks) {
+        if (result.size >= 5) break
+        if (seenIds.add(pick.id)) {
+            result.add(pick)
+        }
+    }
+
+    return result
+}
+
+internal fun shortAge(nowSec: Long, tsSec: Long): String {
+    val diffSec = (nowSec - tsSec).coerceAtLeast(0L)
+    return when {
+        diffSec < 60 -> "just now"
+        diffSec < 3600 -> "${diffSec / 60}m"
+        diffSec < 86400 -> "${diffSec / 3600}h"
+        else -> "${diffSec / 86400}d"
+    }
 }
 
 class HomeViewModel(
@@ -264,6 +337,34 @@ class HomeViewModel(
         }
     }
 
+    private var cachedSuggestions: List<Entry> = emptyList()
+    private var cachedSuggestionsVersion = -1L
+
+    /**
+     * Suggestions are stable per process and recomputed only when the dataset version changes
+     * or when the cache is empty — not on every user/prefs emission.
+     */
+    private suspend fun stableSuggestions(version: Long, randomPickBlockEntry: Entry?): List<Entry> {
+        if (cachedSuggestionsVersion == version && cachedSuggestions.isNotEmpty()) {
+            return cachedSuggestions
+        }
+        val computed = try {
+            val mainPick = store.randomTopPick()
+            val topSectionIds = userStore.topOpenedSections(4)
+            val perSection = topSectionIds.map { sectionId ->
+                store.randomTopEntries(sectionId, 2)
+            }
+            val fillPicks = (1..4).mapNotNull { store.randomTopPick() }
+            val exclude = if (randomPickBlockEntry != null) setOf(randomPickBlockEntry.id) else emptySet()
+            buildSuggestions(mainPick, perSection, fillPicks, exclude)
+        } catch (_: Throwable) {
+            emptyList()
+        }
+        cachedSuggestions = computed
+        cachedSuggestionsVersion = version
+        return computed
+    }
+
     /** Site counts for the Home rows that point at a category inside another section (Audio Tools, …). */
     private suspend fun anchorCounts(): Map<String, Int> = ANCHOR_TARGETS.mapValues { (_, target) ->
         val (sectionId, title) = target
@@ -283,6 +384,7 @@ class HomeViewModel(
         val homePrefs: HomePrefs,
         val userChanges: Long,
         val showHidden: Boolean,
+        val bookmarks: List<Bookmark>,
     )
 
     private data class HomeUiExtras(
@@ -303,8 +405,9 @@ class HomeViewModel(
             settingsRepository.homePrefs,
             userStore.changes,
             _showHiddenSections,
-        ) { homePrefs, userChanges, showHidden ->
-            HomeUserData(homePrefs, userChanges, showHidden)
+            container.bookmarks.bookmarks,
+        ) { homePrefs, userChanges, showHidden, bookmarks ->
+            HomeUserData(homePrefs, userChanges, showHidden, bookmarks)
         },
         combine(
             _randomPick,
@@ -312,35 +415,74 @@ class HomeViewModel(
         ) { randomPick, refreshing ->
             HomeUiExtras(randomPick, refreshing)
         }
-    ) { (initialized, version, lastVisitTs, appearance), (homePrefs, _, showHidden), (randomPick, refreshing) ->
+    ) { (initialized, version, lastVisitTs, appearance), (homePrefs, _, showHidden, bookmarks), (randomPick, refreshing) ->
         if (!initialized) {
             HomeUiState(isLoading = true, isReady = false)
         } else if (!store.isAvailable) {
             HomeUiState(isLoading = refreshing, isReady = true, isEmptyState = true)
         } else {
-            val personalHome = homePrefs.personalHome
             val allSections = store.sections(appearance.sectionOrder)
-            val hiddenSections = if (personalHome) {
-                try { userStore.hiddenSections() } catch (_: Exception) { emptySet() }
-            } else emptySet()
-
-            val rawPins = if (personalHome) {
-                try { userStore.pins() } catch (_: Exception) { emptyList() }
-            } else emptyList()
-
-            val rawFollows = if (personalHome) {
-                try { userStore.follows() } catch (_: Exception) { emptyList() }
-            } else emptyList()
+            val hiddenSections = try { userStore.hiddenSections() } catch (_: Exception) { emptySet() }
+            val rawPins = try { userStore.pins() } catch (_: Exception) { emptyList() }
+            val rawFollows = try { userStore.follows() } catch (_: Exception) { emptyList() }
 
             val resolvedPins = resolvePins(rawPins, allSections).toImmutableList()
             val followedKeys = resolvedPins
                 .filter { isPinFollowed(it, rawFollows) }
                 .map { it.sectionId to it.headingId }
                 .toSet()
-            val visibleSections = filterSections(allSections, personalHome, hiddenSections, showHidden).toImmutableList()
+            val visibleSections = filterSections(allSections, hiddenSections, showHidden).toImmutableList()
 
-            val newCount = if (lastVisitTs > 0L) store.countAddedSince(lastVisitTs) else 0
-            val pick = if (appearance.showRandomPick) stablePick(randomPick, version) else null
+            val newCount = if (homePrefs.blocks.isEnabled(HomeBlock.NEW_SINCE) && lastVisitTs > 0L) {
+                store.countAddedSince(lastVisitTs)
+            } else {
+                0
+            }
+            val pick = if (homePrefs.blocks.isEnabled(HomeBlock.RANDOM_PICK)) {
+                stablePick(randomPick, version)
+            } else {
+                null
+            }
+
+            val newInPinnedList = if (homePrefs.blocks.isEnabled(HomeBlock.NEW_IN_PINNED) && lastVisitTs > 0L) {
+                val perPinChanges = resolvedPins.take(20).map { pin ->
+                    try {
+                        if (pin.headingId.isEmpty()) {
+                            store.recentChanges(
+                                sinceTs = lastVisitTs,
+                                kinds = setOf(ChangeKind.ADDED),
+                                sectionIds = setOf(pin.sectionId),
+                                limit = 5,
+                            )
+                        } else {
+                            store.recentChanges(
+                                sinceTs = lastVisitTs,
+                                kinds = setOf(ChangeKind.ADDED),
+                                headingIds = setOf(pin.headingId),
+                                limit = 5,
+                            )
+                        }
+                    } catch (_: Throwable) {
+                        emptyList()
+                    }
+                }
+                mergeNewInPinned(perPinChanges, limit = 5)
+            } else {
+                emptyList()
+            }
+
+            val favouritesList = if (homePrefs.blocks.isEnabled(HomeBlock.FAVOURITES)) {
+                latestFavourites(bookmarks, limit = 5)
+            } else {
+                emptyList()
+            }
+
+            val suggestionsList = if (homePrefs.blocks.isEnabled(HomeBlock.SUGGESTIONS)) {
+                stableSuggestions(version, pick)
+            } else {
+                emptyList()
+            }
+
             val isEmpty = visibleSections.isEmpty() && version == 0L
             val unreadPosts = try {
                 PostsReadState.unreadCountFromCache(userStore, container.context.filesDir)
@@ -355,12 +497,15 @@ class HomeViewModel(
                 newSinceLastVisitCount = newCount,
                 randomPick = pick,
                 isEmptyState = isEmpty,
-                personalHome = personalHome,
                 pins = resolvedPins,
                 followedKeys = followedKeys,
                 hiddenSectionsCount = hiddenSections.size,
                 showingHiddenSections = showHidden,
                 unreadPosts = unreadPosts,
+                blocks = homePrefs.blocks.enabledBlocks().toImmutableList(),
+                newInPinned = newInPinnedList.toImmutableList(),
+                favourites = favouritesList.toImmutableList(),
+                suggestions = suggestionsList.toImmutableList(),
             )
         }
     }.stateIn(

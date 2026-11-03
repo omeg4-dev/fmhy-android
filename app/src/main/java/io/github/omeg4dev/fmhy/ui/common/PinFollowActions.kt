@@ -11,6 +11,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.omeg4dev.fmhy.data.user.Pin
 import io.github.omeg4dev.fmhy.di.AppContainer
+import io.github.omeg4dev.fmhy.ui.home.HomeBlock
 import kotlinx.coroutines.flow.first
 
 /**
@@ -54,7 +55,7 @@ suspend fun pinItem(
     if (action != null) {
         val tapped = snackbarHostState.showAction(message, action)
         if (tapped) {
-            container.settingsRepository.updateHome { it.copy(personalHome = true) }
+            container.settingsRepository.updateHome { it.copy(blocks = it.blocks.withEnabled(HomeBlock.PINNED, true)) }
         }
     } else {
         snackbarHostState.showSnackbar(

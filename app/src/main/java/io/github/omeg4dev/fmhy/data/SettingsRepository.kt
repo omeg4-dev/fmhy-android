@@ -14,6 +14,7 @@ import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import io.github.omeg4dev.fmhy.data.adblock.FilterListCatalog
 import io.github.omeg4dev.fmhy.nav.BottomBarStyle
+import io.github.omeg4dev.fmhy.ui.home.HomeLayout
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -132,6 +133,7 @@ class DefaultSettingsRepository(
         private val KEY_ONBOARDING_VERSION = intPreferencesKey("onboarding_version")
 
         // Home
+        private val KEY_HOME_BLOCKS = stringPreferencesKey("home_blocks")
         private val KEY_HOME_PERSONAL_HOME = booleanPreferencesKey("home_personal_home")
         private val KEY_HOME_NEW_BADGE_DAYS = intPreferencesKey("home_new_badge_days")
         private val KEY_HOME_SEARCH_EXACT = booleanPreferencesKey("home_search_exact")
@@ -445,8 +447,13 @@ class DefaultSettingsRepository(
     // --- HomePrefs ---
     private fun readHomePrefs(prefs: Preferences): HomePrefs {
         val default = HomePrefs()
+        val blocks = prefs[KEY_HOME_BLOCKS]?.let { HomeLayout.decode(it) }
+            ?: HomeLayout.fromLegacy(
+                prefs[KEY_HOME_PERSONAL_HOME] ?: false,
+                prefs[KEY_SHOW_RANDOM_PICK] ?: true,
+            )
         return HomePrefs(
-            personalHome = prefs[KEY_HOME_PERSONAL_HOME] ?: default.personalHome,
+            blocks = blocks,
             newBadgeDays = prefs[KEY_HOME_NEW_BADGE_DAYS] ?: default.newBadgeDays,
             searchExact = prefs[KEY_HOME_SEARCH_EXACT] ?: default.searchExact,
             swipeToBookmark = prefs[KEY_HOME_SWIPE_TO_BOOKMARK] ?: default.swipeToBookmark,
@@ -457,7 +464,7 @@ class DefaultSettingsRepository(
     }
 
     private fun writeHomePrefs(prefs: MutablePreferences, p: HomePrefs) {
-        prefs[KEY_HOME_PERSONAL_HOME] = p.personalHome
+        prefs[KEY_HOME_BLOCKS] = p.blocks.encode()
         prefs[KEY_HOME_SEARCH_EXACT] = p.searchExact
         prefs[KEY_HOME_NEW_BADGE_DAYS] = p.newBadgeDays
         prefs[KEY_HOME_SWIPE_TO_BOOKMARK] = p.swipeToBookmark

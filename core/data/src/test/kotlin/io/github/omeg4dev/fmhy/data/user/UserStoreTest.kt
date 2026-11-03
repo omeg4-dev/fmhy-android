@@ -3,6 +3,10 @@ package io.github.omeg4dev.fmhy.data.user
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import androidx.sqlite.execSQL
 import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -1317,6 +1321,124 @@ class UserStoreTest {
 
         val retrieved2 = store.downloads().first { it.id == id }
         assertEquals(updatedRecord.fmhyJson, retrieved2.fmhyJson)
+
+        store.close()
+    }
+
+    @Test
+    fun testRecordSectionOpenIncrementsAndOrdering() = runTest {
+        val store = createStore()
+
+        // Empty store returns empty list
+        assertTrue(store.topOpenedSections(5).isEmpty())
+        assertTrue(store.topOpenedSections(0).isEmpty())
+        assertTrue(store.topOpenedSections(-1).isEmpty())
+
+        // a:3, b:3, c:1
+        store.recordSectionOpen("a")
+        store.recordSectionOpen("a")
+        store.recordSectionOpen("a")
+        store.recordSectionOpen("b")
+        store.recordSectionOpen("b")
+        store.recordSectionOpen("b")
+        store.recordSectionOpen("c")
+
+        // a and b both have count 3, tie broken by id ascending -> ["a", "b"]
+        assertEquals(listOf("a", "b"), store.topOpenedSections(2))
+        assertEquals(listOf("a", "b", "c"), store.topOpenedSections(3))
+        assertEquals(listOf("a", "b", "c"), store.topOpenedSections(10))
+
+        store.close()
+    }
+
+    @Test
+    fun testRecordSectionOpenCorruptJsonRecovery() = runTest {
+        val store = createStore()
+
+        store.put("section_opens", "{not json")
+        assertTrue(store.topOpenedSections(5).isEmpty())
+
+        store.recordSectionOpen("x")
+        assertEquals(listOf("x"), store.topOpenedSections(5))
+
+        store.close()
+    }
+
+    @Test
+    fun testRecordSectionOpenBlankIdNoOp() = runTest {
+        val store = createStore()
+
+        store.recordSectionOpen("")
+        store.recordSectionOpen("   ")
+        assertTrue(store.topOpenedSections(5).isEmpty())
+        assertNull(store.get("section_opens"))
+
+        store.close()
+    }
+
+    @Test
+    fun testRecordSectionOpenDoesNotBumpChanges() = runTest {
+        val store = createStore()
+
+        val initial = store.changes.value
+        store.recordSectionOpen("sec1")
+        assertEquals(initial, store.changes.value)
+
+        // Normal put bumps changes
+        store.put("key", "val")
+        assertEquals(initial + 1L, store.changes.value)
+
+        store.close()
+    }
+
+    @Test
+    fun testRecordSectionOpenCappedAt200() = runTest {
+        val store = createStore()
+
+        // Record 205 distinct sections
+        for (i in 1..205) {
+            store.recordSectionOpen("sec_$i")
+        }
+
+        val top = store.topOpenedSections(300)
+        assertEquals(200, top.size)
+
+        // Verify with raw kv content
+        val raw = store.get("section_opens")
+        assertNotNull(raw)
+        val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+        val map = json.decodeFromString<Map<String, Int>>(raw!!)
+        assertEquals(200, map.size)
+
+        // If we open "sec_fav" multiple times, it must stay in the top 200
+        repeat(5) { store.recordSectionOpen("sec_fav") }
+        val updatedTop = store.topOpenedSections(300)
+        assertEquals(200, updatedTop.size)
+        assertEquals("sec_fav", updatedTop.first())
+
+        store.close()
+    }
+
+    @Test
+    fun testRecordSectionOpenConcurrent() = runTest {
+        val store = createStore()
+
+        coroutineScope {
+            val jobs = (1..20).map {
+                async(Dispatchers.Default) {
+                    repeat(10) {
+                        store.recordSectionOpen("concurrent_sec")
+                    }
+                }
+            }
+            jobs.awaitAll()
+        }
+
+        val raw = store.get("section_opens")
+        assertNotNull(raw)
+        val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+        val map = json.decodeFromString<Map<String, Int>>(raw!!)
+        assertEquals(200, map["concurrent_sec"])
 
         store.close()
     }

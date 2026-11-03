@@ -123,6 +123,14 @@ import io.github.omeg4dev.fmhy.ui.common.showFollowing
 import io.github.omeg4dev.fmhy.ui.search.SearchBarShape
 import io.github.omeg4dev.fmhy.ui.search.searchBarBorder
 import io.github.omeg4dev.fmhy.ui.search.searchBarContainerColor
+import io.github.omeg4dev.fmhy.ui.home.blocks.favouritesBlock
+import io.github.omeg4dev.fmhy.ui.home.blocks.newInPinnedBlock
+import io.github.omeg4dev.fmhy.ui.home.blocks.newSinceBlock
+import io.github.omeg4dev.fmhy.ui.home.blocks.pinnedBlock
+import io.github.omeg4dev.fmhy.ui.home.blocks.randomPickBlock
+import io.github.omeg4dev.fmhy.ui.home.blocks.searchBlock
+import io.github.omeg4dev.fmhy.ui.home.blocks.sectionsBlock
+import io.github.omeg4dev.fmhy.ui.home.blocks.suggestionsBlock
 import kotlinx.coroutines.flow.filter
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -146,7 +154,7 @@ fun HomeScreen(
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     val bottomBarPadding = LocalBottomBarPadding.current
-    var showRandomPickDetails by remember { mutableStateOf(false) }
+    var detailEntry by remember { mutableStateOf<io.github.omeg4dev.fmhy.data.model.Entry?>(null) }
 
     val offerCrashes by container.settingsRepository.reportOfferCrashes.collectAsStateWithLifecycle(initialValue = true)
     val protectionPrefs by container.settingsRepository.protectionPrefs.collectAsStateWithLifecycle(initialValue = ProtectionPrefs())
@@ -361,433 +369,111 @@ fun HomeScreen(
                         }
                     }
 
-                    // Search pill (16dp horizontal margin, 8dp bottom)
-                    item(key = "search-pill") {
-                        Surface(
-                            onClick = onNavigateToSearch,
-                            shape = SearchBarShape,
-                            color = searchBarContainerColor(),
-                            border = searchBarBorder(focused = false),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(52.dp)
-                                .padding(horizontal = 16.dp),
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(start = 16.dp, end = 16.dp),
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Search,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                )
-                                Spacer(Modifier.width(12.dp))
-                                Text(
-                                    text = "Search ${"%,d".format(totalEntries)} sites",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        }
-                        Spacer(Modifier.height(8.dp))
-                    }
-
-                    // "New since last visit: N" card (when > 0)
-                    if (state.newSinceLastVisitCount > 0) {
-                        item(key = "new-since-last-visit") {
-                            Surface(
-                                onClick = {
+                    state.blocks.forEach { block ->
+                        when (block) {
+                            HomeBlock.SEARCH -> searchBlock(
+                                totalEntries = totalEntries,
+                                onNavigateToSearch = onNavigateToSearch,
+                                showHeadline = state.blocks.firstOrNull() != HomeBlock.SEARCH,
+                            )
+                            HomeBlock.NEW_SINCE -> newSinceBlock(
+                                count = state.newSinceLastVisitCount,
+                                onNavigateToNewSince = {
                                     nav.push(WhatsNewNavKey(filter = "all", type = "added", period = "since_last_visit"))
                                 },
-                                shape = MaterialTheme.shapes.large,
-                                color = MaterialTheme.colorScheme.secondaryContainer,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
-                            ) {
-                                ListItem(
-                                    colors = ListItemDefaults.colors(
-                                        containerColor = Color.Transparent,
-                                        headlineColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                                        leadingIconColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                                        trailingIconColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                                    ),
-                                    leadingContent = {
-                                        Icon(Icons.Outlined.NewReleases, contentDescription = null)
-                                    },
-                                    headlineContent = {
-                                        Text(
-                                            text = "${state.newSinceLastVisitCount} new since your last visit",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = FontWeight.Medium,
-                                        )
-                                    },
-                                    trailingContent = {
-                                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
-                                    },
-                                )
-                            }
-                        }
-                    }
-
-                    // Random pick row
-                    state.randomPick?.let { pick ->
-                        item(key = "random-pick") {
-                            val sectionTitle = state.sections.firstOrNull { it.id == pick.sectionId }?.displayTitle
-                            val category = remember(pick.headingPath, sectionTitle) {
-                                val segments = pick.headingPath
-                                    .split(Regex("""\s*[›>]\s*"""))
-                                    .filter { it.isNotBlank() }
-                                    .map { CrossLinks.splitLinkTitle(it).first }
-                                segments.drop(1).lastOrNull() ?: sectionTitle.orEmpty()
-                            }
-                            val labelMediumStyle = MaterialTheme.typography.labelMedium
-                            val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
-                            val annotatedText = remember(pick.name, category, labelMediumStyle, onSurfaceVariant) {
-                                buildAnnotatedString {
-                                    withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
-                                        append(pick.name)
-                                    }
-                                    if (category.isNotEmpty()) {
-                                        append("  ")
-                                        withStyle(
-                                            SpanStyle(
-                                                fontSize = labelMediumStyle.fontSize,
-                                                fontWeight = FontWeight.Normal,
-                                                color = onSurfaceVariant,
-                                            )
-                                        ) {
-                                            append(category)
-                                        }
-                                    }
-                                }
-                            }
-
-                            Column(
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                            ) {
-                                Text(
-                                    text = "Random pick",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(bottom = 8.dp),
-                                )
-                                Surface(
-                                    shape = MaterialTheme.shapes.large,
-                                    color = MaterialTheme.colorScheme.surfaceContainerLow,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(MaterialTheme.shapes.large)
-                                        .combinedClickable(
-                                            onClick = {
-                                                linkOpener.openUrl(pick.url)
-                                            },
-                                            onLongClick = {
-                                                haptics.longPress()
-                                                showRandomPickDetails = true
-                                            },
-                                        ),
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .heightIn(min = 56.dp)
-                                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Outlined.Casino,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(22.dp),
-                                        )
-                                        Spacer(Modifier.width(12.dp))
-                                        Text(
-                                            text = annotatedText,
-                                            style = MaterialTheme.typography.titleMedium,
-                                            maxLines = 2,
-                                            overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.weight(1f),
-                                        )
-                                        IconButton(
-                                            onClick = {
-                                                viewModel.refreshRandomPick()
-                                            },
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Refresh,
-                                                contentDescription = "Reroll random pick",
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Pinned block (only when personalHome is on)
-                    if (state.personalHome) {
-                        if (state.pins.isEmpty()) {
-                            item(key = "pins-empty-card") {
-                                Column(
-                                    modifier = Modifier
-                                        .animateItem()
-                                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                                ) {
-                                    Text(
-                                        text = "Pinned",
-                                        style = MaterialTheme.typography.titleSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.padding(bottom = 8.dp),
-                                    )
-                                    Surface(
-                                        shape = MaterialTheme.shapes.large,
-                                        color = MaterialTheme.colorScheme.surfaceContainerLow,
-                                        modifier = Modifier.fillMaxWidth(),
-                                    ) {
-                                        Text(
-                                            text = "Pin sections or categories from their menu to see them here.",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.padding(16.dp),
-                                        )
-                                    }
-                                }
-                            }
-                        } else {
-                            item(key = "pins-block") {
-                                Column(
-                                    modifier = Modifier
-                                        .animateItem()
-                                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                                ) {
-                                    Text(
-                                        text = "Pinned",
-                                        style = MaterialTheme.typography.titleSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.padding(bottom = 8.dp),
-                                    )
-                                    Column(
-                                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                                        modifier = Modifier.fillMaxWidth(),
-                                    ) {
-                                        state.pins.chunked(2).forEach { rowPins ->
-                                            Row(
-                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .height(IntrinsicSize.Min),
-                                            ) {
-                                                rowPins.forEach { pin ->
-                                                    val isFollowed = (pin.sectionId to pin.headingId) in state.followedKeys
-                                                    PinTile(
-                                                        pin = pin,
-                                                        isFollowed = isFollowed,
-                                                        onNavigate = {
-                                                            onNavigateToSection(pin.sectionId, pin.anchor)
-                                                        },
-                                                        onUnpin = {
-                                                            scope.launch {
-                                                                unpinItem(
-                                                                    container = container,
-                                                                    snackbarHostState = snackbarHostState,
-                                                                    haptics = haptics,
-                                                                    sectionId = pin.sectionId,
-                                                                    headingId = pin.headingId,
-                                                                    title = pin.label,
-                                                                )
-                                                            }
-                                                        },
-                                                        onToggleFollow = {
-                                                            scope.launch {
-                                                                val isMainSection = pin.headingId.isEmpty()
-                                                                if (isMainSection) {
-                                                                    if (isFollowed) {
-                                                                        container.userStore.unfollowSection(pin.sectionId)
-                                                                        onShowSnackbar("Unfollowed ${pin.title}")
-                                                                    } else {
-                                                                        container.userStore.followSection(pin.sectionId, pin.title)
-                                                                        showFollowing(snackbarHostState, pin.title, isPinned = true) {}
-                                                                    }
-                                                                } else {
-                                                                    val nextFollowed = !isFollowed
-                                                                    val fullTitle = if (pin.parentTitle != null) "${pin.parentTitle} › ${pin.title}" else pin.title
-                                                                    container.userStore.setSubsectionFollowed(
-                                                                        pin.sectionId,
-                                                                        pin.headingId,
-                                                                        fullTitle,
-                                                                        nextFollowed,
-                                                                    )
-                                                                    if (nextFollowed) {
-                                                                        showFollowing(snackbarHostState, pin.title, isPinned = true) {}
-                                                                    } else {
-                                                                        onShowSnackbar("Unfollowed ${pin.title}")
-                                                                    }
-                                                                }
-                                                            }
-                                                        },
-                                                        modifier = Modifier
-                                                            .weight(1f)
-                                                            .fillMaxHeight(),
-                                                    )
-                                                }
-                                                if (rowPins.size == 1) {
-                                                    Spacer(Modifier.weight(1f))
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Sections header
-                    state.sectionGroups.forEachIndexed { groupIndex, group ->
-                    item(key = "sections-header-${group.title}") {
-                        Text(
-                            text = group.title ?: "Sections",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier
-                                .animateItem()
-                                .enterStagger(groupIndex * 2, state.datasetVersion)
-                                .padding(start = 16.dp, top = 20.dp, bottom = 8.dp),
-                        )
-                    }
-
-                    // Sections of one group inside one Surface
-                    item(key = "sections-list-${group.title}") {
-                        Surface(
-                            shape = MaterialTheme.shapes.large,
-                            color = MaterialTheme.colorScheme.surfaceContainerLow,
-                            modifier = Modifier
-                                .animateItem()
-                                .enterStagger(groupIndex * 2 + 1, state.datasetVersion)
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp),
-                        ) {
-                            Column(modifier = Modifier.fillMaxWidth()) {
-                                group.sections.forEachIndexed { index, section ->
-                                    if (index > 0) {
-                                        HorizontalDivider(
-                                            modifier = Modifier.padding(start = 72.dp),
-                                            color = MaterialTheme.colorScheme.outlineVariant,
-                                            thickness = 0.5.dp,
-                                        )
-                                    }
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .heightIn(min = 64.dp)
-                                            .clickable {
-                                                when (section.id) {
-                                                    "audio-tools" -> linkOpener.openUrl("https://fmhy.net/audio#audio-tools")
-                                                    "educational-tools" -> linkOpener.openUrl("https://fmhy.net/educational#educational-tools")
-                                                    "beginners-guide" -> onNavigateToReader("beginners-guide.md", "Beginner's guide")
-                                                    "faq" -> onNavigateToReader("other/FAQ.md", "FAQ")
-                                                    "backups" -> onNavigateToReader("other/backups.md", "Backups & mirrors")
-                                                    "news-and-posts" -> onNavigateToPosts()
-                                                    else -> onNavigateToSection(section.id, null)
-                                                }
-                                            }
-                                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                                    ) {
-                                        Surface(
-                                            shape = CircleShape,
-                                            color = MaterialTheme.colorScheme.secondaryContainer,
-                                            modifier = Modifier.size(40.dp),
-                                        ) {
-                                            Box(contentAlignment = Alignment.Center) {
-                                                Icon(
-                                                    imageVector = sectionIcon(section.id),
-                                                    contentDescription = null,
-                                                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                                                    modifier = Modifier.size(22.dp),
-                                                )
-                                            }
-                                        }
-                                        Spacer(Modifier.width(16.dp))
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = section.displayTitle,
-                                                style = MaterialTheme.typography.titleMedium,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis,
-                                            )
-                                            if (section.id == "news-and-posts" && state.unreadPosts > 0) {
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    Box(
-                                                        modifier = Modifier
-                                                            .size(8.dp)
-                                                            .background(MaterialTheme.colorScheme.primary, CircleShape),
-                                                    )
-                                                    Spacer(Modifier.width(6.dp))
-                                                    Text(
-                                                        text = "New",
-                                                        style = MaterialTheme.typography.labelMedium,
-                                                        color = MaterialTheme.colorScheme.primary,
-                                                    )
-                                                }
-                                            }
-                                            if (section.description.isNotBlank()) {
-                                                Text(
-                                                    text = section.description,
-                                                    style = MaterialTheme.typography.bodyMedium,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                    maxLines = 2,
-                                                    overflow = TextOverflow.Ellipsis,
-                                                )
-                                            }
-                                            if (section.entryCount > 0) {
-                                                Text(
-                                                    text = "${"%,d".format(section.entryCount)} sites",
-                                                    style = MaterialTheme.typography.labelMedium,
-                                                    color = MaterialTheme.colorScheme.primary,
-                                                )
-                                            }
-                                        }
-                                        Icon(
-                                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    }
-
-                    // Hidden sections toggle (only when personalHome is on)
-                    if (state.personalHome && state.hiddenSectionsCount > 0) {
-                        item(key = "hidden-sections-toggle") {
-                            val text = if (state.showingHiddenSections) {
-                                "${state.hiddenSectionsCount} hidden sections · Hide"
-                            } else {
-                                "${state.hiddenSectionsCount} hidden sections · Show"
-                            }
-                            Surface(
-                                onClick = {
-                                    viewModel.toggleShowHiddenSections()
+                            )
+                            HomeBlock.RANDOM_PICK -> randomPickBlock(
+                                pick = state.randomPick,
+                                sections = state.sections,
+                                onOpenUrl = { linkOpener.openUrl(it) },
+                                onShowDetails = { pick ->
+                                    haptics.longPress()
+                                    detailEntry = pick
                                 },
-                                color = Color.Transparent,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                            ) {
-                                Text(
-                                    text = text,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    textAlign = TextAlign.Center,
-                                    modifier = Modifier.fillMaxWidth(),
-                                )
-                            }
+                                onRefresh = { viewModel.refreshRandomPick() },
+                            )
+                            HomeBlock.PINNED -> pinnedBlock(
+                                pins = state.pins,
+                                followedKeys = state.followedKeys,
+                                onNavigateToSection = onNavigateToSection,
+                                onUnpin = { pin ->
+                                    scope.launch {
+                                        unpinItem(
+                                            container = container,
+                                            snackbarHostState = snackbarHostState,
+                                            haptics = haptics,
+                                            sectionId = pin.sectionId,
+                                            headingId = pin.headingId,
+                                            title = pin.label,
+                                        )
+                                    }
+                                },
+                                onToggleFollow = { pin, isFollowed ->
+                                    scope.launch {
+                                        val isMainSection = pin.headingId.isEmpty()
+                                        if (isMainSection) {
+                                            if (isFollowed) {
+                                                container.userStore.unfollowSection(pin.sectionId)
+                                                onShowSnackbar("Unfollowed ${pin.title}")
+                                            } else {
+                                                container.userStore.followSection(pin.sectionId, pin.title)
+                                                showFollowing(snackbarHostState, pin.title, isPinned = true) {}
+                                            }
+                                        } else {
+                                            val nextFollowed = !isFollowed
+                                            val fullTitle = if (pin.parentTitle != null) "${pin.parentTitle} › ${pin.title}" else pin.title
+                                            container.userStore.setSubsectionFollowed(
+                                                pin.sectionId,
+                                                pin.headingId,
+                                                fullTitle,
+                                                nextFollowed,
+                                            )
+                                            if (nextFollowed) {
+                                                showFollowing(snackbarHostState, pin.title, isPinned = true) {}
+                                            } else {
+                                                onShowSnackbar("Unfollowed ${pin.title}")
+                                            }
+                                        }
+                                    }
+                                },
+                            )
+                            HomeBlock.NEW_IN_PINNED -> newInPinnedBlock(
+                                pinsCount = state.pins.size,
+                                items = state.newInPinned,
+                                sections = state.sections,
+                                onOpenUrl = { linkOpener.openUrl(it) },
+                                onSeeAll = {
+                                    nav.push(WhatsNewNavKey(filter = "all", type = "added", period = "since_last_visit"))
+                                },
+                            )
+                            HomeBlock.FAVOURITES -> favouritesBlock(
+                                favourites = state.favourites,
+                                onOpenUrl = { linkOpener.openUrl(it) },
+                                onNavigateToSaved = {
+                                    nav.select(Tab.SAVED)
+                                },
+                            )
+                            HomeBlock.SUGGESTIONS -> suggestionsBlock(
+                                suggestions = state.suggestions,
+                                sections = state.sections,
+                                onOpenUrl = { linkOpener.openUrl(it) },
+                                onShowDetails = { entry ->
+                                    haptics.longPress()
+                                    detailEntry = entry
+                                },
+                            )
+                            HomeBlock.SECTIONS -> sectionsBlock(
+                                sectionGroups = state.sectionGroups,
+                                datasetVersion = state.datasetVersion,
+                                unreadPosts = state.unreadPosts,
+                                hiddenSectionsCount = state.hiddenSectionsCount,
+                                showingHiddenSections = state.showingHiddenSections,
+                                onToggleShowHidden = { viewModel.toggleShowHiddenSections() },
+                                onOpenUrl = { linkOpener.openUrl(it) },
+                                onNavigateToSection = { sectionId -> onNavigateToSection(sectionId, null) },
+                                onNavigateToReader = onNavigateToReader,
+                                onNavigateToPosts = onNavigateToPosts,
+                            )
                         }
                     }
                 }
@@ -797,8 +483,8 @@ fun HomeScreen(
 }
 }
 
-    if (showRandomPickDetails && state.randomPick != null) {
-        val pick = state.randomPick!!
+    if (detailEntry != null) {
+        val pick = detailEntry!!
         val context = LocalContext.current
         val pasteDecoder = LocalPasteDecoder.current
         EntryDetailBottomSheet(
@@ -813,10 +499,10 @@ fun HomeScreen(
                     nav.push(SectionNavKey(pick.sectionId, anchor = anchor, focusEntryId = pick.id))
                 }
             },
-            onDismiss = { showRandomPickDetails = false },
+            onDismiss = { detailEntry = null },
             onOpenUrl = { linkOpener.openUrl(it) },
             onCopyLink = { url ->
-                showRandomPickDetails = false
+                detailEntry = null
                 pasteDecoder.linkText(url, PasteAction.COPY) { text ->
                     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                     clipboard.setPrimaryClip(ClipData.newPlainText("URL", text))
@@ -824,7 +510,7 @@ fun HomeScreen(
                 }
             },
             onShareLink = { url ->
-                showRandomPickDetails = false
+                detailEntry = null
                 pasteDecoder.linkText(url, PasteAction.SHARE) { text ->
                     val intent = Intent(Intent.ACTION_SEND).apply {
                         type = "text/plain"
@@ -858,92 +544,6 @@ fun HomeScreen(
     onNavigateToCheckLink = onNavigateToCheckLink,
     onShowSnackbar = onShowSnackbar,
 )
-
-@Composable
-private fun PinTile(
-    pin: ResolvedPin,
-    isFollowed: Boolean,
-    onNavigate: () -> Unit,
-    onUnpin: () -> Unit,
-    onToggleFollow: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    var menuExpanded by remember { mutableStateOf(false) }
-    val haptics = rememberHaptics()
-
-    Box(modifier = modifier) {
-        Surface(
-            shape = MaterialTheme.shapes.medium,
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            modifier = Modifier
-                .fillMaxSize()
-                .heightIn(min = 56.dp)
-                .clip(MaterialTheme.shapes.medium)
-                .combinedClickable(
-                    onClick = onNavigate,
-                    onLongClick = {
-                        haptics.longPress()
-                        menuExpanded = true
-                    },
-                ),
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-            ) {
-                Icon(
-                    imageVector = sectionIcon(pin.sectionId),
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(20.dp),
-                )
-                Spacer(Modifier.width(10.dp))
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.Center,
-                ) {
-                    val displayTitle = if (pin.headingId.isEmpty()) sectionDisplayTitle(pin.sectionId, pin.title) else pin.title
-                    Text(
-                        text = displayTitle,
-                        style = MaterialTheme.typography.labelLarge,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    if (pin.parentTitle != null) {
-                        Text(
-                            text = sectionDisplayTitle(pin.sectionId, pin.parentTitle),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                }
-            }
-        }
-        DropdownMenu(
-            expanded = menuExpanded,
-            onDismissRequest = { menuExpanded = false },
-        ) {
-            DropdownMenuItem(
-                text = { Text("Unpin") },
-                onClick = {
-                    menuExpanded = false
-                    onUnpin()
-                },
-            )
-            DropdownMenuItem(
-                text = { Text(if (isFollowed) "Unfollow" else "Follow") },
-                onClick = {
-                    menuExpanded = false
-                    onToggleFollow()
-                },
-            )
-        }
-    }
-}
 
 @Composable
 private fun VpnStatusAction(

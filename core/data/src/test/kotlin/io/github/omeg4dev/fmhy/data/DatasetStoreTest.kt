@@ -369,4 +369,49 @@ class DatasetStoreTest {
         assertEquals(3L, tables)
         store.close()
     }
+
+    @Test
+    fun testRandomTopEntries() = runTest {
+        val dbFile = tempFolder.newFile("sample_random_top.db")
+        val store = createSampleDb(dbFile)
+
+        store.withConnection { conn ->
+            conn.execSQL("INSERT INTO sections (id, title, description, file, ord) VALUES ('video', 'Video', '', 'video.md', 1);")
+            conn.execSQL("INSERT INTO sections (id, title, description, file, ord) VALUES ('audio', 'Audio', '', 'audio.md', 2);")
+            conn.execSQL("INSERT INTO unsafe_domains (domain, reason) VALUES ('bad.com', 'Malware site');")
+
+            // Valid video safe entries
+            conn.execSQL("INSERT INTO entries (num, id, section_id, heading_id, ord, name, url, original_url, description, tags, heading_path, tier, kind, is_inline_more, is_base64, mirrors, extra_links, first_seen, last_changed, starred_at) VALUES (1, 'v1', 'video', NULL, 1, 'V1', 'https://safe1.com', NULL, '', '', 'Video', 1, 0, 0, 0, '[]', '[]', 1000, 1000, 1000);")
+            conn.execSQL("INSERT INTO entries (num, id, section_id, heading_id, ord, name, url, original_url, description, tags, heading_path, tier, kind, is_inline_more, is_base64, mirrors, extra_links, first_seen, last_changed, starred_at) VALUES (2, 'v2', 'video', NULL, 2, 'V2', 'https://safe2.com', NULL, '', '', 'Video', 2, 0, 0, 0, '[]', '[]', 1000, 1000, 1000);")
+
+            // Filtered out entries in video
+            conn.execSQL("INSERT INTO entries (num, id, section_id, heading_id, ord, name, url, original_url, description, tags, heading_path, tier, kind, is_inline_more, is_base64, mirrors, extra_links, first_seen, last_changed, starred_at) VALUES (3, 'v3', 'video', NULL, 3, 'V3', 'https://tier0.com', NULL, '', '', 'Video', 0, 0, 0, 0, '[]', '[]', 1000, 1000, NULL);")
+            conn.execSQL("INSERT INTO entries (num, id, section_id, heading_id, ord, name, url, original_url, description, tags, heading_path, tier, kind, is_inline_more, is_base64, mirrors, extra_links, first_seen, last_changed, starred_at) VALUES (4, 'v4', 'video', NULL, 4, 'V4', 'https://kind1.com', NULL, '', '', 'Video', 1, 1, 0, 0, '[]', '[]', 1000, 1000, 1000);")
+            conn.execSQL("INSERT INTO entries (num, id, section_id, heading_id, ord, name, url, original_url, description, tags, heading_path, tier, kind, is_inline_more, is_base64, mirrors, extra_links, first_seen, last_changed, starred_at) VALUES (5, 'v5', 'video', NULL, 5, 'V5', 'https://base64.com', NULL, '', '', 'Video', 1, 0, 0, 1, '[]', '[]', 1000, 1000, 1000);")
+            conn.execSQL("INSERT INTO entries (num, id, section_id, heading_id, ord, name, url, original_url, description, tags, heading_path, tier, kind, is_inline_more, is_base64, mirrors, extra_links, first_seen, last_changed, starred_at) VALUES (6, 'v6', 'video', NULL, 6, 'V6', 'https://bad.com/malware', NULL, '', '', 'Video', 1, 0, 0, 0, '[]', '[]', 1000, 1000, 1000);")
+
+            // Valid audio safe entry
+            conn.execSQL("INSERT INTO entries (num, id, section_id, heading_id, ord, name, url, original_url, description, tags, heading_path, tier, kind, is_inline_more, is_base64, mirrors, extra_links, first_seen, last_changed, starred_at) VALUES (7, 'a1', 'audio', NULL, 1, 'A1', 'https://audiosafe.com', NULL, '', '', 'Audio', 1, 0, 0, 0, '[]', '[]', 1000, 1000, 1000);")
+        }
+
+        assertEquals(emptyList<Any>(), store.randomTopEntries("video", 0))
+        assertEquals(emptyList<Any>(), store.randomTopEntries("video", -1))
+
+        val videoEntries = store.randomTopEntries("video", 5)
+        assertEquals(2, videoEntries.size)
+        assertTrue(videoEntries.all { it.sectionId == "video" && (it.id == "v1" || it.id == "v2") })
+
+        val singleVideo = store.randomTopEntries("video", 1)
+        assertEquals(1, singleVideo.size)
+        assertTrue(singleVideo[0].id == "v1" || singleVideo[0].id == "v2")
+
+        val audioEntries = store.randomTopEntries("audio", 5)
+        assertEquals(1, audioEntries.size)
+        assertEquals("a1", audioEntries[0].id)
+
+        val unknownEntries = store.randomTopEntries("unknown", 5)
+        assertTrue(unknownEntries.isEmpty())
+
+        store.close()
+    }
 }

@@ -545,4 +545,22 @@ class SettingsViewModelTest {
 
         assertNull(viewModel.uiState.value.updateStatusMessage)
     }
+
+    @Test
+    fun testUpdateHomeBlocksMove() = runTest {
+        val store = FakeDatasetStore()
+        val settings = FakeSettingsRepository()
+        val container = FakeContainer(store, settings)
+        val viewModel = SettingsViewModel(store, settings, container)
+
+        val initialFirst = settings.homePrefs.first().blocks.entries[0].block
+        val initialSecond = settings.homePrefs.first().blocks.entries[1].block
+
+        viewModel.updateHome { it.copy(blocks = it.blocks.move(0, 1)) }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val updatedEntries = settings.homePrefs.first().blocks.entries
+        assertEquals(initialSecond, updatedEntries[0].block)
+        assertEquals(initialFirst, updatedEntries[1].block)
+    }
 }
