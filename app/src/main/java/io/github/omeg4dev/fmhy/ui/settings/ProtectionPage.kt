@@ -47,16 +47,20 @@ fun ProtectionPage(
     val eWarnRiskyDownloads = SettingsCatalog.protectionWarnRiskyDownloads
     val eForgetVtChecks = SettingsCatalog.protectionForgetVtChecks
 
-    val protectionIds = listOf(
+    val sitesIds = listOf(
         eWarnUnsafeSites.id,
         eWarnPotentiallyUnsafeSites.id,
         eGoogleSafeBrowsing.id,
+        eForgetVtChecks.id,
+    )
+    val popupIds = listOf(
         eBlockPopups.id,
         eBlockRedirects.id,
         eBlockAppLinks.id,
+    )
+    val downloadIds = listOf(
         eAskBeforeDownloads.id,
         eWarnRiskyDownloads.id,
-        eForgetVtChecks.id,
     )
     val vpnIds = listOf(
         eShowVpnState.id,
@@ -64,7 +68,7 @@ fun ProtectionPage(
         eShowIpCountry.id,
         eBlockWithoutVpn.id,
     )
-    val sectionSettingIds = remember { listOf(protectionIds, vpnIds) }
+    val sectionSettingIds = remember { listOf(sitesIds, popupIds, downloadIds, vpnIds) }
     val listState = rememberFocusedListState(sectionSettingIds)
 
     Scaffold(
@@ -91,7 +95,7 @@ fun ProtectionPage(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             item {
-                SettingsSection(title = "Protection") {
+                SettingsSection(title = "Unsafe sites") {
                     SwitchRow(
                         title = eWarnUnsafeSites.title,
                         summary = eWarnUnsafeSites.description,
@@ -122,6 +126,19 @@ fun ProtectionPage(
                         },
                     )
                     SettingsDivider()
+                    NavRow(
+                        title = eForgetVtChecks.title,
+                        summary = eForgetVtChecks.description,
+                        settingId = eForgetVtChecks.id,
+                        onClick = {
+                            viewModel.clearVtChecks { onShowSnackbar("Checked sites forgotten") }
+                        },
+                    )
+                }
+            }
+
+            item {
+                SettingsSection(title = "Pop-ups and redirects") {
                     SwitchRow(
                         title = eBlockPopups.title,
                         summary = eBlockPopups.description,
@@ -151,7 +168,11 @@ fun ProtectionPage(
                             viewModel.updateProtection { it.copy(blockAppLinks = checked) }
                         },
                     )
-                    SettingsDivider()
+                }
+            }
+
+            item {
+                SettingsSection(title = "Downloads") {
                     SwitchRow(
                         title = eAskBeforeDownloads.title,
                         summary = eAskBeforeDownloads.description,
@@ -169,15 +190,6 @@ fun ProtectionPage(
                         settingId = eWarnRiskyDownloads.id,
                         onChange = { checked ->
                             viewModel.updateProtection { it.copy(warnRiskyDownloads = checked) }
-                        },
-                    )
-                    SettingsDivider()
-                    NavRow(
-                        title = eForgetVtChecks.title,
-                        summary = eForgetVtChecks.description,
-                        settingId = eForgetVtChecks.id,
-                        onClick = {
-                            viewModel.clearVtChecks { onShowSnackbar("Checked sites forgotten") }
                         },
                     )
                 }

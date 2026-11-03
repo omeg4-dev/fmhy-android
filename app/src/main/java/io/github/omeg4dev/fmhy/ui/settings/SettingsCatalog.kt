@@ -478,91 +478,91 @@ object SettingsCatalog {
         id = "protection.warn_unsafe_sites",
         page = SettingsPage.PROTECTION,
         title = "Warn before unsafe sites",
-        description = "Display a warning before navigating to known malicious or phishing sites",
+        description = "Show a warning before opening known scam or malware sites",
         keywords = listOf("unsafe", "malware", "phishing", "warning", "security"),
     )
     val protectionWarnPotentiallyUnsafeSites = SettingEntry(
         id = "protection.warn_potentially_unsafe_sites",
         page = SettingsPage.PROTECTION,
         title = "Warn before potentially unsafe sites",
-        description = "Warn when opening sites reported for questionable behavior or unverified safety",
+        description = "Also warn about sites that look suspicious",
         keywords = listOf("potential", "suspicious", "warning", "risky", "safety"),
     )
     val protectionGoogleSafeBrowsing = SettingEntry(
         id = "protection.google_safe_browsing",
         page = SettingsPage.PROTECTION,
         title = "Google Safe Browsing",
-        description = "Check web addresses against Google Safe Browsing threat databases",
+        description = "Also check sites against Google's list of dangerous sites",
         keywords = listOf("google", "safe", "browsing", "phishing", "malware"),
     )
     val protectionShowVpnState = SettingEntry(
         id = "protection.show_vpn_state",
         page = SettingsPage.PROTECTION,
         title = "Show VPN and HTTPS ring",
-        description = "Ring around the site icon in the address bar: green = HTTPS and VPN, amber = HTTPS without VPN, red = not secure. Tap it for details",
+        description = "Coloured ring around the site icon: green = HTTPS and VPN, amber = HTTPS only, red = not secure. Tap it for details",
         keywords = listOf("vpn", "ring", "https", "secure", "lock", "protected", "favicon"),
     )
     val protectionShowVpnHomeIcon = SettingEntry(
         id = "protection.show_vpn_home_icon",
         page = SettingsPage.PROTECTION,
         title = "Show VPN icon on Home",
-        description = "Adds a lock to the Home bar: green when a VPN is active, amber when not. Tap it for details. Off by default",
+        description = "Lock icon on Home: green with a VPN, amber without. Off by default",
         keywords = listOf("vpn", "lock", "home", "icon", "protected"),
     )
     val protectionShowIpCountry = SettingEntry(
         id = "protection.show_ip_country",
         page = SettingsPage.PROTECTION,
         title = "Show my IP and country",
-        description = "Sends your IP address to Mullvad (am.i.mullvad.net) when you open the connection details or tap the VPN icon on Home. Off by default",
+        description = "Shows your IP and country in the connection details, looked up through Mullvad (am.i.mullvad.net). Off by default",
         keywords = listOf("ip", "country", "location", "mullvad", "vpn"),
     )
     val protectionBlockWithoutVpn = SettingEntry(
         id = "protection.block_without_vpn",
         page = SettingsPage.PROTECTION,
         title = "Disable browsing without VPN",
-        description = "Shows a \"No VPN active\" page instead of loading sites while no VPN is on. Needs \"Show VPN and HTTPS ring\". Load anyway once is always offered",
+        description = "Shows a \"No VPN active\" page while no VPN is on. You can still load a site once. Needs \"Show VPN and HTTPS ring\"",
         keywords = listOf("vpn", "block", "disable", "browsing", "without", "kill", "switch"),
     )
     val protectionBlockPopups = SettingEntry(
         id = "protection.block_popups",
         page = SettingsPage.PROTECTION,
         title = "Block pop-ups",
-        description = "Prevent websites from opening automatic pop-up windows and tabs",
+        description = "Stop sites from opening pop-up windows",
         keywords = listOf("popup", "popups", "window", "block", "tabs"),
     )
     val protectionBlockRedirects = SettingEntry(
         id = "protection.block_redirects",
         page = SettingsPage.PROTECTION,
         title = "Block redirects without a tap",
-        description = "Prevent pages from redirecting you to other sites unless you tapped a link",
+        description = "Stop pages from sending you elsewhere unless you tapped a link",
         keywords = listOf("redirect", "redirects", "tap", "forward", "navigate"),
     )
     val protectionBlockAppLinks = SettingEntry(
         id = "protection.block_app_links",
         page = SettingsPage.PROTECTION,
         title = "Block links that open apps",
-        description = "Ask for confirmation before allowing a webpage to open external installed apps",
+        description = "Ask before a page opens another app",
         keywords = listOf("apps", "intent", "external", "open", "links"),
     )
     val protectionAskBeforeDownloads = SettingEntry(
         id = "protection.ask_before_downloads",
         page = SettingsPage.PROTECTION,
         title = "Ask before downloads",
-        description = "Prompt for confirmation before starting any file download",
+        description = "Confirm before a file is saved",
         keywords = listOf("download", "prompt", "confirm", "ask", "save"),
     )
     val protectionWarnRiskyDownloads = SettingEntry(
         id = "protection.warn_risky_downloads",
         page = SettingsPage.PROTECTION,
         title = "Warn about APK and EXE downloads",
-        description = "Show an extra warning when downloading executable files, installers, and Android packages",
+        description = "Extra warning for app and program files",
         keywords = listOf("apk", "exe", "executable", "warning", "installers"),
     )
     val protectionForgetVtChecks = SettingEntry(
         id = "protection.forget_vt_checks",
         page = SettingsPage.PROTECTION,
         title = "Forget checked sites",
-        description = "Removes the sites you checked with VirusTotal from this device. Their green badge goes away",
+        description = "Clears your VirusTotal results and green badges",
         keywords = listOf("virustotal", "checked", "forget", "badge", "safe"),
         advanced = false,
     )
