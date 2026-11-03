@@ -79,17 +79,22 @@ class BrowserJsBridge(
         }
     }
 
-    private fun isNullOrDataOrigin(): Boolean {
-        val record = tabManager.getTabRecord(tabId) ?: return false
-        val wvUrl = record.webView?.url
-        return wvUrl == null || wvUrl == "about:blank" || wvUrl.startsWith("data:")
+    /**
+     * Runs [action] on the main thread, only when the tab shows one of our generated pages (Wi-Fi-only, No-VPN).
+     * JavaBridge calls arrive on a background thread, and `WebView.getUrl()` throws there, so the origin
+     * check has to happen on the main thread too.
+     */
+    private fun onMainFromBlockPage(action: (TabRecord) -> Unit) {
+        tabManager.postToMain {
+            val record = tabManager.getTabRecord(tabId) ?: return@postToMain
+            if (!BlockPagePolicy.isGeneratedPage(record.webView?.url)) return@postToMain
+            action(record)
+        }
     }
 
     @JavascriptInterface
     fun useMobileDataThisTime() {
-        if (!isNullOrDataOrigin()) return
-        tabManager.postToMain {
-            val record = tabManager.getTabRecord(tabId) ?: return@postToMain
+        onMainFromBlockPage { record ->
             tabManager.allowMobileOnce(tabId)
             tabManager.loadUrl(tabId, record.url)
         }
@@ -97,17 +102,12 @@ class BrowserJsBridge(
 
     @JavascriptInterface
     fun openDataUsageSettings() {
-        if (!isNullOrDataOrigin()) return
-        tabManager.postToMain {
-            tabManager.openDataUsageSettings()
-        }
+        onMainFromBlockPage { tabManager.openDataUsageSettings() }
     }
 
     @JavascriptInterface
     fun loadWithoutVpnOnce() {
-        if (!isNullOrDataOrigin()) return
-        tabManager.postToMain {
-            val record = tabManager.getTabRecord(tabId) ?: return@postToMain
+        onMainFromBlockPage { record ->
             tabManager.allowWithoutVpnOnce(tabId)
             tabManager.loadUrl(tabId, record.url)
         }
@@ -115,10 +115,7 @@ class BrowserJsBridge(
 
     @JavascriptInterface
     fun openVpnSettings() {
-        if (!isNullOrDataOrigin()) return
-        tabManager.postToMain {
-            tabManager.openVpnSettings()
-        }
+        onMainFromBlockPage { tabManager.openVpnSettings() }
     }
 
     @JavascriptInterface

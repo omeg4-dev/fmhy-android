@@ -221,6 +221,7 @@ class BrowserWebViewFactory(
                     record.canGoForward = forward
                     tabManager.notifyTabChanged(record.id)
                 }
+                if (BlockPagePolicy.keepsTabUrl(record.showsWifiOnlyPage || record.showsNoVpnPage, url)) return
                 if (isReload || url.substringBefore('#') == record.url.substringBefore('#')) return
                 if (hostOf(url) != hostOf(record.url)) record.favicon = null
                 record.url = url
