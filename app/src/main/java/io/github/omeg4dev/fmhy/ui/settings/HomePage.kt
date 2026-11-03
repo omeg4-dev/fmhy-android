@@ -64,57 +64,10 @@ import io.github.omeg4dev.fmhy.ui.common.displayTitle
 import io.github.omeg4dev.fmhy.ui.common.sectionDisplayTitle
 import io.github.omeg4dev.fmhy.ui.common.sectionIcon
 import io.github.omeg4dev.fmhy.ui.home.HomeBlock
+import io.github.omeg4dev.fmhy.ui.home.HomeBlockInfo
 import io.github.omeg4dev.fmhy.ui.home.HomeLayout
+import io.github.omeg4dev.fmhy.ui.home.homeBlockInfo
 import sh.calvin.reorderable.ReorderableColumn
-
-private data class HomeBlockInfo(
-    val title: String,
-    val summary: String,
-    val icon: ImageVector,
-)
-
-private fun homeBlockInfo(block: HomeBlock): HomeBlockInfo = when (block) {
-    HomeBlock.SEARCH -> HomeBlockInfo(
-        title = "Search",
-        summary = "The search bar",
-        icon = Icons.Default.Search,
-    )
-    HomeBlock.NEW_SINCE -> HomeBlockInfo(
-        title = "New since last visit",
-        summary = "A card with the number of sites added since you last opened the app",
-        icon = Icons.Outlined.NewReleases,
-    )
-    HomeBlock.RANDOM_PICK -> HomeBlockInfo(
-        title = "Random pick",
-        summary = "One random recommended site",
-        icon = Icons.Default.Casino,
-    )
-    HomeBlock.PINNED -> HomeBlockInfo(
-        title = "Pinned categories",
-        summary = "Tiles for the sections and categories you pinned",
-        icon = Icons.Default.PushPin,
-    )
-    HomeBlock.NEW_IN_PINNED -> HomeBlockInfo(
-        title = "New in pinned categories",
-        summary = "Sites added to your pinned categories since your last visit",
-        icon = Icons.Default.Notifications,
-    )
-    HomeBlock.FAVOURITES -> HomeBlockInfo(
-        title = "Favourites",
-        summary = "Your latest saved sites",
-        icon = Icons.Default.Star,
-    )
-    HomeBlock.SUGGESTIONS -> HomeBlockInfo(
-        title = "Suggestions",
-        summary = "A random pick plus sites from the sections you open most",
-        icon = Icons.Default.AutoAwesome,
-    )
-    HomeBlock.SECTIONS -> HomeBlockInfo(
-        title = "Sections list",
-        summary = "All FMHY sections, grouped like the website",
-        icon = Icons.AutoMirrored.Filled.List,
-    )
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

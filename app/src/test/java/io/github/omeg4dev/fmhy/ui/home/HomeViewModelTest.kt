@@ -647,4 +647,91 @@ class HomeViewModelTest {
         assertEquals(HomeBlock.PINNED, updated.blocks.first())
         assertTrue(updated.blocks.contains(HomeBlock.FAVOURITES))
     }
+
+    @Test
+    fun testUiStateLayoutIncludesAllEntriesWhileBlocksOnlyHasEnabled() = runTest(testDispatcher) {
+        val store = FakeDatasetStore()
+        val fakeSettings = FakeSettingsRepository()
+        val fakeContainer = FakeContainer(store, fakeSettings)
+        val viewModel = HomeViewModel(store, fakeSettings, fakeContainer)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect() }
+        testDispatcher.scheduler.runCurrent()
+
+        val readyState = viewModel.uiState.filter { it.isReady }.first()
+        val repoPrefs = fakeSettings.homePrefs.first()
+
+        assertEquals(repoPrefs.blocks, readyState.layout)
+        assertEquals(HomeBlock.entries.size, readyState.layout.entries.size)
+        assertEquals(repoPrefs.blocks.enabledBlocks(), readyState.blocks)
+
+        // Modify layout via settings and verify state.layout still reflects all entries
+        fakeSettings.updateHome { it.copy(blocks = it.blocks.withEnabled(HomeBlock.PINNED, true)) }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val updatedState = viewModel.uiState.value
+        val updatedPrefs = fakeSettings.homePrefs.first()
+        assertEquals(updatedPrefs.blocks, updatedState.layout)
+        assertEquals(updatedPrefs.blocks.enabledBlocks(), updatedState.blocks)
+        assertTrue(updatedState.layout.isEnabled(HomeBlock.PINNED))
+        assertTrue(updatedState.blocks.contains(HomeBlock.PINNED))
+    }
+
+    @Test
+    fun testUpdateLayoutChangesSettingsRepositoryHomePrefs() = runTest(testDispatcher) {
+        val store = FakeDatasetStore()
+        val fakeSettings = FakeSettingsRepository()
+        val fakeContainer = FakeContainer(store, fakeSettings)
+        val viewModel = HomeViewModel(store, fakeSettings, fakeContainer)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect() }
+        testDispatcher.scheduler.runCurrent()
+
+        val initialPrefs = fakeSettings.homePrefs.first()
+        val firstBlock = initialPrefs.blocks.entries[0].block
+
+        // Move block 0 to index 2
+        viewModel.updateLayout { it.move(0, 2) }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val movedPrefs = fakeSettings.homePrefs.first()
+        assertEquals(firstBlock, movedPrefs.blocks.entries[2].block)
+        assertEquals(movedPrefs.blocks, viewModel.uiState.value.layout)
+
+        // Enable PINNED block
+        viewModel.updateLayout { it.withEnabled(HomeBlock.PINNED, true) }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val enabledPrefs = fakeSettings.homePrefs.first()
+        assertTrue(enabledPrefs.blocks.isEnabled(HomeBlock.PINNED))
+        assertTrue(viewModel.uiState.value.layout.isEnabled(HomeBlock.PINNED))
+        assertTrue(viewModel.uiState.value.blocks.contains(HomeBlock.PINNED))
+    }
+
+    @Test
+    fun testUpdateLayoutResetReturnsToDefault() = runTest(testDispatcher) {
+        val store = FakeDatasetStore()
+        val fakeSettings = FakeSettingsRepository()
+        val fakeContainer = FakeContainer(store, fakeSettings)
+        val viewModel = HomeViewModel(store, fakeSettings, fakeContainer)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect() }
+        testDispatcher.scheduler.runCurrent()
+
+        // Make modifications
+        viewModel.updateLayout {
+            it.move(0, 3)
+                .withEnabled(HomeBlock.PINNED, true)
+                .withEnabled(HomeBlock.SEARCH, false)
+        }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val modifiedPrefs = fakeSettings.homePrefs.first()
+        assertFalse(modifiedPrefs.blocks == HomeLayout.default())
+
+        // Reset
+        viewModel.updateLayout { it.reset() }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val resetPrefs = fakeSettings.homePrefs.first()
+        assertEquals(HomeLayout.default(), resetPrefs.blocks)
+        assertEquals(HomeLayout.default(), viewModel.uiState.value.layout)
+    }
 }

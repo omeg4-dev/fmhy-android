@@ -1,5 +1,6 @@
 package io.github.omeg4dev.fmhy.ui.home
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -27,6 +28,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -87,6 +89,7 @@ import androidx.compose.runtime.mutableStateOf
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -147,6 +150,8 @@ fun HomeScreen(
     onShowSnackbar: (String) -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    var editing by rememberSaveable { mutableStateOf(false) }
+    BackHandler(enabled = editing) { editing = false }
     val linkOpener = rememberLinkOpener(container, onShowSnackbar)
     val listState = rememberLazyListState()
     val nav = LocalAppNav.current
@@ -206,31 +211,41 @@ fun HomeScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Image(
-                            painter = painterResource(R.drawable.fmhy_logo),
-                            contentDescription = null,
-                            modifier = Modifier.size(28.dp),
-                        )
-                        Spacer(Modifier.width(10.dp))
-                        FmhyWordmark()
+                    if (editing) {
+                        Text("Edit Home")
+                    } else {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Image(
+                                painter = painterResource(R.drawable.fmhy_logo),
+                                contentDescription = null,
+                                modifier = Modifier.size(28.dp),
+                            )
+                            Spacer(Modifier.width(10.dp))
+                            FmhyWordmark()
+                        }
                     }
                 },
                 actions = {
-                    // Tighter action row: 40 dp buttons instead of the 48 dp default.
-                    CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 40.dp) {
-                        SyncStatusIcon(container.statusNotices)
-                        if (protectionPrefs.showVpnHomeIcon) {
-                            VpnStatusAction(container = container, protectionPrefs = protectionPrefs)
+                    if (editing) {
+                        TextButton(onClick = { editing = false }) {
+                            Text("Done")
                         }
-                        IconButton(onClick = onNavigateToCheckLink) {
-                            Icon(CheckLinkIcon, contentDescription = "Check a link")
-                        }
-                        IconButton(onClick = { nav.push(WhatsNewNavKey()) }) {
-                            Icon(Icons.Outlined.NewReleases, contentDescription = "Recent changes")
-                        }
-                        IconButton(onClick = onNavigateToSettings) {
-                            Icon(Icons.Default.Settings, contentDescription = "Settings")
+                    } else {
+                        // Tighter action row: 40 dp buttons instead of the 48 dp default.
+                        CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 40.dp) {
+                            SyncStatusIcon(container.statusNotices)
+                            if (protectionPrefs.showVpnHomeIcon) {
+                                VpnStatusAction(container = container, protectionPrefs = protectionPrefs)
+                            }
+                            IconButton(onClick = onNavigateToCheckLink) {
+                                Icon(CheckLinkIcon, contentDescription = "Check a link")
+                            }
+                            IconButton(onClick = { nav.push(WhatsNewNavKey()) }) {
+                                Icon(Icons.Outlined.NewReleases, contentDescription = "Recent changes")
+                            }
+                            IconButton(onClick = onNavigateToSettings) {
+                                Icon(Icons.Default.Settings, contentDescription = "Settings")
+                            }
                         }
                     }
                 },
@@ -291,16 +306,23 @@ fun HomeScreen(
                         }
                     }
                     2 -> {
-                        val totalEntries = remember(state.sections) { state.sections.sumOf { it.entryCount } }
+                        if (editing) {
+                            EditHomeList(
+                                layout = state.layout,
+                                onChange = viewModel::updateLayout,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        } else {
+                            val totalEntries = remember(state.sections) { state.sections.sumOf { it.entryCount } }
 
-                LazyColumn(
-                    state = listState,
-                    contentPadding = PaddingValues(
-                        top = 8.dp,
-                        bottom = 16.dp + LocalBottomBarPadding.current,
-                    ),
-                    modifier = Modifier.fillMaxSize(),
-                ) {
+                            LazyColumn(
+                                state = listState,
+                                contentPadding = PaddingValues(
+                                    top = 8.dp,
+                                    bottom = 16.dp + LocalBottomBarPadding.current,
+                                ),
+                                modifier = Modifier.fillMaxSize(),
+                            ) {
                     if (offerCrashes && pendingCrash != null) {
                         val crash = pendingCrash!!
                         item(key = "crash-report-card") {
@@ -476,8 +498,28 @@ fun HomeScreen(
                             )
                         }
                     }
+
+                    item(key = "edit-home") {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 8.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            TextButton(onClick = { editing = true }) {
+                                Icon(
+                                    imageVector = Icons.Default.Edit,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text("Edit Home")
+                            }
+                        }
+                    }
                 }
             }
+        }
         }
     }
 }

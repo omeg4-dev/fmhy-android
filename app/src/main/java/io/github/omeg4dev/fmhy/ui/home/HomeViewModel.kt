@@ -58,6 +58,7 @@ data class HomeUiState(
     val showingHiddenSections: Boolean = false,
     val unreadPosts: Int = 0,
     val blocks: ImmutableList<HomeBlock> = persistentListOf(),
+    val layout: HomeLayout = HomeLayout.default(),
     val newInPinned: ImmutableList<ChangeItem> = persistentListOf(),
     val favourites: ImmutableList<Bookmark> = persistentListOf(),
     val suggestions: ImmutableList<Entry> = persistentListOf(),
@@ -503,6 +504,7 @@ class HomeViewModel(
                 showingHiddenSections = showHidden,
                 unreadPosts = unreadPosts,
                 blocks = homePrefs.blocks.enabledBlocks().toImmutableList(),
+                layout = homePrefs.blocks,
                 newInPinned = newInPinnedList.toImmutableList(),
                 favourites = favouritesList.toImmutableList(),
                 suggestions = suggestionsList.toImmutableList(),
@@ -513,6 +515,12 @@ class HomeViewModel(
         SharingStarted.WhileSubscribed(5000),
         HomeUiState(isLoading = true, isReady = false)
     )
+
+    fun updateLayout(f: (HomeLayout) -> HomeLayout) {
+        viewModelScope.launch {
+            settingsRepository.updateHome { it.copy(blocks = f(it.blocks)) }
+        }
+    }
 
     fun refreshRandomPick() {
         viewModelScope.launch {
