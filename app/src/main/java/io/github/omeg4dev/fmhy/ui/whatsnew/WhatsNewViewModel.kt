@@ -40,6 +40,8 @@ data class WhatsNewUiState(
     val isLoading: Boolean = true,
     val isRefreshing: Boolean = false,
     val oldestChangeTs: Long? = null,
+    /** Oldest change on record (not just in the period), for the "history starts" note. */
+    val historyStartTs: Long? = null,
     val query: String = "",
     val cutoffTs: Long = 0L,
 )
@@ -83,6 +85,7 @@ class WhatsNewViewModel(
     private val isLoading = MutableStateFlow(true)
     private var hasAutoSwitched = false
 
+    private val historyStartTs = MutableStateFlow<Long?>(null)
     private val rawChanges = MutableStateFlow<List<ChangeItem>>(emptyList())
     private val allSections = MutableStateFlow<List<Section>>(emptyList())
     private val followsList = MutableStateFlow<List<Follow>>(emptyList())
@@ -145,6 +148,7 @@ class WhatsNewViewModel(
         withContext(Dispatchers.IO) {
             try {
                 if (store.isAvailable) {
+                    historyStartTs.value = store.oldestChangeTs()
                     val nowSec = System.currentTimeMillis() / 1000
                     val currentPeriod = period.value
                     val changes = if (currentPeriod == WhatsNewPeriod.SINCE_LAST_VISIT) {
@@ -216,11 +220,11 @@ class WhatsNewViewModel(
 
     val uiState: StateFlow<WhatsNewUiState> = combine(
         filterAndQuery,
-        rawChanges,
+        combine(rawChanges, historyStartTs) { c, h -> c to h },
         allSections,
         followsList,
         savedUrlsAndIds,
-    ) { (filter, text), changes, sections, follows, (savedIds, savedUrls) ->
+    ) { (filter, text), (changes, historyStart), sections, follows, (savedIds, savedUrls) ->
         val collapsedCards = WhatsNewGrouping.collapseChanges(changes)
 
         // Sections that have changes in current dataset/period
@@ -266,6 +270,7 @@ class WhatsNewViewModel(
             isLoading = filter.loading,
             isRefreshing = filter.refreshing,
             oldestChangeTs = oldestTs,
+            historyStartTs = historyStart,
             query = text,
             cutoffTs = filter.cutoffTs,
         )

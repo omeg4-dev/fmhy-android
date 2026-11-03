@@ -36,6 +36,7 @@ object SnapshotBuilder {
         var sitelistPlusFile: File? = null
         var fmhySitesFile: File? = null
         var outDir: File? = null
+        var historyFile: File? = null
 
         var i = 0
         while (i < args.size) {
@@ -48,6 +49,7 @@ object SnapshotBuilder {
                 "--sitelist-plus" -> sitelistPlusFile = File(args[++i])
                 "--fmhy-sites" -> fmhySitesFile = File(args[++i])
                 "--out" -> outDir = File(args[++i])
+                "--history" -> historyFile = File(args[++i])
                 else -> error("Unknown argument: ${args[i]}")
             }
             i++
@@ -69,6 +71,7 @@ object SnapshotBuilder {
             sitelistFile = sitelistFile,
             sitelistPlusFile = sitelistPlusFile,
             fmhySitesFile = fmhySitesFile,
+            historyFile = historyFile,
         )
         val elapsedSec = (System.nanoTime() - startNano) / 1_000_000_000.0
         println("Completed in %.2f s".format(elapsedSec))
@@ -83,6 +86,9 @@ object SnapshotBuilder {
         sitelistFile: File? = null,
         sitelistPlusFile: File? = null,
         fmhySitesFile: File? = null,
+        /** Pipeline `history.sqlite` (table `change_log`); its recent rows seed What's New. */
+        historyFile: File? = null,
+        nowSec: Long = System.currentTimeMillis() / 1000L,
     ) {
         val transformerDir = File(docsDir, ".vitepress/transformer")
         val constantsFile = File(transformerDir, "headers.json").takeIf { it.exists() }
@@ -121,7 +127,7 @@ object SnapshotBuilder {
             conn.execSQL("PRAGMA foreign_keys = OFF;")
             conn.execSQL("BEGIN TRANSACTION;")
 
-            val now = System.currentTimeMillis() / 1000L
+            val now = nowSec
 
             // 1. Insert sections
             val sqlSection = "INSERT INTO sections (id, title, description, file, ord) VALUES (?, ?, ?, ?, ?)"
@@ -286,6 +292,12 @@ object SnapshotBuilder {
                 }
             }
 
+            // 5b. What's New history from the pipeline (the app has no git history of its own)
+            if (historyFile != null) {
+                val n = importHistory(conn, historyFile, since = now - HISTORY_DAYS * 86_400L)
+                println("SnapshotBuilder: $n history rows")
+            }
+
             // 6. Insert meta
             val sqlMeta = "INSERT INTO meta (key, value) VALUES (?, ?)"
             conn.prepare(sqlMeta).use { stmt ->
@@ -351,7 +363,7 @@ object SnapshotBuilder {
             fileStates["docs/${s.file}"] = FileState(etag = null, sha256 = sha256(f))
         }
 
-        val now = System.currentTimeMillis() / 1000L
+        val now = nowSec
         val syncState = SyncState(
             // Never checked: the first launch must sync, however recently the APK was built.
             lastCheck = 0L,
@@ -367,6 +379,48 @@ object SnapshotBuilder {
         tempDb.delete()
 
         println("SnapshotBuilder: $totalEntries entries, ${sections.size} sections, raw size: $rawSize bytes, gz size: $gzSize bytes")
+    }
+
+    /** How far back the bundled What's New history reaches (the screen shows at most 30 days). */
+    const val HISTORY_DAYS = 120L
+
+    /** A single commit touching more rows than this is a restructure of the upstream wiki (a file split,
+     * a section rewrite), not people adding links: one 13k-row "added" commit would bury everything else. */
+    const val HISTORY_MAX_ROWS_PER_COMMIT = 400
+
+    internal fun importHistory(conn: androidx.sqlite.SQLiteConnection, historyFile: File, since: Long): Int {
+        check(historyFile.exists()) { "history file not found at: ${historyFile.absolutePath}" }
+        val src = BundledSQLiteDriver().open(historyFile.absolutePath)
+        var inserted = 0
+        try {
+            val sql = """
+                SELECT ts, kind, entry_id, section_id, name, url, detail, commit_sha
+                FROM change_log
+                WHERE ts >= ? AND commit_sha NOT IN (
+                    SELECT commit_sha FROM change_log WHERE ts >= ? GROUP BY commit_sha HAVING COUNT(*) > ?
+                )
+                ORDER BY id ASC
+            """.trimIndent()
+            conn.prepare(
+                "INSERT OR IGNORE INTO changes (ts, kind, entry_id, section_id, name, url, detail, commit_sha) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            ).use { ins ->
+                src.prepare(sql).use { sel ->
+                    sel.bindLong(1, since)
+                    sel.bindLong(2, since)
+                    sel.bindLong(3, HISTORY_MAX_ROWS_PER_COMMIT.toLong())
+                    while (sel.step()) {
+                        ins.bindLong(1, sel.getLong(0))
+                        for (c in 1..7) ins.bindText(c + 1, sel.getText(c))
+                        ins.step()
+                        ins.reset()
+                        inserted++
+                    }
+                }
+            }
+        } finally {
+            src.close()
+        }
+        return inserted
     }
 
     private class GzipLevel9OutputStream(out: OutputStream) : GZIPOutputStream(out) {

@@ -73,6 +73,7 @@ tasks.register<JavaExec>("buildSnapshot") {
     "--sitelist", ".cache/sitelist.txt",
     "--sitelist-plus", ".cache/sitelist-plus.txt",
     "--fmhy-sites", ".cache/fmhy-sites.txt",
+    "--history", ".cache/state/history.sqlite",
     "--out", "app/src/main/assets/dataset"
   )
 }

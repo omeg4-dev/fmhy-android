@@ -147,6 +147,13 @@ open class DatasetStore(
         }
     }
 
+    /** Timestamp of the oldest recorded change, or null when there is no history yet. */
+    open suspend fun oldestChangeTs(): Long? = withConnection { conn ->
+        conn.prepare("SELECT MIN(ts) FROM changes").use { stmt ->
+            if (stmt.step() && !stmt.isNull(0)) stmt.getLong(0) else null
+        }
+    }
+
     open suspend fun entriesForSection(sectionId: String): List<Entry> = withConnection { conn ->
         val result = mutableListOf<Entry>()
         val sql = """

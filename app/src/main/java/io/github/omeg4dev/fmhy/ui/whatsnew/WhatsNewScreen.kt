@@ -170,8 +170,9 @@ fun WhatsNewScreen(
                         } else {
                             state.period.label.lowercase()
                         }
+                        val note = historyNote(state.period, state.historyStartTs, System.currentTimeMillis() / 1000)
                         Text(
-                            text = "From fmhy/edit · $periodSubtitle",
+                            text = "From fmhy/edit · $periodSubtitle" + (note?.let { " · $it" } ?: ""),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

@@ -4,6 +4,7 @@ CLI entry point for fmhy-build.
 Commands:
   fmhy-build build  -- Full build and publish
   fmhy-build check  -- Build into temp dir, print stats + unparsed, write nothing
+  fmhy-build feed   -- Walk git history, write the What's New history feed (changes.json.gz)
 """
 
 from __future__ import annotations
@@ -133,6 +134,25 @@ def cmd_build(args) -> None:
         print(json.dumps(output))
 
 
+def cmd_feed(args) -> None:
+    """Update history.sqlite from the git clone and write the history feed into --out."""
+    from .feed import build_feed, write_feed
+    from .history import HistoryDB, walk_history
+
+    history_db = HistoryDB(os.path.join(args.state, "history.sqlite"))
+    try:
+        walk_history(args.repo, args.rev, history_db)
+        feed = build_feed(history_db, now=int(time.time()))
+    finally:
+        history_db.close()
+    try:
+        meta = write_feed(feed, args.out)
+    except RuntimeError as e:
+        print(json.dumps({"error": str(e)}), file=sys.stderr)
+        sys.exit(1)
+    print(json.dumps(meta))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="fmhy-build")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -154,6 +174,13 @@ def main() -> None:
     check_p = sub.add_parser("check")
     add_common_args(check_p)
     check_p.set_defaults(func=cmd_check)
+
+    feed_p = sub.add_parser("feed")
+    feed_p.add_argument("--repo", required=True, help="Path to fmhy/edit git clone")
+    feed_p.add_argument("--rev", required=True, help="Git revision")
+    feed_p.add_argument("--state", required=True, help="State directory for history.sqlite")
+    feed_p.add_argument("--out", required=True, help="Output directory")
+    feed_p.set_defaults(func=cmd_feed)
 
     args = parser.parse_args()
     args.func(args)

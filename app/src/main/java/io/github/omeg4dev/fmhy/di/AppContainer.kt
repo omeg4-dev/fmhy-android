@@ -12,6 +12,8 @@ import io.github.omeg4dev.fmhy.data.search.SearchEngine
 import io.github.omeg4dev.fmhy.data.sync.FmhySync
 import io.github.omeg4dev.fmhy.data.sync.SyncProgress
 import io.github.omeg4dev.fmhy.data.sync.SyncResult
+import io.github.omeg4dev.fmhy.data.tracker.HistoryResult
+import io.github.omeg4dev.fmhy.data.tracker.HistorySync
 import io.github.omeg4dev.fmhy.data.tracker.TrackerSync
 import io.github.omeg4dev.fmhy.data.BookmarksRepository
 import io.github.omeg4dev.fmhy.data.bookmarksDataStore
@@ -86,6 +88,8 @@ interface AppContainer : OnboardingActions {
     val fmhySync: FmhySync
     val trackerSync: TrackerSync
         get() = error("trackerSync not provided")
+    val historySync: HistorySync
+        get() = error("historySync not provided")
     var debugTrackerUrl: String?
         get() = null
         set(_) {}
@@ -263,6 +267,16 @@ class DefaultAppContainer(
 
     @Volatile
     override var debugTrackerUrl: String? = null
+
+    override val historySync: HistorySync by lazy {
+        HistorySync(
+            store = datasetStore,
+            dir = datasetDir,
+            client = okHttpClient,
+            clock = { System.currentTimeMillis() / 1000 },
+            log = { msg -> Log.d("HistorySync", msg) },
+        )
+    }
 
     override val trackerSync: TrackerSync
         get() {
@@ -446,7 +460,16 @@ class DefaultAppContainer(
             try {
                 val prefs = settingsRepository.notificationPrefs.first()
                 val overrideUrl = if (BuildConfig.DEBUG) debugTrackerUrl else null
-                if (prefs.useTracker || overrideUrl != null) {
+                // The project's own history feed comes first; the third-party tracker (current month only)
+                // is only a fallback while the feed is unreachable or stale.
+                val feed = historySync.sync(force = force)
+                val nowSec = System.currentTimeMillis() / 1000
+                val feedFresh = when (feed) {
+                    is HistoryResult.Updated -> nowSec - feed.generatedAt < HistorySync.STALE_AFTER_SEC
+                    is HistoryResult.UpToDate -> feed.generatedAt > 0L && nowSec - feed.generatedAt < HistorySync.STALE_AFTER_SEC
+                    is HistoryResult.Failed -> false
+                }
+                if ((prefs.useTracker && !feedFresh) || overrideUrl != null) {
                     val currentTracker = trackerSync
                     currentTracker.sync(force = force || overrideUrl != null)
                 }

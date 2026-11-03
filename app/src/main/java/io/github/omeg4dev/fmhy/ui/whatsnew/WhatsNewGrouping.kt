@@ -60,6 +60,23 @@ fun sinceLastVisitLabel(cutoffSec: Long, nowSec: Long): String {
     return "Since last visit · $rel"
 }
 
+/**
+ * "history starts 1 Nov" when the recorded history does not reach back across the chosen period
+ * (a day of slack), so equal counts for week and month are explained. Null otherwise.
+ */
+fun historyNote(
+    period: WhatsNewPeriod,
+    historyStartTs: Long?,
+    nowSec: Long,
+    zoneId: ZoneId = ZoneId.systemDefault(),
+): String? {
+    if (historyStartTs == null || period.days == 0) return null
+    val periodStart = nowSec - period.days * 86_400L
+    if (historyStartTs <= periodStart + 86_400L) return null
+    val date = Instant.ofEpochSecond(historyStartTs).atZone(zoneId).toLocalDate()
+    return "history starts ${date.dayOfMonth} ${date.month.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.US)}"
+}
+
 sealed interface WhatsNewScope {
     data object All : WhatsNewScope
     data object Following : WhatsNewScope
