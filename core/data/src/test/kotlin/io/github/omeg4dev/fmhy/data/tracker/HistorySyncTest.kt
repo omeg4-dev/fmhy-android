@@ -64,8 +64,15 @@ class HistorySyncTest {
         return s
     }
 
-    private fun sync(s: DatasetStore, dir: java.io.File = tempFolder.newFolder()) =
-        HistorySync(s, dir, client, url = server.url("/changes.json.gz").toString(), clock = { now }, log = {})
+    private fun sync(
+        s: DatasetStore,
+        dir: java.io.File = tempFolder.newFolder(),
+        maxBody: Long = HistorySync.MAX_BODY_BYTES,
+        maxJson: Long = HistorySync.MAX_JSON_BYTES,
+    ) = HistorySync(
+        s, dir, client, url = server.url("/changes.json.gz").toString(), clock = { now }, log = {},
+        maxBodyBytes = maxBody, maxJsonBytes = maxJson,
+    )
 
     @Test
     fun mergesRowsKeepsFeedTimestampsAndResolvesEntryIds() = runTest {
@@ -126,5 +133,31 @@ class HistorySyncTest {
         server.enqueue(MockResponse.Builder().body("not gzip").build())
         assertTrue(sync(s).sync(force = true) is HistoryResult.Failed)
         assertEquals(0, s.recentChanges(sinceTs = 0, kinds = emptySet()).size)
+    }
+
+    @Test
+    fun rejectsOversizedDownloadsAndDecompressionBombs() = runTest {
+        val s = store()
+        // compressed body over the cap
+        server.enqueue(MockResponse.Builder().body(gz(feed(rows = "$rowA,$rowB"))).build())
+        assertTrue(sync(s, maxBody = 20).sync(force = true) is HistoryResult.Failed)
+        // small download that expands past the JSON cap (a zip bomb in miniature)
+        val bomb = feed(rows = (1..2000).joinToString(",") { """[1000,"added","audio","N$it","https://x.example/$it","","c"]""" })
+        server.enqueue(MockResponse.Builder().body(gz(bomb)).build())
+        val r = sync(s, maxJson = 10_000).sync(force = true)
+        assertTrue(r is HistoryResult.Failed)
+        assertEquals(0, s.recentChanges(sinceTs = 0, kinds = emptySet()).size)
+    }
+
+    @Test
+    fun rejectsAFutureGeneratedAt() = runTest {
+        val s = store()
+        server.enqueue(MockResponse.Builder().body(gz(feed(generatedAt = now + 10 * 86_400L, rows = rowA))).build())
+        val r = sync(s).sync(force = true)
+        assertTrue(r is HistoryResult.Failed)
+        assertEquals(0, s.recentChanges(sinceTs = 0, kinds = emptySet()).size)
+        // a little clock skew is fine
+        server.enqueue(MockResponse.Builder().body(gz(feed(generatedAt = now + 600, rows = rowA))).build())
+        assertTrue(sync(s).sync(force = true) is HistoryResult.Updated)
     }
 }

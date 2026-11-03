@@ -51,6 +51,8 @@ class HistorySync(
     private val url: String = DEFAULT_URL,
     private val clock: () -> Long,
     private val log: (String) -> Unit,
+    private val maxBodyBytes: Long = MAX_BODY_BYTES,
+    private val maxJsonBytes: Long = MAX_JSON_BYTES,
 ) {
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
     private val stateFile = File(dir, "history-state.json")
@@ -92,10 +94,20 @@ class HistorySync(
                 if (!resp.isSuccessful) {
                     return@withContext HistoryResult.Failed("HTTP ${resp.code}")
                 }
-                val bytes = resp.body.bytes()
+                val declared = resp.body.contentLength()
+                if (declared > maxBodyBytes) return@withContext HistoryResult.Failed("feed too large ($declared bytes)")
+                val bytes = resp.body.byteStream().readLimited(maxBodyBytes)
+                    ?: return@withContext HistoryResult.Failed("feed too large")
                 val payload = parse(bytes) ?: return@withContext HistoryResult.Failed("unreadable feed")
                 if (payload.schema != SUPPORTED_SCHEMA) {
                     return@withContext HistoryResult.Failed("unsupported feed schema ${payload.schema}")
+                }
+                // A timestamp from the future would pass for "fresh" indefinitely; allow a little clock skew only.
+                if (payload.generated_at > now + MAX_CLOCK_SKEW_SEC) {
+                    return@withContext HistoryResult.Failed("feed has a future timestamp (${payload.generated_at})")
+                }
+                if (payload.changes.size > MAX_ROWS) {
+                    return@withContext HistoryResult.Failed("feed has too many rows (${payload.changes.size})")
                 }
                 val inserted = merge(payload)
                 saveState(HistoryState(etag = resp.header("ETag"), lastCheck = now, generatedAt = payload.generated_at))
@@ -114,7 +126,14 @@ class HistorySync(
         } else {
             bytes.inputStream()
         }
-        json.decodeFromString<FeedPayload>(stream.bufferedReader().use { it.readText() })
+        // Bounded: a few KB of gzip must not be able to expand to gigabytes in memory.
+        val raw = stream.use { it.readLimited(maxJsonBytes) }
+        if (raw == null) {
+            log("HistorySync: feed expands beyond $maxJsonBytes bytes")
+            null
+        } else {
+            json.decodeFromString<FeedPayload>(raw.toString(Charsets.UTF_8))
+        }
     } catch (e: Exception) {
         log("HistorySync: parse error: ${e.message}")
         null
@@ -171,7 +190,27 @@ class HistorySync(
         (after - before).toInt()
     }
 
+    /** Reads at most [limit] bytes; null when the stream has more. */
+    private fun InputStream.readLimited(limit: Long): ByteArray? {
+        val out = java.io.ByteArrayOutputStream()
+        val buf = ByteArray(16 * 1024)
+        var total = 0L
+        while (true) {
+            val n = read(buf)
+            if (n < 0) break
+            total += n
+            if (total > limit) return null
+            out.write(buf, 0, n)
+        }
+        return out.toByteArray()
+    }
+
     companion object {
+        /** The real feed is ~150 KB compressed / ~1.5 MB of JSON; these leave room to grow, not to abuse. */
+        const val MAX_BODY_BYTES = 10L * 1024 * 1024
+        const val MAX_JSON_BYTES = 50L * 1024 * 1024
+        const val MAX_ROWS = 200_000
+        const val MAX_CLOCK_SKEW_SEC = 3600L
         /** Published by the pipeline's scheduled feed job (GitHub Pages of this repository). */
         const val DEFAULT_URL = "https://omeg4-dev.github.io/fmhy-android/history/changes.json.gz"
         const val SUPPORTED_SCHEMA = 1
