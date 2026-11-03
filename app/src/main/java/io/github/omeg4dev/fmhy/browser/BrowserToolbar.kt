@@ -463,7 +463,18 @@ private fun AddressPill(
         null
     }
     val ringed: @Composable (@Composable () -> Unit) -> Unit = { glyph ->
-        if (connection != null) ConnectionRing(connection, onConnectionClick) { glyph() } else glyph()
+        if (connection != null) {
+            ConnectionRing(connection, onConnectionClick) { glyph() }
+        } else {
+            // No ring (VPN state off): the icon still opens the site menu (VirusTotal check)
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .clickable(onClickLabel = "Site menu", onClick = onConnectionClick),
+                contentAlignment = Alignment.Center,
+            ) { glyph() }
+        }
     }
 
     val host = try {

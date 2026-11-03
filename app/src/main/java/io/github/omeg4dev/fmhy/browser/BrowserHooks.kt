@@ -53,7 +53,6 @@ import io.github.omeg4dev.fmhy.browser.download.DownloadPolicy
 import io.github.omeg4dev.fmhy.browser.download.DownloadRequest
 import io.github.omeg4dev.fmhy.browser.download.DownloadSourceStatus
 import io.github.omeg4dev.fmhy.browser.download.NewDownload
-import io.github.omeg4dev.fmhy.browser.download.ScanService
 import io.github.omeg4dev.fmhy.browser.download.VtSiteChecks
 import io.github.omeg4dev.fmhy.browser.download.buildOffer
 import io.github.omeg4dev.fmhy.browser.download.chipColors
@@ -1125,22 +1124,6 @@ class DefaultBrowserHooks(
                             onEntryDetails = { entry ->
                                 showPopover = false
                                 detailEntry = entry
-                            },
-                            host = host,
-                            isPrivate = tab.isPrivate,
-                            vtMark = mark,
-                            vtReady = ScanService.VIRUSTOTAL in container.checks.prefs.value.readyServices,
-                            onSetupVt = {
-                                showPopover = false
-                                tabManager?.openFileCheckSettings("downloads.virustotal_key")
-                            },
-                            onCheckVt = {
-                                val r = container.checks.checkLink("https://$host/", listOf(ScanService.VIRUSTOTAL))
-                                val vt = r.services.firstOrNull { it.service == ScanService.VIRUSTOTAL }
-                                if (host != null && vt != null && VtSiteChecks.shouldRemember(vt.verdict) && vt.error == null && !tab.isPrivate) {
-                                    container.vtChecks.remember(host, vt.flagged, vt.engines)
-                                }
-                                r
                             },
                         )
                     }

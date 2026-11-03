@@ -107,7 +107,11 @@ import io.github.omeg4dev.fmhy.ui.common.SavedInfo
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import io.github.omeg4dev.fmhy.ui.vpn.ConnectionSafety
 import io.github.omeg4dev.fmhy.ui.vpn.openVpnSettings
+import io.github.omeg4dev.fmhy.ui.vpn.IpLine
 import io.github.omeg4dev.fmhy.ui.vpn.rememberIpLine
+import io.github.omeg4dev.fmhy.browser.download.DownloadRequest
+import io.github.omeg4dev.fmhy.browser.download.ScanService
+import io.github.omeg4dev.fmhy.browser.download.VtSiteChecks
 import io.github.omeg4dev.fmhy.work.VpnPolicy
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -1178,20 +1182,52 @@ fun BrowserScreen(
         }
     }
 
-    // Connection details behind the ring around the site icon
+    // Site menu behind the site icon: connection details (when VPN state is shown) and the VirusTotal check
     if (showConnectionSheet && currentTab != null) {
-        val level = connectionVpn?.let { ConnectionSafety.levelOf(currentTab.url, it) }
-        if (level != null && connectionVpn != null) {
+        val sheetTab = currentTab
+        val level = connectionVpn?.let { ConnectionSafety.levelOf(sheetTab.url, it) }
+        val vtHost = DownloadRequest.hostOf(sheetTab.url).ifBlank { null }
+            ?.takeIf { DownloadRequest.isHttpUrl(sheetTab.url) }
+        val kind = sheetTab.siteBarState?.kind
+        val vtAllowed = vtHost != null && kind != SiteBarKind.FMHY_SITE && kind != SiteBarKind.UNSAFE
+        if (level == null && !vtAllowed) {
+            showConnectionSheet = false
+        } else {
+            val vtMarks by container.vtChecks.checked.collectAsStateWithLifecycle()
+            val vtState = if (vtAllowed && vtHost != null) {
+                VtSheetState(
+                    isPrivate = sheetTab.isPrivate,
+                    mark = vtMarks[VtSiteChecks.normalizeHost(vtHost)]?.takeIf { container.vtChecks.markFor(vtHost) != null },
+                    ready = ScanService.VIRUSTOTAL in container.checks.prefs.value.readyServices,
+                    onCheck = {
+                        val result = container.checks.checkLink("https://$vtHost/", listOf(ScanService.VIRUSTOTAL))
+                        val vt = result.services.firstOrNull { it.service == ScanService.VIRUSTOTAL }
+                        if (vt != null && vt.error == null && VtSiteChecks.shouldRemember(vt.verdict) && !sheetTab.isPrivate) {
+                            container.vtChecks.remember(vtHost, vt.flagged, vt.engines)
+                        }
+                        result
+                    },
+                    onSetup = {
+                        showConnectionSheet = false
+                        tabManager.openFileCheckSettings("downloads.virustotal_key")
+                    },
+                )
+            } else {
+                null
+            }
             ConnectionSheet(
-                url = currentTab.url,
+                url = sheetTab.url,
                 level = level,
                 vpnState = connectionVpn,
-                ipLine = rememberIpLine(container.ipInfoRepository, protectionPrefs.showIpCountry, connectionVpn, active = true),
+                ipLine = if (connectionVpn != null) {
+                    rememberIpLine(container.ipInfoRepository, protectionPrefs.showIpCountry, connectionVpn, active = true)
+                } else {
+                    IpLine.Hidden
+                },
                 onOpenVpnSettings = { openVpnSettings(context) },
                 onDismiss = { showConnectionSheet = false },
+                vt = vtState,
             )
-        } else {
-            showConnectionSheet = false
         }
     }
 
