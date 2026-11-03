@@ -53,14 +53,14 @@ class FmhySyncTest {
     }
 
     private val sampleConstants = """
-        export const sections = {
-          'audio.md': {
-            title: 'Audio',
-            description: 'Audio streaming and tools'
+        {
+          "audio.md": {
+            "title": "Audio",
+            "description": "Audio streaming and tools"
           },
-          'video.md': {
-            title: 'Video',
-            description: 'Video streaming and tools'
+          "video.md": {
+            "title": "Video",
+            "description": "Video streaming and tools"
           }
         }
     """.trimIndent()
@@ -112,7 +112,7 @@ class FmhySyncTest {
         val store = DatasetStoreTest.createSampleDb(dbFile, version = 1L)
 
         val files = mutableMapOf(
-            "/docs/.vitepress/transformer/constants.ts" to sampleConstants,
+            "/docs/.vitepress/transformer/headers.json" to sampleConstants,
             "/rentry" to sampleRentry,
             "/unsafe-domains.txt" to sampleUnsafeDomains,
             "/unsafe-reasons.json" to sampleUnsafeReasons,
@@ -190,7 +190,7 @@ class FmhySyncTest {
         """.trimIndent()
 
         val files = mutableMapOf(
-            "/docs/.vitepress/transformer/constants.ts" to sampleConstants,
+            "/docs/.vitepress/transformer/headers.json" to sampleConstants,
             "/rentry" to sampleRentry,
             "/unsafe-domains.txt" to sampleUnsafeDomains,
             "/unsafe-reasons.json" to sampleUnsafeReasons,
@@ -281,7 +281,7 @@ class FmhySyncTest {
 
         var etagSuffix = "v1"
         val files = mapOf(
-            "/docs/.vitepress/transformer/constants.ts" to sampleConstants,
+            "/docs/.vitepress/transformer/headers.json" to sampleConstants,
             "/rentry" to sampleRentry,
             "/unsafe-domains.txt" to sampleUnsafeDomains,
             "/unsafe-reasons.json" to sampleUnsafeReasons,
@@ -336,7 +336,7 @@ class FmhySyncTest {
         val store = DatasetStoreTest.createSampleDb(dbFile, version = 1L)
 
         val files = mapOf(
-            "/docs/.vitepress/transformer/constants.ts" to sampleConstants,
+            "/docs/.vitepress/transformer/headers.json" to sampleConstants,
             "/rentry" to sampleRentry,
             "/unsafe-domains.txt" to sampleUnsafeDomains,
             "/unsafe-reasons.json" to sampleUnsafeReasons,
@@ -401,7 +401,7 @@ class FmhySyncTest {
         """.trimIndent()
 
         val files = mapOf(
-            "/docs/.vitepress/transformer/constants.ts" to constantsWithMissing,
+            "/docs/.vitepress/transformer/headers.json" to constantsWithMissing,
             "/rentry" to sampleRentry,
             "/unsafe-domains.txt" to sampleUnsafeDomains,
             "/unsafe-reasons.json" to sampleUnsafeReasons,
@@ -435,6 +435,52 @@ class FmhySyncTest {
     }
 
     /**
+     * 5b. Section list unreadable (upstream format changed again) -> Failed, stored sections untouched.
+     */
+    @Test
+    fun test5bUnreadableSectionListFailsAndKeepsDataset() = runTest {
+        val syncDir = tempFolder.newFolder("sync5b")
+        val dbFile = File(syncDir, "current.db")
+        val store = DatasetStoreTest.createSampleDb(dbFile, version = 1L)
+
+        val files = mutableMapOf(
+            "/docs/.vitepress/transformer/headers.json" to sampleConstants,
+            "/rentry" to sampleRentry,
+            "/unsafe-domains.txt" to sampleUnsafeDomains,
+            "/unsafe-reasons.json" to sampleUnsafeReasons,
+            "/docs/audio.md" to sampleAudioMd,
+            "/docs/video.md" to sampleVideoMd,
+        )
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                val content = files[request.url.encodedPath] ?: return MockResponse.Builder().code(404).build()
+                return MockResponse.Builder().code(200).body(content).build()
+            }
+        }
+
+        val sync = FmhySync(
+            store = store,
+            dir = syncDir,
+            client = client,
+            sources = createSources(),
+            clock = { 1000L },
+            log = {},
+        )
+
+        assertTrue(sync.sync(force = true) is SyncResult.Updated)
+        val before = store.sections().map { it.id }.sorted()
+        assertEquals(listOf("audio", "video"), before)
+
+        // Upstream changes the format again: the section list can no longer be read.
+        files["/docs/.vitepress/transformer/headers.json"] = "export const nothing = {}"
+        val res = sync.sync(force = true)
+        assertTrue("Should fail, was $res", res is SyncResult.Failed)
+        assertEquals(before, store.sections().map { it.id }.sorted())
+
+        store.close()
+    }
+
+    /**
      * 6. Rentry changes while all .md are 304 -> base64 entry URLs update (re-parse from raw cache).
      */
     @Test
@@ -448,7 +494,7 @@ class FmhySyncTest {
         """.trimIndent() // https://old-resolved.com
 
         val files = mutableMapOf(
-            "/docs/.vitepress/transformer/constants.ts" to sampleConstants,
+            "/docs/.vitepress/transformer/headers.json" to sampleConstants,
             "/unsafe-domains.txt" to sampleUnsafeDomains,
             "/unsafe-reasons.json" to sampleUnsafeReasons,
             "/docs/audio.md" to sampleAudioMd,
@@ -515,7 +561,7 @@ class FmhySyncTest {
         val store = DatasetStoreTest.createSampleDb(dbFile, version = 1L)
 
         val files = mapOf(
-            "/docs/.vitepress/transformer/constants.ts" to sampleConstants,
+            "/docs/.vitepress/transformer/headers.json" to sampleConstants,
             "/rentry" to sampleRentry,
             "/unsafe-domains.txt" to sampleUnsafeDomains,
             "/unsafe-reasons.json" to sampleUnsafeReasons,
@@ -570,7 +616,7 @@ class FmhySyncTest {
         val store = DatasetStoreTest.createSampleDb(dbFile, version = 1L)
 
         val files = mutableMapOf(
-            "/docs/.vitepress/transformer/constants.ts" to sampleConstants,
+            "/docs/.vitepress/transformer/headers.json" to sampleConstants,
             "/rentry" to sampleRentry,
             "/unsafe-domains.txt" to sampleUnsafeDomains,
             "/unsafe-reasons.json" to sampleUnsafeReasons,
@@ -662,7 +708,7 @@ class FmhySyncTest {
         """.trimIndent()
 
         val files = mutableMapOf(
-            "/docs/.vitepress/transformer/constants.ts" to sampleConstants,
+            "/docs/.vitepress/transformer/headers.json" to sampleConstants,
             "/rentry" to sampleRentry,
             "/unsafe-domains.txt" to sampleUnsafeDomains,
             "/unsafe-reasons.json" to sampleUnsafeReasons,
@@ -815,7 +861,7 @@ class FmhySyncTest {
         val store = DatasetStoreTest.createSampleDb(dbFile, version = 1L)
 
         val files = mutableMapOf(
-            "/docs/.vitepress/transformer/constants.ts" to sampleConstants,
+            "/docs/.vitepress/transformer/headers.json" to sampleConstants,
             "/rentry" to sampleRentry,
             "/unsafe-domains.txt" to sampleUnsafeDomains,
             "/unsafe-reasons.json" to sampleUnsafeReasons,
@@ -885,7 +931,7 @@ class FmhySyncTest {
         val store = DatasetStoreTest.createSampleDb(dbFile, version = 1L)
 
         val files = mutableMapOf(
-            "/docs/.vitepress/transformer/constants.ts" to sampleConstants,
+            "/docs/.vitepress/transformer/headers.json" to sampleConstants,
             "/rentry" to sampleRentry,
             "/unsafe-domains.txt" to sampleUnsafeDomains,
             "/unsafe-reasons.json" to sampleUnsafeReasons,
@@ -944,7 +990,7 @@ class FmhySyncTest {
         val store = DatasetStoreTest.createSampleDb(dbFile, version = 1L)
 
         val files = mutableMapOf(
-            "/docs/.vitepress/transformer/constants.ts" to sampleConstants,
+            "/docs/.vitepress/transformer/headers.json" to sampleConstants,
             "/rentry" to sampleRentry,
             "/unsafe-domains.txt" to sampleUnsafeDomains,
             "/unsafe-reasons.json" to sampleUnsafeReasons,
@@ -1005,7 +1051,7 @@ class FmhySyncTest {
         val store = DatasetStoreTest.createSampleDb(dbFile, version = 1L)
 
         val files = mutableMapOf(
-            "/docs/.vitepress/transformer/constants.ts" to sampleConstants,
+            "/docs/.vitepress/transformer/headers.json" to sampleConstants,
             "/rentry" to sampleRentry,
             "/unsafe-domains.txt" to sampleUnsafeDomains,
             "/unsafe-reasons.json" to sampleUnsafeReasons,
@@ -1108,7 +1154,7 @@ class FmhySyncTest {
         val store = DatasetStoreTest.createSampleDb(dbFile, version = 1L)
 
         val files = mutableMapOf(
-            "/docs/.vitepress/transformer/constants.ts" to sampleConstants,
+            "/docs/.vitepress/transformer/headers.json" to sampleConstants,
             "/rentry" to sampleRentry,
             "/unsafe-domains.txt" to sampleUnsafeDomains,
             "/unsafe-reasons.json" to sampleUnsafeReasons,
@@ -1148,6 +1194,101 @@ class FmhySyncTest {
         assertTrue(store.entriesForSection("audio").isNotEmpty())
         val addedRows = store.changes().filter { it.kind == ChangeKind.ADDED }
         assertEquals("Empty store first sync should write zero added rows", 0, addedRows.size)
+
+        store.close()
+    }
+
+    // ---- Wipe protection (upstream restructure must never empty the dataset) ----
+
+    private val bigSectionIds = listOf("s1", "s2", "s3", "s4", "s5", "s6")
+
+    private fun bigHeaders(ids: List<String>) = buildString {
+        append("{")
+        append(ids.joinToString(",") { """"$it.md": {"title": "T $it", "description": "D $it"}""" })
+        append("}")
+    }
+
+    private fun bigMd(id: String) = (1..50).joinToString("\n", prefix = "# $id\n") {
+        "* [$id site $it](https://$id-$it.example.com) - desc $it"
+    }
+
+    private fun bigDispatcher(headers: () -> String) = object : Dispatcher() {
+        override fun dispatch(request: RecordedRequest): MockResponse {
+            val path = request.url.encodedPath
+            val body = when {
+                path == "/docs/.vitepress/transformer/headers.json" -> headers()
+                path == "/rentry" -> sampleRentry
+                path == "/unsafe-domains.txt" -> sampleUnsafeDomains
+                path == "/unsafe-reasons.json" -> sampleUnsafeReasons
+                path.startsWith("/docs/") && path.endsWith(".md") ->
+                    bigMd(path.removePrefix("/docs/").removeSuffix(".md"))
+                else -> return MockResponse.Builder().code(404).build()
+            }
+            return MockResponse.Builder().code(200).body(body).build()
+        }
+    }
+
+    private fun bigSync(syncDir: File, store: DatasetStore, clock: () -> Long = { 1000L }) = FmhySync(
+        store = store,
+        dir = syncDir,
+        client = client,
+        sources = createSources(),
+        clock = clock,
+        log = {},
+    )
+
+    /** A sync that would drop most of a real-sized dataset is refused and leaves it untouched. */
+    @Test
+    fun test20MassRemovalIsRefusedAndKeepsDataset() = runTest {
+        val syncDir = tempFolder.newFolder("sync20")
+        val store = DatasetStoreTest.createSampleDb(File(syncDir, "current.db"), version = 1L)
+        var ids = bigSectionIds
+        server.dispatcher = bigDispatcher { bigHeaders(ids) }
+        val sync = bigSync(syncDir, store)
+
+        assertTrue(sync.sync(force = true) is SyncResult.Updated)
+        assertEquals(300, store.entryCount())
+
+        ids = listOf("s1") // upstream "loses" 5 of 6 sections
+        val res = sync.sync(force = true)
+        assertTrue("Should be refused, was $res", res is SyncResult.Failed)
+        assertEquals(300, store.entryCount())
+        assertEquals(6, store.sections().size)
+        assertTrue("Refused sync must not record removals",
+            store.changes(kinds = setOf(ChangeKind.REMOVED)).isEmpty())
+
+        store.close()
+    }
+
+    /** A wiped store (sections/entries gone) is rebuilt even inside the rate-limit window, and the
+     *  bogus history left by the wipe is cleared. */
+    @Test
+    fun test21WipedStoreSelfHealsAndClearsBogusRemovedRows() = runTest {
+        val syncDir = tempFolder.newFolder("sync21")
+        val store = DatasetStoreTest.createSampleDb(File(syncDir, "current.db"), version = 1L)
+        server.dispatcher = bigDispatcher { bigHeaders(bigSectionIds) }
+        val sync = bigSync(syncDir, store)
+
+        assertTrue(sync.sync(force = true) is SyncResult.Updated)
+        assertEquals(300, store.entryCount())
+
+        // What the bad sync did: delete everything, leave "removed" rows behind.
+        store.withTransaction { conn ->
+            conn.execSQL("DELETE FROM entries;")
+            conn.execSQL("DELETE FROM sections;")
+            conn.execSQL(
+                "INSERT INTO changes (ts, kind, entry_id, section_id, name, url, detail, commit_sha) " +
+                    "VALUES (1000, 'removed', 'x', 's1', 'Gone', 'https://gone.example', '', 'bad')",
+            )
+        }
+        assertEquals(0, store.entryCount())
+
+        val res = sync.sync(force = false) // same clock: would normally be rate-limited
+        assertTrue("Should repair, was $res", res is SyncResult.Updated)
+        assertEquals(300, store.entryCount())
+        assertEquals(6, store.sections().size)
+        assertTrue("Bogus removed rows must be gone",
+            store.changes(kinds = setOf(ChangeKind.REMOVED)).isEmpty())
 
         store.close()
     }

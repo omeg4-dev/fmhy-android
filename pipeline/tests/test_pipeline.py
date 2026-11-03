@@ -727,3 +727,40 @@ export const headers = {
         assert len(baseline_added) == 0, "Baseline should not emit 'added' rows"
 
         hdb.close()
+
+
+class TestSectionMetadataSource:
+    def test_load_sections_reads_headers_json(self, tmp_path):
+        """Upstream moved section metadata from constants.ts to headers.json."""
+        from fmhy_pipeline.sections import load_sections
+
+        repo = _setup_git_repo(tmp_path)
+        sha = _make_commit(repo, {
+            "docs/.vitepress/transformer/constants.ts": "export const x = 1\n",
+            "docs/.vitepress/transformer/headers.json": (
+                '{"sectionB.md": {"title": "Section B", "description": "Desc B"},'
+                ' "sectionA.md": {"title": "Section A", "description": "Don\'t"}}'
+            ),
+            "docs/sectionA.md": "# Section A\n",
+            "docs/sectionB.md": "# Section B\n",
+        }, "headers.json", 1700000000)
+        by_id = {s["id"]: s for s in load_sections(repo, sha)}
+        assert by_id["sectionB"]["ord"] == 0
+        assert by_id["sectionA"]["title"] == "Section A"
+        assert by_id["sectionA"]["description"] == "Don't"
+
+
+def test_live_upstream_section_list_is_readable():
+    """Canary: upstream's section list must still parse (skipped offline). Run before each release."""
+    import urllib.request
+
+    from fmhy_pipeline.sections import _parse_headers_json
+
+    url = "https://raw.githubusercontent.com/fmhy/edit/main/docs/.vitepress/transformer/headers.json"
+    try:
+        text = urllib.request.urlopen(url, timeout=15).read().decode()
+    except OSError:
+        pytest.skip("offline")
+    parsed = _parse_headers_json(text)
+    assert len(parsed) >= 20, f"only {len(parsed)} sections parsed from {url}"
+    assert {"privacy.md", "video.md", "audio.md"} <= set(parsed)

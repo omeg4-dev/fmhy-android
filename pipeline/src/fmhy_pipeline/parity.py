@@ -21,7 +21,12 @@ def dump(repo: str, rev: str, rentry_html: str, out: str) -> dict:
     os.makedirs(os.path.join(out, "inputs"), exist_ok=True)
     with open(os.path.join(out, "inputs", "rentry-FMHYB64.html"), "w") as f:
         f.write(rentry_html)
-    constants = get_file_content(repo, rev, "docs/.vitepress/transformer/constants.ts") or ""
+    # Section metadata: headers.json upstream, constants.ts on older revisions (same input name).
+    constants = (
+        get_file_content(repo, rev, "docs/.vitepress/transformer/headers.json")
+        or get_file_content(repo, rev, "docs/.vitepress/transformer/constants.ts")
+        or ""
+    )
     with open(os.path.join(out, "inputs", "constants.ts"), "w") as f:
         f.write(constants)
 

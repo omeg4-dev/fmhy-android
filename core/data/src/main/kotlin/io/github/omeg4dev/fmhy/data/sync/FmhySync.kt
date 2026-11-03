@@ -1,6 +1,7 @@
 package io.github.omeg4dev.fmhy.data.sync
 
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
+import androidx.sqlite.execSQL
 import io.github.omeg4dev.fmhy.data.DATASET_SCHEMA
 import io.github.omeg4dev.fmhy.data.DatasetStore
 import io.github.omeg4dev.fmhy.data.model.ChangeKind
@@ -27,6 +28,12 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
+
+/** Sync refuses to apply an update that would keep less than this share of the stored entries. */
+private const val GUARD_MIN_KEPT = 0.7
+/** The guards only apply to real datasets, not to tiny fixtures. */
+private const val GUARD_MIN_ENTRIES = 200
+private const val GUARD_MIN_SECTIONS = 6
 
 data class Sources(
     val primary: String = "https://raw.githubusercontent.com/fmhy/edit/main/",
@@ -81,10 +88,17 @@ open class FmhySync(
         try {
             dir.mkdirs()
             rawDir.mkdirs()
-            val state = loadState()
+            // A store with no sections/entries is a wiped or corrupt dataset, never a valid state.
+            // Repair it right away (no rate limit) from a clean slate so no stale ETag can answer 304.
+            val storeEmpty = store.dbFile.exists() && try {
+                store.sections().isEmpty() || store.entryCount() == 0
+            } catch (_: Exception) {
+                false
+            }
+            val state = if (storeEmpty) SyncState() else loadState()
             val now = clock()
 
-            if (!force && (now - state.lastCheck < minIntervalSec)) {
+            if (!force && !storeEmpty && (now - state.lastCheck < minIntervalSec)) {
                 log("FmhySync: skipped (checked ${now - state.lastCheck} s ago)")
                 return@withContext SyncResult.Skipped
             }
@@ -100,7 +114,8 @@ open class FmhySync(
             val primarySuccessCount = AtomicInteger(0)
             val fallbackSuccessCount = AtomicInteger(0)
 
-            val constantsPath = "docs/.vitepress/transformer/constants.ts"
+            // Section list (file -> title/description, in order). Upstream moved it from constants.ts.
+            val constantsPath = "docs/.vitepress/transformer/headers.json"
             val rentryPath = "rentry"
             val unsafeDomainsPath = "filterlist-domains.txt"
             val unsafeReasonsPath = "filterlists-reasons.json"
@@ -108,7 +123,7 @@ open class FmhySync(
             val siteListPlusPath = "sitelist-plus.txt"
             val fmhySitesPath = "fmhy-filterlist.txt"
 
-            // 2. Fetch constants.ts, rentry, unsafe files, and SafeGuard lists in parallel
+            // 2. Fetch headers.json, rentry, unsafe files, and SafeGuard lists in parallel
             val constantsPrimaryUrl = "${sources.primary.trimEnd('/')}/$constantsPath"
             val constantsFallbackUrl = "${sources.fallback.trimEnd('/')}/$constantsPath"
 
@@ -139,7 +154,7 @@ open class FmhySync(
 
             if (constantsRes is FetchResult.Error) {
                 val took = System.currentTimeMillis() - startMs
-                log("FmhySync: failed: constants.ts error - ${constantsRes.message}")
+                log("FmhySync: failed: headers.json error - ${constantsRes.message}")
                 return@withContext SyncResult.Failed(constantsRes.message, took)
             }
             if (rentryRes is FetchResult.Error) {
@@ -216,6 +231,12 @@ open class FmhySync(
 
             // 3. Section list = Sections.parse(constants)
             val sectionCandidates = Sections.parse(constantsText)
+            if (sectionCandidates.isEmpty()) {
+                // An unreadable section list must never be applied: it would delete every stored section.
+                val took = System.currentTimeMillis() - startMs
+                log("FmhySync: failed: no sections found in $constantsPath")
+                return@withContext SyncResult.Failed("Section list is empty or unreadable", took)
+            }
 
             val firstDownload = store.sections().isEmpty()
             onProgress(SyncProgress.Files(0, sectionCandidates.size, 0L, firstDownload))
@@ -380,6 +401,28 @@ open class FmhySync(
                 totalUpdated > 0
 
             val baseline = firstDownload || state.source == "bundled"
+            // Safety net: an upstream restructure we cannot read must never silently empty the dataset.
+            // Net count (added counted) so moved/renamed sections do not trip it.
+            if (!baseline) {
+                val existingEntries = store.entryCount()
+                val projected = existingEntries - totalRemoved + totalAdded
+                val tooFewEntries = existingEntries >= GUARD_MIN_ENTRIES &&
+                    projected < existingEntries * GUARD_MIN_KEPT
+                val tooFewSections = existingSections.size >= GUARD_MIN_SECTIONS &&
+                    absentSections.size * 2 > existingSections.size
+                if (tooFewEntries || tooFewSections) {
+                    val took = System.currentTimeMillis() - startMs
+                    log(
+                        "FmhySync: refused: would leave $projected of $existingEntries entries, " +
+                            "${absentSections.size} of ${existingSections.size} sections absent",
+                    )
+                    return@withContext SyncResult.Failed(
+                        "Upstream changed too much to apply safely. Your data was left untouched.",
+                        took,
+                    )
+                }
+            }
+
             var nextNum = store.maxNum()
             val currentVer = store.version()
 
@@ -405,6 +448,9 @@ open class FmhySync(
                         allChanges
                     }
 
+                    // Rebuilding an empty store: history from before it (e.g. the "removed" rows of a wiped
+                    // dataset) describes nothing that still exists. A bundled snapshot keeps its history.
+                    if (firstDownload) conn.execSQL("DELETE FROM changes;")
                     insertChanges(conn, changesToRecord, now, commitSha)
 
                     // C. Update sections table

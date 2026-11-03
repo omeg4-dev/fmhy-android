@@ -498,7 +498,14 @@ class DefaultAppContainer(
                 downloads.start()
                 vtChecks.load()
                 bookmarks.migrateLegacyIfNeeded()
-                if (!dbFile.exists() || !datasetStore.isSchemaCurrent()) {
+                // An existing but empty dataset (a wiped store from a bad sync) is repaired from the
+                // bundled snapshot too; the next sync then catches up.
+                val wiped = dbFile.exists() && try {
+                    datasetStore.entryCount() == 0
+                } catch (_: Exception) {
+                    false
+                }
+                if (!dbFile.exists() || !datasetStore.isSchemaCurrent() || wiped) {
                     datasetStore.close()
                     installSnapshotIfAvailable()
                 }

@@ -50,7 +50,7 @@ class FmhySyncSpeedTest {
             override fun dispatch(request: RecordedRequest): MockResponse {
                 val path = request.url.encodedPath
                 val file = when (path) {
-                    "/docs/.vitepress/transformer/constants.ts" -> constantsFile
+                    "/docs/.vitepress/transformer/headers.json" -> constantsFile
                     "/rentry" -> rentryFile
                     "/unsafe-domains.txt" -> unsafeDomainsFile
                     "/unsafe-reasons.json" -> unsafeReasonsFile

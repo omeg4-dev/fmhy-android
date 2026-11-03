@@ -7,6 +7,7 @@ using title/description from constants.ts.
 
 from __future__ import annotations
 
+import json
 import re
 import subprocess
 
@@ -60,16 +61,42 @@ def _parse_constants(ts_content: str) -> dict[str, dict]:
     return result
 
 
-def _get_constants(repo: str, rev: str) -> dict[str, dict]:
-    """Load and parse constants.ts from git."""
+def _parse_headers_json(text: str) -> dict[str, dict]:
+    """Parse headers.json (file -> {title, description}); ord follows file order."""
     try:
-        res = subprocess.run(
-            ["git", "show", f"{rev}:docs/.vitepress/transformer/constants.ts"],
-            capture_output=True, text=True, cwd=repo, check=True,
-        )
-        return _parse_constants(res.stdout)
-    except subprocess.CalledProcessError:
+        data = json.loads(text)
+    except ValueError:
         return {}
+    if not isinstance(data, dict):
+        return {}
+    return {
+        fname: {
+            "title": str(v.get("title", "")),
+            "description": str(v.get("description", "")),
+            "ord": i,
+        }
+        for i, (fname, v) in enumerate(data.items())
+        if isinstance(v, dict)
+    }
+
+
+def _get_constants(repo: str, rev: str) -> dict[str, dict]:
+    """Load the section metadata from git: headers.json, else the older constants.ts."""
+    for path, parse in (
+        ("docs/.vitepress/transformer/headers.json", _parse_headers_json),
+        ("docs/.vitepress/transformer/constants.ts", _parse_constants),
+    ):
+        try:
+            res = subprocess.run(
+                ["git", "show", f"{rev}:{path}"],
+                capture_output=True, text=True, cwd=repo, check=True,
+            )
+        except subprocess.CalledProcessError:
+            continue
+        parsed = parse(res.stdout)
+        if parsed:
+            return parsed
+    return {}
 
 
 def _first_heading(content: str) -> str | None:

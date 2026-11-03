@@ -84,8 +84,10 @@ object SnapshotBuilder {
         sitelistPlusFile: File? = null,
         fmhySitesFile: File? = null,
     ) {
-        val constantsFile = File(docsDir, ".vitepress/transformer/constants.ts")
-        check(constantsFile.exists()) { "constants.ts not found at: ${constantsFile.absolutePath}" }
+        val transformerDir = File(docsDir, ".vitepress/transformer")
+        val constantsFile = File(transformerDir, "headers.json").takeIf { it.exists() }
+            ?: File(transformerDir, "constants.ts")
+        check(constantsFile.exists()) { "headers.json / constants.ts not found in: ${transformerDir.absolutePath}" }
         check(rentryFile.exists()) { "rentry file not found at: ${rentryFile.absolutePath}" }
         check(unsafeFile.exists()) { "unsafe domains file not found at: ${unsafeFile.absolutePath}" }
         check(reasonsFile.exists()) { "unsafe reasons file not found at: ${reasonsFile.absolutePath}" }
@@ -330,7 +332,7 @@ object SnapshotBuilder {
 
         // Build snapshot-state.json
         val fileStates = mutableMapOf<String, FileState>()
-        fileStates["docs/.vitepress/transformer/constants.ts"] = FileState(etag = null, sha256 = sha256(constantsFile))
+        fileStates["docs/.vitepress/transformer/${constantsFile.name}"] = FileState(etag = null, sha256 = sha256(constantsFile))
         fileStates["rentry"] = FileState(etag = null, sha256 = sha256(rentryFile))
         fileStates["filterlist-domains.txt"] = FileState(etag = null, sha256 = sha256(unsafeFile))
         fileStates["filterlists-reasons.json"] = FileState(etag = null, sha256 = sha256(reasonsFile))
