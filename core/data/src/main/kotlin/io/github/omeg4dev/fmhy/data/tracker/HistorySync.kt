@@ -177,9 +177,6 @@ class HistorySync(
         const val SUPPORTED_SCHEMA = 1
         const val CHECK_INTERVAL_SEC = 3600L
 
-        /** A feed older than this means the publishing job stalled; callers fall back to other sources. */
-        const val STALE_AFTER_SEC = 3 * 86_400L
-
         private fun sha1(input: String): String =
             MessageDigest.getInstance("SHA-1").digest(input.toByteArray(Charsets.UTF_8))
                 .joinToString("") { "%02x".format(it) }

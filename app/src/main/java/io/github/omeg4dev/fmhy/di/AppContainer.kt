@@ -12,7 +12,6 @@ import io.github.omeg4dev.fmhy.data.search.SearchEngine
 import io.github.omeg4dev.fmhy.data.sync.FmhySync
 import io.github.omeg4dev.fmhy.data.sync.SyncProgress
 import io.github.omeg4dev.fmhy.data.sync.SyncResult
-import io.github.omeg4dev.fmhy.data.tracker.HistoryResult
 import io.github.omeg4dev.fmhy.data.tracker.HistorySync
 import io.github.omeg4dev.fmhy.data.tracker.TrackerSync
 import io.github.omeg4dev.fmhy.data.BookmarksRepository
@@ -460,16 +459,11 @@ class DefaultAppContainer(
             try {
                 val prefs = settingsRepository.notificationPrefs.first()
                 val overrideUrl = if (BuildConfig.DEBUG) debugTrackerUrl else null
-                // The project's own history feed comes first; the third-party tracker (current month only)
-                // is only a fallback while the feed is unreachable or stale.
-                val feed = historySync.sync(force = force)
-                val nowSec = System.currentTimeMillis() / 1000
-                val feedFresh = when (feed) {
-                    is HistoryResult.Updated -> nowSec - feed.generatedAt < HistorySync.STALE_AFTER_SEC
-                    is HistoryResult.UpToDate -> feed.generatedAt > 0L && nowSec - feed.generatedAt < HistorySync.STALE_AFTER_SEC
-                    is HistoryResult.Failed -> false
-                }
-                if ((prefs.useTracker && !feedFresh) || overrideUrl != null) {
+                // The project's own history feed supplies the dated history. The tracker still runs on top:
+                // it is the only source of EDITED changes (description / extra-link edits), and rows both
+                // sources know collapse on (commit_sha, kind, url) and at read time.
+                historySync.sync(force = force)
+                if (prefs.useTracker || overrideUrl != null) {
                     val currentTracker = trackerSync
                     currentTracker.sync(force = force || overrideUrl != null)
                 }
