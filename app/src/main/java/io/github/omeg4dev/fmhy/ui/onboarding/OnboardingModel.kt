@@ -395,9 +395,11 @@ class OnboardingModel(
         viewModelScope.launch {
             persistAll()
             startFilterDownloadIfNeeded()
-            settingsRepository.setOnboardingVersion(ONBOARDING_VERSION)
+            // Hints first: HomeScreen shows the swipe hint as soon as onboarding counts as done and
+            // the hint is not yet marked shown, so the version flag must be written last.
             settingsRepository.setGestureHintShown(true)
             settingsRepository.setScreenSwipeHintShown(true)
+            settingsRepository.setOnboardingVersion(ONBOARDING_VERSION)
             onComplete()
         }
     }
@@ -407,9 +409,11 @@ class OnboardingModel(
             for (page in visited) {
                 persistPage(page)
             }
-            settingsRepository.setOnboardingVersion(ONBOARDING_VERSION)
+            // Hints first: HomeScreen shows the swipe hint as soon as onboarding counts as done and
+            // the hint is not yet marked shown, so the version flag must be written last.
             settingsRepository.setGestureHintShown(true)
             settingsRepository.setScreenSwipeHintShown(true)
+            settingsRepository.setOnboardingVersion(ONBOARDING_VERSION)
             onComplete()
         }
     }

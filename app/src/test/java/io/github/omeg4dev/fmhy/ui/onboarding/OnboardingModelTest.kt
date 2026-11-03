@@ -135,7 +135,11 @@ class OnboardingModelTest {
 
         val onboardingState = MutableStateFlow(initialOnboardingVersion)
         override val onboardingVersion: Flow<Int> = onboardingState.asStateFlow()
-        override suspend fun setOnboardingVersion(v: Int) { onboardingState.value = v }
+        override suspend fun setOnboardingVersion(v: Int) { writes += "onboardingVersion"; onboardingState.value = v }
+
+        val writes = mutableListOf<String>()
+        override suspend fun setGestureHintShown(shown: Boolean) { writes += "gestureHint" }
+        override suspend fun setScreenSwipeHintShown(shown: Boolean) { writes += "swipeHint" }
     }
 
     private class FakeContainer(
@@ -656,6 +660,21 @@ class OnboardingModelTest {
         assertTrue("Pinned section 'video' should be in pins", "video" in pinnedSectionIds)
         assertFalse("Unpinned section 'audio' should not be in pins", "audio" in pinnedSectionIds)
         assertTrue("Pre-existing pin 'tools' should be preserved", "tools" in pinnedSectionIds)
+    }
+
+    @Test
+    fun testFinishAndSkipWriteOnboardingVersionLast() = runTest {
+        // HomeScreen shows the swipe-hint dialog as soon as onboarding is done and the hint is unset,
+        // so the version flag must come after the hint flags or the dialog flashes.
+        for (action in listOf<(OnboardingModel) -> Unit>({ it.finish() }, { it.skip() })) {
+            val repo = FakeSettingsRepository()
+            val model = OnboardingModel(repo, userStore, FakeContainer(repo, userStore))
+            testDispatcher.scheduler.advanceUntilIdle()
+            action(model)
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals("onboardingVersion", repo.writes.last())
+            assertTrue("swipeHint" in repo.writes && "gestureHint" in repo.writes)
+        }
     }
 
     // ==========================================
