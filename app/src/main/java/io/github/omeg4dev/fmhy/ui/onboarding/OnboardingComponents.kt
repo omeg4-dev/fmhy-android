@@ -8,6 +8,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,11 +23,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -59,13 +59,26 @@ import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+/** Left-aligned page header: one title, one short line. */
 @Composable
-fun StepIcon(modifier: Modifier = Modifier) {
-    Image(
-        painter = painterResource(R.drawable.fmhy_icon),
-        contentDescription = null,
-        modifier = modifier.size(36.dp).clip(RoundedCornerShape(10.dp)),
-    )
+fun PageHeader(
+    title: String,
+    subtitle: String,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = subtitle,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
 }
 
 @Composable
@@ -87,59 +100,52 @@ fun RecommendedPill(
     }
 }
 
+/**
+ * Compact single-choice row: icon tile, title, one-line subtitle, check when selected.
+ * Replaces the old radio-card; at most one [recommended] pill per list.
+ */
 @Composable
-fun OptionCard(
+fun ChoiceRow(
     title: String,
+    subtitle: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    subtitle: String? = null,
-    extraContent: (@Composable () -> Unit)? = null,
-    isRecommended: Boolean = false,
-    icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
-    trailingBadge: String? = null,
+    recommended: Boolean = false,
 ) {
-    Card(
+    val scheme = MaterialTheme.colorScheme
+    Surface(
         modifier = modifier
             .fillMaxWidth()
-            .selectable(
-                selected = selected,
-                role = Role.RadioButton,
-                onClick = onClick,
-            ),
-        shape = RoundedCornerShape(14.dp),
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        color = if (selected) scheme.secondaryContainer.copy(alpha = 0.55f) else scheme.surfaceContainerLow,
         border = BorderStroke(
             width = if (selected) 2.dp else 1.dp,
-            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
-        ),
-        colors = CardDefaults.cardColors(
-            containerColor = if (selected) {
-                MaterialTheme.colorScheme.surfaceContainerHigh
-            } else {
-                MaterialTheme.colorScheme.surfaceContainerLow
-            },
+            color = if (selected) scheme.primary else Color.Transparent,
         ),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(14.dp),
+                .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            RadioButton(
-                selected = selected,
-                onClick = null,
-                modifier = Modifier.size(24.dp),
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            if (icon != null) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(if (selected) scheme.primary else scheme.surfaceContainerHighest),
+                contentAlignment = Alignment.Center,
+            ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    tint = if (selected) scheme.onPrimary else scheme.onSurfaceVariant,
                     modifier = Modifier.size(22.dp),
                 )
-                Spacer(modifier = Modifier.width(10.dp))
             }
             Column(modifier = Modifier.weight(1f)) {
                 Row(
@@ -149,41 +155,28 @@ fun OptionCard(
                     Text(
                         text = title,
                         style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
+                        color = scheme.onSurface,
                     )
-                    if (isRecommended) {
-                        RecommendedPill()
-                    }
-                    if (trailingBadge != null) {
-                        Surface(
-                            color = MaterialTheme.colorScheme.secondaryContainer,
-                            shape = CircleShape,
-                        ) {
-                            Text(
-                                text = trailingBadge,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                            )
-                        }
-                    }
+                    if (recommended) RecommendedPill()
                 }
-                if (subtitle != null) {
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = subtitle,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                if (extraContent != null) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    extraContent()
-                }
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = scheme.onSurfaceVariant,
+                )
+            }
+            if (selected) {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = null,
+                    tint = scheme.primary,
+                    modifier = Modifier.size(22.dp),
+                )
             }
         }
     }
 }
+
 
 /**
  * Animated FMHY wordmark: each letter scales 0.6->1 and fades in with 80 ms stagger and spring.

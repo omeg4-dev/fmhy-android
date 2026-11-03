@@ -327,6 +327,20 @@ class OnboardingModelTest {
     }
 
     @Test
+    fun testAdblockSwitchMapsToLevels() = runTest {
+        val repo = FakeSettingsRepository()
+        val model = OnboardingModel(repo, userStore, FakeContainer(repo, userStore), OnboardingState(adblockLevel = AdblockLevel.OFF))
+        model.setAdblockEnabled(true)
+        assertEquals(AdblockLevel.BALANCED, model.state.value.adblockLevel)
+        model.setAdblockEnabled(false)
+        assertEquals(AdblockLevel.OFF, model.state.value.adblockLevel)
+
+        val strict = OnboardingModel(repo, userStore, FakeContainer(repo, userStore), OnboardingState(adblockLevel = AdblockLevel.STRICT))
+        strict.setAdblockEnabled(true)
+        assertEquals(AdblockLevel.STRICT, strict.state.value.adblockLevel)
+    }
+
+    @Test
     fun testProtectionPrefsOnlyPersistedWhenInApp() = runTest {
         val repo = FakeSettingsRepository()
         val container = FakeContainer(repo, userStore)

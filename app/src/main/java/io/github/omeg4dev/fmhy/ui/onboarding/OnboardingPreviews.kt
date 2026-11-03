@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -299,81 +301,6 @@ private fun MockHomeRow(
 }
 
 @Composable
-fun ListStyleChoice(
-    websiteStyle: Boolean,
-    onSelect: (Boolean) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val dummyBookmarks = remember {
-        BookmarksState(
-            savedIds = emptySet(),
-            toggle = {},
-            folders = emptyList(),
-            savedInfo = { null },
-            setNote = { _, _ -> },
-            moveToFolder = { _, _ -> },
-            createFolder = { _, _ -> },
-        )
-    }
-    val sampleEntry = remember { sampleLookEntry(withLinks = true) }
-    val d = LocalDensity.current
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        listOf(
-            false to "App style",
-            true to "Website style",
-        ).forEach { (value, label) ->
-            val selected = websiteStyle == value
-            Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.surfaceContainerLow,
-                border = BorderStroke(
-                    if (selected) 2.dp else 1.dp,
-                    if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
-                ),
-                modifier = Modifier.weight(1f),
-            ) {
-                // The preview is display-only: the overlay on top takes every tap and selects the card.
-                Box {
-                    Column(Modifier.padding(vertical = 8.dp)) {
-                        Text(
-                            text = label,
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.padding(horizontal = 12.dp),
-                        )
-                        CompositionLocalProvider(
-                            LocalWebsiteStyle provides value,
-                            LocalBookmarks provides dummyBookmarks,
-                            LocalHapticsEnabled provides false,
-                            LocalDensity provides Density(d.density, d.fontScale * 0.8f),
-                        ) {
-                            EntryRow(
-                                entry = sampleEntry,
-                                onOpenUrl = {},
-                                modifier = Modifier.clearAndSetSemantics {},
-                            )
-                        }
-                    }
-                    Box(
-                        modifier = Modifier
-                            .matchParentSize()
-                            .selectable(
-                                selected = selected,
-                                role = Role.RadioButton,
-                                onClick = { onSelect(value) },
-                            )
-                            .semantics { contentDescription = label },
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
 fun BrowsingPreview(
     openLinksWith: OpenLinksWith,
     adblockLevel: AdblockLevel,
@@ -435,15 +362,16 @@ private fun InAppBrowsingMock(adblockLevel: AdblockLevel) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .height(IntrinsicSize.Min)
                 .padding(end = 4.dp, top = 4.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Back-to-FMHY half pill
+            // Back-to-FMHY half pill: same height as the address pill
             Box(
                 modifier = Modifier
-                    .width(46.dp)
-                    .height(44.dp)
-                    .clip(RoundedCornerShape(topStart = 0.dp, bottomStart = 0.dp, topEnd = 22.dp, bottomEnd = 22.dp))
+                    .width(40.dp)
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(topStart = 0.dp, bottomStart = 0.dp, topEnd = 18.dp, bottomEnd = 18.dp))
                     .background(Color.Black),
                 contentAlignment = Alignment.Center,
             ) {
@@ -451,7 +379,7 @@ private fun InAppBrowsingMock(adblockLevel: AdblockLevel) {
                     painter = painterResource(R.drawable.fmhy_logo),
                     contentDescription = null,
                     modifier = Modifier
-                        .size(28.dp)
+                        .size(24.dp)
                         .clip(CircleShape),
                 )
             }

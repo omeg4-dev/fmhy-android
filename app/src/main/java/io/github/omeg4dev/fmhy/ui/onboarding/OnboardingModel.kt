@@ -231,6 +231,19 @@ class OnboardingModel(
         _state.update { it.copy(adblockLevel = level) }
     }
 
+    /** Single ad-block switch: on keeps Strict if already chosen, otherwise Balanced. */
+    fun setAdblockEnabled(enabled: Boolean) {
+        _state.update {
+            it.copy(
+                adblockLevel = when {
+                    !enabled -> AdblockLevel.OFF
+                    it.adblockLevel == AdblockLevel.STRICT -> AdblockLevel.STRICT
+                    else -> AdblockLevel.BALANCED
+                },
+            )
+        }
+    }
+
     fun setBlockPopupsAndRedirects(block: Boolean) {
         _state.update { it.copy(blockPopupsAndRedirects = block) }
     }

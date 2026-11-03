@@ -174,21 +174,21 @@ fun WelcomePageContent(modifier: Modifier = Modifier) {
                         icon = Icons.Default.Search,
                         tint = LogoCyan,
                         title = "Search everything",
-                        text = "Every FMHY site, searchable offline, with stars for the best ones.",
+                        text = "Every FMHY site, offline.",
                         modifier = Modifier.enterStagger(index = 2, key = key),
                     )
                     ValueRow(
                         icon = CheckLinkIcon,
                         tint = LogoViolet,
                         title = "Check a link",
-                        text = "See if a site is listed on FMHY or a known fake before you open it.",
+                        text = "Spot fakes before you open them.",
                         modifier = Modifier.enterStagger(index = 3, key = key),
                     )
                     ValueRow(
                         icon = Icons.Default.Block,
                         tint = LogoMagenta,
                         title = "Browse ad-free",
-                        text = "Built-in browser with uBlock-grade ad blocking.",
+                        text = "Built-in browser with ad blocking.",
                         modifier = Modifier.enterStagger(index = 4, key = key),
                     )
                 }
@@ -319,30 +319,11 @@ fun HelloPageContent(
             verticalArrangement = Arrangement.Center,
         ) {
             // Title block (index 0)
-            Column(
+            PageHeader(
+                title = "Make it yours",
+                subtitle = "Pick a theme and an accent. Change it any time in Settings.",
                 modifier = Modifier.enterStagger(index = 0, key = key),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    StepIcon()
-                    Text(
-                        text = "Make it yours",
-                        style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurface,
-                        textAlign = TextAlign.Center,
-                    )
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "Pick a theme and an accent. You can change it any time in Settings.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                )
-            }
+            )
 
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -472,31 +453,6 @@ fun HelloPageContent(
                         textAlign = TextAlign.Center,
                     )
                 }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // List style (index 4)
-            Column(
-                modifier = Modifier.enterStagger(index = 4, key = key),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text(
-                    text = "List style",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                ListStyleChoice(
-                    websiteStyle = state.websiteStyle,
-                    onSelect = {
-                        haptics.tick()
-                        model.setWebsiteStyle(it)
-                    },
-                    modifier = Modifier
-                        .widthIn(max = 360.dp)
-                        .fillMaxWidth(),
-                )
             }
         }
     }

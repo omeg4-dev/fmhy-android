@@ -464,37 +464,17 @@ private fun BrowsingPageContent(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(horizontal = 20.dp)
-            .verticalScroll(rememberScrollState()),
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 24.dp),
     ) {
-        // Title (index 0)
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .enterStagger(index = 0, key = OnboardingPage.BROWSING),
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                StepIcon()
-                Text(
-                    text = "Where should links open?",
-                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-            }
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "Choose how web pages and safety checks are handled.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+        PageHeader(
+            title = "Where should links open?",
+            subtitle = "You can change this later in Settings.",
+            modifier = Modifier.enterStagger(index = 0, key = OnboardingPage.BROWSING),
+        )
 
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-        // Live preview (index 1)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -508,41 +488,38 @@ private fun BrowsingPageContent(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Link destination options (index 2)
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .enterStagger(index = 2, key = OnboardingPage.BROWSING),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            OptionCard(
+            ChoiceRow(
                 title = "In-app browser",
-                subtitle = "Ad blocking, site bar, and media controls built in",
-                selected = state.openLinksWith == OpenLinksWith.IN_APP,
-                isRecommended = true,
+                subtitle = "Ad blocking and media controls built in",
                 icon = Icons.Default.Shield,
+                selected = state.openLinksWith == OpenLinksWith.IN_APP,
+                recommended = true,
                 onClick = {
                     haptics.tick()
                     model.setOpenLinksWith(OpenLinksWith.IN_APP)
                 },
             )
-
-            OptionCard(
+            ChoiceRow(
                 title = "Custom tab",
-                subtitle = "Opens in a fast Chrome or browser tab over the app",
-                selected = state.openLinksWith == OpenLinksWith.CUSTOM_TAB,
+                subtitle = "A fast browser tab over the app",
                 icon = Icons.Default.Tab,
+                selected = state.openLinksWith == OpenLinksWith.CUSTOM_TAB,
                 onClick = {
                     haptics.tick()
                     model.setOpenLinksWith(OpenLinksWith.CUSTOM_TAB)
                 },
             )
-
-            OptionCard(
+            ChoiceRow(
                 title = "External browser",
-                subtitle = "Hands links off to your default browser app",
-                selected = state.openLinksWith == OpenLinksWith.EXTERNAL,
+                subtitle = "Opens in your default browser app",
                 icon = Icons.AutoMirrored.Filled.OpenInNew,
+                selected = state.openLinksWith == OpenLinksWith.EXTERNAL,
                 onClick = {
                     haptics.tick()
                     model.setOpenLinksWith(OpenLinksWith.EXTERNAL)
@@ -550,103 +527,28 @@ private fun BrowsingPageContent(
             )
         }
 
-        // Expandable Ad blocking section when In-app is selected
+        // One ad-block switch, only for the in-app browser
         AnimatedVisibility(
             visible = state.openLinksWith == OpenLinksWith.IN_APP,
             enter = expandVertically(Motion.standard()) + fadeIn(Motion.standard()),
             exit = shrinkVertically(Motion.standard()) + fadeOut(Motion.standard()),
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 16.dp),
-            ) {
-                Text(
-                    text = "Ad blocking",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OptionCard(
-                        title = "Balanced",
-                        subtitle = "about 6 MB download",
-                        extraContent = {
-                            Text(
-                                text = "uBlock filters, Badware risks, Privacy, Quick fixes, Unbreak, EasyList, EasyPrivacy, Peter Lowe's, FMHY unsafe sites",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        },
-                        selected = state.adblockLevel == AdblockLevel.BALANCED,
-                        isRecommended = true,
-                        onClick = {
-                            haptics.tick()
-                            model.setAdblockLevel(AdblockLevel.BALANCED)
+            ListItem(
+                modifier = Modifier.padding(top = 8.dp),
+                headlineContent = { Text("Block ads", style = MaterialTheme.typography.titleMedium) },
+                supportingContent = {
+                    Text(if (state.adblockLevel == AdblockLevel.STRICT) "Strict · about 7 MB download" else "Recommended · about 6 MB download")
+                },
+                trailingContent = {
+                    Switch(
+                        checked = state.adblockLevel != AdblockLevel.OFF,
+                        onCheckedChange = {
+                            haptics.toggle(it)
+                            model.setAdblockEnabled(it)
                         },
                     )
-
-                    OptionCard(
-                        title = "Strict",
-                        subtitle = "about 7 MB download",
-                        extraContent = {
-                            Text(
-                                text = "All Balanced lists + Cookie notices, Annoyances",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        },
-                        selected = state.adblockLevel == AdblockLevel.STRICT,
-                        onClick = {
-                            haptics.tick()
-                            model.setAdblockLevel(AdblockLevel.STRICT)
-                        },
-                    )
-
-                    OptionCard(
-                        title = "Off",
-                        subtitle = "0 MB",
-                        extraContent = {
-                            Text(
-                                text = "Ad blocking disabled",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        },
-                        selected = state.adblockLevel == AdblockLevel.OFF,
-                        onClick = {
-                            haptics.tick()
-                            model.setAdblockLevel(AdblockLevel.OFF)
-                        },
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                // Pop-up switch
-                ListItem(
-                    headlineContent = {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            Text("Block pop-ups and redirects")
-                            RecommendedPill(text = "On")
-                        }
-                    },
-                    supportingContent = { Text("Blocks intrusive new windows and redirects") },
-                    trailingContent = {
-                        Switch(
-                            checked = state.blockPopupsAndRedirects,
-                            onCheckedChange = {
-                                haptics.toggle(it)
-                                model.setBlockPopupsAndRedirects(it)
-                            },
-                        )
-                    },
-                )
-            }
+                },
+            )
         }
 
         Spacer(modifier = Modifier.height(20.dp))
@@ -705,37 +607,17 @@ private fun FollowPageContent(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(horizontal = 20.dp)
-            .verticalScroll(rememberScrollState()),
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 24.dp),
     ) {
-        // Title (index 0)
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .enterStagger(index = 0, key = OnboardingPage.FOLLOW),
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                StepIcon()
-                Text(
-                    text = "Follow what you care about",
-                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-            }
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "Get a quiet heads-up when FMHY adds sites there.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+        PageHeader(
+            title = "Follow what you care about",
+            subtitle = "Optional. Get a quiet heads-up when FMHY adds sites.",
+            modifier = Modifier.enterStagger(index = 0, key = OnboardingPage.FOLLOW),
+        )
 
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-        // Notification preview card with bounce (index 1)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -747,92 +629,61 @@ private fun FollowPageContent(
             )
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
-        // Section chips with section icons, entering staggered (index 2)
-        Column(
+        var showAll by remember { mutableStateOf(false) }
+        // Followed sections are always visible even when the list is collapsed.
+        val shown = if (showAll || sections.size <= 6) {
+            sections
+        } else {
+            sections.filterIndexed { i, sec -> i < 6 || sec.id in state.followedSections }
+        }
+        FlowRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .enterStagger(index = 2, key = OnboardingPage.FOLLOW),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(0.dp),
         ) {
-            Text(
-                text = "Follow sections",
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                sections.forEachIndexed { chipIndex, section ->
-                    val isSelected = section.id in state.followedSections
-                    val isPinned = section.id in state.pinnedSections
-                    Row(
-                        modifier = Modifier.enterStaggerChip(index = chipIndex, key = OnboardingPage.FOLLOW),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(2.dp),
-                    ) {
-                        FilterChip(
-                            selected = isSelected,
-                            onClick = {
-                                haptics.toggle(!isSelected)
-                                model.toggleSectionFollowed(section.id)
-                            },
-                            label = { Text(section.displayTitle) },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = sectionIcon(section.id),
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp),
-                                )
-                            },
+            shown.forEachIndexed { chipIndex, section ->
+                val isSelected = section.id in state.followedSections
+                FilterChip(
+                    modifier = Modifier.enterStaggerChip(index = chipIndex, key = OnboardingPage.FOLLOW),
+                    selected = isSelected,
+                    onClick = {
+                        haptics.toggle(!isSelected)
+                        model.toggleSectionFollowed(section.id)
+                    },
+                    label = { Text(section.displayTitle) },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = sectionIcon(section.id),
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
                         )
-                        IconToggleButton(
-                            checked = isPinned,
-                            onCheckedChange = {
-                                haptics.toggle(!isPinned)
-                                model.toggleSectionPinned(section.id)
-                            },
-                            modifier = Modifier.size(32.dp),
-                        ) {
-                            Icon(
-                                imageVector = if (isPinned) Icons.Filled.PushPin else Icons.Outlined.PushPin,
-                                contentDescription = if (isPinned) "Unpin" else "Pin to Home",
-                                tint = if (isPinned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                modifier = Modifier.size(18.dp),
-                            )
-                        }
-                    }
-                }
+                    },
+                )
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        if (sections.size > 6) {
+            TextButton(onClick = { showAll = !showAll }) {
+                Text(if (showAll) "Show fewer" else "Show all ${sections.size} sections")
+            }
+        }
 
-        // Notifications switch (index 3)
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .enterStagger(index = 3, key = OnboardingPage.FOLLOW),
+        // The notification switch only appears once something is followed.
+        AnimatedVisibility(
+            visible = state.followedSections.isNotEmpty(),
+            enter = expandVertically(Motion.standard()) + fadeIn(Motion.standard()),
+            exit = shrinkVertically(Motion.standard()) + fadeOut(Motion.standard()),
         ) {
             ListItem(
-                headlineContent = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Text("Notify me about changes")
-                        if (state.followedSections.isNotEmpty()) {
-                            RecommendedPill(text = "On")
-                        }
-                    }
-                },
+                modifier = Modifier.padding(top = 12.dp),
+                headlineContent = { Text("Notify me", style = MaterialTheme.typography.titleMedium) },
                 supportingContent = {
                     Column {
-                        Text("Get notified when followed sections update")
+                        Text("When followed sections get new sites")
                         if (permissionDeniedMessage != null) {
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
@@ -867,27 +718,6 @@ private fun FollowPageContent(
                             } else {
                                 model.setNotifyChanges(false)
                             }
-                        },
-                    )
-                },
-            )
-        }
-
-        // Personal Home switch (index 4)
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .enterStagger(index = 4, key = OnboardingPage.FOLLOW),
-        ) {
-            ListItem(
-                headlineContent = { Text("Personal Home") },
-                supportingContent = { Text("Pin your favourite sections on Home") },
-                trailingContent = {
-                    Switch(
-                        checked = state.personalHome,
-                        onCheckedChange = {
-                            haptics.toggle(it)
-                            model.setPersonalHome(it)
                         },
                     )
                 },
