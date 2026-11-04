@@ -1,5 +1,0 @@
-- Build your own Home: movable blocks, Edit Home mode
-- VPN and HTTPS ring on the site icon; optionally block browsing without a VPN
-- VirusTotal check for sites, chips for download checks, new downloads manager
-- New app icons with a Dark / Light picker
-- Sync no longer wipes the wiki after an upstream change

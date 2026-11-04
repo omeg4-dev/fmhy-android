@@ -1,5 +1,0 @@
-- New "Fix this site" button in the Shield sheet for pages that say "disable your ad blocker"
-- Browser dark mode now reaches pages with their own dark theme
-- Setup waits for the ad-block rules before finishing; search is disabled with a hint while a sync saves the wiki
-- Zoom no longer gets stuck after tapping while zoomed
-- Download notification dot clears when the app opens

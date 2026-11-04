@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- FMHY play triangle, plain dark version for the "Simple" light icon; 108dp adaptive canvas. -->
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp" android:height="108dp"
-    android:viewportWidth="108" android:viewportHeight="108">
-    <path android:fillColor="#FF1C1B1F" android:pathData="M38,34 L38,74 L72.6,54 Z" />
-</vector>
