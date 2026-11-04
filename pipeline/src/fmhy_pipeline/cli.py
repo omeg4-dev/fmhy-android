@@ -137,11 +137,18 @@ def cmd_build(args) -> None:
 def cmd_feed(args) -> None:
     """Update history.sqlite from the git clone and write the history feed into --out."""
     from .feed import build_feed, write_feed
-    from .history import HistoryDB, walk_history
+    from .history import HistoryDB, reset_if_stale, walk_history
 
-    history_db = HistoryDB(os.path.join(args.state, "history.sqlite"))
+    db_path = os.path.join(args.state, "history.sqlite")
+    if reset_if_stale(db_path):
+        print(json.dumps({"info": "history state was not written by this code; rebuilding from scratch"}),
+              file=sys.stderr)
+    history_db = HistoryDB(db_path)
     try:
         walk_history(args.repo, args.rev, history_db)
+        # Stamped only after a finished walk: an interrupted one is rebuilt next time instead of extended.
+        history_db.set_algorithm_stamp()
+        history_db.commit()
         feed = build_feed(history_db, now=int(time.time()))
     finally:
         history_db.close()
@@ -151,6 +158,22 @@ def cmd_feed(args) -> None:
         print(json.dumps({"error": str(e)}), file=sys.stderr)
         sys.exit(1)
     print(json.dumps(meta))
+
+
+def cmd_verify_feed(args) -> None:
+    """Check a built feed against the git history it came from; exit 1 when too few rows are backed."""
+    import gzip
+
+    from .feed import verify_feed
+
+    with gzip.open(args.feed, "rt", encoding="utf-8") as f:
+        feed = json.load(f)
+    result = verify_feed(args.repo, feed)
+    print(json.dumps(result, ensure_ascii=False))
+    if result["share"] < args.min_share:
+        print(json.dumps({"error": f"only {result['share']:.1%} of feed rows are backed by the git history"}),
+              file=sys.stderr)
+        sys.exit(1)
 
 
 def main() -> None:
@@ -181,6 +204,13 @@ def main() -> None:
     feed_p.add_argument("--state", required=True, help="State directory for history.sqlite")
     feed_p.add_argument("--out", required=True, help="Output directory")
     feed_p.set_defaults(func=cmd_feed)
+
+    verify_p = sub.add_parser("verify-feed")
+    verify_p.add_argument("--repo", required=True, help="Path to fmhy/edit git clone")
+    verify_p.add_argument("--feed", required=True, help="changes.json.gz to check")
+    verify_p.add_argument("--min-share", type=float, default=0.95,
+                          help="Smallest share of rows that must be backed by the git history")
+    verify_p.set_defaults(func=cmd_verify_feed)
 
     args = parser.parse_args()
     args.func(args)

@@ -12,6 +12,7 @@ Schema:
 from __future__ import annotations
 
 import collections
+import hashlib
 import os
 import sqlite3
 import subprocess
@@ -71,6 +72,48 @@ CREATE INDEX IF NOT EXISTS change_log_ts ON change_log(ts DESC);
 """
 
 
+# Source files whose behaviour decides what the change log contains. A history database written by
+# different versions of them describes a different history, so it must be rebuilt, not extended.
+_ALGO_SOURCES = ("parse.py", "history.py", "ids.py", "sections.py")
+
+
+def algorithm_stamp() -> str:
+    """Fingerprint of the code that produces the change log (see _ALGO_SOURCES)."""
+    here = Path(__file__).parent
+    h = hashlib.sha256()
+    for name in _ALGO_SOURCES:
+        h.update(name.encode())
+        h.update((here / name).read_bytes())
+    return h.hexdigest()
+
+
+def reset_if_stale(db_path: str) -> bool:
+    """Delete a history database that was not written by the current code; True when it was deleted.
+
+    A database without a stamp (written before stamps existed, or by a walk that did not finish) counts
+    as stale. Used by the feed command only: `build` shares the file for stable entry ids, which must
+    never be renumbered.
+    """
+    path = Path(db_path)
+    if not path.exists():
+        return False
+    stored = None
+    try:
+        con = sqlite3.connect(db_path)
+        try:
+            row = con.execute("SELECT value FROM meta WHERE key='algo'").fetchone()
+            stored = row[0] if row else None
+        finally:
+            con.close()
+    except sqlite3.Error:
+        stored = None
+    if stored == algorithm_stamp():
+        return False
+    for suffix in ("", "-wal", "-shm"):
+        Path(db_path + suffix).unlink(missing_ok=True)
+    return True
+
+
 class HistoryDB:
     """Manages the history SQLite database with in-memory caching and batched writes."""
 
@@ -113,6 +156,11 @@ class HistoryDB:
     def set_last_commit(self, sha: str) -> None:
         self.con.execute(
             "INSERT OR REPLACE INTO meta(key,value) VALUES('last_commit',?)", (sha,)
+        )
+
+    def set_algorithm_stamp(self) -> None:
+        self.con.execute(
+            "INSERT OR REPLACE INTO meta(key,value) VALUES('algo',?)", (algorithm_stamp(),)
         )
 
     def get_history_start(self) -> int | None:
@@ -499,7 +547,15 @@ def walk_history(
                     if old_blob == new_blob:
                         continue
                     stem = path[len("docs/"):-3]
-                    par_entries = current_file_entries.get(path, {})
+                    if path in current_file_entries:
+                        par_entries = current_file_entries[path]
+                    else:
+                        # First time this run touches the file (a run continuing from a stored last commit
+                        # starts with nothing in memory): the state before the commit is the old blob. Taking
+                        # an empty file here reported every entry of the file as "added".
+                        par_entries = get_new_entries(old_blob, stem)
+                        current_file_entries[path] = par_entries
+                        current_file_blobs[path] = old_blob
                     if current_file_blobs.get(path) == new_blob:
                         cur_entries = par_entries
                     else:
@@ -670,10 +726,22 @@ def walk_history(
                 for key, par_e, cur_e in unchanged_pairs:
                     eid = history_db.get_id_for(key[0], key[1])
                     if eid is None:
-                        continue
+                        # Known to this commit's parent but never given an id under this file name: the file
+                        # arrived through a git rename (stored ids are per file stem). Same entry as before, so
+                        # give it an id now instead of dropping its star / rename events.
+                        eid, _ = history_db.assign_id(key[0], key[1], par_e["url"])
                     existing_facts = history_db.get_facts(eid)
                     if existing_facts is None:
-                        continue
+                        existing_facts = {
+                            "first_seen": ts,
+                            "last_changed": ts,
+                            "starred_at": ts if par_e["tier"] >= 1 else None,
+                            "tier": par_e["tier"],
+                            "name": par_e["name"],
+                            "url": par_e["url"],
+                            "section_id": key[1],
+                        }
+                        history_db.upsert_facts(eid, existing_facts)
 
                     changed = False
                     new_facts = dict(existing_facts)

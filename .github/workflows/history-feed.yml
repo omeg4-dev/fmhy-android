@@ -51,6 +51,11 @@ jobs:
       - name: Build feed
         run: uv run --project pipeline fmhy-build feed --repo edit --rev HEAD --state state --out out
 
+      # The feed is checked against the git history it was built from; a feed whose rows the diffs do not
+      # back is never published (the previous one stays live).
+      - name: Verify feed against git history
+        run: uv run --project pipeline fmhy-build verify-feed --repo edit --feed out/changes.json.gz
+
       - name: Publish to gh-pages
         env:
           GH_TOKEN: ${{ github.token }}

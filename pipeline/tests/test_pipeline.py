@@ -764,3 +764,90 @@ def test_live_upstream_section_list_is_readable():
     parsed = _parse_headers_json(text)
     assert len(parsed) >= 20, f"only {len(parsed)} sections parsed from {url}"
     assert {"privacy.md", "video.md", "audio.md"} <= set(parsed)
+
+
+# ============================================================
+# History state must never be reused across code versions, and incremental == full
+# ============================================================
+
+from fmhy_pipeline.history import algorithm_stamp, reset_if_stale
+
+
+def _key_set(hdb: HistoryDB) -> set[tuple]:
+    return {(c["commit_sha"], c["kind"], c["url"], c["section_id"]) for c in hdb.get_change_log()}
+
+
+def test_stale_history_state_is_reset(tmp_path):
+    path = str(tmp_path / "state" / "history.sqlite")
+    assert reset_if_stale(path) is False                      # nothing there yet
+
+    hdb = HistoryDB(path)
+    hdb.close()
+    assert reset_if_stale(path) is True                       # no stamp: legacy or unfinished walk
+    assert not Path(path).exists()
+
+    hdb = HistoryDB(path)
+    hdb.set_algorithm_stamp()
+    hdb.commit()
+    hdb.close()
+    assert reset_if_stale(path) is False                      # written by this code
+    assert Path(path).exists()
+
+    hdb = HistoryDB(path)
+    hdb.con.execute("INSERT OR REPLACE INTO meta(key,value) VALUES('algo','from-an-older-version')")
+    hdb.commit()
+    hdb.close()
+    assert reset_if_stale(path) is True                       # different code: rebuild
+    assert not Path(path).exists()
+    assert len(algorithm_stamp()) == 64
+
+
+def test_incremental_history_walk_equals_a_full_walk(tmp_path):
+    repo = _setup_git_repo(tmp_path)
+    t = 1_750_000_000
+    _make_commit(repo, {"docs/sectionA.md": "# Section A\n* [One](https://one.example/) - first\n"}, "c1", t)
+    _make_commit(repo, {"docs/sectionA.md": "# Section A\n* [One](https://one.example/) - first\n"
+                                            "* [Two](https://two.example/) - second\n"}, "c2", t + 100)
+    mid = _git(["rev-parse", "HEAD"], repo)
+    _make_commit(repo, {"docs/sectionA.md": "# Section A\n* ⭐ **[One](https://one.example/)** - first\n"
+                                            "* [Two](https://two.example/) - second\n"}, "c3", t + 200)
+    _make_commit(repo, {"docs/sectionB.md": "# Section B\n* [Two](https://two.example/) - second\n",
+                        "docs/sectionA.md": "# Section A\n* ⭐ **[One](https://one.example/)** - first\n"}, "c4", t + 300)
+
+    inc = HistoryDB(str(tmp_path / "inc.sqlite"))
+    walk_history(repo, mid, inc)
+    walk_history(repo, "HEAD", inc)          # second run continues from the stored last commit
+    full = HistoryDB(str(tmp_path / "full.sqlite"))
+    walk_history(repo, "HEAD", full)
+
+    assert _key_set(inc) == _key_set(full)
+    assert len(_key_set(full)) > 0
+    inc.close()
+    full.close()
+
+
+def test_star_in_a_git_renamed_file_is_still_reported(tmp_path):
+    """git detects docs/sectionA.md -> docs/sectionB.md as a rename; the entries keep their history."""
+    repo = _setup_git_repo(tmp_path)
+    t = 1_750_000_000
+    body = "# Section\n" + "".join(f"* [E{i}](https://e{i}.example/) - entry number {i}\n" for i in range(20))
+    _make_commit(repo, {"docs/sectionA.md": body}, "c1", t)
+    _git(["mv", "docs/sectionA.md", "docs/sectionB.md"], repo)
+    env = {**os.environ, "GIT_COMMITTER_DATE": str(t + 100), "GIT_AUTHOR_DATE": str(t + 100)}
+    subprocess.run(["git", "commit", "-m", "rename", "--date", str(t + 100)], cwd=repo, check=True, env=env,
+                   capture_output=True)
+    _make_commit(repo, {"docs/sectionB.md": body.replace("* [E3](https://e3.example/)",
+                                                         "* ⭐ **[E3](https://e3.example/)**")}, "star", t + 200)
+    _make_commit(repo, {"docs/sectionB.md": body.replace("* [E3](https://e3.example/)",
+                                                         "* ⭐ **[E3](https://e3.example/)**")
+                                                .replace("[E4](https://e4.example/)", "[E4 renamed](https://e4.example/)")},
+                 "rename entry", t + 300)
+
+    hdb = HistoryDB(str(tmp_path / "h.sqlite"))
+    walk_history(repo, "HEAD", hdb)
+    log = {(c["kind"], c["url"]) for c in hdb.get_change_log()}
+    hdb.close()
+    assert ("starred", "https://e3.example/") in log
+    assert ("renamed", "https://e4.example/") in log
+    # the pure rename commit changed no entry: it must not report the whole file as added
+    assert sum(1 for k, _ in log if k == "added") == 0

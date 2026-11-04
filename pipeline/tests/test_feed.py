@@ -67,3 +67,12 @@ def test_write_feed_refuses_a_collapsed_feed(hdb, tmp_path):
              "fields": [], "changes": []}
     with pytest.raises(RuntimeError):
         write_feed(empty, str(out))  # previous feed had rows: a sudden empty one is a bug
+
+
+def test_feed_skips_rows_without_a_url(tmp_path):
+    db = HistoryDB(str(tmp_path / "history.sqlite"))
+    db.append_change(_change(NOW - DAY, "added", "https://ok.example", "c1"))
+    db.append_change(_change(NOW - DAY, "added", "", "c1"))
+    db.commit()
+    assert [c[4] for c in build_feed(db, now=NOW)["changes"]] == ["https://ok.example"]
+    db.close()
