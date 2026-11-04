@@ -27,6 +27,7 @@ sealed interface HistoryResult {
 private data class FeedPayload(
     val schema: Int = 0,
     val generated_at: Long = 0L,
+    val days: Int = 0,
     val fields: List<String> = emptyList(),
     val changes: List<JsonArray> = emptyList(),
 )
@@ -36,6 +37,8 @@ private data class HistoryState(
     val etag: String? = null,
     val lastCheck: Long = 0L,
     val generatedAt: Long = 0L,
+    /** Which reconcile rules the rows in the store have been through; older state must re-merge in full. */
+    val reconciled: Int = 0,
 )
 
 /**
@@ -43,6 +46,12 @@ private data class HistoryState(
  * the pipeline's `feed` command) into the `changes` table. Rows carry their real commit time, so
  * existing installs get history too and it does not depend on when the app was installed. Rows are
  * identified by (commit_sha, kind, url), so merging the same feed again adds nothing.
+ *
+ * Inside the window the feed covers (its `days`, up to its newest commit) it is the source of truth for
+ * everything except `edited` rows, which only the tracker can produce: rows from the bundled snapshot or the
+ * tracker that the feed does not contain are dropped, and so are sync-stamped rows the feed now explains.
+ * Without that, an install whose bundled snapshot was built from a stale history database counts changes
+ * that never happened, and a change seen by the wiki sync counts again once the feed catches up.
  */
 class HistorySync(
     private val store: DatasetStore,
@@ -53,6 +62,7 @@ class HistorySync(
     private val log: (String) -> Unit,
     private val maxBodyBytes: Long = MAX_BODY_BYTES,
     private val maxJsonBytes: Long = MAX_JSON_BYTES,
+    private val reconcileMinRows: Int = RECONCILE_MIN_ROWS,
 ) {
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
     private val stateFile = File(dir, "history-state.json")
@@ -78,13 +88,18 @@ class HistorySync(
             dir.mkdirs()
             val state = loadState()
             val now = clock()
-            if (!force && state.lastCheck > 0L && now - state.lastCheck < CHECK_INTERVAL_SEC) {
+            if (!force && state.lastCheck > 0L && state.reconciled == RECONCILE_VERSION &&
+                now - state.lastCheck < CHECK_INTERVAL_SEC
+            ) {
                 return@withContext HistoryResult.UpToDate(state.generatedAt)
             }
 
             val request = Request.Builder().url(url).apply {
                 // Only trust the ETag while we still hold the rows it described.
-                if (state.etag != null && state.generatedAt > 0L) header("If-None-Match", state.etag)
+                // A state written before the current reconcile rules must fetch the body again so the rules run.
+                if (state.etag != null && state.generatedAt > 0L && state.reconciled == RECONCILE_VERSION) {
+                    header("If-None-Match", state.etag)
+                }
             }.build()
             client.newCall(request).execute().use { resp ->
                 if (resp.code == 304) {
@@ -110,7 +125,14 @@ class HistorySync(
                     return@withContext HistoryResult.Failed("feed has too many rows (${payload.changes.size})")
                 }
                 val inserted = merge(payload)
-                saveState(HistoryState(etag = resp.header("ETag"), lastCheck = now, generatedAt = payload.generated_at))
+                saveState(
+                    HistoryState(
+                        etag = resp.header("ETag"),
+                        lastCheck = now,
+                        generatedAt = payload.generated_at,
+                        reconciled = RECONCILE_VERSION,
+                    ),
+                )
                 log("HistorySync: merged feed from ${payload.generated_at} ($inserted rows inserted)")
                 HistoryResult.Updated(inserted, payload.generated_at)
             }
@@ -157,6 +179,12 @@ class HistorySync(
         }
         val kinds = ChangeKind.entries.map { it.value }.toSet()
 
+        // What the feed says happened, for the reconcile step below.
+        val feedKeys = HashSet<String>(payload.changes.size * 2)
+        val feedKindUrls = HashSet<Pair<String, String>>()
+        val feedReplacedUrls = HashSet<String>() // old address of a url_changed row
+        var newestTs = Long.MIN_VALUE
+
         val before = conn.prepare("SELECT count(*) FROM changes").use { if (it.step()) it.getLong(0) else 0L }
         conn.prepare(
             "INSERT OR IGNORE INTO changes (ts, kind, entry_id, section_id, name, url, detail, commit_sha) " +
@@ -167,10 +195,17 @@ class HistorySync(
                 val kind = text("kind")
                 val section = text("section_id")
                 val url = text("url")
-                if (kind !in kinds || section !in sections || url.isEmpty()) continue
+                if (kind !in kinds || url.isEmpty()) continue
                 val ts = (row.getOrNull(idx.getValue("ts")) as? JsonPrimitive)?.long ?: continue
-                val name = text("name")
                 val norm = DatasetStore.normalizeEntryUrl(url)
+                feedKeys.add(changeKey(text("commit_sha"), kind, url))
+                feedKindUrls.add(kind to norm)
+                if (kind == ChangeKind.URL_CHANGED.value && text("detail").isNotEmpty()) {
+                    feedReplacedUrls.add(DatasetStore.normalizeEntryUrl(text("detail")))
+                }
+                if (ts > newestTs) newestTs = ts
+                if (section !in sections) continue
+                val name = text("name")
                 val entryId = byNormUrl[norm]
                     ?: bySectionName[section to name.trim().lowercase()]
                     ?: ("feed:" + sha1(norm).take(16))
@@ -187,8 +222,57 @@ class HistorySync(
             }
         }
         val after = conn.prepare("SELECT count(*) FROM changes").use { if (it.step()) it.getLong(0) else 0L }
+        val dropped = reconcile(conn, payload, feedKeys, feedKindUrls, feedReplacedUrls, newestTs)
+        if (dropped > 0) log("HistorySync: dropped $dropped rows the feed does not confirm")
         (after - before).toInt()
     }
+
+    /**
+     * Drops rows inside the feed's window that the feed contradicts or already explains. `edited` rows are
+     * never touched (the feed has none), and a feed too small to trust changes nothing.
+     */
+    private fun reconcile(
+        conn: androidx.sqlite.SQLiteConnection,
+        payload: FeedPayload,
+        feedKeys: Set<String>,
+        feedKindUrls: Set<Pair<String, String>>,
+        feedReplacedUrls: Set<String>,
+        newestTs: Long,
+    ): Int {
+        if (payload.days <= 0 || payload.changes.size < reconcileMinRows || newestTs == Long.MIN_VALUE) return 0
+        val since = payload.generated_at - payload.days * 86_400L
+        val stale = ArrayList<Long>()
+        conn.prepare("SELECT id, ts, kind, url, commit_sha FROM changes WHERE kind != ? AND ts >= ?").use { st ->
+            st.bindText(1, ChangeKind.EDITED.value)
+            st.bindLong(2, since)
+            while (st.step()) {
+                val ts = st.getLong(1)
+                val kind = st.getText(2)
+                val url = st.getText(3)
+                val sha = st.getText(4)
+                val isStale = if (sha.startsWith(SYNC_SHA_PREFIX)) {
+                    // Seen by the wiki sync, stamped with the sync time: redundant once the feed has the change.
+                    val norm = DatasetStore.normalizeEntryUrl(url)
+                    (kind to norm) in feedKindUrls ||
+                        (kind == ChangeKind.REMOVED.value && norm in feedReplacedUrls)
+                } else {
+                    ts <= newestTs && changeKey(sha, kind, url) !in feedKeys
+                }
+                if (isStale) stale.add(st.getLong(0))
+            }
+        }
+        if (stale.isEmpty()) return 0
+        conn.prepare("DELETE FROM changes WHERE id = ?").use { del ->
+            for (id in stale) {
+                del.bindLong(1, id)
+                del.step()
+                del.reset()
+            }
+        }
+        return stale.size
+    }
+
+    private fun changeKey(sha: String, kind: String, url: String) = "$sha\u0000$kind\u0000$url"
 
     /** Reads at most [limit] bytes; null when the stream has more. */
     private fun InputStream.readLimited(limit: Long): ByteArray? {
@@ -215,6 +299,12 @@ class HistorySync(
         const val DEFAULT_URL = "https://omeg4-dev.github.io/fmhy-android/history/changes.json.gz"
         const val SUPPORTED_SCHEMA = 1
         const val CHECK_INTERVAL_SEC = 3600L
+        /** Bump when the reconcile rules change so installs re-merge the feed once instead of waiting for a new one. */
+        const val RECONCILE_VERSION = 1
+        /** A feed with fewer rows than this is never allowed to delete anything. */
+        const val RECONCILE_MIN_ROWS = 50
+        /** commit_sha prefix FmhySync stamps on the changes it detects itself. */
+        const val SYNC_SHA_PREFIX = "sync:"
 
         private fun sha1(input: String): String =
             MessageDigest.getInstance("SHA-1").digest(input.toByteArray(Charsets.UTF_8))

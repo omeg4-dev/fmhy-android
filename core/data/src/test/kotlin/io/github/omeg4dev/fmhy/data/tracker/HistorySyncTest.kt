@@ -69,10 +69,22 @@ class HistorySyncTest {
         dir: java.io.File = tempFolder.newFolder(),
         maxBody: Long = HistorySync.MAX_BODY_BYTES,
         maxJson: Long = HistorySync.MAX_JSON_BYTES,
+        reconcileMinRows: Int = HistorySync.RECONCILE_MIN_ROWS,
     ) = HistorySync(
         s, dir, client, url = server.url("/changes.json.gz").toString(), clock = { now }, log = {},
-        maxBodyBytes = maxBody, maxJsonBytes = maxJson,
+        maxBodyBytes = maxBody, maxJsonBytes = maxJson, reconcileMinRows = reconcileMinRows,
     )
+
+    private suspend fun seed(s: DatasetStore, ts: Long, kind: String, url: String, sha: String, detail: String = "") =
+        s.withConnection { conn ->
+            conn.execSQL(
+                "INSERT INTO changes (ts, kind, entry_id, section_id, name, url, detail, commit_sha) " +
+                    "VALUES ($ts, '$kind', 'e-$url', 'audio', 'n', '$url', '$detail', '$sha')",
+            )
+        }
+
+    private suspend fun urls(s: DatasetStore) =
+        s.recentChanges(sinceTs = 0, kinds = emptySet(), limit = 100).map { it.url }.toSet()
 
     @Test
     fun mergesRowsKeepsFeedTimestampsAndResolvesEntryIds() = runTest {
@@ -159,5 +171,77 @@ class HistorySyncTest {
         // a little clock skew is fine
         server.enqueue(MockResponse.Builder().body(gz(feed(generatedAt = now + 600, rows = rowA))).build())
         assertTrue(sync(s).sync(force = true) is HistoryResult.Updated)
+    }
+
+    // Inside the feed's window the feed wins: a row from the bundled snapshot that the feed does not
+    // confirm (stale history database) must not be counted, but edited rows, rows newer than the feed
+    // and rows older than its window stay.
+    @Test
+    fun rowsTheFeedDoesNotConfirmAreDroppedInsideItsWindow() = runTest {
+        val s = store()
+        val inWin = now - 5 * 86_400L
+        seed(s, inWin, "added", "https://bogus.example/", "cBad")                 // stale snapshot row
+        seed(s, inWin, "added", "https://real.example/", "cReal")                 // feed confirms it
+        seed(s, inWin, "edited", "https://edited.example/", "cEdit")              // feed never has edited
+        seed(s, now - 30 * 86_400L * 6, "added", "https://ancient.example/", "cOld") // before the window
+        seed(s, now - 100L, "added", "https://newer.example/", "cNew")            // newer than the feed's newest commit
+        val feedRows = """[$inWin,"added","audio","Real","https://real.example/","","cReal"],
+                          [${inWin + 10},"removed","audio","Gone","https://gone.example/","","cGone"]"""
+        server.enqueue(MockResponse.Builder().body(gz(feed(rows = feedRows))).build())
+        sync(s, reconcileMinRows = 1).sync(force = true)
+        assertEquals(
+            setOf("https://real.example/", "https://gone.example/", "https://edited.example/",
+                "https://ancient.example/", "https://newer.example/"),
+            urls(s),
+        )
+    }
+
+    @Test
+    fun syncStampedRowsTheFeedExplainsAreDropped() = runTest {
+        val s = store()
+        val inWin = now - 2 * 86_400L
+        seed(s, now - 100L, "removed", "https://old-address.example/", "sync:1")                   // really a url change
+        seed(s, now - 100L, "added", "https://dup.example/", "sync:1")                             // same row as the feed
+        seed(s, now - 100L, "removed", "https://only-sync.example/", "sync:1")                     // feed knows nothing of it
+        seed(s, now - 100L, "edited", "https://edited-sync.example/", "sync:1")
+        val feedRows = """[$inWin,"url_changed","audio","N","https://new-address.example/","https://old-address.example/","cU"],
+                          [$inWin,"added","audio","Dup","https://dup.example/","","cD"]"""
+        server.enqueue(MockResponse.Builder().body(gz(feed(rows = feedRows))).build())
+        sync(s, reconcileMinRows = 1).sync(force = true)
+        assertEquals(
+            setOf("https://new-address.example/", "https://dup.example/", "https://only-sync.example/",
+                "https://edited-sync.example/"),
+            urls(s),
+        )
+    }
+
+    @Test
+    fun aTinyFeedNeverDeletesAnything() = runTest {
+        val s = store()
+        val inWin = now - 5 * 86_400L
+        seed(s, inWin, "added", "https://kept.example/", "cKeep")
+        server.enqueue(MockResponse.Builder().body(gz(feed(rows = """[$inWin,"added","audio","X","https://x.example/","","cX"]"""))).build())
+        sync(s).sync(force = true) // default threshold: 50 rows
+        assertTrue("https://kept.example/" in urls(s))
+    }
+
+    // An install updated from a build without the reconcile rules has an ETag and a recent check time:
+    // it must still fetch the body and reconcile on its first sync, not wait for the feed to change.
+    @Test
+    fun stateFromBeforeTheReconcileRulesRefetchesAndReconciles() = runTest {
+        val s = store()
+        val dir = tempFolder.newFolder()
+        java.io.File(dir, "history-state.json")
+            .writeText("""{"etag":"\"v1\"","lastCheck":$now,"generatedAt":$now}""")
+        val inWin = now - 5 * 86_400L
+        seed(s, inWin, "added", "https://bogus.example/", "cBad")
+        server.enqueue(MockResponse.Builder().body(gz(feed(rows = """[$inWin,"added","audio","R","https://real.example/","","cR"]"""))).build())
+        // not forced and checked a minute ago: an up-to-date state would be throttled, this one must not be
+        val r = sync(s, dir, reconcileMinRows = 1).sync(force = false)
+        assertTrue(r is HistoryResult.Updated)
+        assertEquals(null, server.takeRequest().headers["If-None-Match"])
+        assertEquals(setOf("https://real.example/"), urls(s))
+        // the state is now current: the next check is throttled and nothing is dropped again
+        assertEquals(HistoryResult.UpToDate(now), sync(s, dir, reconcileMinRows = 1).sync(force = false))
     }
 }

@@ -459,14 +459,20 @@ class DefaultAppContainer(
             try {
                 val prefs = settingsRepository.notificationPrefs.first()
                 val overrideUrl = if (BuildConfig.DEBUG) debugTrackerUrl else null
-                // The project's own history feed supplies the dated history. The tracker still runs on top:
-                // it is the only source of EDITED changes (description / extra-link edits), and rows both
-                // sources know collapse on (commit_sha, kind, url) and at read time.
-                historySync.sync(force = force)
+                // The tracker is the only source of EDITED changes (description / extra-link edits), so it
+                // still runs. It runs BEFORE the history feed: the feed supplies the dated history and, when it
+                // merges, drops every non-edited row inside its window that it does not confirm, including the
+                // ones the tracker just wrote.
                 if (prefs.useTracker || overrideUrl != null) {
-                    val currentTracker = trackerSync
-                    currentTracker.sync(force = force || overrideUrl != null)
+                    try {
+                        trackerSync.sync(force = force || overrideUrl != null)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Log.w("AppContainer", "TrackerSync failed: ${e.message}", e)
+                    }
                 }
+                historySync.sync(force = force)
             } catch (e: Exception) {
                 Log.w("AppContainer", "TrackerSync failed: ${e.message}", e)
             } finally {

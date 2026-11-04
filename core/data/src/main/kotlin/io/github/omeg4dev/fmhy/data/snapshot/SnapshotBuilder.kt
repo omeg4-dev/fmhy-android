@@ -396,7 +396,7 @@ object SnapshotBuilder {
             val sql = """
                 SELECT ts, kind, entry_id, section_id, name, url, detail, commit_sha
                 FROM change_log
-                WHERE ts >= ? AND commit_sha NOT IN (
+                WHERE ts >= ? AND url != '' AND commit_sha NOT IN (
                     SELECT commit_sha FROM change_log WHERE ts >= ? GROUP BY commit_sha HAVING COUNT(*) > ?
                 )
                 ORDER BY id ASC
