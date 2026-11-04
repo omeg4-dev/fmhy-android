@@ -1,0 +1,3 @@
+- What's new no longer counts changes that never happened: a fresh install of 1.1.1 could show far too many new and removed sites
+- Existing installs correct their history on the first sync after updating
+- The history feed is now checked against the wiki's git history before it is published
