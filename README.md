@@ -25,13 +25,13 @@
 
 ## Features
 
-- 🔍 **Fast offline search** across 21,000+ links. Handles typos automatically and supports filters like `in:video anime`, `is:starred`, or `site:github.com`.
-- 🛡️ **Built-in browser** with uBlock Origin/EasyList filter lists, pop-up blocking, unsafe-site warnings, and quick access to mirrors or Wayback Machine if a site is down.
-- 🔗 **Link checker**: Share or paste any URL to see if it's listed on FMHY, starred, or a fake clone.
+- 🔍 **Fast offline search** across 21,000+ links. Handles typos automatically and supports filters for efficient searching.
+- 🛡️ **Built-in browser** offering uBlock Origin/EasyList filter lists, pop-up blocking, unsafe-site warnings and many other very useful FMHY specific Features..
+- 🔗 **Link checker**: Share or paste any URL to see if it's listed on FMHY, starred, or a fake clone. Also uses the FMHY safeguard.
 - 🔔 **Changelog & notifications**: See what was recently added, removed, or starred. Follow specific categories to get notified when they update.
-- ⬇️ **Download manager** with pause/resume and optional VirusTotal or Hybrid Analysis scans (requires your own free API key).
-- 🎨 **Customizable**: Light, dark, and AMOLED themes, Material You support, home screen widgets, and shareable bookmark folders.
-- 🔒 **Private**: No accounts, no tracking, and no middleman servers.
+- ⬇️ **Download manager** with integrated optional VirusTotal or Hybrid Analysis scans (requires your own free API key).
+- 🎨 **Customizable**: Light, dark, and AMOLED themes, Material You support, home screen widgets, and beautiful Custom App Icons.
+- 🔒 **Private**: No accounts, no tracking, and no middleman servers. Optional VPN ONLY mode is available too.
 
 <p align="center">
   <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" width="200" alt="The best sites, starred">
