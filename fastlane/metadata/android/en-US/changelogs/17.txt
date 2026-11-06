@@ -1,0 +1,3 @@
+- The app now checks for new versions in the background and notifies you when one is out
+- Choose how often it checks: every 6 hours, 12 hours, daily or weekly
+- Update notifications can be turned off in Settings
