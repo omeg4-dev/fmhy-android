@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.util.Log
+import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
@@ -120,7 +121,17 @@ class UpdateControllerImpl(
         appScope.launch {
             val prefs = settingsRepository.updatePrefs.first()
             val now = System.currentTimeMillis()
-            if (UpdateCheckPolicy.shouldCheckOnStartup(prefs.autoCheck, prefs.lastCheckMs, now)) {
+            if (UpdateCheckPolicy.shouldCheckOnStartup(
+                    autoCheck = prefs.autoCheck,
+                    lastCheckMs = prefs.lastCheckMs,
+                    nowMs = now,
+                    interval = prefs.interval,
+                    knownAvailable = prefs.knownAvailable,
+                    installed = BuildConfig.VERSION_NAME,
+                    skipped = prefs.skippedVersion,
+                    laterUntilMs = prefs.laterUntilMs,
+                )
+            ) {
                 checkInternal(manual = false, overrideMobileData = false)
             }
         }
@@ -235,6 +246,7 @@ class UpdateControllerImpl(
     }
 
     override fun install(overrideMobileData: Boolean) {
+        NotificationManagerCompat.from(context).cancel(1002)
         val release = currentRelease
             ?: (_state.value as? UpdateState.Available)?.release
             ?: (_state.value as? UpdateState.WaitingForWifi)?.release

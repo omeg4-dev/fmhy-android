@@ -1,7 +1,12 @@
 package io.github.omeg4dev.fmhy.ui.settings
 
+import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
@@ -19,14 +24,21 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.omeg4dev.fmhy.data.UpdateCheckInterval
 import io.github.omeg4dev.fmhy.update.UpdateCheckPolicy
 import io.github.omeg4dev.fmhy.update.UpdateState
 
@@ -36,6 +48,7 @@ fun AppUpdatesPage(
     viewModel: SettingsViewModel,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    onShowSnackbar: (String) -> Unit = {},
     extraRows: LazyListScope.() -> Unit = {},
 ) {
     val context = LocalContext.current
@@ -45,18 +58,44 @@ fun AppUpdatesPage(
     val availableVersion by updateController.availableVersion.collectAsStateWithLifecycle()
 
     val eAutoCheck = SettingsCatalog.appUpdatesAutoCheck
+    val eNotify = SettingsCatalog.appUpdatesNotify
+    val eInterval = SettingsCatalog.appUpdatesInterval
     // Check for updates
     val eCheckNow = SettingsCatalog.appUpdatesCheckNow
     val eSkippedVersion = SettingsCatalog.appUpdatesSkippedVersion
 
     val sectionSettingIds = remember(updateController.enabled) {
         if (updateController.enabled) {
-            listOf(listOf(eAutoCheck.id, eCheckNow.id, eSkippedVersion.id))
+            listOf(listOf(eAutoCheck.id, eNotify.id, eInterval.id, eCheckNow.id, eSkippedVersion.id))
         } else {
             emptyList()
         }
     }
     val listState = rememberFocusedListState(sectionSettingIds)
+
+    fun hasNotificationPermission(): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS,
+            ) == PackageManager.PERMISSION_GRANTED
+
+    var notificationsGranted by remember { mutableStateOf(hasNotificationPermission()) }
+    var permissionDenied by remember { mutableStateOf(false) }
+    // Re-check when returning from the system dialog or the app's notification settings.
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        notificationsGranted = hasNotificationPermission()
+    }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        notificationsGranted = isGranted
+        if (!isGranted) {
+            permissionDenied = true
+            onShowSnackbar("Notification permission was denied")
+        }
+    }
 
     val versionName = remember(context) {
         try {
@@ -118,6 +157,52 @@ fun AppUpdatesPage(
                             settingId = eAutoCheck.id,
                             onChange = { checked ->
                                 viewModel.updateUpdatePrefs { it.copy(autoCheck = checked) }
+                            },
+                        )
+                        SettingsDivider()
+                        SwitchRow(
+                            title = eNotify.title,
+                            summary = eNotify.description,
+                            checked = updatePrefs.notify,
+                            enabled = updatePrefs.autoCheck && notificationsGranted,
+                            settingId = eNotify.id,
+                            onChange = { checked ->
+                                viewModel.updateUpdatePrefs { it.copy(notify = checked) }
+                            },
+                        )
+                        if (!notificationsGranted) {
+                            TextButton(
+                                onClick = {
+                                    if (permissionDenied) {
+                                        // The system will not ask again: send the user to the app's notification settings.
+                                        context.startActivity(
+                                            Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                                                .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                                        )
+                                    } else {
+                                        permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                    }
+                                },
+                                modifier = Modifier.padding(start = 8.dp),
+                            ) {
+                                Text("Grant permission")
+                            }
+                        }
+                        SettingsDivider()
+                        ChoiceRow(
+                            title = eInterval.title,
+                            options = listOf(
+                                UpdateCheckInterval.H6 to "Every 6 hours",
+                                UpdateCheckInterval.H12 to "Every 12 hours",
+                                UpdateCheckInterval.H24 to "Every 24 hours",
+                                UpdateCheckInterval.WEEK to "Every week",
+                            ),
+                            selected = updatePrefs.interval,
+                            enabled = updatePrefs.autoCheck,
+                            settingId = eInterval.id,
+                            onSelect = { interval ->
+                                viewModel.updateUpdatePrefs { it.copy(interval = interval) }
                             },
                         )
                         SettingsDivider()

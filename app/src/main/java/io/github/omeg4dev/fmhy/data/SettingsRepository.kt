@@ -234,6 +234,9 @@ class DefaultSettingsRepository(
         private val KEY_UPDATE_SKIPPED_VERSION = stringPreferencesKey("update_skipped_version")
         private val KEY_UPDATE_INSTALL_EXPLAINED = booleanPreferencesKey("update_install_explained")
         private val KEY_UPDATE_KNOWN_AVAILABLE = stringPreferencesKey("update_known_available")
+        private val KEY_UPDATE_NOTIFY = booleanPreferencesKey("update_notify")
+        private val KEY_UPDATE_INTERVAL = stringPreferencesKey("update_interval")
+        private val KEY_UPDATE_NOTIFIED_VERSION = stringPreferencesKey("update_notified_version")
 
         // Downloads
         private val KEY_DOWNLOAD_FOLDER_URI = stringPreferencesKey("download_folder_uri")
@@ -787,6 +790,7 @@ class DefaultSettingsRepository(
     // --- UpdatePrefs ---
     private fun readUpdatePrefs(prefs: Preferences): UpdatePrefs {
         val default = UpdatePrefs()
+        val interval = parseUpdateCheckInterval(prefs[KEY_UPDATE_INTERVAL], default.interval)
         return UpdatePrefs(
             autoCheck = prefs[KEY_UPDATE_AUTO_CHECK] ?: default.autoCheck,
             lastCheckMs = prefs[KEY_UPDATE_LAST_CHECK_MS] ?: default.lastCheckMs,
@@ -794,6 +798,9 @@ class DefaultSettingsRepository(
             skippedVersion = prefs[KEY_UPDATE_SKIPPED_VERSION] ?: default.skippedVersion,
             installExplained = prefs[KEY_UPDATE_INSTALL_EXPLAINED] ?: default.installExplained,
             knownAvailable = prefs[KEY_UPDATE_KNOWN_AVAILABLE] ?: default.knownAvailable,
+            notify = prefs[KEY_UPDATE_NOTIFY] ?: default.notify,
+            interval = interval,
+            notifiedVersion = prefs[KEY_UPDATE_NOTIFIED_VERSION] ?: default.notifiedVersion,
         )
     }
 
@@ -811,6 +818,13 @@ class DefaultSettingsRepository(
             prefs[KEY_UPDATE_KNOWN_AVAILABLE] = p.knownAvailable
         } else {
             prefs.remove(KEY_UPDATE_KNOWN_AVAILABLE)
+        }
+        prefs[KEY_UPDATE_NOTIFY] = p.notify
+        prefs[KEY_UPDATE_INTERVAL] = p.interval.name
+        if (p.notifiedVersion != null) {
+            prefs[KEY_UPDATE_NOTIFIED_VERSION] = p.notifiedVersion
+        } else {
+            prefs.remove(KEY_UPDATE_NOTIFIED_VERSION)
         }
     }
 
@@ -971,5 +985,17 @@ class DefaultSettingsRepository(
         dataStore.edit { prefs ->
             prefs[KEY_ONBOARDING_VERSION] = v
         }
+    }
+}
+
+internal fun parseUpdateCheckInterval(
+    raw: String?,
+    default: UpdateCheckInterval = UpdateCheckInterval.H12,
+): UpdateCheckInterval {
+    if (raw == null) return default
+    return try {
+        UpdateCheckInterval.valueOf(raw)
+    } catch (_: Exception) {
+        default
     }
 }

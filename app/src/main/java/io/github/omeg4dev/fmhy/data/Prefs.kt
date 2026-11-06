@@ -66,6 +66,7 @@ enum class AppIcon(val label: String, val light: Boolean = false, val hidden: Bo
     BLACK("Black", hidden = true),
 }
 enum class UpdateInterval(val hours: Long) { H12(12), DAILY(24), WEEKLY(168) }
+enum class UpdateCheckInterval(val hours: Long) { H6(6), H12(12), H24(24), WEEK(168) }
 
 enum class SearchEngine(val label: String, val queryUrl: String) {
     DUCKDUCKGO("DuckDuckGo", "https://duckduckgo.com/?q="),
@@ -191,6 +192,9 @@ data class UpdatePrefs(
     val skippedVersion: String? = null,
     val installExplained: Boolean = false,
     val knownAvailable: String? = null,
+    val notify: Boolean = true,
+    val interval: UpdateCheckInterval = UpdateCheckInterval.H12,
+    val notifiedVersion: String? = null,
 )
 
 data class DownloadPrefs(

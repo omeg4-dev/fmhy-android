@@ -1,5 +1,6 @@
 package io.github.omeg4dev.fmhy.update
 
+import io.github.omeg4dev.fmhy.data.UpdateCheckInterval
 import io.github.omeg4dev.fmhy.work.NetworkKind
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -12,30 +13,221 @@ class UpdateCheckPolicyTest {
     @Test
     fun shouldCheckOnStartup_timingAndConditions() {
         val now = 100_000_000L
+        val interval = UpdateCheckInterval.H24
+        val intervalMs = UpdateCheckPolicy.intervalMs(interval)
 
         // Auto-check disabled: never checks
-        assertFalse(UpdateCheckPolicy.shouldCheckOnStartup(autoCheck = false, lastCheckMs = 0L, nowMs = now))
-        assertFalse(UpdateCheckPolicy.shouldCheckOnStartup(autoCheck = false, lastCheckMs = now - UpdateCheckPolicy.CHECK_INTERVAL_MS * 5, nowMs = now))
-        assertFalse(UpdateCheckPolicy.shouldCheckOnStartup(autoCheck = false, lastCheckMs = now + 1000L, nowMs = now))
+        assertFalse(UpdateCheckPolicy.shouldCheckOnStartup(autoCheck = false, lastCheckMs = 0L, nowMs = now, interval = interval, knownAvailable = null, installed = "1.0.0", skipped = null, laterUntilMs = 0L))
+        assertFalse(UpdateCheckPolicy.shouldCheckOnStartup(autoCheck = false, lastCheckMs = now - intervalMs * 5, nowMs = now, interval = interval, knownAvailable = null, installed = "1.0.0", skipped = null, laterUntilMs = 0L))
+        assertFalse(UpdateCheckPolicy.shouldCheckOnStartup(autoCheck = false, lastCheckMs = now + 1000L, nowMs = now, interval = interval, knownAvailable = null, installed = "1.0.0", skipped = null, laterUntilMs = 0L))
 
         // First run (lastCheck <= 0): due
-        assertTrue(UpdateCheckPolicy.shouldCheckOnStartup(autoCheck = true, lastCheckMs = 0L, nowMs = now))
-        assertTrue(UpdateCheckPolicy.shouldCheckOnStartup(autoCheck = true, lastCheckMs = -1L, nowMs = now))
+        assertTrue(UpdateCheckPolicy.shouldCheckOnStartup(autoCheck = true, lastCheckMs = 0L, nowMs = now, interval = interval, knownAvailable = null, installed = "1.0.0", skipped = null, laterUntilMs = 0L))
+        assertTrue(UpdateCheckPolicy.shouldCheckOnStartup(autoCheck = true, lastCheckMs = -1L, nowMs = now, interval = interval, knownAvailable = null, installed = "1.0.0", skipped = null, laterUntilMs = 0L))
 
         // Clock backwards: due
-        assertTrue(UpdateCheckPolicy.shouldCheckOnStartup(autoCheck = true, lastCheckMs = now + 5000L, nowMs = now))
+        assertTrue(UpdateCheckPolicy.shouldCheckOnStartup(autoCheck = true, lastCheckMs = now + 5000L, nowMs = now, interval = interval, knownAvailable = null, installed = "1.0.0", skipped = null, laterUntilMs = 0L))
 
         // Exactly 24h: due
-        val exactly24hAgo = now - UpdateCheckPolicy.CHECK_INTERVAL_MS
-        assertTrue(UpdateCheckPolicy.shouldCheckOnStartup(autoCheck = true, lastCheckMs = exactly24hAgo, nowMs = now))
+        val exactly24hAgo = now - intervalMs
+        assertTrue(UpdateCheckPolicy.shouldCheckOnStartup(autoCheck = true, lastCheckMs = exactly24hAgo, nowMs = now, interval = interval, knownAvailable = null, installed = "1.0.0", skipped = null, laterUntilMs = 0L))
 
         // 23h 59m: not due
-        val twentyThreeHours59mAgo = now - UpdateCheckPolicy.CHECK_INTERVAL_MS + 60_000L
-        assertFalse(UpdateCheckPolicy.shouldCheckOnStartup(autoCheck = true, lastCheckMs = twentyThreeHours59mAgo, nowMs = now))
+        val twentyThreeHours59mAgo = now - intervalMs + 60_000L
+        assertFalse(UpdateCheckPolicy.shouldCheckOnStartup(autoCheck = true, lastCheckMs = twentyThreeHours59mAgo, nowMs = now, interval = interval, knownAvailable = null, installed = "1.0.0", skipped = null, laterUntilMs = 0L))
 
         // 25h: due
-        val twentyFiveHoursAgo = now - UpdateCheckPolicy.CHECK_INTERVAL_MS - 3_600_000L
-        assertTrue(UpdateCheckPolicy.shouldCheckOnStartup(autoCheck = true, lastCheckMs = twentyFiveHoursAgo, nowMs = now))
+        val twentyFiveHoursAgo = now - intervalMs - 3_600_000L
+        assertTrue(UpdateCheckPolicy.shouldCheckOnStartup(autoCheck = true, lastCheckMs = twentyFiveHoursAgo, nowMs = now, interval = interval, knownAvailable = null, installed = "1.0.0", skipped = null, laterUntilMs = 0L))
+    }
+
+    @Test
+    fun shouldCheckOnStartup_perIntervalThresholds() {
+        val now = 10_000_000_000L
+        for (interval in UpdateCheckInterval.entries) {
+            val ms = UpdateCheckPolicy.intervalMs(interval)
+            assertEquals(interval.hours * 3_600_000L, ms)
+
+            // Exactly interval - 1 ms: false (when no knownAvailable)
+            assertFalse(
+                UpdateCheckPolicy.shouldCheckOnStartup(
+                    autoCheck = true,
+                    lastCheckMs = now - ms + 1L,
+                    nowMs = now,
+                    interval = interval,
+                    knownAvailable = null,
+                    installed = "1.0.0",
+                    skipped = null,
+                    laterUntilMs = 0L,
+                )
+            )
+
+            // Exactly interval: true
+            assertTrue(
+                UpdateCheckPolicy.shouldCheckOnStartup(
+                    autoCheck = true,
+                    lastCheckMs = now - ms,
+                    nowMs = now,
+                    interval = interval,
+                    knownAvailable = null,
+                    installed = "1.0.0",
+                    skipped = null,
+                    laterUntilMs = 0L,
+                )
+            )
+        }
+    }
+
+    @Test
+    fun shouldCheckOnStartup_insideIntervalWithKnownAvailable() {
+        val now = 500_000_000L
+        val interval = UpdateCheckInterval.H24
+        val insideIntervalLastCheck = now - 10_000L // checked 10s ago
+
+        // Inside interval when knownAvailable is newer and not skipped/snoozed -> true
+        assertTrue(
+            UpdateCheckPolicy.shouldCheckOnStartup(
+                autoCheck = true,
+                lastCheckMs = insideIntervalLastCheck,
+                nowMs = now,
+                interval = interval,
+                knownAvailable = "1.1.0",
+                installed = "1.0.0",
+                skipped = null,
+                laterUntilMs = 0L,
+            )
+        )
+
+        // False when skipped
+        assertFalse(
+            UpdateCheckPolicy.shouldCheckOnStartup(
+                autoCheck = true,
+                lastCheckMs = insideIntervalLastCheck,
+                nowMs = now,
+                interval = interval,
+                knownAvailable = "1.1.0",
+                installed = "1.0.0",
+                skipped = "1.1.0",
+                laterUntilMs = 0L,
+            )
+        )
+
+        // False when snoozed (laterUntilMs > now)
+        assertFalse(
+            UpdateCheckPolicy.shouldCheckOnStartup(
+                autoCheck = true,
+                lastCheckMs = insideIntervalLastCheck,
+                nowMs = now,
+                interval = interval,
+                knownAvailable = "1.1.0",
+                installed = "1.0.0",
+                skipped = null,
+                laterUntilMs = now + 10_000L,
+            )
+        )
+
+        // False when knownAvailable equals installed
+        assertFalse(
+            UpdateCheckPolicy.shouldCheckOnStartup(
+                autoCheck = true,
+                lastCheckMs = insideIntervalLastCheck,
+                nowMs = now,
+                interval = interval,
+                knownAvailable = "1.0.0",
+                installed = "1.0.0",
+                skipped = null,
+                laterUntilMs = 0L,
+            )
+        )
+
+        // False when !autoCheck even with newer knownAvailable
+        assertFalse(
+            UpdateCheckPolicy.shouldCheckOnStartup(
+                autoCheck = false,
+                lastCheckMs = insideIntervalLastCheck,
+                nowMs = now,
+                interval = interval,
+                knownAvailable = "1.1.0",
+                installed = "1.0.0",
+                skipped = null,
+                laterUntilMs = 0L,
+            )
+        )
+    }
+
+    @Test
+    fun shouldNotify_evaluatesConditions() {
+        val now = 500_000_000L
+
+        // True for new unseen version
+        assertTrue(
+            UpdateCheckPolicy.shouldNotify(
+                available = "1.1.0",
+                installed = "1.0.0",
+                skipped = null,
+                laterUntilMs = 0L,
+                notifiedVersion = null,
+                nowMs = now,
+            )
+        )
+
+        // False when skipped
+        assertFalse(
+            UpdateCheckPolicy.shouldNotify(
+                available = "1.1.0",
+                installed = "1.0.0",
+                skipped = "1.1.0",
+                laterUntilMs = 0L,
+                notifiedVersion = null,
+                nowMs = now,
+            )
+        )
+
+        // False when snoozed
+        assertFalse(
+            UpdateCheckPolicy.shouldNotify(
+                available = "1.1.0",
+                installed = "1.0.0",
+                skipped = null,
+                laterUntilMs = now + 10_000L,
+                notifiedVersion = null,
+                nowMs = now,
+            )
+        )
+
+        // False when notifiedVersion == available
+        assertFalse(
+            UpdateCheckPolicy.shouldNotify(
+                available = "1.1.0",
+                installed = "1.0.0",
+                skipped = null,
+                laterUntilMs = 0L,
+                notifiedVersion = "1.1.0",
+                nowMs = now,
+            )
+        )
+
+        // False when not newer (equal or older)
+        assertFalse(
+            UpdateCheckPolicy.shouldNotify(
+                available = "1.0.0",
+                installed = "1.0.0",
+                skipped = null,
+                laterUntilMs = 0L,
+                notifiedVersion = null,
+                nowMs = now,
+            )
+        )
+        assertFalse(
+            UpdateCheckPolicy.shouldNotify(
+                available = "0.9.0",
+                installed = "1.0.0",
+                skipped = null,
+                laterUntilMs = 0L,
+                notifiedVersion = null,
+                nowMs = now,
+            )
+        )
     }
 
     @Test

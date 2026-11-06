@@ -14,6 +14,7 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -429,6 +430,9 @@ class SettingsRepositoryTest {
         val (repo, _) = createRepository(this)
         val defaultPrefs = repo.updatePrefs.first()
         assertEquals(UpdatePrefs(), defaultPrefs)
+        assertEquals(true, defaultPrefs.notify)
+        assertEquals(UpdateCheckInterval.H12, defaultPrefs.interval)
+        assertNull(defaultPrefs.notifiedVersion)
 
         val expected = UpdatePrefs(
             autoCheck = false,
@@ -437,14 +441,35 @@ class SettingsRepositoryTest {
             skippedVersion = "0.6.0",
             installExplained = true,
             knownAvailable = "0.7.0",
+            notify = false,
+            interval = UpdateCheckInterval.WEEK,
+            notifiedVersion = "1.2.0",
         )
         repo.updateUpdatePrefs { expected }
         assertEquals(expected, repo.updatePrefs.first())
 
-        // Test clearing skippedVersion and knownAvailable (null values)
-        repo.updateUpdatePrefs { it.copy(skippedVersion = null, knownAvailable = null) }
+        // Test clearing skippedVersion, knownAvailable, and notifiedVersion (null values)
+        repo.updateUpdatePrefs { it.copy(skippedVersion = null, knownAvailable = null, notifiedVersion = null) }
         val cleared = repo.updatePrefs.first()
-        assertEquals(expected.copy(skippedVersion = null, knownAvailable = null), cleared)
+        assertEquals(expected.copy(skippedVersion = null, knownAvailable = null, notifiedVersion = null), cleared)
+    }
+
+    @Test
+    fun testUpdatePrefsGarbageIntervalFallback() = runTest {
+        val (repo, rawStore) = createRepository(this)
+        val keyUpdateInterval = stringPreferencesKey("update_interval")
+
+        rawStore.edit {
+            it[keyUpdateInterval] = "INVALID_GARBAGE_INTERVAL"
+        }
+
+        val prefs = repo.updatePrefs.first()
+        assertEquals(UpdateCheckInterval.H12, prefs.interval)
+
+        // Also test the internal parse helper directly
+        assertEquals(UpdateCheckInterval.H12, parseUpdateCheckInterval("INVALID_GARBAGE"))
+        assertEquals(UpdateCheckInterval.H12, parseUpdateCheckInterval(null))
+        assertEquals(UpdateCheckInterval.WEEK, parseUpdateCheckInterval("WEEK"))
     }
 
     @Test

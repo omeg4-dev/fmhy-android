@@ -809,6 +809,20 @@ object SettingsCatalog {
         description = "Check the project release page for new versions automatically",
         keywords = listOf("auto", "check", "update", "periodic", "background"),
     )
+    val appUpdatesNotify = SettingEntry(
+        id = "app_updates.notify",
+        page = SettingsPage.APP_UPDATES,
+        title = "Update notifications",
+        description = "Notify me when a new app version is available",
+        keywords = listOf("notify", "notification", "alert", "update", "push"),
+    )
+    val appUpdatesInterval = SettingEntry(
+        id = "app_updates.interval",
+        page = SettingsPage.APP_UPDATES,
+        title = "Check frequency",
+        description = "How often to look for new app versions (6 hours, 12 hours, daily or weekly)",
+        keywords = listOf("frequency", "interval", "hours", "daily", "weekly", "check", "background"),
+    )
     val appUpdatesCheckNow = SettingEntry(
         id = "app_updates.check_now",
         page = SettingsPage.APP_UPDATES,
@@ -947,6 +961,8 @@ object SettingsCatalog {
         aboutGithubRepo,
         // App updates
         appUpdatesAutoCheck,
+        appUpdatesNotify,
+        appUpdatesInterval,
         appUpdatesCheckNow,
         appUpdatesSkippedVersion,
     )

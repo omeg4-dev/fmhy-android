@@ -11,7 +11,7 @@ interface UpdateController {
     val pendingMobileAsk: StateFlow<Boolean>
     val needsInstallPermission: StateFlow<Boolean>
 
-    fun checkOnStartup()            // honours autoCheck + once a day + Wi-Fi rule (auto: WAIT_FOR_WIFI → state WaitingForWifi and retry when NetworkMonitor.kind becomes WIFI)
+    fun checkOnStartup()            // honours autoCheck + per the configured interval + Wi-Fi rule (auto: WAIT_FOR_WIFI → state WaitingForWifi and retry when NetworkMonitor.kind becomes WIFI)
     fun checkNow(overrideMobileData: Boolean = false)  // manual
     fun install(overrideMobileData: Boolean = false)   // download then hand to installer
     fun retry()

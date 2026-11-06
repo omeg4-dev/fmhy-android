@@ -131,6 +131,29 @@ class FmhyApp : Application() {
 
         ProcessLifecycleOwner.get().lifecycleScope.launch {
             try {
+                combine(
+                    container.settingsRepository.updatePrefs,
+                    container.settingsRepository.dataUsagePrefs,
+                ) { u, d ->
+                    AppUpdateScheduleKey(
+                        autoCheck = u.autoCheck,
+                        notify = u.notify,
+                        interval = u.interval,
+                        appDataWifiOnly = d.appDataWifiOnly,
+                    ) to (u to d.appDataWifiOnly)
+                }
+                    .distinctUntilChanged { old, new -> old.first == new.first }
+                    .collect { (_, pair) ->
+                        val (u, w) = pair
+                        io.github.omeg4dev.fmhy.work.AppUpdateScheduler.apply(this@FmhyApp, u, w)
+                    }
+            } catch (e: Exception) {
+                Log.e("FmhyApp", "Failed to schedule app update checks: ${e.message}", e)
+            }
+        }
+
+        ProcessLifecycleOwner.get().lifecycleScope.launch {
+            try {
                 container.settingsRepository.appearance
                     .map { it.appIcon }
                     .distinctUntilChanged()
@@ -152,3 +175,10 @@ class FmhyApp : Application() {
         })
     }
 }
+
+private data class AppUpdateScheduleKey(
+    val autoCheck: Boolean,
+    val notify: Boolean,
+    val interval: io.github.omeg4dev.fmhy.data.UpdateCheckInterval,
+    val appDataWifiOnly: Boolean,
+)

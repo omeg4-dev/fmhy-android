@@ -655,6 +655,9 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                     SettingsPage.APP_UPDATES -> AppUpdatesPage(
                         viewModel = settingsViewModel,
                         onBack = { if (!nav.back()) activity?.finish() },
+                        onShowSnackbar = { msg ->
+                            scope.launch { snackbarHostState.showSnackbar(msg) }
+                        },
                     )
                     SettingsPage.SYNC -> SyncPage(
                         viewModel = settingsViewModel,
