@@ -16,8 +16,7 @@
 
 [**⬇ Download the APK**](https://github.com/omeg4-dev/fmhy-android/releases/latest) · Android 8.0+ · Free & Open Source · No ads · No tracking
 
-[![FMHY](https://jmcrafter26.github.io/badges/available/fmhy/compact.svg)](https://fmhy.net/misc#indexes)
-
+[![FMHY](https://jmcrafter26.github.io/badges/available/fmhy/compact.svg)](https://fmhy.net/misc#:~:text=FMHY%20Android,App)
 </div>
 
 <p align="center">
