@@ -11,9 +11,12 @@
 [![Stars](https://img.shields.io/github/stars/omeg4-dev/fmhy-android?style=flat)](https://github.com/omeg4-dev/fmhy-android/stargazers)
 [![License](https://img.shields.io/github/license/omeg4-dev/fmhy-android)](https://github.com/omeg4-dev/fmhy-android/blob/main/LICENSE)
 
+
 **The whole FMHY wiki in your pocket: searchable, offline, and safer to browse.**
 
 [**⬇ Download the APK**](https://github.com/omeg4-dev/fmhy-android/releases/latest) · Android 8.0+ · Free & Open Source · No ads · No tracking
+
+[![FMHY](https://jmcrafter26.github.io/badges/available/fmhy/compact.svg)](https://fmhy.net/misc#indexes)
 
 </div>
 
