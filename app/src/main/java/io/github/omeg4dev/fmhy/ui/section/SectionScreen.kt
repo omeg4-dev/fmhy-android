@@ -563,12 +563,13 @@ fun SectionScreen(
                                     }
                                     if (homePrefs.personalHome) {
                                         DropdownMenuItem(
-                                            text = { Text("Hide on Home") },
+                                            text = { Text(sectionHideOnHomeLabel(isSectionHidden)) },
                                             onClick = {
                                                 showOverflowMenu = false
                                                 scope.launch {
-                                                    container.userStore.setSectionHidden(secId, true)
-                                                    onShowSnackbar("Section hidden on Home")
+                                                    val nextHidden = !isSectionHidden
+                                                    container.userStore.setSectionHidden(secId, nextHidden)
+                                                    onShowSnackbar(sectionHideOnHomeSnackbar(nextHidden))
                                                 }
                                             },
                                         )
@@ -1069,3 +1070,10 @@ fun SectionScreen(
 
     UnsafeWarningDialog(linkOpener)
 }
+
+internal fun sectionHideOnHomeLabel(isSectionHidden: Boolean): String =
+    if (isSectionHidden) "Show on Home" else "Hide on Home"
+
+internal fun sectionHideOnHomeSnackbar(nextHidden: Boolean): String =
+    if (nextHidden) "Section hidden on Home" else "Section shown on Home"
+
