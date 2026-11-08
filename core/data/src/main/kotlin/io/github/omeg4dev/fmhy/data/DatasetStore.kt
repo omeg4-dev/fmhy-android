@@ -97,6 +97,37 @@ open class DatasetStore(
         }
     }
 
+    /**
+     * Closes the active connection, runs [block] to replace or mutate the underlying database
+     * files while holding [mutex], and reopens the database before releasing the lock.
+     * Readers calling [withConnection] will not observe an intermediate closed or half-replaced state.
+     */
+    open suspend fun <T> replaceDatabaseFiles(block: () -> T): T = withContext(dispatcher) {
+        mutex.withLock {
+            connection?.close()
+            connection = null
+            var blockException: Throwable? = null
+            val result = try {
+                block()
+            } catch (t: Throwable) {
+                blockException = t
+                throw t
+            } finally {
+                if (dbFile.exists()) {
+                    try {
+                        openInternal()
+                    } catch (openException: Throwable) {
+                        blockException?.addSuppressed(openException)
+                        if (blockException == null) {
+                            throw openException
+                        }
+                    }
+                }
+            }
+            result
+        }
+    }
+
     open suspend fun notifyChanged() = withContext(dispatcher) {
         mutex.withLock {
             connection?.let { conn ->

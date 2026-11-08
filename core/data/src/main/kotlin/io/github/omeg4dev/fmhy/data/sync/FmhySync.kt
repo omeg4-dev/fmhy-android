@@ -572,27 +572,27 @@ open class FmhySync(
                 return@withContext
             }
 
-            store.close()
-            val wal = File(currentDb.parentFile, "${currentDb.name}-wal")
-            val shm = File(currentDb.parentFile, "${currentDb.name}-shm")
-            if (wal.exists()) wal.delete()
-            if (shm.exists()) shm.delete()
+            store.replaceDatabaseFiles {
+                val wal = File(currentDb.parentFile, "${currentDb.name}-wal")
+                val shm = File(currentDb.parentFile, "${currentDb.name}-shm")
+                if (wal.exists()) wal.delete()
+                if (shm.exists()) shm.delete()
 
-            currentDb.parentFile?.mkdirs()
-            Files.move(
-                tmpDb.toPath(),
-                currentDb.toPath(),
-                StandardCopyOption.REPLACE_EXISTING,
-                StandardCopyOption.ATOMIC_MOVE
-            )
+                currentDb.parentFile?.mkdirs()
+                Files.move(
+                    tmpDb.toPath(),
+                    currentDb.toPath(),
+                    StandardCopyOption.REPLACE_EXISTING,
+                    StandardCopyOption.ATOMIC_MOVE
+                )
 
-            val stateText = stateStream.bufferedReader().readText()
-            val snapshotState = json.decodeFromString<SyncState>(stateText)
-            // lastCheck stays 0 so the sync right after first launch is not skipped.
-            val seededState = snapshotState.copy(lastCheck = 0L)
-            stateFile.writeText(json.encodeToString(seededState))
+                val stateText = stateStream.bufferedReader().readText()
+                val snapshotState = json.decodeFromString<SyncState>(stateText)
+                // lastCheck stays 0 so the sync right after first launch is not skipped.
+                val seededState = snapshotState.copy(lastCheck = 0L)
+                stateFile.writeText(json.encodeToString(seededState))
+            }
 
-            store.reopen()
             store.notifyChanged()
             log("FmhySync: installed snapshot v${store.version()}")
         } catch (e: Exception) {

@@ -7,11 +7,19 @@ import io.github.omeg4dev.fmhy.data.model.ChangeKind
 import io.github.omeg4dev.fmhy.data.model.SectionItem
 import io.github.omeg4dev.fmhy.data.model.Tier
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Assume.assumeTrue
 import org.junit.Rule
 import org.junit.Test
@@ -412,6 +420,75 @@ class DatasetStoreTest {
         val unknownEntries = store.randomTopEntries("unknown", 5)
         assertTrue(unknownEntries.isEmpty())
 
+        store.close()
+    }
+
+    @Test
+    fun testReplaceDatabaseFilesHoldsLockAndReopens() = runTest {
+        val currentDbFile = tempFolder.newFile("replace_current.db")
+        val store = createSampleDb(currentDbFile, version = 1L)
+
+        val newDbFile = tempFolder.newFile("replace_new.db")
+        val newStore = createSampleDb(newDbFile, version = 2L)
+        newStore.close()
+
+        val isMidReplace = AtomicBoolean(false)
+        val readerSawMidReplace = AtomicBoolean(false)
+        val readerRunning = AtomicBoolean(true)
+        val latch = CountDownLatch(1)
+
+        val readerJob = launch(Dispatchers.IO) {
+            while (readerRunning.get()) {
+                try {
+                    store.withConnection {
+                        if (isMidReplace.get()) {
+                            readerSawMidReplace.set(true)
+                            latch.countDown()
+                        }
+                    }
+                } catch (_: Exception) {
+                }
+                Thread.yield()
+            }
+        }
+
+        store.replaceDatabaseFiles {
+            isMidReplace.set(true)
+            Files.move(
+                newDbFile.toPath(),
+                currentDbFile.toPath(),
+                StandardCopyOption.REPLACE_EXISTING,
+                StandardCopyOption.ATOMIC_MOVE,
+            )
+            latch.await(50, TimeUnit.MILLISECONDS)
+            isMidReplace.set(false)
+        }
+
+        readerRunning.set(false)
+        readerJob.join()
+
+        assertEquals("Reader must not observe mid-replace state", false, readerSawMidReplace.get())
+        assertEquals(2L, store.version())
+
+        store.close()
+    }
+
+    @Test
+    fun testReplaceDatabaseFilesRestoresConnectionOnFailure() = runTest {
+        val currentDbFile = tempFolder.newFile("replace_fail.db")
+        val store = createSampleDb(currentDbFile, version = 10L)
+
+        try {
+            store.replaceDatabaseFiles {
+                throw IllegalStateException("Disk full simulation")
+            }
+            fail("Expected exception was not thrown")
+        } catch (e: IllegalStateException) {
+            assertEquals("Disk full simulation", e.message)
+        }
+
+        // Store must still be open and functional on the original database
+        assertEquals(10L, store.version())
         store.close()
     }
 }

@@ -6,10 +6,17 @@ import io.github.omeg4dev.fmhy.data.DatasetStoreTest
 import io.github.omeg4dev.fmhy.data.model.ChangeKind
 import io.github.omeg4dev.fmhy.data.model.Tier
 import io.github.omeg4dev.fmhy.data.search.SearchEngine
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.security.MessageDigest
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.zip.GZIPOutputStream
 import io.github.omeg4dev.fmhy.data.parse.FmhyParser
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
@@ -1289,6 +1296,73 @@ class FmhySyncTest {
         assertEquals(6, store.sections().size)
         assertTrue("Bogus removed rows must be gone",
             store.changes(kinds = setOf(ChangeKind.REMOVED)).isEmpty())
+
+        store.close()
+    }
+
+    @Test
+    fun testInstallSnapshotReaderNeverObservesStoreReopenedMidReplace() = runTest {
+        val syncDir = tempFolder.newFolder("sync-race")
+        val currentDbFile = File(syncDir, "current.db")
+        val store = DatasetStoreTest.createSampleDb(currentDbFile, version = 1L)
+
+        val sync = FmhySync(
+            store = store,
+            dir = syncDir,
+            client = client,
+            clock = { 1000L },
+            log = {},
+        )
+
+        val snapshotDbFile = File(syncDir, "new_snapshot.db")
+        val snapStore = DatasetStoreTest.createSampleDb(snapshotDbFile, version = 2L)
+        snapStore.close()
+
+        val gzBytes = ByteArrayOutputStream().also { bout ->
+            GZIPOutputStream(bout).use { gzOut ->
+                snapshotDbFile.inputStream().use { it.copyTo(gzOut) }
+            }
+        }.toByteArray()
+        snapshotDbFile.delete()
+
+        val stateJson = """{"lastCheck":1000,"lastSuccess":1000,"source":"test","files":{},"version":2}"""
+        val isMidReplace = AtomicBoolean(false)
+        val readerSawMidReplace = AtomicBoolean(false)
+        val latch = CountDownLatch(1)
+
+        val stateStream = object : ByteArrayInputStream(stateJson.toByteArray(Charsets.UTF_8)) {
+            override fun read(b: ByteArray, off: Int, len: Int): Int {
+                isMidReplace.set(true)
+                latch.await(50, TimeUnit.MILLISECONDS)
+                val readCount = super.read(b, off, len)
+                isMidReplace.set(false)
+                return readCount
+            }
+        }
+
+        val readerRunning = AtomicBoolean(true)
+        val readerJob = launch(Dispatchers.IO) {
+            while (readerRunning.get()) {
+                try {
+                    store.withConnection { conn ->
+                        if (isMidReplace.get()) {
+                            readerSawMidReplace.set(true)
+                            latch.countDown()
+                        }
+                    }
+                } catch (_: Exception) {
+                }
+                Thread.yield()
+            }
+        }
+
+        sync.installSnapshot(ByteArrayInputStream(gzBytes), stateStream)
+
+        readerRunning.set(false)
+        readerJob.join()
+
+        assertEquals("Reader must never observe store reopened mid-replace", false, readerSawMidReplace.get())
+        assertEquals(2L, store.version())
 
         store.close()
     }
