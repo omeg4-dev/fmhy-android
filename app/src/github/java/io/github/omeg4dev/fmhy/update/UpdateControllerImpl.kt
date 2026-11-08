@@ -32,6 +32,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -109,7 +110,9 @@ class UpdateControllerImpl(
                         val release = currentRelease ?: readyState?.release
                         val file = currentApkFile ?: readyState?.filePath?.let { File(it) }
                         if (release != null && file != null && file.exists()) {
-                            startPackageInstaller(release, file)
+                            appScope.launch {
+                                startPackageInstaller(release, file)
+                            }
                         }
                     }
                 }
@@ -422,7 +425,9 @@ class UpdateControllerImpl(
                 }
             }
         } else {
-            startPackageInstaller(release, apkFile)
+            appScope.launch {
+                startPackageInstaller(release, apkFile)
+            }
         }
     }
 
@@ -441,37 +446,60 @@ class UpdateControllerImpl(
         }
     }
 
-    private fun startPackageInstaller(release: ReleaseInfo, apkFile: File) {
+    private suspend fun startPackageInstaller(release: ReleaseInfo, apkFile: File) {
         try {
-            val packageInstaller = context.packageManager.packageInstaller
-            val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
-            val sessionId = packageInstaller.createSession(params)
-            val session = packageInstaller.openSession(sessionId)
+            withContext(Dispatchers.IO) {
+                val packageInstaller = context.packageManager.packageInstaller
+                val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
+                val sessionId = packageInstaller.createSession(params)
+                var committed = false
+                try {
+                    val session = packageInstaller.openSession(sessionId)
+                    session.use { s ->
+                        try {
+                            s.openWrite("fmhy_update", 0, apkFile.length()).use { out ->
+                                apkFile.inputStream().use { input ->
+                                    input.copyTo(out)
+                                }
+                                s.fsync(out)
+                            }
 
-            session.use { s ->
-                s.openWrite("fmhy_update", 0, apkFile.length()).use { out ->
-                    apkFile.inputStream().use { input ->
-                        input.copyTo(out)
+                            val intent = Intent(context, UpdateInstallReceiver::class.java).apply {
+                                action = "io.github.omeg4dev.fmhy.update.INSTALL_RESULT"
+                            }
+                            val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_MUTABLE
+                            } else {
+                                android.app.PendingIntent.FLAG_UPDATE_CURRENT
+                            }
+                            val pendingIntent = android.app.PendingIntent.getBroadcast(
+                                context,
+                                sessionId,
+                                intent,
+                                flags,
+                            )
+                            s.commit(pendingIntent.intentSender)
+                            committed = true
+                        } finally {
+                            if (!committed) {
+                                try {
+                                    s.abandon()
+                                } catch (ignored: Exception) {
+                                }
+                            }
+                        }
                     }
-                    s.fsync(out)
+                } finally {
+                    if (!committed) {
+                        try {
+                            packageInstaller.abandonSession(sessionId)
+                        } catch (ignored: Exception) {
+                        }
+                    }
                 }
-
-                val intent = Intent(context, UpdateInstallReceiver::class.java).apply {
-                    action = "io.github.omeg4dev.fmhy.update.INSTALL_RESULT"
-                }
-                val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_MUTABLE
-                } else {
-                    android.app.PendingIntent.FLAG_UPDATE_CURRENT
-                }
-                val pendingIntent = android.app.PendingIntent.getBroadcast(
-                    context,
-                    sessionId,
-                    intent,
-                    flags,
-                )
-                s.commit(pendingIntent.intentSender)
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e("UpdateController", "Failed to commit package install session", e)
             _state.value = UpdateState.DownloadFailed(release, "The system couldn't install the update.")
