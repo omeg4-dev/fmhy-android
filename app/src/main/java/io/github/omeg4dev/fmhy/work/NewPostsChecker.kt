@@ -28,7 +28,7 @@ import java.io.File
 /** Looks for a new monthly post (at most once per 24 h) and posts one notification for it. */
 object NewPostsChecker {
     const val CHANNEL_ID = "new_posts"
-    const val NOTIFICATION_ID = 1002
+    const val NOTIFICATION_ID = 1003
     const val KEY_LAST_CHECK = "posts_last_check"
 
     /** Returns the posts a notification was built for (empty when none). */
