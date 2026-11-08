@@ -42,4 +42,27 @@ class EnterStaggerTest {
         tracker.msSinceListStart("c"); t += 10
         assertEquals(0L, tracker.msSinceListStart("a")) // evicted, starts fresh
     }
+
+    @Test
+    fun claimOrdersRowsByCompositionAcrossGroups() {
+        var t = 0L
+        val tracker = EntranceTracker(now = { t })
+        // two groups of 6 rows compose in one frame: ordinals keep counting instead of restarting per group
+        val ordinals = (0 until 12).map { tracker.claim("list").first }
+        assertEquals((0 until 12).toList(), ordinals)
+        // delays never decrease down the list, even past the stagger cap
+        val delays = ordinals.map { staggerDelayOrNull(it.coerceAtMost(Motion.STAGGER_MAX_ITEMS - 1), 0)!! }
+        assertEquals(delays.sorted(), delays)
+    }
+
+    @Test
+    fun claimRestartsAfterGapAndKeysAreIndependent() {
+        var t = 0L
+        val tracker = EntranceTracker(now = { t })
+        assertEquals(0, tracker.claim("a").first)
+        assertEquals(1, tracker.claim("a").first)
+        assertEquals(0, tracker.claim("b").first)
+        t += 2000
+        assertEquals(0, tracker.claim("a").first)
+    }
 }

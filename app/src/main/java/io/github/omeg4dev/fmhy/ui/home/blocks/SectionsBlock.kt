@@ -27,7 +27,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.omeg4dev.fmhy.ui.common.displayTitle
-import io.github.omeg4dev.fmhy.ui.common.enterStagger
+import io.github.omeg4dev.fmhy.ui.common.enterStaggerOrdered
 import io.github.omeg4dev.fmhy.ui.common.sectionIcon
 import io.github.omeg4dev.fmhy.ui.home.SectionGroup
 
@@ -51,7 +51,7 @@ fun LazyListScope.sectionsBlock(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier
                     .animateItem()
-                    .enterStagger(groupIndex * 2, datasetVersion)
+                    .enterStaggerOrdered(datasetVersion)
                     .padding(start = 16.dp, top = 20.dp, bottom = 8.dp),
             )
         }
@@ -62,7 +62,7 @@ fun LazyListScope.sectionsBlock(
                 color = MaterialTheme.colorScheme.surfaceContainerLow,
                 modifier = Modifier
                     .animateItem()
-                    .enterStagger(groupIndex * 2 + 1, datasetVersion)
+                    .enterStaggerOrdered(datasetVersion)
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp),
             ) {

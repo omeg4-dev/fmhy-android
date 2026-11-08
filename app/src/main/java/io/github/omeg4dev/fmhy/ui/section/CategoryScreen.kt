@@ -72,7 +72,7 @@ import io.github.omeg4dev.fmhy.ui.common.LocalSnackbarHost
 import io.github.omeg4dev.fmhy.ui.common.SkeletonRows
 import io.github.omeg4dev.fmhy.ui.common.SwipeToSave
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
-import io.github.omeg4dev.fmhy.ui.common.enterStagger
+import io.github.omeg4dev.fmhy.ui.common.enterStaggerOrdered
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
 import io.github.omeg4dev.fmhy.ui.common.showUndo
@@ -498,7 +498,7 @@ fun CategoryScreen(
                             Box(
                                 modifier = Modifier
                                     .animateItem()
-                                    .enterStagger(index, key.categoryHeadingId)
+                                    .enterStaggerOrdered(key.categoryHeadingId)
                             ) {
                                 when (item) {
                                     is SectionItem.HeadingItem -> {

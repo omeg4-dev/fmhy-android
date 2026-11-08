@@ -97,7 +97,7 @@ import io.github.omeg4dev.fmhy.ui.common.sectionDisplayTitle
 import io.github.omeg4dev.fmhy.ui.common.SkeletonRows
 import io.github.omeg4dev.fmhy.ui.common.SwipeToSave
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
-import io.github.omeg4dev.fmhy.ui.common.enterStagger
+import io.github.omeg4dev.fmhy.ui.common.enterStaggerOrdered
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
 import io.github.omeg4dev.fmhy.ui.common.showUndo
@@ -684,7 +684,7 @@ fun SectionScreen(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .animateItem()
-                                            .enterStagger(0, currentSectionId)
+                                            .enterStaggerOrdered(currentSectionId)
                                             .clickable {
                                                 nav.push(
                                                     CategoryNavKey(
@@ -748,7 +748,7 @@ fun SectionScreen(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .animateItem()
-                                        .enterStagger(index + if (state.structure.overview.isNotEmpty()) 1 else 0, currentSectionId)
+                                        .enterStaggerOrdered(currentSectionId)
                                         .combinedClickable(
                                             onClick = {
                                                 nav.push(
@@ -807,7 +807,7 @@ fun SectionScreen(
                                 Box(
                                     modifier = Modifier
                                         .animateItem()
-                                        .enterStagger(index, currentSectionId)
+                                        .enterStaggerOrdered(currentSectionId)
                                 ) {
                                     when (item) {
                                         is SectionItem.HeadingItem -> {

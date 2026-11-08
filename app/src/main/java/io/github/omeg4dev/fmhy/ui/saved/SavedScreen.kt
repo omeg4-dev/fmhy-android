@@ -93,7 +93,7 @@ import io.github.omeg4dev.fmhy.ui.common.EntryRow
 import io.github.omeg4dev.fmhy.ui.common.LocalSnackbarHost
 import io.github.omeg4dev.fmhy.ui.common.SkeletonRows
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
-import io.github.omeg4dev.fmhy.ui.common.enterStagger
+import io.github.omeg4dev.fmhy.ui.common.enterStaggerOrdered
 import io.github.omeg4dev.fmhy.ui.common.sectionDisplayTitle
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
@@ -282,7 +282,7 @@ fun SavedScreen(
                                                         entry = item.liveEntry,
                                                         modifier = Modifier
                                                             .animateItem()
-                                                            .enterStagger(index = itemIndex, key = currentTab),
+                                                            .enterStaggerOrdered(key = currentTab),
                                                         onShowInSection = { showInSection(item.liveEntry) },
                                                         onOpenUrl = { linkOpener.openUrl(it) },
                                                         onShowSnackbar = onShowSnackbar,
@@ -300,7 +300,7 @@ fun SavedScreen(
                                                         modifier = Modifier
                                                             .fillMaxWidth()
                                                             .animateItem()
-                                                            .enterStagger(index = itemIndex, key = currentTab)
+                                                            .enterStaggerOrdered(key = currentTab)
                                                             .clickable { linkOpener.openUrl(item.history.url) },
                                                     )
                                                 }
@@ -424,7 +424,7 @@ fun SavedScreen(
                                                     ) {
                                                         EntryRow(
                                                             entry = item.liveEntry,
-                                                            modifier = Modifier.enterStagger(index = itemIndex, key = currentTab),
+                                                            modifier = Modifier.enterStaggerOrdered(key = currentTab),
                                                             onShowInSection = { showInSection(item.liveEntry) },
                                                             notePreview = noteFirstLine,
                                                             onOpenUrl = { linkOpener.openUrl(it) },
@@ -455,7 +455,7 @@ fun SavedScreen(
                                                         item = item,
                                                         modifier = Modifier
                                                             .animateItem()
-                                                            .enterStagger(index = itemIndex, key = currentTab),
+                                                            .enterStaggerOrdered(key = currentTab),
                                                         notePreview = noteFirstLine,
                                                         onOpenUrl = { linkOpener.openUrl(item.bookmark.url) },
                                                         onReplacements = {
@@ -531,7 +531,7 @@ fun SavedScreen(
                                                 ) {
                                                     EntryRow(
                                                         entry = item.liveEntry,
-                                                        modifier = Modifier.enterStagger(index = itemIndex, key = currentTab),
+                                                        modifier = Modifier.enterStaggerOrdered(key = currentTab),
                                                         onShowInSection = { showInSection(item.liveEntry) },
                                                         folderLabel = item.folderName,
                                                         notePreview = noteFirstLine,
@@ -563,7 +563,7 @@ fun SavedScreen(
                                                     item = item,
                                                     modifier = Modifier
                                                         .animateItem()
-                                                        .enterStagger(index = itemIndex, key = currentTab),
+                                                        .enterStaggerOrdered(key = currentTab),
                                                     folderLabel = item.folderName,
                                                     notePreview = noteFirstLine,
                                                     onOpenUrl = { linkOpener.openUrl(item.bookmark.url) },

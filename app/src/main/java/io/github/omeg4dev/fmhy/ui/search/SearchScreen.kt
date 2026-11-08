@@ -131,7 +131,7 @@ import io.github.omeg4dev.fmhy.ui.common.LocalSnackbarHost
 import io.github.omeg4dev.fmhy.ui.common.SkeletonRows
 import io.github.omeg4dev.fmhy.ui.common.SwipeToSave
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
-import io.github.omeg4dev.fmhy.ui.common.enterStagger
+import io.github.omeg4dev.fmhy.ui.common.enterStaggerOrdered
 import io.github.omeg4dev.fmhy.ui.common.parseHighlight
 import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
 import io.github.omeg4dev.fmhy.ui.common.displayTitle
@@ -557,7 +557,7 @@ fun SearchScreen(
                                         Column(
                                             modifier = Modifier
                                                 .animateItem()
-                                                .enterStagger(index, state.query)
+                                                .enterStaggerOrdered("search")
                                         ) {
                                             val segments = remember(hit.entry.headingPath) {
                                                 hit.entry.headingPath
