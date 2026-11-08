@@ -667,6 +667,10 @@ class TabManager(
             val removed = records.removeAt(index)
             removed.rescueJob?.cancel()
             removed.rescueJob = null
+            removed.stallJob?.cancel()
+            removed.stallJob = null
+            removed.blankJob?.cancel()
+            removed.blankJob = null
             removed.isWaitingRetry = false
             removed.isWaitingGraceRetry = false
             removed.webView?.destroy()
@@ -714,6 +718,14 @@ class TabManager(
         synchronized(records) {
             hadPrivate = records.any { it.isPrivate }
             for (r in records) {
+                r.rescueJob?.cancel()
+                r.rescueJob = null
+                r.stallJob?.cancel()
+                r.stallJob = null
+                r.blankJob?.cancel()
+                r.blankJob = null
+                r.isWaitingRetry = false
+                r.isWaitingGraceRetry = false
                 r.webView?.destroy()
                 r.webView = null
                 r.mutableContext = null

@@ -71,11 +71,13 @@ class BrowserJsBridge(
 
     @JavascriptInterface
     fun openAnyway(url: String) {
-        tabManager.allowUrlOnce(tabId, url)
         tabManager.postToMain {
-            val record = tabManager.getTabRecord(tabId)
-            record?.let { r -> Uri.parse(url).host?.let { r.allowedHosts.add(it) }; r.interstitialState = null }
-            record?.webView?.reload()
+            val record = tabManager.getTabRecord(tabId) ?: return@postToMain
+            if (!canOpenAnyway(record.showsBlockPage, record.blockedMainFrameUrl, url)) return@postToMain
+            tabManager.allowUrlOnce(tabId, url)
+            Uri.parse(url).host?.let { record.allowedHosts.add(it) }
+            record.interstitialState = null
+            record.webView?.reload()
         }
     }
 
@@ -182,6 +184,12 @@ class BrowserJsBridge(
     }
 
     companion object {
+        internal fun canOpenAnyway(showsBlockPage: Boolean, blockedMainFrameUrl: String?, url: String): Boolean {
+            if (!showsBlockPage) return false
+            if (blockedMainFrameUrl.isNullOrEmpty() || url.isEmpty()) return false
+            return blockedMainFrameUrl == url
+        }
+
         fun buildCosmeticsScript(bridgeName: String, sendGpc: Boolean = true): String {
             return """
                 (function() {
