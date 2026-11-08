@@ -133,7 +133,7 @@ fun CategoryScreen(
     val catHeadingId = if (isOverview) "__overview" else (category?.heading?.id ?: key.categoryHeadingId)
     val isCategoryPinned = rememberIsPinned(container, key.sectionId, catHeadingId)
     val isCategoryFollowed = remember(follows, currentSectionId, category) {
-        category != null && follows.any { it.sectionId == currentSectionId && it.headingId == category.heading.id }
+        isCategoryFollowed(follows, currentSectionId, category?.heading?.id)
     }
 
     val overviewEntryCount = remember(state.structure.overview) {
@@ -320,16 +320,25 @@ fun CategoryScreen(
                                         onClick = {
                                             showOverflowMenu = false
                                             scope.launch {
-                                                if (isCategoryFollowed) {
-                                                    val snapshot = follows.firstOrNull { it.sectionId == currentSectionId && it.headingId == category.heading.id } ?: io.github.omeg4dev.fmhy.data.user.Follow(currentSectionId, category.heading.id, fullCatTitle, System.currentTimeMillis())
-                                                    container.userStore.unfollow(currentSectionId, category.heading.id)
+                                                val nextFollowed = !isCategoryFollowed
+                                                container.userStore.setSubsectionFollowed(
+                                                    currentSectionId,
+                                                    category.heading.id,
+                                                    fullCatTitle,
+                                                    nextFollowed,
+                                                )
+                                                if (!nextFollowed) {
                                                     haptics.remove()
                                                     val undone = snackbarHostState.showUndo("Unfollowed $fullCatTitle")
                                                     if (undone) {
-                                                        container.userStore.restoreFollow(snapshot)
+                                                        container.userStore.setSubsectionFollowed(
+                                                            currentSectionId,
+                                                            category.heading.id,
+                                                            fullCatTitle,
+                                                            true,
+                                                        )
                                                     }
                                                 } else {
-                                                    container.userStore.follow(currentSectionId, category.heading.id, fullCatTitle)
                                                     showFollowing(
                                                         snackbarHostState = snackbarHostState,
                                                         title = fullCatTitle,

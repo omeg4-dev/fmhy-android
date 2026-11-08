@@ -123,6 +123,7 @@ import io.github.omeg4dev.fmhy.ui.common.sectionDisplayTitle
 import io.github.omeg4dev.fmhy.ui.common.sectionIcon
 import io.github.omeg4dev.fmhy.ui.common.showUndo
 import io.github.omeg4dev.fmhy.ui.common.unpinItem
+import io.github.omeg4dev.fmhy.ui.section.unfollowSectionWithUndo
 import io.github.omeg4dev.fmhy.ui.common.showFollowing
 import io.github.omeg4dev.fmhy.ui.search.SearchBarShape
 import io.github.omeg4dev.fmhy.ui.search.searchBarBorder
@@ -437,8 +438,13 @@ fun HomeScreen(
                                         val isMainSection = pin.headingId.isEmpty()
                                         if (isMainSection) {
                                             if (isFollowed) {
-                                                container.userStore.unfollowSection(pin.sectionId)
-                                                onShowSnackbar("Unfollowed ${pin.title}")
+                                                unfollowSectionWithUndo(
+                                                    container = container,
+                                                    snackbarHostState = snackbarHostState,
+                                                    haptics = haptics,
+                                                    sectionId = pin.sectionId,
+                                                    sectionTitle = pin.title,
+                                                )
                                             } else {
                                                 container.userStore.followSection(pin.sectionId, pin.title)
                                                 showFollowing(snackbarHostState, pin.title, isPinned = true) {}

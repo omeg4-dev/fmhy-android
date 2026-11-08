@@ -458,15 +458,14 @@ fun SectionScreen(
                                             showOverflowMenu = false
                                             scope.launch {
                                                 if (isSectionFollowed) {
-                                                    val snapshots = follows.filter { it.sectionId == currentSectionId }
-                                                    container.userStore.unfollowSection(currentSectionId)
-                                                    haptics.remove()
-                                                    val undone = snackbarHostState.showUndo("Unfollowed $currentSectionTitle")
-                                                    if (undone) {
-                                                        for (f in snapshots) {
-                                                            container.userStore.restoreFollow(f)
-                                                        }
-                                                    }
+                                                    unfollowSectionWithUndo(
+                                                        container = container,
+                                                        snackbarHostState = snackbarHostState,
+                                                        haptics = haptics,
+                                                        sectionId = currentSectionId,
+                                                        sectionTitle = currentSectionTitle,
+                                                        followsSnapshot = follows.filter { it.sectionId == currentSectionId },
+                                                    )
                                                 } else {
                                                     container.userStore.followSection(currentSectionId, currentSectionTitle)
                                                     showFollowing(
