@@ -1,0 +1,5 @@
+- Search no longer fails on multi-word queries with a typo
+- Home: unfollowing a section can be undone, and a section can be shown on Home again from its menu
+- Lists fade in top to bottom and no longer replay when you scroll or jump
+- App updates install without freezing the screen, and new-post alerts no longer replace the update notice
+- Wiki sync retries a section that failed to parse
