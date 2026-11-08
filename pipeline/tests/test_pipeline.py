@@ -892,3 +892,113 @@ def test_build_full_meta_schema_matches_dataset_sql_user_version(tmp_path):
 
     assert meta_schema == expected_schema
 
+
+def test_site_lists_delta_upsert_and_delete(tmp_path):
+    """site_lists changes are captured in upsert and delete, and applying delta reproduces the new table."""
+    db1 = str(tmp_path / "v1.sqlite")
+    db2 = str(tmp_path / "v2.sqlite")
+    applied = str(tmp_path / "applied.sqlite")
+
+    _make_test_db(db1, [], version=1)
+    _make_test_db(db2, [], version=2)
+
+    con1 = sqlite3.connect(db1)
+    con1.execute("INSERT INTO site_lists(key, list, reason) VALUES (?, ?, ?)", ("bad.org", "unsafe", "reason 1"))
+    con1.execute("INSERT INTO site_lists(key, list, reason) VALUES (?, ?, ?)", ("remove-me.org", "potentially_unsafe", "reason 2"))
+    con1.commit()
+    con1.close()
+
+    con2 = sqlite3.connect(db2)
+    con2.execute("INSERT INTO site_lists(key, list, reason) VALUES (?, ?, ?)", ("bad.org", "unsafe", "updated reason"))
+    con2.execute("INSERT INTO site_lists(key, list, reason) VALUES (?, ?, ?)", ("new-site.org", "fmhy", ""))
+    con2.commit()
+    con2.close()
+
+    delta = compute_delta(db1, db2, 1, 2)
+    assert "site_lists" in delta["upsert"], "site_lists should be present in delta upserts"
+    upsert_rows = {(r["key"], r["list"]): r["reason"] for r in delta["upsert"]["site_lists"]}
+    assert upsert_rows == {
+        ("bad.org", "unsafe"): "updated reason",
+        ("new-site.org", "fmhy"): "",
+    }
+
+    assert "site_lists" in delta.get("delete", {}), "site_lists should be present in delta deletes"
+    delete_keys = [tuple(k) if isinstance(k, (list, tuple)) else k for k in delta["delete"]["site_lists"]]
+    assert ("remove-me.org", "potentially_unsafe") in delete_keys
+
+    import shutil
+    shutil.copy2(db1, applied)
+    apply_delta(applied, delta)
+
+    ok, reason = tables_equal(applied, db2)
+    assert ok, f"Round trip failed: {reason}"
+
+
+def test_build_full_note_ids_match_dataset_spec_and_kotlin(tmp_path):
+    """Note ids follow '<heading_id or section_id>#n<k>' with 1-based per-parent counters matching Kotlin."""
+    from fmhy_pipeline.build import build_full
+
+    repo = _setup_git_repo(tmp_path)
+    sec_a_md = (
+        "> Section A note 1 before heading\n"
+        "* **Note** - Section A note 2 before heading\n"
+        "# Heading 1\n"
+        "> Note 1 under heading 1\n"
+        "* **Note** - Note 2 under heading 1\n"
+        "* [Entry 1](https://e1.org) - entry\n"
+        "## Subheading 1.1\n"
+        "> Note 1 under subheading 1.1\n"
+    )
+    sec_b_md = (
+        "> Section B note 1 before heading\n"
+        "# Heading in B\n"
+        "* **Note** - Note 1 under heading in B\n"
+    )
+
+    sha = _make_commit(
+        repo,
+        {
+            "docs/.vitepress/transformer/headers.json": json.dumps({
+                "secA.md": {"title": "Section A", "description": "Desc A"},
+                "secB.md": {"title": "Section B", "description": "Desc B"},
+            }),
+            "docs/secA.md": sec_a_md,
+            "docs/secB.md": sec_b_md,
+        },
+        "init notes",
+        1700000000,
+    )
+
+    out_sqlite = str(tmp_path / "notes_test.sqlite")
+    build_full(
+        repo=repo,
+        rev=sha,
+        rentry_html="<html></html>",
+        unsafe_txt="",
+        reasons_json="{}",
+        out_path=out_sqlite,
+    )
+
+    con = sqlite3.connect(out_sqlite)
+    cur = con.execute("SELECT id, section_id, heading_id, text_md FROM notes ORDER BY section_id, ord")
+    rows = cur.fetchall()
+    con.close()
+
+    expected_ids = [
+        # secA top-level
+        "secA#n1",
+        "secA#n2",
+        # secA Heading 1
+        "secA/heading-1#n1",
+        "secA/heading-1#n2",
+        # secA Subheading 1.1
+        "secA/subheading-1-1#n1",
+        # secB top-level
+        "secB#n1",
+        # secB Heading in B
+        "secB/heading-in-b#n1",
+    ]
+    actual_ids = [r[0] for r in rows]
+    assert actual_ids == expected_ids
+
+

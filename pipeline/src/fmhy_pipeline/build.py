@@ -299,11 +299,14 @@ def build_full(
         )
 
     # Insert notes
+    note_counts: dict[str, int] = {}
     note_records = []
-    for idx, n in enumerate(all_notes):
+    for n in all_notes:
         # id = '<heading_id or section_id>#n<k>'
         parent = n.heading_id if n.heading_id else n.section_id
-        note_id = f"{parent}#n{idx}"
+        k = note_counts.get(parent, 0) + 1
+        note_counts[parent] = k
+        note_id = f"{parent}#n{k}"
         note_records.append({
             "id": note_id,
             "section_id": n.section_id,

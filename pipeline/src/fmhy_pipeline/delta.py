@@ -15,16 +15,25 @@ from typing import Any
 
 
 # Tables in the non-FTS schema (excluding meta and FTS)
-_DATA_TABLES = ["sections", "headings", "entries", "notes", "posts", "unsafe_domains"]
+_DATA_TABLES = [
+    "sections",
+    "headings",
+    "entries",
+    "notes",
+    "posts",
+    "unsafe_domains",
+    "site_lists",
+]
 
 # Primary keys for each table
-_PKS = {
+_PKS: dict[str, Any] = {
     "sections": "id",
     "headings": "id",
     "entries": "id",
     "notes": "id",
     "posts": "id",
     "unsafe_domains": "domain",
+    "site_lists": ("key", "list"),
     "changes": "id",
     "meta": "key",
 }
@@ -33,7 +42,8 @@ _PKS = {
 def _read_all_rows(con: sqlite3.Connection, table: str) -> list[dict]:
     """Read all rows from a table as list of dicts, sorted by primary key."""
     pk = _PKS.get(table, "rowid")
-    cur = con.execute(f"SELECT * FROM {table} ORDER BY {pk}")
+    order_clause = ", ".join(pk) if isinstance(pk, (list, tuple)) else pk
+    cur = con.execute(f"SELECT * FROM {table} ORDER BY {order_clause}")
     cols = [d[0] for d in cur.description]
     return [dict(zip(cols, row)) for row in cur.fetchall()]
 
@@ -57,8 +67,15 @@ def compute_delta(old_db: str, new_db: str, from_ver: int, to_ver: int) -> dict:
 
         for table in _DATA_TABLES:
             pk = _PKS[table]
-            old_rows = {r[pk]: r for r in _read_all_rows(old_con, table)}
-            new_rows = {r[pk]: r for r in _read_all_rows(new_con, table)}
+            if isinstance(pk, (list, tuple)):
+                row_key = lambda r, cols=pk: tuple(r[c] for c in cols)
+                delete_key = lambda k: list(k)
+            else:
+                row_key = lambda r, col=pk: r[col]
+                delete_key = lambda k: k
+
+            old_rows = {row_key(r): r for r in _read_all_rows(old_con, table)}
+            new_rows = {row_key(r): r for r in _read_all_rows(new_con, table)}
 
             # Upserts: rows in new that differ from old
             upserts = []
@@ -67,7 +84,7 @@ def compute_delta(old_db: str, new_db: str, from_ver: int, to_ver: int) -> dict:
                     upserts.append(row)
 
             # Deletes: rows in old not in new
-            deletes = [key for key in old_rows if key not in new_rows]
+            deletes = [delete_key(key) for key in old_rows if key not in new_rows]
 
             if upserts:
                 delta["upsert"][table] = upserts
@@ -115,19 +132,40 @@ def apply_delta(db_path: str, delta: dict) -> None:
         con.execute("PRAGMA foreign_keys = OFF")
 
         with con:
-            # 1. Deletes in order: notes, entries, headings, sections, posts, unsafe_domains
-            delete_order = ["notes", "entries", "headings", "sections", "posts", "unsafe_domains"]
+            # 1. Deletes in order: notes, entries, headings, sections, posts, unsafe_domains, site_lists
+            delete_order = [
+                "notes",
+                "entries",
+                "headings",
+                "sections",
+                "posts",
+                "unsafe_domains",
+                "site_lists",
+            ]
             deletes = delta.get("delete", {})
             for table in delete_order:
                 keys = deletes.get(table, [])
                 if not keys:
                     continue
                 pk = _PKS[table]
-                placeholders = ",".join("?" * len(keys))
-                con.execute(f"DELETE FROM {table} WHERE {pk} IN ({placeholders})", keys)
+                if isinstance(pk, (list, tuple)):
+                    where_clause = " AND ".join(f"{col} = ?" for col in pk)
+                    params = [tuple(k) if isinstance(k, (list, tuple)) else (k,) for k in keys]
+                    con.executemany(f"DELETE FROM {table} WHERE {where_clause}", params)
+                else:
+                    placeholders = ",".join("?" * len(keys))
+                    con.execute(f"DELETE FROM {table} WHERE {pk} IN ({placeholders})", keys)
 
-            # 2. Upserts in order: sections, headings, entries, notes, posts, unsafe_domains
-            upsert_order = ["sections", "headings", "entries", "notes", "posts", "unsafe_domains"]
+            # 2. Upserts in order: sections, headings, entries, notes, posts, unsafe_domains, site_lists
+            upsert_order = [
+                "sections",
+                "headings",
+                "entries",
+                "notes",
+                "posts",
+                "unsafe_domains",
+                "site_lists",
+            ]
             upserts = delta.get("upsert", {})
             for table in upsert_order:
                 rows = upserts.get(table, [])
@@ -137,20 +175,31 @@ def apply_delta(db_path: str, delta: dict) -> None:
                 # Determine conflict target
                 if table == "entries":
                     conflict_target = "id"
+                    conflict_cols = {"id"}
+                elif isinstance(pk, (list, tuple)):
+                    conflict_target = ", ".join(pk)
+                    conflict_cols = set(pk)
                 else:
                     conflict_target = pk
+                    conflict_cols = {pk}
                 for row in rows:
                     cols = list(row.keys())
                     vals = [row[c] for c in cols]
                     set_clause = ", ".join(
-                        f"{c}=excluded.{c}" for c in cols if c != conflict_target
+                        f"{c}=excluded.{c}" for c in cols if c not in conflict_cols
                     )
                     placeholders = ",".join("?" * len(cols))
                     col_list = ",".join(cols)
-                    sql = (
-                        f"INSERT INTO {table}({col_list}) VALUES ({placeholders}) "
-                        f"ON CONFLICT({conflict_target}) DO UPDATE SET {set_clause}"
-                    )
+                    if set_clause:
+                        sql = (
+                            f"INSERT INTO {table}({col_list}) VALUES ({placeholders}) "
+                            f"ON CONFLICT({conflict_target}) DO UPDATE SET {set_clause}"
+                        )
+                    else:
+                        sql = (
+                            f"INSERT INTO {table}({col_list}) VALUES ({placeholders}) "
+                            f"ON CONFLICT({conflict_target}) DO NOTHING"
+                        )
                     con.execute(sql, vals)
 
             # 3. changes_append (plain INSERT)
