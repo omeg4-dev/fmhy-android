@@ -51,62 +51,107 @@ fun FollowNotifyPrompt(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    var requesting by remember { mutableStateOf(false) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         scope.launch {
-            settingsRepository.updateNotifications {
-                it.copy(enabled = isGranted, notifyFollowed = true)
-            }
+            handleFollowPromptPermissionResult(
+                isGranted = isGranted,
+                settingsRepository = settingsRepository,
+                onDismiss = onDismiss,
+            )
         }
     }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text("Get notified about new sites in sections you follow?")
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    onDismiss()
-                    scope.launch {
-                        settingsRepository.setFollowNotifyPromptShown(true)
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                            val hasPermission = ContextCompat.checkSelfPermission(
-                                context,
-                                Manifest.permission.POST_NOTIFICATIONS
-                            ) == PackageManager.PERMISSION_GRANTED
-                            if (hasPermission) {
-                                settingsRepository.updateNotifications {
-                                    it.copy(enabled = true, notifyFollowed = true)
-                                }
-                            } else {
-                                permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                            }
-                        } else {
-                            settingsRepository.updateNotifications {
-                                it.copy(enabled = true, notifyFollowed = true)
-                            }
+    if (!requesting) {
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = {
+                Text("Get notified about new sites in sections you follow?")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        requesting = true
+                        scope.launch {
+                            val hasPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                ContextCompat.checkSelfPermission(
+                                    context,
+                                    Manifest.permission.POST_NOTIFICATIONS
+                                ) == PackageManager.PERMISSION_GRANTED
+                            } else true
+
+                            handleFollowPromptConfirm(
+                                sdkInt = Build.VERSION.SDK_INT,
+                                hasNotificationPermission = hasPermission,
+                                settingsRepository = settingsRepository,
+                                requestPermission = {
+                                    try {
+                                        permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                    } catch (e: Exception) {
+                                        onDismiss()
+                                    }
+                                },
+                                onDismiss = onDismiss,
+                            )
                         }
                     }
+                ) {
+                    Text("Turn on")
                 }
-            ) {
-                Text("Turn on")
-            }
-        },
-        dismissButton = {
-            TextButton(
-                onClick = {
-                    onDismiss()
-                    scope.launch {
-                        settingsRepository.setFollowNotifyPromptShown(true)
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        onDismiss()
+                        scope.launch {
+                            settingsRepository.setFollowNotifyPromptShown(true)
+                        }
                     }
+                ) {
+                    Text("Not now")
                 }
-            ) {
-                Text("Not now")
             }
+        )
+    }
+}
+
+internal suspend fun handleFollowPromptConfirm(
+    sdkInt: Int,
+    hasNotificationPermission: Boolean,
+    settingsRepository: SettingsRepository,
+    requestPermission: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    settingsRepository.setFollowNotifyPromptShown(true)
+    if (sdkInt >= Build.VERSION_CODES.TIRAMISU) {
+        if (hasNotificationPermission) {
+            settingsRepository.updateNotifications {
+                it.copy(enabled = true, notifyFollowed = true)
+            }
+            onDismiss()
+        } else {
+            requestPermission()
         }
-    )
+    } else {
+        settingsRepository.updateNotifications {
+            it.copy(enabled = true, notifyFollowed = true)
+        }
+        onDismiss()
+    }
+}
+
+internal suspend fun handleFollowPromptPermissionResult(
+    isGranted: Boolean,
+    settingsRepository: SettingsRepository,
+    onDismiss: () -> Unit,
+) {
+    if (isGranted) {
+        settingsRepository.updateNotifications {
+            it.copy(enabled = true, notifyFollowed = true)
+        }
+    }
+    onDismiss()
 }
