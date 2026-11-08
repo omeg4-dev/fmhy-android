@@ -73,6 +73,7 @@ import io.github.omeg4dev.fmhy.ui.common.SkeletonRows
 import io.github.omeg4dev.fmhy.ui.common.SwipeToSave
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
 import io.github.omeg4dev.fmhy.ui.common.enterStaggerOrdered
+import io.github.omeg4dev.fmhy.ui.common.rememberListEntrance
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
 import io.github.omeg4dev.fmhy.ui.common.showUndo
@@ -107,6 +108,7 @@ fun CategoryScreen(
     val websiteStyle = LocalWebsiteStyle.current
 
     val listState = rememberLazyListState()
+    val entrance = rememberListEntrance(key.categoryHeadingId)
     var showJumpBottomSheet by remember { mutableStateOf(false) }
     var showLegendBottomSheet by remember { mutableStateOf(false) }
     var highlightedHeadingId by remember { mutableStateOf<String?>(null) }
@@ -195,6 +197,7 @@ fun CategoryScreen(
             when (target) {
                 is ScrollTarget.Found -> {
                     hasScrolledToFocus = true
+                    entrance.close()
                     listState.jumpTo(target.index, viewportFraction = if (target.isHeading) HEADING_VIEWPORT_FRACTION else ENTRY_VIEWPORT_FRACTION)
                     if (target.isHeading) {
                         highlightedHeadingId = target.id
@@ -498,7 +501,7 @@ fun CategoryScreen(
                             Box(
                                 modifier = Modifier
                                     .animateItem()
-                                    .enterStaggerOrdered(key.categoryHeadingId)
+                                    .enterStaggerOrdered(entrance)
                             ) {
                                 when (item) {
                                     is SectionItem.HeadingItem -> {

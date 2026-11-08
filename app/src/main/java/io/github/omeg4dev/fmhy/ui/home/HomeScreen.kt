@@ -115,6 +115,7 @@ import io.github.omeg4dev.fmhy.ui.common.linkText
 import io.github.omeg4dev.fmhy.ui.common.LocalSnackbarHost
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
 import io.github.omeg4dev.fmhy.ui.common.enterStagger
+import io.github.omeg4dev.fmhy.ui.common.rememberListEntrance
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
 import io.github.omeg4dev.fmhy.ui.common.displayTitle
@@ -314,6 +315,7 @@ fun HomeScreen(
                             )
                         } else {
                             val totalEntries = remember(state.sections) { state.sections.sumOf { it.entryCount } }
+                            val sectionsEntrance = rememberListEntrance(state.datasetVersion)
 
                             LazyColumn(
                                 state = listState,
@@ -486,7 +488,7 @@ fun HomeScreen(
                             )
                             HomeBlock.SECTIONS -> sectionsBlock(
                                 sectionGroups = state.sectionGroups,
-                                datasetVersion = state.datasetVersion,
+                                entrance = sectionsEntrance,
                                 unreadPosts = state.unreadPosts,
                                 hiddenSectionsCount = state.hiddenSectionsCount,
                                 showingHiddenSections = state.showingHiddenSections,

@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyItemScope
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -94,6 +93,7 @@ import io.github.omeg4dev.fmhy.ui.common.LocalSnackbarHost
 import io.github.omeg4dev.fmhy.ui.common.SkeletonRows
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
 import io.github.omeg4dev.fmhy.ui.common.enterStaggerOrdered
+import io.github.omeg4dev.fmhy.ui.common.rememberListEntrance
 import io.github.omeg4dev.fmhy.ui.common.sectionDisplayTitle
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
@@ -244,6 +244,7 @@ fun SavedScreen(
                         targetState = selectedTab,
                         modifier = Modifier.fillMaxSize(),
                     ) { currentTab ->
+                        val entrance = rememberListEntrance(currentTab)
                         when {
                             currentTab == "history" -> {
                                 if (!state.keepHistory) {
@@ -276,13 +277,13 @@ fun SavedScreen(
                                                         .padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 6.dp),
                                                 )
                                             }
-                                            itemsIndexed(group.items, key = { _, item -> "hist_${item.history.id}" }) { itemIndex, item ->
+                                            items(group.items, key = { item -> "hist_${item.history.id}" }) { item ->
                                                 if (item.liveEntry != null) {
                                                     EntryRow(
                                                         entry = item.liveEntry,
                                                         modifier = Modifier
                                                             .animateItem()
-                                                            .enterStaggerOrdered(key = currentTab),
+                                                            .enterStaggerOrdered(entrance),
                                                         onShowInSection = { showInSection(item.liveEntry) },
                                                         onOpenUrl = { linkOpener.openUrl(it) },
                                                         onShowSnackbar = onShowSnackbar,
@@ -300,7 +301,7 @@ fun SavedScreen(
                                                         modifier = Modifier
                                                             .fillMaxWidth()
                                                             .animateItem()
-                                                            .enterStaggerOrdered(key = currentTab)
+                                                            .enterStaggerOrdered(entrance)
                                                             .clickable { linkOpener.openUrl(item.history.url) },
                                                     )
                                                 }
@@ -415,7 +416,7 @@ fun SavedScreen(
                                                         .padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 6.dp),
                                                 )
                                             }
-                                            itemsIndexed(group.items, key = { _, it -> it.bookmark.entryId }) { itemIndex, item ->
+                                            items(group.items, key = { it.bookmark.entryId }) { item ->
                                                 val noteFirstLine = item.bookmark.note.lines().firstOrNull { it.isNotBlank() }
                                                 if (item.liveEntry != null) {
                                                     SwipeToDismissSavedRow(
@@ -424,7 +425,7 @@ fun SavedScreen(
                                                     ) {
                                                         EntryRow(
                                                             entry = item.liveEntry,
-                                                            modifier = Modifier.enterStaggerOrdered(key = currentTab),
+                                                            modifier = Modifier.enterStaggerOrdered(entrance),
                                                             onShowInSection = { showInSection(item.liveEntry) },
                                                             notePreview = noteFirstLine,
                                                             onOpenUrl = { linkOpener.openUrl(it) },
@@ -455,7 +456,7 @@ fun SavedScreen(
                                                         item = item,
                                                         modifier = Modifier
                                                             .animateItem()
-                                                            .enterStaggerOrdered(key = currentTab),
+                                                            .enterStaggerOrdered(entrance),
                                                         notePreview = noteFirstLine,
                                                         onOpenUrl = { linkOpener.openUrl(item.bookmark.url) },
                                                         onReplacements = {
@@ -522,7 +523,7 @@ fun SavedScreen(
                                                     .padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 6.dp),
                                             )
                                         }
-                                        itemsIndexed(group.items, key = { _, it -> it.bookmark.entryId }) { itemIndex, item ->
+                                        items(group.items, key = { it.bookmark.entryId }) { item ->
                                             val noteFirstLine = item.bookmark.note.lines().firstOrNull { it.isNotBlank() }
                                             if (item.liveEntry != null) {
                                                 SwipeToDismissSavedRow(
@@ -531,7 +532,7 @@ fun SavedScreen(
                                                 ) {
                                                     EntryRow(
                                                         entry = item.liveEntry,
-                                                        modifier = Modifier.enterStaggerOrdered(key = currentTab),
+                                                        modifier = Modifier.enterStaggerOrdered(entrance),
                                                         onShowInSection = { showInSection(item.liveEntry) },
                                                         folderLabel = item.folderName,
                                                         notePreview = noteFirstLine,
@@ -563,7 +564,7 @@ fun SavedScreen(
                                                     item = item,
                                                     modifier = Modifier
                                                         .animateItem()
-                                                        .enterStaggerOrdered(key = currentTab),
+                                                        .enterStaggerOrdered(entrance),
                                                     folderLabel = item.folderName,
                                                     notePreview = noteFirstLine,
                                                     onOpenUrl = { linkOpener.openUrl(item.bookmark.url) },

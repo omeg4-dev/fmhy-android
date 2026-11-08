@@ -98,6 +98,7 @@ import io.github.omeg4dev.fmhy.ui.common.SkeletonRows
 import io.github.omeg4dev.fmhy.ui.common.SwipeToSave
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
 import io.github.omeg4dev.fmhy.ui.common.enterStaggerOrdered
+import io.github.omeg4dev.fmhy.ui.common.rememberListEntrance
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
 import io.github.omeg4dev.fmhy.ui.common.showUndo
@@ -156,6 +157,7 @@ fun SectionScreen(
         follows = container.userStore.follows()
     }
     val currentSectionId = state.section?.id ?: viewModel.sectionId
+    val entrance = rememberListEntrance(currentSectionId)
     val currentSectionTitle = state.section?.displayTitle ?: sectionDisplayTitle(viewModel.sectionId, "Section")
     val isSectionFollowed = remember(follows, currentSectionId) {
         FollowTree(follows).isSectionFollowed(currentSectionId)
@@ -277,6 +279,7 @@ fun SectionScreen(
             when (target) {
                 is ScrollTarget.Found -> {
                     hasScrolledToFocus = true
+                    entrance.close()
                     listState.jumpTo(target.index, viewportFraction = if (target.isHeading) HEADING_VIEWPORT_FRACTION else ENTRY_VIEWPORT_FRACTION)
                     if (target.isHeading) {
                         highlightedHeadingId = target.id
@@ -288,6 +291,7 @@ fun SectionScreen(
                     hasScrolledToFocus = true
                     onShowSnackbar("This entry was moved or removed")
                     if (target.fallbackHeadingIndex != null && target.fallbackHeadingId != null) {
+                        entrance.close()
                         listState.jumpTo(target.fallbackHeadingIndex, viewportFraction = HEADING_VIEWPORT_FRACTION)
                         highlightedHeadingId = target.fallbackHeadingId
                     }
@@ -684,7 +688,7 @@ fun SectionScreen(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .animateItem()
-                                            .enterStaggerOrdered(currentSectionId)
+                                            .enterStaggerOrdered(entrance)
                                             .clickable {
                                                 nav.push(
                                                     CategoryNavKey(
@@ -748,7 +752,7 @@ fun SectionScreen(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .animateItem()
-                                        .enterStaggerOrdered(currentSectionId)
+                                        .enterStaggerOrdered(entrance)
                                         .combinedClickable(
                                             onClick = {
                                                 nav.push(
@@ -807,7 +811,7 @@ fun SectionScreen(
                                 Box(
                                     modifier = Modifier
                                         .animateItem()
-                                        .enterStaggerOrdered(currentSectionId)
+                                        .enterStaggerOrdered(entrance)
                                 ) {
                                     when (item) {
                                         is SectionItem.HeadingItem -> {

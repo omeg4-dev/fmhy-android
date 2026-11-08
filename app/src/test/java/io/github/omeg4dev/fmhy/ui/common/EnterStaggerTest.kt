@@ -44,25 +44,51 @@ class EnterStaggerTest {
     }
 
     @Test
-    fun claimOrdersRowsByCompositionAcrossGroups() {
-        var t = 0L
-        val tracker = EntranceTracker(now = { t })
+    fun entranceOrdersRowsByCompositionAcrossGroups() {
+        val entrance = ListEntrance(now = { 0L })
         // two groups of 6 rows compose in one frame: ordinals keep counting instead of restarting per group
-        val ordinals = (0 until 12).map { tracker.claim("list").first }
-        assertEquals((0 until 12).toList(), ordinals)
-        // delays never decrease down the list, even past the stagger cap
-        val delays = ordinals.map { staggerDelayOrNull(it.coerceAtMost(Motion.STAGGER_MAX_ITEMS - 1), 0)!! }
-        assertEquals(delays.sorted(), delays)
+        val delays = (0 until 12).map { entrance.claim()!! }
+        assertEquals(listOf(0, 40, 80, 120, 160, 200, 240, 280, 280, 280, 280, 280), delays)
     }
 
     @Test
-    fun claimRestartsAfterGapAndKeysAreIndependent() {
+    fun entranceStartsAtFirstClaim() {
         var t = 0L
-        val tracker = EntranceTracker(now = { t })
-        assertEquals(0, tracker.claim("a").first)
-        assertEquals(1, tracker.claim("a").first)
-        assertEquals(0, tracker.claim("b").first)
-        t += 2000
-        assertEquals(0, tracker.claim("a").first)
+        val entrance = ListEntrance(now = { t })
+        t = 5_000L // the screen showed a skeleton for a while before the rows arrived
+        assertEquals(0, entrance.claim())
+        t += 50
+        assertEquals(40, entrance.claim())
+    }
+
+    @Test
+    fun rowsComposedAfterThePauseAppearAtOnce() {
+        var t = 0L
+        val entrance = ListEntrance(now = { t })
+        assertEquals(0, entrance.claim())
+        t += 10
+        assertEquals(40, entrance.claim())
+        t += 10_000 // user reads, then scrolls again: not a new entrance
+        assertNull(entrance.claim())
+        assertNull(entrance.claim())
+    }
+
+    @Test
+    fun entranceStaysClosedOnceTheWindowPassed() {
+        var t = 0L
+        val entrance = ListEntrance(now = { t })
+        assertEquals(0, entrance.claim())
+        t += STAGGER_WINDOW_MS + 1
+        assertNull(entrance.claim())
+        t = 0L
+        assertNull(entrance.claim())
+    }
+
+    @Test
+    fun closedEntranceGivesNoDelay() {
+        val entrance = ListEntrance(now = { 0L })
+        assertEquals(0, entrance.claim())
+        entrance.close() // programmatic jump: rows it brings into view must not fade
+        assertNull(entrance.claim())
     }
 }

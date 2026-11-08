@@ -132,6 +132,7 @@ import io.github.omeg4dev.fmhy.ui.common.SkeletonRows
 import io.github.omeg4dev.fmhy.ui.common.SwipeToSave
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
 import io.github.omeg4dev.fmhy.ui.common.enterStaggerOrdered
+import io.github.omeg4dev.fmhy.ui.common.rememberListEntrance
 import io.github.omeg4dev.fmhy.ui.common.parseHighlight
 import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
 import io.github.omeg4dev.fmhy.ui.common.displayTitle
@@ -164,6 +165,7 @@ fun SearchScreen(
     val focusRequester = remember { FocusRequester() }
     val nav = LocalAppNav.current
     val resultsListState = rememberLazyListState()
+    val entrance = rememberListEntrance(remember(state.categories, state.groups) { Objects.hash(state.categories, state.groups) })
     val scope = rememberCoroutineScope()
     var showFiltersSheet by remember { mutableStateOf(false) }
     var categoriesExpanded by rememberSaveable(state.query) { mutableStateOf(false) }
@@ -553,11 +555,11 @@ fun SearchScreen(
                                         }
                                     }
 
-                                    itemsIndexed(group.hits, key = { _, hit -> "hit_${hit.entry.id}" }) { index, hit ->
+                                    items(group.hits, key = { hit -> "hit_${hit.entry.id}" }) { hit ->
                                         Column(
                                             modifier = Modifier
                                                 .animateItem()
-                                                .enterStaggerOrdered("search")
+                                                .enterStaggerOrdered(entrance)
                                         ) {
                                             val segments = remember(hit.entry.headingPath) {
                                                 hit.entry.headingPath

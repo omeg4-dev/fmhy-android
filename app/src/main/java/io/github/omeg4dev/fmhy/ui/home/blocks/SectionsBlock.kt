@@ -27,13 +27,14 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.omeg4dev.fmhy.ui.common.displayTitle
+import io.github.omeg4dev.fmhy.ui.common.ListEntrance
 import io.github.omeg4dev.fmhy.ui.common.enterStaggerOrdered
 import io.github.omeg4dev.fmhy.ui.common.sectionIcon
 import io.github.omeg4dev.fmhy.ui.home.SectionGroup
 
 fun LazyListScope.sectionsBlock(
     sectionGroups: List<SectionGroup>,
-    datasetVersion: Long,
+    entrance: ListEntrance,
     unreadPosts: Int,
     hiddenSectionsCount: Int,
     showingHiddenSections: Boolean,
@@ -43,7 +44,7 @@ fun LazyListScope.sectionsBlock(
     onNavigateToReader: (String, String) -> Unit,
     onNavigateToPosts: () -> Unit,
 ) {
-    sectionGroups.forEachIndexed { groupIndex, group ->
+    sectionGroups.forEach { group ->
         item(key = "sections-header-${group.title}") {
             Text(
                 text = group.title ?: "Sections",
@@ -51,7 +52,7 @@ fun LazyListScope.sectionsBlock(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier
                     .animateItem()
-                    .enterStaggerOrdered(datasetVersion)
+                    .enterStaggerOrdered(entrance)
                     .padding(start = 16.dp, top = 20.dp, bottom = 8.dp),
             )
         }
@@ -62,7 +63,7 @@ fun LazyListScope.sectionsBlock(
                 color = MaterialTheme.colorScheme.surfaceContainerLow,
                 modifier = Modifier
                     .animateItem()
-                    .enterStaggerOrdered(datasetVersion)
+                    .enterStaggerOrdered(entrance)
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp),
             ) {

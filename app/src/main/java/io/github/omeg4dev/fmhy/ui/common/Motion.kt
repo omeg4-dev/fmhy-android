@@ -92,7 +92,7 @@ internal class EntranceTracker(
     private val gapMs: Long = 1500L,
     private val capacity: Int = 32,
 ) {
-    private class Mark(val start: Long, var last: Long, var next: Int = 0)
+    private class Mark(val start: Long, var last: Long)
 
     private val marks = object : LinkedHashMap<Any?, Mark>(16, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Any?, Mark>?) = size > capacity
@@ -110,23 +110,6 @@ internal class EntranceTracker(
         m.last = t
         return t - m.start
     }
-
-    /**
-     * Claims the next position in the entrance of [key]: 0 for the first item, then 1, 2, ... in the order the
-     * items compose (a lazy list composes top to bottom), plus the ms since the entrance began.
-     * A key not seen for [gapMs] starts a new entrance.
-     */
-    @Synchronized
-    fun claim(key: Any?): Pair<Int, Long> {
-        val t = now()
-        var m = marks[key]
-        if (m == null || t - m.last >= gapMs) {
-            m = Mark(t, t)
-            marks[key] = m
-        }
-        m.last = t
-        return m.next++ to (t - m.start)
-    }
 }
 
 private val entranceTracker = EntranceTracker(now = { android.os.SystemClock.uptimeMillis() })
@@ -138,44 +121,65 @@ private val entranceTracker = EntranceTracker(now = { android.os.SystemClock.upt
  */
 fun Modifier.enterStagger(index: Int = 0, key: Any? = Unit, offset: Dp = 24.dp): Modifier = composed {
     val delayMs = remember(key) { staggerDelayOrNull(index, entranceTracker.msSinceListStart(key)) }
-    if (delayMs == null) {
-        Modifier
-    } else {
-        val progress = remember(key) { Animatable(0f) }
-        val offsetPx = with(LocalDensity.current) { offset.toPx() }
-        LaunchedEffect(key) {
-            progress.animateTo(1f, Motion.enter(STAGGER_FADE_MS, delayMs))
-        }
-        Modifier.graphicsLayer {
-            alpha = progress.value
-            translationY = (1f - progress.value) * offsetPx
-        }
-    }
+    entranceFade(key, delayMs, offset)
 }
 
 /**
- * Entrance fade for the rows of a lazy list. Unlike [enterStagger] the delay comes from the order the rows
- * compose in (shared per [key]), not from a caller index, so rows of different groups/headings fade strictly top
- * to bottom, and rows past [Motion.STAGGER_MAX_ITEMS] share the last delay instead of appearing before the
- * rows above them. Rows composed after the entrance window (scrolling) appear at once.
+ * One entrance of a lazy list, owned by the screen's composition (see [rememberListEntrance]). Rows claim a
+ * position in the order they compose, so rows of different groups fade strictly top to bottom. The entrance
+ * starts with the first claim and closes for good [STAGGER_WINDOW_MS] later: rows that compose afterwards
+ * (scrolling, even after a pause) appear at once instead of fading in over blank space.
  */
-fun Modifier.enterStaggerOrdered(key: Any? = Unit, offset: Dp = 24.dp): Modifier = composed {
-    val delayMs = remember(key) {
-        val (ordinal, since) = entranceTracker.claim(key)
-        staggerDelayOrNull(ordinal.coerceAtMost(Motion.STAGGER_MAX_ITEMS - 1), since)
+class ListEntrance internal constructor(private val now: () -> Long) {
+    constructor() : this({ android.os.SystemClock.uptimeMillis() })
+
+    private var start = -1L
+    private var next = 0
+    private var closed = false
+
+    /** Fade delay in ms for the next row, or null when it must appear at once. */
+    @Synchronized
+    fun claim(): Int? {
+        if (closed) return null
+        val t = now()
+        if (start < 0) start = t
+        val delay = staggerDelayOrNull(next.coerceAtMost(Motion.STAGGER_MAX_ITEMS - 1), t - start)
+        if (delay == null) closed = true else next++
+        return delay
     }
-    if (delayMs == null) {
-        Modifier
-    } else {
-        val progress = remember(key) { Animatable(0f) }
-        val offsetPx = with(LocalDensity.current) { offset.toPx() }
-        LaunchedEffect(key) {
-            progress.animateTo(1f, Motion.enter(STAGGER_FADE_MS, delayMs))
-        }
-        Modifier.graphicsLayer {
-            alpha = progress.value
-            translationY = (1f - progress.value) * offsetPx
-        }
+
+    /** Ends the entrance: call before a programmatic scroll so the rows it brings into view appear at once. */
+    @Synchronized
+    fun close() {
+        closed = true
+    }
+}
+
+/** A [ListEntrance] per list; a new [key] (new tab, new result set) starts a new entrance. */
+@Composable
+fun rememberListEntrance(key: Any?): ListEntrance = remember(key) { ListEntrance() }
+
+/**
+ * Entrance fade for the rows of a lazy list: the delay comes from the order the rows compose in ([entrance]),
+ * not from a caller index. Rows past [Motion.STAGGER_MAX_ITEMS] share the last delay instead of appearing before
+ * the rows above them. Rows that are already composed keep their state when the entrance changes.
+ */
+fun Modifier.enterStaggerOrdered(entrance: ListEntrance, offset: Dp = 24.dp): Modifier = composed {
+    val delayMs = remember { entrance.claim() }
+    entranceFade(Unit, delayMs, offset)
+}
+
+@Composable
+private fun entranceFade(key: Any?, delayMs: Int?, offset: Dp): Modifier {
+    if (delayMs == null) return Modifier
+    val progress = remember(key) { Animatable(0f) }
+    val offsetPx = with(LocalDensity.current) { offset.toPx() }
+    LaunchedEffect(key) {
+        progress.animateTo(1f, Motion.enter(STAGGER_FADE_MS, delayMs))
+    }
+    return Modifier.graphicsLayer {
+        alpha = progress.value
+        translationY = (1f - progress.value) * offsetPx
     }
 }
 
