@@ -352,12 +352,12 @@ open class FmhySync(
                         async(Dispatchers.Default) {
                             val res = try {
                                 val parsed = parser(sec, markdown, b64Map)
-                                sec.id to parsed
+                                sec to parsed
                             } catch (e: CancellationException) {
                                 throw e
                             } catch (e: Exception) {
                                 log("FmhySync: parse exception for ${sec.id}: ${e.message}")
-                                sec.id to null
+                                sec to null
                             }
                             synchronized(parseLock) {
                                 val done = parseDoneCount.incrementAndGet()
@@ -368,11 +368,18 @@ open class FmhySync(
                     }.awaitAll()
                 }
 
-                for ((secId, parsed) in parseResults) {
+                for ((sec, parsed) in parseResults) {
                     if (parsed != null) {
                         parsedSections.add(parsed)
                     } else {
-                        failedSections.add(secId)
+                        failedSections.add(sec.id)
+                        val path = "docs/${sec.file}"
+                        val prev = state.files[path]
+                        if (prev != null) {
+                            updatedFileStates[path] = prev
+                        } else {
+                            updatedFileStates.remove(path)
+                        }
                     }
                 }
             }
