@@ -345,8 +345,8 @@ open class SearchEngine(private val store: DatasetStore) {
         val excludeTerms = query.excludes.map { wordTerm(it) }
         fun expr(wordTerms: List<String>): String {
             val positive = wordTerms + phraseTerms
-            return if (excludeTerms.isNotEmpty()) positive.joinToString(" ") + " NOT " + excludeTerms.joinToString(" NOT ")
-            else positive.joinToString(" ")
+            return if (excludeTerms.isNotEmpty()) positive.joinToString(" AND ") + " NOT " + excludeTerms.joinToString(" NOT ")
+            else positive.joinToString(" AND ")
         }
 
         // 1. Words (prefix matches unless exact) and phrases.

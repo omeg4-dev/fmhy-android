@@ -50,6 +50,31 @@ class SearchModeTest {
     }
 
     @Test
+    fun multiWordSearchWithTypoReturnsHitsAndDoesNotThrow() = runTest {
+        val engine = SearchEngine(store("typo_multi.db"))
+
+        // Plain two-word query returns e_stremio as before
+        val plainHits = engine.search("stremio media", mode = MatchMode.FUZZY).ids()
+        assertEquals(listOf("e_stremio"), plainHits)
+
+        // Typo word first: "stremo media"
+        val typoFirstHits = engine.search("stremo media", mode = MatchMode.FUZZY).ids()
+        assertEquals(listOf("e_stremio"), typoFirstHits)
+
+        // Typo word second: "media stremo"
+        val typoSecondHits = engine.search("media stremo", mode = MatchMode.FUZZY).ids()
+        assertEquals(listOf("e_stremio"), typoSecondHits)
+
+        // Typo word with phrase: stremo "media center"
+        val typoPhraseHits = engine.search("stremo \"media center\"", mode = MatchMode.FUZZY).ids()
+        assertEquals(listOf("e_stremio"), typoPhraseHits)
+
+        // Typo word with exclude: stremo media -fake
+        val typoExcludeHits = engine.search("stremo media -fake", mode = MatchMode.FUZZY).ids()
+        assertEquals(listOf("e_stremio"), typoExcludeHits)
+    }
+
+    @Test
     fun prefixFindsStremioOnlyInFuzzy() = runTest {
         val engine = SearchEngine(store("prefix.db"))
         assertTrue("e_stremio" in engine.search("strem", mode = MatchMode.FUZZY).ids())
