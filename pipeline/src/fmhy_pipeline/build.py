@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sqlite3
 import subprocess
 import tempfile
@@ -52,6 +53,14 @@ def _get_history_start(repo: str) -> int:
 def _load_schema(schema_path: Path) -> str:
     """Read the DDL from dataset.sql."""
     return schema_path.read_text(encoding="utf-8")
+
+
+def _parse_schema_version(ddl: str) -> str:
+    """Parse schema version number from 'PRAGMA user_version = N;' in dataset.sql."""
+    m = re.search(r"PRAGMA\s+user_version\s*=\s*(\d+)\s*;", ddl, re.IGNORECASE)
+    if not m:
+        raise ValueError("Could not find 'PRAGMA user_version = N;' in dataset schema")
+    return m.group(1)
 
 
 def build_full(
@@ -245,9 +254,10 @@ def build_full(
     con.execute("PRAGMA journal_mode=WAL")
 
     # Insert meta
+    schema_version = _parse_schema_version(ddl)
     version = "1"
     meta_rows = [
-        ("schema", "3"),
+        ("schema", schema_version),
         ("version", version),
         ("created", str(int(time.time()))),
         ("source_commit", commit_sha),

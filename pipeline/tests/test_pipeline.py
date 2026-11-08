@@ -851,3 +851,44 @@ def test_star_in_a_git_renamed_file_is_still_reported(tmp_path):
     assert ("renamed", "https://e4.example/") in log
     # the pure rename commit changed no entry: it must not report the whole file as added
     assert sum(1 for k, _ in log if k == "added") == 0
+
+
+def test_build_full_meta_schema_matches_dataset_sql_user_version(tmp_path):
+    """The database meta.schema written by build_full must equal PRAGMA user_version from schema/dataset.sql."""
+    import re
+    from fmhy_pipeline.build import build_full
+
+    repo = _setup_git_repo(tmp_path)
+    sha = _make_commit(
+        repo,
+        {
+            "docs/.vitepress/transformer/headers.json": (
+                '{"sectionA.md": {"title": "Section A", "description": "Desc"}}'
+            ),
+            "docs/sectionA.md": "# Section A\n* [Site](https://example.com) - test\n",
+        },
+        "init",
+        1700000000,
+    )
+    out_sqlite = str(tmp_path / "out.sqlite")
+    build_full(
+        repo=repo,
+        rev=sha,
+        rentry_html="<html></html>",
+        unsafe_txt="",
+        reasons_json="{}",
+        out_path=out_sqlite,
+    )
+
+    con = sqlite3.connect(out_sqlite)
+    meta_schema = con.execute("SELECT value FROM meta WHERE key = 'schema'").fetchone()[0]
+    con.close()
+
+    schema_path = Path(__file__).resolve().parent.parent.parent / "schema" / "dataset.sql"
+    ddl = schema_path.read_text(encoding="utf-8")
+    m = re.search(r"PRAGMA\s+user_version\s*=\s*(\d+)\s*;", ddl, re.IGNORECASE)
+    assert m is not None, "PRAGMA user_version not found in schema/dataset.sql"
+    expected_schema = m.group(1)
+
+    assert meta_schema == expected_schema
+
