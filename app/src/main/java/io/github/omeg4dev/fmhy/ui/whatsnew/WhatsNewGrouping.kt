@@ -6,6 +6,7 @@ import io.github.omeg4dev.fmhy.data.model.ChangeKind
 import io.github.omeg4dev.fmhy.data.model.Entry
 import io.github.omeg4dev.fmhy.data.user.Follow
 import io.github.omeg4dev.fmhy.ui.common.DateFormatters
+import io.github.omeg4dev.fmhy.ui.common.FollowTree
 import java.net.URI
 import java.time.Instant
 import java.time.ZoneId
@@ -202,16 +203,28 @@ object WhatsNewGrouping {
             is WhatsNewScope.All -> cards
             is WhatsNewScope.Following -> {
                 if (follows.isEmpty()) return emptyList()
-                val sectionFollows = follows.filter { it.headingId.isEmpty() }.map { it.sectionId }.toSet()
-                val categoryFollowHeadingIds = follows.filter { it.headingId.isNotEmpty() }.flatMap { f ->
-                    hierarchy[f.headingId] ?: setOf(f.headingId)
-                }.toSet()
+                val expandedFollows = if (hierarchy.isEmpty()) {
+                    follows
+                } else {
+                    follows.flatMap { f ->
+                        if (f.headingId.isNotEmpty()) {
+                            (hierarchy[f.headingId] ?: setOf(f.headingId)).map { hId ->
+                                f.copy(headingId = hId)
+                            }
+                        } else {
+                            listOf(f)
+                        }
+                    }
+                }
+                val tree = FollowTree(expandedFollows)
 
                 cards.filter { card ->
-                    if (card.sectionId in sectionFollows) return@filter true
                     val hId = card.entry?.headingId
-                    if (hId != null && hId in categoryFollowHeadingIds) return@filter true
-                    false
+                    if (hId.isNullOrEmpty()) {
+                        tree.isSectionFollowed(card.sectionId)
+                    } else {
+                        tree.isSubsectionFollowed(card.sectionId, hId)
+                    }
                 }
             }
             is WhatsNewScope.Saved -> {

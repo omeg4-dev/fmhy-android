@@ -4,8 +4,10 @@ import io.github.omeg4dev.fmhy.data.model.ChangeItem
 import io.github.omeg4dev.fmhy.data.model.ChangeKind
 import io.github.omeg4dev.fmhy.data.model.Entry
 import io.github.omeg4dev.fmhy.data.model.Tier
+import io.github.omeg4dev.fmhy.data.user.Follow
 import java.time.ZoneId
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -240,5 +242,169 @@ class WhatsNewGroupingTest {
         // Card with null entry
         val cardNullEntry = card.copy(entry = null)
         assertNull(extractSubsectionTarget(cardNullEntry, sectionTitles))
+    }
+
+    private fun makeCard(
+        key: String,
+        sectionId: String,
+        headingId: String? = null,
+        name: String = "Test Site",
+    ): ChangeCard {
+        val entry = headingId?.let {
+            Entry(
+                id = key,
+                num = 1,
+                sectionId = sectionId,
+                headingId = it,
+                ord = 1,
+                name = name,
+                url = "https://example.com/$key",
+                originalUrl = null,
+                description = "",
+                tags = emptyList(),
+                headingPath = "$sectionId › $it",
+                tier = Tier.NORMAL,
+                isInlineMore = false,
+                isBase64 = false,
+                mirrors = emptyList(),
+                extraLinks = emptyList(),
+                firstSeen = 0L,
+                lastChanged = 0L,
+                starredAt = null,
+            )
+        }
+        return ChangeCard(
+            key = key,
+            ts = nowSec,
+            primaryKind = ChangeKind.ADDED,
+            kinds = setOf(ChangeKind.ADDED),
+            name = name,
+            url = "https://example.com/$key",
+            sectionId = sectionId,
+            entry = entry,
+            oldName = null,
+            oldUrl = null,
+            oldSectionId = null,
+            oldLine = null,
+        )
+    }
+
+    private fun follow(
+        sectionId: String,
+        headingId: String = "",
+        title: String = sectionId,
+        excluded: Boolean = false,
+    ) = Follow(
+        sectionId = sectionId,
+        headingId = headingId,
+        title = title,
+        createdAt = nowSec,
+        excluded = excluded,
+    )
+
+    @Test
+    fun followingScope_sectionFollowedAndSubsectionExcluded_excludedCardHiddenOtherCardsShown() {
+        val follows = listOf(
+            follow("video", ""),
+            follow("video", "movies", excluded = true),
+        )
+        val cardMovies = makeCard("movies-site", "video", "movies")
+        val cardTv = makeCard("tv-site", "video", "tv")
+        val cardNoHeading = makeCard("no-heading-site", "video", null)
+        val cardOtherSection = makeCard("podcast-site", "audio", "podcasts")
+
+        val filtered = WhatsNewGrouping.filterByScope(
+            cards = listOf(cardMovies, cardTv, cardNoHeading, cardOtherSection),
+            scope = WhatsNewScope.Following,
+            follows = follows,
+        )
+
+        val keys = filtered.map { it.key }
+        assertFalse("Excluded subsection card should be hidden", keys.contains("movies-site"))
+        assertTrue("Other subsection card should be shown", keys.contains("tv-site"))
+        assertTrue("Card without heading in followed section should be shown", keys.contains("no-heading-site"))
+        assertFalse("Card in unfollowed section should be hidden", keys.contains("podcast-site"))
+    }
+
+    @Test
+    fun followingScope_exclusionWithoutSectionFollow_returnsNothing() {
+        // Section not followed, only an exclusion row exists
+        val follows = listOf(
+            follow("video", "movies", excluded = true),
+        )
+        val cardMovies = makeCard("movies-site", "video", "movies")
+        val cardTv = makeCard("tv-site", "video", "tv")
+        val cardNoHeading = makeCard("no-heading-site", "video", null)
+
+        val filtered = WhatsNewGrouping.filterByScope(
+            cards = listOf(cardMovies, cardTv, cardNoHeading),
+            scope = WhatsNewScope.Following,
+            follows = follows,
+        )
+
+        assertTrue("Exclusion row without section follow should match nothing", filtered.isEmpty())
+    }
+
+    @Test
+    fun followingScope_directSubsectionFollow_cardShown() {
+        val follows = listOf(
+            follow("video", "movies", excluded = false),
+        )
+        val cardMovies = makeCard("movies-site", "video", "movies")
+        val cardTv = makeCard("tv-site", "video", "tv")
+        val cardNoHeading = makeCard("no-heading-site", "video", null)
+
+        val filtered = WhatsNewGrouping.filterByScope(
+            cards = listOf(cardMovies, cardTv, cardNoHeading),
+            scope = WhatsNewScope.Following,
+            follows = follows,
+        )
+
+        assertEquals(listOf("movies-site"), filtered.map { it.key })
+    }
+
+    @Test
+    fun followingScope_excludedSubsectionWithHierarchy_descendantsHidden() {
+        val follows = listOf(
+            follow("video", ""),
+            follow("video", "parent-cat", excluded = true),
+        )
+        val hierarchy = mapOf(
+            "parent-cat" to setOf("parent-cat", "child1", "child2"),
+        )
+        val cardChild1 = makeCard("child1-site", "video", "child1")
+        val cardChild2 = makeCard("child2-site", "video", "child2")
+        val cardOther = makeCard("other-site", "video", "other-cat")
+
+        val filtered = WhatsNewGrouping.filterByScope(
+            cards = listOf(cardChild1, cardChild2, cardOther),
+            scope = WhatsNewScope.Following,
+            follows = follows,
+            hierarchy = hierarchy,
+        )
+
+        assertEquals(listOf("other-site"), filtered.map { it.key })
+    }
+
+    @Test
+    fun followingScope_directSubsectionFollowWithHierarchy_descendantsShown() {
+        val follows = listOf(
+            follow("video", "parent-cat", excluded = false),
+        )
+        val hierarchy = mapOf(
+            "parent-cat" to setOf("parent-cat", "child1", "child2"),
+        )
+        val cardChild1 = makeCard("child1-site", "video", "child1")
+        val cardChild2 = makeCard("child2-site", "video", "child2")
+        val cardOther = makeCard("other-site", "video", "other-cat")
+
+        val filtered = WhatsNewGrouping.filterByScope(
+            cards = listOf(cardChild1, cardChild2, cardOther),
+            scope = WhatsNewScope.Following,
+            follows = follows,
+            hierarchy = hierarchy,
+        )
+
+        assertEquals(listOf("child1-site", "child2-site"), filtered.map { it.key })
     }
 }
