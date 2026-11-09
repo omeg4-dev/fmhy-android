@@ -20,10 +20,13 @@ Repo: https://github.com/omeg4-dev/fmhy-android.git
 Builds:
   - versionName: 1.1.4
     versionCode: 18
-    commit: v1.1.4
+    commit: 3cbe193381685f573a8b914a91480b7cf4e0a133
     subdir: app
     gradle:
       - fdroid
+
+Binaries: https://github.com/omeg4-dev/fmhy-android/releases/download/v%v/fmhy-%v-fdroid.apk
+AllowedAPKSigningKeys: 5e072450e4affca182c764dfdec8a01ed759027a4cfe9f9ccb1d53aecd70df5d
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags
