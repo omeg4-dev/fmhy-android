@@ -105,3 +105,11 @@ See `THIRD_PARTY.md` for third-party assets and credits (filter lists from uBloc
 This is an unofficial fan project. Site listings are managed by the FMHY team—submit site suggestions at [fmhy.net](https://fmhy.net/other/contributing) and report app bugs in our [issue tracker](https://github.com/omeg4-dev/fmhy-android/issues). Licensed under GPL-3.0-or-later.
 
 Built with the help of AI coding assistants. I design the features and review everything, but AI wrote a good chunk of the code. If you spot a bug, please open an issue!
+
+## ☕ Support the project
+
+FMHY for Android is free, has no ads and never will. If it saved you some time and you want to say thanks, you can support development here. It is entirely optional.
+
+<p align="center">
+  <a href="https://buymeacoffee.com/omeg4"><img src="https://img.shields.io/badge/Buy_Me_a_Coffee-FFDD00?style=for-the-badge&logo=buymeacoffee&logoColor=black" height="46" alt="Buy me a coffee"></a>&nbsp;&nbsp;<a href="https://ko-fi.com/omeg4"><img src="https://img.shields.io/badge/Ko--fi-FF5E5B?style=for-the-badge&logo=kofi&logoColor=white" height="46" alt="Support me on Ko-fi"></a>
+</p>
