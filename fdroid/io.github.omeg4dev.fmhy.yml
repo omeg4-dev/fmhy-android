@@ -16,6 +16,8 @@ AutoName: FMHY
 
 RepoType: git
 Repo: https://github.com/omeg4-dev/fmhy-android.git
+Binaries: 
+  https://github.com/omeg4-dev/fmhy-android/releases/download/v%v/fmhy-%v-fdroid.apk
 
 Builds:
   - versionName: 1.1.4
@@ -25,7 +27,6 @@ Builds:
     gradle:
       - fdroid
 
-Binaries: https://github.com/omeg4-dev/fmhy-android/releases/download/v%v/fmhy-%v-fdroid.apk
 AllowedAPKSigningKeys: 5e072450e4affca182c764dfdec8a01ed759027a4cfe9f9ccb1d53aecd70df5d
 
 AutoUpdateMode: Version
