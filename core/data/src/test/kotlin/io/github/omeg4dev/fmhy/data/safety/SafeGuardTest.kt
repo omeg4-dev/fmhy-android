@@ -95,9 +95,9 @@ class SafeGuardTest {
 
     @Test
     fun testOneCharacterOffListedDomainYieldsLookalike() = runTest {
-        val verdict = safeGuard.check("https://nxfilte.org")
+        val verdict = safeGuard.check("https://alternativet.net")
         assertEquals(SafetyStatus.NO_DATA, verdict.status)
         assertTrue("Lookalikes should not be empty for host one character off listed domain", verdict.lookalikes.isNotEmpty())
-        assertTrue("Lookalikes should contain nxfilter.org", verdict.lookalikes.any { it.url.contains("nxfilter.org") })
+        assertTrue("Lookalikes should contain alternativeto.net", verdict.lookalikes.any { it.url.contains("alternativeto.net") })
     }
 }
