@@ -70,3 +70,18 @@ object PopupPolicy {
         return PopupDecision.Allow(isBackground = true)
     }
 }
+
+/**
+ * `SitePrefs.popups` is stored as "pop-ups allowed" (true = allowed, false = blocked, null = follow
+ * the global blocker). Every "Block pop-ups" switch maps through here so they all read it the same way.
+ */
+object SitePopupPref {
+    /** What a "Block pop-ups" switch shows for a stored value. */
+    fun blockSwitch(stored: Boolean?, globalBlocker: Boolean): Boolean = stored?.let { !it } ?: globalBlocker
+
+    /** The value to store when a "Block pop-ups" switch is set to [blockPopups]. */
+    fun toStored(blockPopups: Boolean): Boolean = !blockPopups
+
+    /** Short label for the site list. */
+    fun label(stored: Boolean): String = if (stored) "pop-ups allowed" else "pop-ups blocked"
+}

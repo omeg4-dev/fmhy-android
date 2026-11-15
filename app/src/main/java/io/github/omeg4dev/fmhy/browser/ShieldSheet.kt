@@ -81,7 +81,7 @@ fun ShieldSheet(
     // Effective values
     val fixOn = sitePrefs?.fixSite == true
     val adblockOn = !fixOn && (sitePrefs?.adblock ?: blockingPrefs.adblock)
-    val popupsBlockerOn = sitePrefs?.popups?.let { !it } ?: protectionPrefs.popupBlocker
+    val popupsBlockerOn = SitePopupPref.blockSwitch(sitePrefs?.popups, protectionPrefs.popupBlocker)
     val jsOn = sitePrefs?.javascript ?: browserPrefs.javascript
     val desktopOn = sitePrefs?.desktop ?: (tab.desktopSite || browserPrefs.desktopByDefault)
     val darkOn = sitePrefs?.dark ?: (browserPrefs.forceDark && isAppDark)
@@ -162,7 +162,7 @@ fun ShieldSheet(
                 icon = Icons.AutoMirrored.Filled.OpenInNew,
                 title = "Block pop-ups",
                 checked = popupsBlockerOn,
-                onChange = { v -> onUpdateSitePref { it.copy(popups = !v) } },
+                onChange = { v -> onUpdateSitePref { it.copy(popups = SitePopupPref.toStored(v)) } },
             )
 
             SwitchRow(

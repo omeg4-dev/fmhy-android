@@ -42,6 +42,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.omeg4dev.fmhy.browser.SitePopupPref
 import io.github.omeg4dev.fmhy.data.BlockingPrefs
 import io.github.omeg4dev.fmhy.data.BrowserPrefs
 import io.github.omeg4dev.fmhy.data.ProtectionPrefs
@@ -116,7 +117,7 @@ fun SiteSettingsScreen(
                             val overrides = remember(site) {
                                 buildList {
                                     if (site.adblock != null) add(if (site.adblock == false) "ads allowed" else "ads blocked")
-                                    if (site.popups != null) add(if (site.popups == false) "pop-ups allowed" else "pop-ups blocked")
+                                    site.popups?.let { add(SitePopupPref.label(it)) }
                                     if (site.javascript != null) add(if (site.javascript == false) "JS off" else "JS on")
                                     if (site.desktop != null) add(if (site.desktop == true) "desktop UA" else "mobile UA")
                                     if (site.dark != null) add(if (site.dark == false) "light theme" else "dark theme")
@@ -168,7 +169,7 @@ fun SiteSettingsScreen(
     if (editingSite != null) {
         val site = editingSite!!
         var adblock by remember(site) { mutableStateOf(site.adblock ?: blockingPrefs.adblock) }
-        var popups by remember(site) { mutableStateOf(site.popups ?: protectionPrefs.popupBlocker) }
+        var blockPopups by remember(site) { mutableStateOf(SitePopupPref.blockSwitch(site.popups, protectionPrefs.popupBlocker)) }
         var javascript by remember(site) { mutableStateOf(site.javascript ?: browserPrefs.javascript) }
         var desktop by remember(site) { mutableStateOf(site.desktop ?: browserPrefs.desktopByDefault) }
         var dark by remember(site) { mutableStateOf(site.dark ?: browserPrefs.forceDark) }
@@ -188,8 +189,8 @@ fun SiteSettingsScreen(
                     )
                     SwitchRow(
                         title = "Block pop-ups",
-                        checked = popups,
-                        onChange = { popups = it },
+                        checked = blockPopups,
+                        onChange = { blockPopups = it },
                     )
                     SwitchRow(
                         title = "JavaScript",
@@ -213,7 +214,7 @@ fun SiteSettingsScreen(
                     onClick = {
                         val updated = site.copy(
                             adblock = adblock,
-                            popups = popups,
+                            popups = SitePopupPref.toStored(blockPopups),
                             javascript = javascript,
                             desktop = desktop,
                             dark = dark,
