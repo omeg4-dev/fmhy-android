@@ -1,0 +1,3 @@
+- Browser menu: Share opens the share sheet and Open in another browser opens your default browser
+- The Block pop-ups switch in Settings > Site settings now shows the right state
+- A site set to Block pop-ups is blocked even when the global pop-up blocker is off

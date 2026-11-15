@@ -14,8 +14,8 @@ android {
         applicationId = "io.github.omeg4dev.fmhy"
         minSdk = 26
         targetSdk = 36
-        versionCode = 18
-        versionName = "1.1.4"
+        versionCode = 19
+        versionName = "1.1.5"
 
         val releaseRepo = "omeg4-dev/fmhy-android"
         buildConfigField("String", "RELEASE_REPO", "\"$releaseRepo\"")
