@@ -66,6 +66,7 @@ import io.github.omeg4dev.fmhy.ui.common.rememberPasteDecoder
 import io.github.omeg4dev.fmhy.data.BrowserPrefs
 import io.github.omeg4dev.fmhy.data.DatasetStore
 import io.github.omeg4dev.fmhy.data.ProtectionPrefs
+import io.github.omeg4dev.fmhy.data.user.SitePrefs
 import io.github.omeg4dev.fmhy.data.adblock.FilterRequest
 import io.github.omeg4dev.fmhy.data.adblock.MatchResult
 import io.github.omeg4dev.fmhy.data.adblock.ResourceType
@@ -201,13 +202,28 @@ class DefaultBrowserHooks(
                 handled = true
                 cleanup()
 
+                // Site prefs load asynchronously after a page start, so a pop-up opened while the page
+                // loads can arrive before the tab knows its overrides: read them from the store then.
+                val manager = tabManager
+                val pageHost = runCatching { Uri.parse(tab.url).host }.getOrNull()
+                if (manager != null && tab.sitePrefs == null && !pageHost.isNullOrEmpty()) {
+                    manager.appScope.launch {
+                        val loaded = runCatching { manager.userStore.sitePrefs(pageHost) }.getOrNull()
+                        android.os.Handler(android.os.Looper.getMainLooper()).post { decidePopup(targetUrl, loaded) }
+                    }
+                } else {
+                    decidePopup(targetUrl, tab.sitePrefs)
+                }
+            }
+
+            private fun decidePopup(targetUrl: String, sitePrefs: SitePrefs?) {
                 val protectionPrefs = tabManager?.currentProtectionPrefs ?: ProtectionPrefs()
                 val decision = PopupPolicy.evaluate(
                     targetUrl = targetUrl,
                     currentUrl = tab.url,
                     isUserGesture = isUserGesture,
                     popupBlockerEnabled = protectionPrefs.popupBlocker,
-                    popupsSitePref = tab.sitePrefs?.popups,
+                    popupsSitePref = sitePrefs?.popups,
                     isBlockedByEngine = { target, current ->
                         val engine = tabManager?.adblockService?.currentEngine
                         if (engine != null) {

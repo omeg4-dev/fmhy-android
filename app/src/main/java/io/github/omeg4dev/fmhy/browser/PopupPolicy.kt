@@ -46,7 +46,8 @@ object PopupPolicy {
         popupsSitePref: Boolean?,
         isBlockedByEngine: (targetUrl: String, currentUrl: String) -> Boolean = { _, _ -> false }
     ): PopupDecision {
-        val blockerActive = popupBlockerEnabled && (popupsSitePref != true)
+        // A site override wins over the global switch in both directions (stored value = pop-ups allowed).
+        val blockerActive = SitePopupPref.blockSwitch(popupsSitePref, popupBlockerEnabled)
         if (!blockerActive) {
             // Blocker off -> every window opens as a new tab
             return PopupDecision.Allow(isBackground = false)

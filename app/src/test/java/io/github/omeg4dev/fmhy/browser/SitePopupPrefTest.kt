@@ -7,11 +7,11 @@ import org.junit.Test
 /** A value written by Site settings must mean the same to PopupPolicy and the Shield sheet. */
 class SitePopupPrefTest {
 
-    private fun policyBlocks(stored: Boolean?): Boolean = PopupPolicy.evaluate(
+    private fun policyBlocks(stored: Boolean?, globalBlocker: Boolean = true): Boolean = PopupPolicy.evaluate(
         targetUrl = "https://ad.com/popup",
         currentUrl = "https://example.com/",
         isUserGesture = false,
-        popupBlockerEnabled = true,
+        popupBlockerEnabled = globalBlocker,
         popupsSitePref = stored,
     ) is PopupDecision.Block
 
@@ -36,5 +36,20 @@ class SitePopupPrefTest {
         assertTrue(SitePopupPref.blockSwitch(null, globalBlocker = true))
         assertTrue(!SitePopupPref.blockSwitch(null, globalBlocker = false))
         assertTrue(policyBlocks(null))
+    }
+
+    @Test
+    fun siteBlockWinsWhenGlobalBlockerIsOff() {
+        assertTrue(policyBlocks(SitePopupPref.toStored(blockPopups = true), globalBlocker = false))
+    }
+
+    @Test
+    fun siteAllowWinsWhenGlobalBlockerIsOn() {
+        assertTrue(!policyBlocks(SitePopupPref.toStored(blockPopups = false), globalBlocker = true))
+    }
+
+    @Test
+    fun noOverrideWithGlobalOffAllows() {
+        assertTrue(!policyBlocks(null, globalBlocker = false))
     }
 }
