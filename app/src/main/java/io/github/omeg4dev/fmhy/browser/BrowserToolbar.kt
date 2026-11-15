@@ -163,6 +163,8 @@ fun BrowserToolbar(
     onToggleBookmark: () -> Unit = {},
     onSelectTab: (Long) -> Unit = {},
     onCopyLink: () -> Unit = {},
+    onShareClick: () -> Unit = {},
+    onOpenInBrowserClick: () -> Unit = {},
     onReportProblem: () -> Unit = {},
     onDownloadsClick: () -> Unit = {},
     downloadSummary: ActiveSummary? = null,
@@ -349,6 +351,7 @@ fun BrowserToolbar(
             tab = tab,
             isSaved = isSaved,
             hasPage = !isBlank,
+            hasWebAddress = tab?.hasWebAddress() == true,
             onDismiss = { showMenuSheet = false },
             onDownloads = {
                 showMenuSheet = false
@@ -376,17 +379,7 @@ fun BrowserToolbar(
             },
             onShare = {
                 showMenuSheet = false
-                val url = tab?.url.orEmpty()
-                if (url.isNotEmpty() && url != "about:blank") {
-                    val sendIntent = Intent(Intent.ACTION_SEND).apply {
-                        putExtra(Intent.EXTRA_TEXT, url)
-                        type = "text/plain"
-                    }
-                    val chooser = Intent.createChooser(sendIntent, null).apply {
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    }
-                    // handled by caller or startActivity
-                }
+                onShareClick()
             },
             onSave = {
                 showMenuSheet = false
@@ -419,7 +412,7 @@ fun BrowserToolbar(
             },
             onOpenInBrowser = {
                 showMenuSheet = false
-                // caller handles external open
+                onOpenInBrowserClick()
             },
             onSiteSettings = {
                 showMenuSheet = false
@@ -892,6 +885,8 @@ fun BrowserMenuSheet(
     tab: TabState?,
     isSaved: Boolean,
     hasPage: Boolean = true,
+    /** The tab shows a real web page: Share and Open in another browser need one. */
+    hasWebAddress: Boolean = hasPage,
     onDismiss: () -> Unit,
     onDownloads: () -> Unit,
     onBackToFmhy: () -> Unit,
@@ -988,7 +983,7 @@ fun BrowserMenuSheet(
                 MenuIconButton(
                     icon = Icons.Default.Share,
                     label = "Share",
-                    enabled = hasPage,
+                    enabled = hasWebAddress,
                     onClick = {
                         onShare()
                     },
@@ -1176,7 +1171,7 @@ fun BrowserMenuSheet(
             MenuActionRow(
                 icon = Icons.Default.OpenInBrowser,
                 title = "Open in another browser",
-                enabled = hasPage,
+                enabled = hasWebAddress,
                 onClick = {
                     onOpenInBrowser()
                 },
@@ -1341,37 +1336,4 @@ private fun MenuActionRow(
             )
         },
     )
-}
-
-fun openInExternalBrowser(context: Context, url: String) {
-    val uri = Uri.parse(url)
-    val intent = Intent(Intent.ACTION_VIEW, uri)
-    val pm = context.packageManager
-    val resolveInfos = pm.queryIntentActivities(intent, 0)
-    val targetIntents = mutableListOf<Intent>()
-    for (info in resolveInfos) {
-        val packageName = info.activityInfo.packageName
-        if (packageName != context.packageName) {
-            val target = Intent(Intent.ACTION_VIEW, uri).apply {
-                setPackage(packageName)
-            }
-            targetIntents.add(target)
-        }
-    }
-    if (targetIntents.isNotEmpty()) {
-        val chooser = Intent.createChooser(targetIntents.removeAt(0), "Open with").apply {
-            if (targetIntents.isNotEmpty()) {
-                putExtra(Intent.EXTRA_INITIAL_INTENTS, targetIntents.toTypedArray())
-            }
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        context.startActivity(chooser)
-    } else {
-        try {
-            val fallback = Intent(Intent.ACTION_VIEW, uri).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            context.startActivity(fallback)
-        } catch (_: Exception) {}
-    }
 }

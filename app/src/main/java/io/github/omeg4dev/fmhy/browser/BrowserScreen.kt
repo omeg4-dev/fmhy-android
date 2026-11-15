@@ -881,6 +881,23 @@ fun BrowserScreen(
                                         }
                                     }
                                 },
+                                onShareClick = {
+                                    currentTab?.takeIf { it.hasWebAddress() }?.let { tab ->
+                                        if (!shareWebAddress(context, tab.url, tab.title)) {
+                                            scope.launch { snackbarHostState.showSnackbar("Couldn't share this page") }
+                                        }
+                                    }
+                                },
+                                onOpenInBrowserClick = {
+                                    currentTab?.takeIf { it.hasWebAddress() }?.let { tab ->
+                                        val message = when (openInExternalBrowser(context, tab.url)) {
+                                            ExternalOpenResult.OPENED -> null
+                                            ExternalOpenResult.NONE_FOUND -> "No other browser found"
+                                            ExternalOpenResult.FAILED -> "Couldn't open another browser"
+                                        }
+                                        if (message != null) scope.launch { snackbarHostState.showSnackbar(message) }
+                                    }
+                                },
                                 onReportProblem = {
                                     val app = context.applicationContext as? io.github.omeg4dev.fmhy.FmhyApp
                                     currentTab?.let { tab ->

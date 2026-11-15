@@ -80,6 +80,8 @@ data class TabState(
     val interstitialState: InterstitialState? = null,
     /** The page on screen is the ad blocker's block page. */
     val showsBlockPage: Boolean = false,
+    /** The page on screen is the Wi-Fi-only or No-VPN notice page (no real address behind it to share). */
+    val showsNoticePage: Boolean = false,
     val isVideoPlaying: Boolean = false,
     /** width / height of the video last seen on the page, or null when unknown. */
     val videoAspect: Float? = null,

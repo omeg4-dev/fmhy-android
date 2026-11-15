@@ -109,6 +109,7 @@ class TabRecord(
         siteBarState = siteBarState,
         interstitialState = interstitialState,
         showsBlockPage = showsBlockPage,
+        showsNoticePage = showsWifiOnlyPage || showsNoVpnPage,
         isVideoPlaying = isVideoPlaying,
         hasMedia = hasMedia,
         playbackSpeed = if (desiredRate > 0f) desiredRate else 1f,
