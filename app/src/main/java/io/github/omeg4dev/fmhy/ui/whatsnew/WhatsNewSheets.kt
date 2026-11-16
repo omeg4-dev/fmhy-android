@@ -6,12 +6,17 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -19,6 +24,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -31,6 +38,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import io.github.omeg4dev.fmhy.data.model.ChangeKind
 import io.github.omeg4dev.fmhy.data.model.Entry
@@ -39,6 +47,347 @@ import io.github.omeg4dev.fmhy.ui.common.EntryRow
 import io.github.omeg4dev.fmhy.ui.common.SwipeToSave
 import io.github.omeg4dev.fmhy.ui.common.displayTitle
 import io.github.omeg4dev.fmhy.ui.common.sectionIcon
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun FiltersBottomSheet(
+    state: WhatsNewUiState,
+    onDismiss: () -> Unit,
+    onSetPeriod: (WhatsNewPeriod) -> Unit,
+    onClearTypes: () -> Unit,
+    onSetDefaultTypes: () -> Unit,
+    onToggleType: (ChangeKind) -> Unit,
+    onSetScope: (WhatsNewScope) -> Unit,
+    onChooseSections: () -> Unit,
+    onManageFollowing: () -> Unit,
+    onReset: () -> Unit,
+    onSetRemember: (Boolean) -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 32.dp),
+        ) {
+            // 1. Header row
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "Filters",
+                    style = MaterialTheme.typography.titleLarge,
+                )
+                TextButton(
+                    onClick = onReset,
+                    enabled = filtersAreCustom(state.period, state.types, state.scope),
+                ) {
+                    Text("Reset")
+                }
+            }
+
+            // 2. Period section
+            Text(
+                text = "Period",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 12.dp, bottom = 4.dp),
+            )
+            WhatsNewPeriod.entries.forEach { p ->
+                val label = if (p == WhatsNewPeriod.SINCE_LAST_VISIT) {
+                    sinceLastVisitLabel(state.cutoffTs, System.currentTimeMillis() / 1000)
+                } else {
+                    p.label
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .defaultMinSize(minHeight = 48.dp)
+                        .selectable(
+                            selected = state.period == p,
+                            onClick = { onSetPeriod(p) },
+                            role = Role.RadioButton,
+                        ),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    RadioButton(
+                        selected = state.period == p,
+                        onClick = null,
+                    )
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+
+            // 3. Type section
+            Text(
+                text = "Type",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 12.dp, bottom = 4.dp),
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .defaultMinSize(minHeight = 48.dp)
+                    .selectable(
+                        selected = state.types.isEmpty(),
+                        onClick = onClearTypes,
+                        role = Role.RadioButton,
+                    ),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                RadioButton(
+                    selected = state.types.isEmpty(),
+                    onClick = null,
+                )
+                Text(
+                    text = "All types",
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .defaultMinSize(minHeight = 48.dp)
+                    .selectable(
+                        selected = state.types == WhatsNewGrouping.DEFAULT_TYPES,
+                        onClick = onSetDefaultTypes,
+                        role = Role.RadioButton,
+                    ),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                RadioButton(
+                    selected = state.types == WhatsNewGrouping.DEFAULT_TYPES,
+                    onClick = null,
+                )
+                Text(
+                    text = "All but edits",
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+
+            HorizontalDivider(
+                modifier = Modifier.padding(vertical = 4.dp),
+                thickness = 0.5.dp,
+                color = MaterialTheme.colorScheme.outlineVariant,
+            )
+
+            ChangeKind.entries.forEach { kind ->
+                val count = state.counts[kind] ?: 0
+                val isSelected = kind in state.types
+                if (count > 0 || isSelected) {
+                    val look = kind.style()
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .defaultMinSize(minHeight = 48.dp)
+                            .toggleable(
+                                value = isSelected,
+                                onValueChange = { onToggleType(kind) },
+                                role = Role.Checkbox,
+                            ),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(look.containerColor),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = look.icon,
+                                contentDescription = null,
+                                tint = look.contentColor,
+                                modifier = Modifier.size(16.dp),
+                            )
+                        }
+                        Text(
+                            text = look.label,
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Text(
+                            text = "$count",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Checkbox(
+                            checked = isSelected,
+                            onCheckedChange = null,
+                        )
+                    }
+                }
+            }
+
+            // 4. Scope section
+            Text(
+                text = "Scope",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 12.dp, bottom = 4.dp),
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .defaultMinSize(minHeight = 48.dp)
+                    .selectable(
+                        selected = state.scope is WhatsNewScope.All,
+                        onClick = { onSetScope(WhatsNewScope.All) },
+                        role = Role.RadioButton,
+                    ),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                RadioButton(
+                    selected = state.scope is WhatsNewScope.All,
+                    onClick = null,
+                )
+                Text(
+                    text = "All sections",
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .defaultMinSize(minHeight = 48.dp)
+                    .selectable(
+                        selected = state.scope is WhatsNewScope.Following,
+                        enabled = state.hasFollows,
+                        onClick = { onSetScope(WhatsNewScope.Following) },
+                        role = Role.RadioButton,
+                    ),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                RadioButton(
+                    selected = state.scope is WhatsNewScope.Following,
+                    enabled = state.hasFollows,
+                    onClick = null,
+                )
+                Text(
+                    text = "Following",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = if (state.hasFollows) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(
+                    onClick = onManageFollowing,
+                ) {
+                    Text("Manage")
+                }
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .defaultMinSize(minHeight = 48.dp)
+                    .selectable(
+                        selected = state.scope is WhatsNewScope.Saved,
+                        onClick = { onSetScope(WhatsNewScope.Saved) },
+                        role = Role.RadioButton,
+                    ),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                RadioButton(
+                    selected = state.scope is WhatsNewScope.Saved,
+                    onClick = null,
+                )
+                Text(
+                    text = "Saved sites",
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            val isSections = state.scope is WhatsNewScope.Sections
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .defaultMinSize(minHeight = 48.dp)
+                    .clickable(onClick = onChooseSections),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                RadioButton(
+                    selected = isSections,
+                    onClick = null,
+                )
+                Text(
+                    text = "Choose sections…",
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.weight(1f),
+                )
+                if (isSections) {
+                    val count = state.scope.sections.size
+                    val summary = if (count == 1) "1 section" else "$count sections"
+                    Text(
+                        text = summary,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            // 5. Remember switch
+            HorizontalDivider(
+                modifier = Modifier.padding(vertical = 4.dp),
+                thickness = 0.5.dp,
+                color = MaterialTheme.colorScheme.outlineVariant,
+            )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .defaultMinSize(minHeight = 48.dp)
+                    .toggleable(
+                        value = state.rememberFilters,
+                        onValueChange = onSetRemember,
+                        role = Role.Switch,
+                    )
+                    .padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Remember my filters",
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                    Text(
+                        text = "Keep period, type and section filters the next time you open What's new.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(
+                    checked = state.rememberFilters,
+                    onCheckedChange = onSetRemember,
+                )
+            }
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

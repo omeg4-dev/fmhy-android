@@ -15,6 +15,8 @@ import androidx.datastore.preferences.preferencesDataStore
 import io.github.omeg4dev.fmhy.data.adblock.FilterListCatalog
 import io.github.omeg4dev.fmhy.nav.BottomBarStyle
 import io.github.omeg4dev.fmhy.ui.home.HomeLayout
+import io.github.omeg4dev.fmhy.ui.whatsnew.WhatsNewFilterCodec
+import io.github.omeg4dev.fmhy.ui.whatsnew.WhatsNewFilterPrefs
 import io.github.omeg4dev.fmhy.update.ReleaseInfo
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -86,6 +88,10 @@ interface SettingsRepository {
     val followNotifyPromptShown: Flow<Boolean>
         get() = kotlinx.coroutines.flow.flowOf(false)
     suspend fun setFollowNotifyPromptShown(shown: Boolean) {}
+
+    val whatsNewFilterPrefs: Flow<WhatsNewFilterPrefs>
+        get() = kotlinx.coroutines.flow.flowOf(WhatsNewFilterPrefs())
+    suspend fun updateWhatsNewFilterPrefs(f: (WhatsNewFilterPrefs) -> WhatsNewFilterPrefs) {}
 
     val gestureHintShown: Flow<Boolean>
         get() = kotlinx.coroutines.flow.flowOf(false)
@@ -217,6 +223,12 @@ class DefaultSettingsRepository(
         private val KEY_FOLLOW_NOTIFY_PROMPT_SHOWN = booleanPreferencesKey("follow_notify_prompt_shown")
         private val KEY_GESTURE_HINT_SHOWN = booleanPreferencesKey("gesture_hint_shown")
         private val KEY_SCREEN_SWIPE_HINT_SHOWN = booleanPreferencesKey("screen_swipe_hint_shown")
+
+        // What's new filters
+        private val KEY_WHATSNEW_REMEMBER_FILTERS = booleanPreferencesKey("whatsnew_remember_filters")
+        private val KEY_WHATSNEW_FILTER_PERIOD = stringPreferencesKey("whatsnew_filter_period")
+        private val KEY_WHATSNEW_FILTER_TYPES = stringPreferencesKey("whatsnew_filter_types")
+        private val KEY_WHATSNEW_FILTER_SCOPE = stringPreferencesKey("whatsnew_filter_scope")
 
         // Data usage
         private val KEY_DATA_USAGE_DOWNLOAD_WIFI_ONLY = booleanPreferencesKey("data_usage_download_wifi_only")
@@ -932,6 +944,31 @@ class DefaultSettingsRepository(
     override suspend fun setFollowNotifyPromptShown(shown: Boolean) {
         dataStore.edit { prefs ->
             prefs[KEY_FOLLOW_NOTIFY_PROMPT_SHOWN] = shown
+        }
+    }
+
+    override val whatsNewFilterPrefs: Flow<WhatsNewFilterPrefs> = dataStore.data.map { prefs ->
+        WhatsNewFilterPrefs(
+            remember = prefs[KEY_WHATSNEW_REMEMBER_FILTERS] ?: false,
+            period = WhatsNewFilterCodec.decodePeriod(prefs[KEY_WHATSNEW_FILTER_PERIOD]),
+            types = WhatsNewFilterCodec.decodeTypes(prefs[KEY_WHATSNEW_FILTER_TYPES]),
+            scope = WhatsNewFilterCodec.decodeScope(prefs[KEY_WHATSNEW_FILTER_SCOPE]),
+        )
+    }.distinctUntilChanged()
+
+    override suspend fun updateWhatsNewFilterPrefs(f: (WhatsNewFilterPrefs) -> WhatsNewFilterPrefs) {
+        dataStore.edit { prefs ->
+            val current = WhatsNewFilterPrefs(
+                remember = prefs[KEY_WHATSNEW_REMEMBER_FILTERS] ?: false,
+                period = WhatsNewFilterCodec.decodePeriod(prefs[KEY_WHATSNEW_FILTER_PERIOD]),
+                types = WhatsNewFilterCodec.decodeTypes(prefs[KEY_WHATSNEW_FILTER_TYPES]),
+                scope = WhatsNewFilterCodec.decodeScope(prefs[KEY_WHATSNEW_FILTER_SCOPE]),
+            )
+            val updated = f(current)
+            prefs[KEY_WHATSNEW_REMEMBER_FILTERS] = updated.remember
+            prefs[KEY_WHATSNEW_FILTER_PERIOD] = WhatsNewFilterCodec.encodePeriod(updated.period)
+            prefs[KEY_WHATSNEW_FILTER_TYPES] = WhatsNewFilterCodec.encodeTypes(updated.types)
+            prefs[KEY_WHATSNEW_FILTER_SCOPE] = WhatsNewFilterCodec.encodeScope(updated.scope)
         }
     }
 

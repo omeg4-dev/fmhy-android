@@ -23,12 +23,14 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Immutable
 data class WhatsNewUiState(
+    val rememberFilters: Boolean = false,
     val period: WhatsNewPeriod = WhatsNewPeriod.WEEK,
     val types: Set<ChangeKind> = WhatsNewGrouping.DEFAULT_TYPES,
     val scope: WhatsNewScope = WhatsNewScope.All,
@@ -48,8 +50,8 @@ data class WhatsNewUiState(
 
 class WhatsNewViewModel(
     private val initialFilter: String = "all",
-    initialType: String? = null,
-    initialPeriod: String? = null,
+    private val initialType: String? = null,
+    private val initialPeriod: String? = null,
     private val container: AppContainer,
 ) : ViewModel() {
 
@@ -61,26 +63,11 @@ class WhatsNewViewModel(
     private val store: DatasetStore = container.datasetStore
     private val userStore: UserStore = container.userStore
 
-    private val period = MutableStateFlow(
-        if (initialPeriod == "since_last_visit") WhatsNewPeriod.SINCE_LAST_VISIT else WhatsNewPeriod.WEEK
-    )
-    private val types = MutableStateFlow(
-        when {
-            initialType == null -> WhatsNewGrouping.DEFAULT_TYPES
-            initialType == TYPE_ALL -> emptySet()
-            else -> ChangeKind.entries.firstOrNull {
-                it.name.equals(initialType, ignoreCase = true) || it.value.equals(initialType, ignoreCase = true)
-            }?.let { setOf(it) } ?: WhatsNewGrouping.DEFAULT_TYPES
-        }
-    )
+    private val rememberFilters = MutableStateFlow(false)
+    private val period = MutableStateFlow(WhatsNewPeriod.WEEK)
+    private val types = MutableStateFlow<Set<ChangeKind>>(WhatsNewGrouping.DEFAULT_TYPES)
     private val query = MutableStateFlow("")
-    private val scope = MutableStateFlow<WhatsNewScope>(
-        when (initialFilter) {
-            "following" -> WhatsNewScope.Following
-            "saved" -> WhatsNewScope.Saved
-            else -> WhatsNewScope.All
-        }
-    )
+    private val scope = MutableStateFlow<WhatsNewScope>(WhatsNewScope.All)
     private val isRefreshing = MutableStateFlow(false)
     private val isLoading = MutableStateFlow(true)
     private var hasAutoSwitched = false
@@ -93,7 +80,24 @@ class WhatsNewViewModel(
     private val sectionHeadingHierarchy = MutableStateFlow<Map<String, Set<String>>>(emptyMap())
 
     init {
-        loadData()
+        viewModelScope.launch {
+            val stored = try {
+                container.settingsRepository.whatsNewFilterPrefs.first()
+            } catch (_: Exception) {
+                WhatsNewFilterPrefs()
+            }
+            val resolved = resolveInitialFilters(
+                stored = stored,
+                initialFilter = initialFilter,
+                initialType = initialType,
+                initialPeriod = initialPeriod,
+            )
+            rememberFilters.value = resolved.remember
+            period.value = resolved.period
+            types.value = resolved.types
+            scope.value = resolved.scope
+            loadData()
+        }
         viewModelScope.launch {
             container.visitTracker.visitCutoffTs.drop(1).collect {
                 loadChanges()
@@ -198,6 +202,7 @@ class WhatsNewViewModel(
     }
 
     private data class FilterState(
+        val rememberFilters: Boolean,
         val period: WhatsNewPeriod,
         val types: Set<ChangeKind>,
         val scope: WhatsNewScope,
@@ -207,13 +212,13 @@ class WhatsNewViewModel(
     )
 
     private val filterState = combine(
-        period,
+        combine(rememberFilters, period) { r, p -> r to p },
         types,
         scope,
         container.visitTracker.visitCutoffTs,
         combine(isRefreshing, isLoading) { r, l -> r to l },
-    ) { p, t, s, cutoff, (refreshing, loading) ->
-        FilterState(p, t, s, cutoff, refreshing, loading)
+    ) { (r, p), t, s, cutoff, (refreshing, loading) ->
+        FilterState(r, p, t, s, cutoff, refreshing, loading)
     }
 
     private val filterAndQuery = combine(filterState, query) { f, q -> f to q }
@@ -259,6 +264,7 @@ class WhatsNewViewModel(
         val oldestTs = changes.minOfOrNull { it.ts }
 
         WhatsNewUiState(
+            rememberFilters = filter.rememberFilters,
             period = filter.period,
             types = filter.types,
             scope = filter.scope,
@@ -283,9 +289,10 @@ class WhatsNewViewModel(
         viewModelScope,
         SharingStarted.WhileSubscribed(5000),
         WhatsNewUiState(
-            period = period.value,
-            types = types.value,
-            scope = scope.value,
+            rememberFilters = false,
+            period = WhatsNewPeriod.WEEK,
+            types = WhatsNewGrouping.DEFAULT_TYPES,
+            scope = WhatsNewScope.All,
             isLoading = true,
             cutoffTs = container.visitTracker.visitCutoffTs.value,
         )
@@ -332,6 +339,47 @@ class WhatsNewViewModel(
         types.value = emptySet()
         scope.value = WhatsNewScope.All
         setPeriod(WhatsNewPeriod.MONTH)
+    }
+
+    fun setRememberFilters(enabled: Boolean) {
+        rememberFilters.value = enabled
+        viewModelScope.launch {
+            container.settingsRepository.updateWhatsNewFilterPrefs { current ->
+                if (enabled) {
+                    current.copy(
+                        remember = true,
+                        period = period.value,
+                        types = types.value,
+                        scope = scope.value,
+                    )
+                } else {
+                    current.copy(remember = false)
+                }
+            }
+        }
+    }
+
+    fun resetToDefaults() {
+        setPeriod(WhatsNewPeriod.WEEK)
+        types.value = WhatsNewGrouping.DEFAULT_TYPES
+        scope.value = WhatsNewScope.All
+        commitFilters()
+    }
+
+    fun commitFilters() {
+        if (!rememberFilters.value) return
+        val p = period.value
+        val t = types.value
+        val s = scope.value
+        viewModelScope.launch {
+            container.settingsRepository.updateWhatsNewFilterPrefs { current ->
+                current.copy(
+                    period = p,
+                    types = t,
+                    scope = s,
+                )
+            }
+        }
     }
 
     fun refresh() {

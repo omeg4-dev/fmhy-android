@@ -1,16 +1,5 @@
 package io.github.omeg4dev.fmhy.ui.whatsnew
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
-import androidx.compose.ui.input.nestedscroll.NestedScrollSource
-import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.platform.LocalDensity
-import io.github.omeg4dev.fmhy.ui.common.Motion
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -29,8 +18,11 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.HistoryToggleOff
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -139,6 +131,7 @@ fun WhatsNewScreen(
     }
     BackHandler(enabled = startInHub && showFeed) { backToHub() }
 
+    var showFilterSheet by rememberSaveable { mutableStateOf(false) }
     var showLegendSheet by remember { mutableStateOf(false) }
     var showSectionsSheet by remember { mutableStateOf(false) }
     var selectedRemovedCard by remember { mutableStateOf<ChangeCard?>(null) }
@@ -184,6 +177,22 @@ fun WhatsNewScreen(
                     }
                 },
                 actions = {
+                    if (showFeed) {
+                        IconButton(onClick = { showFilterSheet = true }) {
+                            BadgedBox(
+                                badge = {
+                                    if (filtersAreCustom(state.period, state.types, state.scope)) {
+                                        Badge()
+                                    }
+                                }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.FilterList,
+                                    contentDescription = "Filters",
+                                )
+                            }
+                        }
+                    }
                     IconButton(
                         onClick = {
                             showLegendSheet = true
@@ -218,30 +227,6 @@ fun WhatsNewScreen(
                     .fillMaxSize()
                     .padding(innerPadding),
             ) {
-            // Hide the feed's filters after 48 dp of scrolling down, show them again after 32 dp up.
-            var filtersVisible by rememberSaveable { mutableStateOf(true) }
-            val density = LocalDensity.current
-            val filterBarScroll = remember(density) {
-                val hidePx = with(density) { 48.dp.toPx() }
-                val showPx = with(density) { 32.dp.toPx() }
-                object : NestedScrollConnection {
-                    var acc = 0f
-                    override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                        val dy = available.y
-                        if (dy == 0f) return Offset.Zero
-                        if ((acc < 0f) != (dy < 0f)) acc = 0f
-                        acc += dy
-                        if (acc <= -hidePx && filtersVisible) {
-                            filtersVisible = false
-                            acc = 0f
-                        } else if (acc >= showPx && !filtersVisible) {
-                            filtersVisible = true
-                            acc = 0f
-                        }
-                        return Offset.Zero
-                    }
-                }
-            }
             // One search field for hub and feed, so typing keeps its focus when the hub turns into the feed.
             Column(modifier = Modifier.fillMaxSize()) {
             WhatsNewSearchField(
@@ -277,44 +262,7 @@ fun WhatsNewScreen(
                     },
                 )
             } else
-            Column(modifier = Modifier.fillMaxSize().nestedScroll(filterBarScroll)) {
-                // Filters + summary slide away while scrolling down the feed; the search field stays.
-                AnimatedVisibility(
-                    visible = filtersVisible || state.dayGroups.isEmpty(),
-                    enter = expandVertically(Motion.enter()) + fadeIn(Motion.enter()),
-                    exit = shrinkVertically(Motion.exit()) + fadeOut(Motion.exit()),
-                ) {
-                Column {
-                // Filter dropdown pills row
-                FilterBar(
-                    state = state,
-                    sectionTitles = sectionTitles,
-                    onSetPeriod = {
-                        haptics.tick()
-                        viewModel.setPeriod(it)
-                    },
-                    onToggleType = {
-                        haptics.tick()
-                        viewModel.toggleType(it)
-                    },
-                    onClearTypes = {
-                        haptics.remove()
-                        viewModel.clearTypes()
-                    },
-                    onSetTypes = {
-                        haptics.tick()
-                        viewModel.setTypes(it)
-                    },
-                    onSetScope = {
-                        haptics.tick()
-                        viewModel.setScope(it)
-                    },
-                    onOpenSectionsSheet = {
-                        showSectionsSheet = true
-                    },
-                    onManageFollowing = actualOnNavigateToFollowing,
-                )
-
+            Column(modifier = Modifier.fillMaxSize()) {
                 // Summary line
                 SummaryLine(
                     counts = state.counts,
@@ -326,10 +274,9 @@ fun WhatsNewScreen(
                         } else {
                             viewModel.setTypes(setOf(kind))
                         }
+                        viewModel.commitFilters()
                     },
                 )
-                }
-                }
 
                 HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
 
@@ -446,6 +393,54 @@ fun WhatsNewScreen(
         }
     }
 
+    if (showFilterSheet && showFeed) {
+        FiltersBottomSheet(
+            state = state,
+            onDismiss = { showFilterSheet = false },
+            onSetPeriod = { p ->
+                haptics.tick()
+                viewModel.setPeriod(p)
+                viewModel.commitFilters()
+            },
+            onClearTypes = {
+                haptics.remove()
+                viewModel.clearTypes()
+                viewModel.commitFilters()
+            },
+            onSetDefaultTypes = {
+                haptics.tick()
+                viewModel.setTypes(WhatsNewGrouping.DEFAULT_TYPES)
+                viewModel.commitFilters()
+            },
+            onToggleType = { kind ->
+                haptics.tick()
+                viewModel.toggleType(kind)
+                viewModel.commitFilters()
+            },
+            onSetScope = { s ->
+                haptics.tick()
+                viewModel.setScope(s)
+                viewModel.commitFilters()
+            },
+            onChooseSections = {
+                showFilterSheet = false
+                showSectionsSheet = true
+            },
+            onManageFollowing = {
+                showFilterSheet = false
+                actualOnNavigateToFollowing()
+            },
+            onReset = {
+                haptics.tick()
+                viewModel.resetToDefaults()
+            },
+            onSetRemember = { newValue ->
+                haptics.toggle(newValue)
+                viewModel.setRememberFilters(newValue)
+            },
+        )
+    }
+
     if (showLegendSheet) {
         LegendBottomSheet(onDismiss = { showLegendSheet = false })
     }
@@ -467,6 +462,7 @@ fun WhatsNewScreen(
             onToggleSection = { sectionId ->
                 haptics.toggle(sectionId !in selectedSectionIds)
                 viewModel.toggleSectionScope(sectionId)
+                viewModel.commitFilters()
             },
             onDismiss = { showSectionsSheet = false },
         )

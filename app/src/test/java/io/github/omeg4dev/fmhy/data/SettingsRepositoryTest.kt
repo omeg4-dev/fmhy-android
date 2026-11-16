@@ -5,9 +5,14 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import io.github.omeg4dev.fmhy.data.adblock.FilterListCatalog
+import io.github.omeg4dev.fmhy.data.model.ChangeKind
 import io.github.omeg4dev.fmhy.nav.BottomBarStyle
 import io.github.omeg4dev.fmhy.ui.home.HomeBlock
 import io.github.omeg4dev.fmhy.ui.home.HomeLayout
+import io.github.omeg4dev.fmhy.ui.whatsnew.WhatsNewFilterPrefs
+import io.github.omeg4dev.fmhy.ui.whatsnew.WhatsNewPeriod
+import io.github.omeg4dev.fmhy.ui.whatsnew.WhatsNewScope
+import io.github.omeg4dev.fmhy.ui.whatsnew.resolveInitialFilters
 import io.github.omeg4dev.fmhy.update.ReleaseInfo
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
@@ -567,5 +572,44 @@ class SettingsRepositoryTest {
         assertEquals("dummy-ha-key", updated.hybridKey)
         assertTrue(updated.holdUntilChecked)
         assertFalse(updated.autoCheckRisky)
+    }
+
+    @Test
+    fun testWhatsNewFilterPrefsFreshDefaults() = runTest {
+        val (repo, _) = createRepository(this)
+        assertEquals(WhatsNewFilterPrefs(), repo.whatsNewFilterPrefs.first())
+    }
+
+    @Test
+    fun testWhatsNewFilterPrefsRoundTripRestart() = runTest {
+        val (repo, dataStore) = createRepository(this)
+        val custom = WhatsNewFilterPrefs(
+            remember = true,
+            period = WhatsNewPeriod.DAY,
+            types = setOf(ChangeKind.ADDED),
+            scope = WhatsNewScope.Sections(setOf("x")),
+        )
+        repo.updateWhatsNewFilterPrefs { custom }
+
+        val restartedRepo = DefaultSettingsRepository(dataStore)
+        assertEquals(custom, restartedRepo.whatsNewFilterPrefs.first())
+    }
+
+    @Test
+    fun testWhatsNewFilterPrefsPreselectedLeavesStoreUntouched() = runTest {
+        val (repo, _) = createRepository(this)
+        val custom = WhatsNewFilterPrefs(
+            remember = true,
+            period = WhatsNewPeriod.DAY,
+            types = setOf(ChangeKind.ADDED),
+            scope = WhatsNewScope.Sections(setOf("x")),
+        )
+        repo.updateWhatsNewFilterPrefs { custom }
+
+        val stored = repo.whatsNewFilterPrefs.first()
+        val resolved = resolveInitialFilters(stored, "following", null, null)
+
+        assertEquals(WhatsNewScope.Following, resolved.scope)
+        assertEquals(custom, repo.whatsNewFilterPrefs.first())
     }
 }
