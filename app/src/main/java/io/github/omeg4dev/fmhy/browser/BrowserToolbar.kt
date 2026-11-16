@@ -58,6 +58,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.RemoveModerator
+import androidx.compose.material.icons.filled.Screenshot
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Share
@@ -153,6 +154,7 @@ fun BrowserToolbar(
     onBackToFmhyClick: () -> Unit = {},
     onNewTabClick: (isPrivate: Boolean) -> Unit = {},
     onFindInPageClick: () -> Unit = {},
+    onSavePictureClick: () -> Unit = {},
     onFindQueryChange: (String) -> Unit = {},
     onFindNext: () -> Unit = {},
     onFindPrevious: () -> Unit = {},
@@ -396,6 +398,10 @@ fun BrowserToolbar(
             onFindInPage = {
                 showMenuSheet = false
                 onFindInPageClick()
+            },
+            onSavePicture = {
+                showMenuSheet = false
+                onSavePictureClick()
             },
             onToggleDesktop = {
                 showMenuSheet = false
@@ -899,6 +905,7 @@ fun BrowserMenuSheet(
     onNewTab: () -> Unit,
     onNewPrivateTab: () -> Unit,
     onFindInPage: () -> Unit,
+    onSavePicture: () -> Unit = {},
     onToggleDesktop: () -> Unit,
     onSetZoom: (Float) -> Unit = {},
     onSetPlaybackSpeed: (Float) -> Unit,
@@ -1027,6 +1034,15 @@ fun BrowserMenuSheet(
                 enabled = hasPage,
                 onClick = {
                     onFindInPage()
+                },
+            )
+
+            MenuActionRow(
+                icon = Icons.Default.Screenshot,
+                title = "Save picture of page",
+                enabled = hasPage,
+                onClick = {
+                    onSavePicture()
                 },
             )
 

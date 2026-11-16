@@ -2,4 +2,5 @@
 <paths>
     <external-files-path name="downloads" path="Download/" />
     <files-path name="downloads_internal" path="downloads-done/" />
+    <external-files-path name="pictures" path="Pictures/" />
 </paths>

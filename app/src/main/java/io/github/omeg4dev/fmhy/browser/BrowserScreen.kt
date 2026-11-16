@@ -1,6 +1,7 @@
 package io.github.omeg4dev.fmhy.browser
 
 import android.Manifest
+import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -25,15 +26,18 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.exclude
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
@@ -46,6 +50,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.SentimentDissatisfied
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
@@ -79,6 +84,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.zIndex
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -194,11 +200,111 @@ fun BrowserScreen(
     var pendingExternalApp by remember { mutableStateOf<Pair<Intent, String>?>(null) }
     var pendingLinkMenu by remember { mutableStateOf<LinkMenuRequest?>(null) }
 
+    // Page capture state
+    var showPictureChoice by remember { mutableStateOf(false) }
+    var captureJob by remember { mutableStateOf<Job?>(null) }
+    var captureProgress by remember { mutableStateOf(0 to 0) }
+    val isCapturing = captureJob != null
+    var isCapturingFullPage by remember { mutableStateOf(false) }
+    var capturedTabId by remember { mutableStateOf<Long?>(null) }
+    var capturedTabUrl by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(currentTab?.id, currentTab?.url?.substringBefore('#')) {
+        // Fragment-only changes (scroll-spy pages rewrite #hash while scrolling) are not a navigation.
+        if (captureJob != null && (currentTab?.id != capturedTabId || currentTab?.url?.substringBefore('#') != capturedTabUrl)) {
+            captureJob?.cancel()
+        }
+    }
+    DisposableEffect(Unit) {
+        onDispose {
+            captureJob?.cancel()
+        }
+    }
+
     val savedIds by bookmarksRepository.savedIds.collectAsStateWithLifecycle(initialValue = emptySet())
     val isSaved = currentTab?.entryId != null && savedIds.contains(currentTab.entryId)
 
     val hooks = browserHooks as? DefaultBrowserHooks
     val snackbarHostState = remember { SnackbarHostState() }
+
+    val onStartPictureCapture: (Boolean) -> Unit = { fullPage ->
+        val tab = currentTab
+        val webView = tab?.let { tabManager.getTabRecord(it.id)?.webView }
+        if (tab == null || webView == null) {
+            scope.launch {
+                snackbarHostState.showSnackbar("Couldn't save the picture")
+            }
+        } else {
+            isCapturingFullPage = fullPage
+            capturedTabId = tab.id
+            capturedTabUrl = tab.url.substringBefore('#')
+            captureProgress = 0 to 0
+
+            captureJob = scope.launch {
+                try {
+                    val result = if (fullPage) {
+                        captureFullPage(webView) { d, t ->
+                            captureProgress = d to t
+                        }
+                    } else {
+                        CaptureResult.Done(captureVisible(webView), truncated = false)
+                    }
+
+                    val bitmap = when (result) {
+                        is CaptureResult.Done -> result.bitmap
+                        is CaptureResult.InnerScroll -> result.bitmap
+                    }
+
+                    val uri = try {
+                        val fileName = pictureFileName(tab.url, System.currentTimeMillis())
+                        PictureStore.save(context, bitmap, fileName)
+                    } finally {
+                        bitmap.recycle()
+                    }
+
+                    val message = when {
+                        result is CaptureResult.InnerScroll -> "This page scrolls inside a frame: saved the visible area"
+                        result is CaptureResult.Done && result.truncated -> "Page too long: saved the top part"
+                        Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q -> "Picture saved to Pictures/FMHY"
+                        else -> "Picture saved"
+                    }
+
+                    // Close the progress dialog first: a snackbar with an action waits until it is dismissed.
+                    captureJob = null
+                    isCapturingFullPage = false
+                    scope.launch {
+                        val action = snackbarHostState.showSnackbar(
+                            message = message,
+                            actionLabel = "View",
+                            duration = SnackbarDuration.Long,
+                        )
+                        if (action == SnackbarResult.ActionPerformed) {
+                            try {
+                                val intent = Intent(Intent.ACTION_VIEW).apply {
+                                    setDataAndType(uri, "image/png")
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
+                                context.startActivity(intent)
+                            } catch (_: ActivityNotFoundException) {
+                                snackbarHostState.showSnackbar("No app to open pictures")
+                            } catch (_: Throwable) {
+                                snackbarHostState.showSnackbar("Couldn't open picture")
+                            }
+                        }
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Throwable) {
+                    snackbarHostState.showSnackbar("Couldn't save the picture")
+                } finally {
+                    captureJob = null
+                    isCapturingFullPage = false
+                    capturedTabId = null
+                    capturedTabUrl = null
+                }
+            }
+        }
+    }
     val customView = hooks?.customView
 
     val container = remember(context) { (context.applicationContext as FmhyApp).container }
@@ -440,6 +546,10 @@ fun BrowserScreen(
         }
     }
 
+    BackHandler(enabled = isCapturing) {
+        captureJob?.cancel()
+    }
+
     CompositionLocalProvider(LocalBookmarks provides bookmarksState) {
         Box(
             modifier = modifier
@@ -530,6 +640,7 @@ fun BrowserScreen(
                     val version = webViewVersion
                     val record = tabManager.getTabRecord(currentTab.id)
                     val webView = record?.webView
+                    val currentIsCapturing by rememberUpdatedState(isCapturing)
 
                     val pullRefreshState = rememberPullToRefreshState()
 
@@ -585,12 +696,14 @@ fun BrowserScreen(
                                     val isAtTop = !webView.canScrollVertically(-1) || scrollY <= 0
 
                                     if (isAtTop) {
-                                        barTracker.reset()
-                                        if (bars.hidden) {
-                                            bars.hidden = false
-                                            applyBarsState()
+                                        if (!currentIsCapturing) {
+                                            barTracker.reset()
+                                            if (bars.hidden) {
+                                                bars.hidden = false
+                                                applyBarsState()
+                                            }
                                         }
-                                    } else if (!isTopBar && !isFindMode && !isEditMode && !loadingState && totalBarHeightPx > 0f) {
+                                    } else if (!currentIsCapturing && !isTopBar && !isFindMode && !isEditMode && !loadingState && totalBarHeightPx > 0f) {
                                         val hide = barTracker.onScroll(dy)
                                         if (hide != null && hide != bars.hidden) {
                                             bars.hidden = hide
@@ -799,6 +912,9 @@ fun BrowserScreen(
                                 onFindInPageClick = {
                                     isFindMode = true
                                     findQuery = ""
+                                },
+                                onSavePictureClick = {
+                                    showPictureChoice = true
                                 },
                                 onFindQueryChange = { query ->
                                     findQuery = query
@@ -1568,6 +1684,113 @@ fun BrowserScreen(
                 } catch (_: Exception) {}
             },
             onDismiss = { pendingExternalApp = null },
+        )
+    }
+
+    if (showPictureChoice) {
+        AlertDialog(
+            onDismissRequest = { showPictureChoice = false },
+            title = { Text("Save picture of page") },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Surface(
+                        onClick = {
+                            showPictureChoice = false
+                            onStartPictureCapture(false)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color.Transparent,
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 12.dp, horizontal = 8.dp),
+                        ) {
+                            Text(
+                                text = "Visible area",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                            Text(
+                                text = "What you see now",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Surface(
+                        onClick = {
+                            showPictureChoice = false
+                            onStartPictureCapture(true)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color.Transparent,
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 12.dp, horizontal = 8.dp),
+                        ) {
+                            Text(
+                                text = "Full page",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                            Text(
+                                text = "The whole page, top to bottom",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showPictureChoice = false }) {
+                    Text("Cancel")
+                }
+            },
+        )
+    }
+
+    if (isCapturing && isCapturingFullPage) {
+        val (done, total) = captureProgress
+        AlertDialog(
+            onDismissRequest = {},
+            properties = DialogProperties(
+                dismissOnBackPress = false,
+                dismissOnClickOutside = false,
+            ),
+            title = { Text("Saving picture…") },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    if (total == 0) {
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    } else {
+                        LinearProgressIndicator(
+                            progress = { done.toFloat() / total.toFloat() },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                    Text(
+                        text = "$done of $total",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { captureJob?.cancel() }) {
+                    Text("Cancel")
+                }
+            },
         )
     }
 }
