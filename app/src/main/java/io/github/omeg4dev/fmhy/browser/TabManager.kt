@@ -1474,7 +1474,10 @@ class TabManager(
         }
     }
 
-    fun updateSitePrefs(tabId: Long, host: String, update: (SitePrefs) -> SitePrefs) {
+    fun updateSitePrefs(tabId: Long, host: String, update: (SitePrefs) -> SitePrefs) =
+        updateSitePrefs(tabId, host, reload = true, update)
+
+    fun updateSitePrefs(tabId: Long, host: String, reload: Boolean, update: (SitePrefs) -> SitePrefs) {
         appScope.launch {
             val existing = userStore.sitePrefs(host) ?: SitePrefs(host = host)
             val updated = update(existing)
@@ -1482,18 +1485,20 @@ class TabManager(
             val record = getTabRecord(tabId)
             if (record != null) {
                 record.sitePrefs = updated
-                record.webView?.let { wv ->
-                    postToMain {
-                        rebaseWebViewContext(record)
-                        webViewFactory.applySettings(
-                            wv,
-                            record,
-                            currentBrowserPrefs,
-                            currentProtectionPrefs,
-                            currentAppearance,
-                            isAppDark
-                        )
-                        wv.reload()
+                if (reload) {
+                    record.webView?.let { wv ->
+                        postToMain {
+                            rebaseWebViewContext(record)
+                            webViewFactory.applySettings(
+                                wv,
+                                record,
+                                currentBrowserPrefs,
+                                currentProtectionPrefs,
+                                currentAppearance,
+                                isAppDark
+                            )
+                            wv.reload()
+                        }
                     }
                 }
             }

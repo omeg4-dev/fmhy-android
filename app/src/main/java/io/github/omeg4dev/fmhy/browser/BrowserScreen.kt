@@ -10,6 +10,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.view.GestureDetector
+import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.ViewConfiguration
 import android.view.ViewGroup
@@ -71,6 +72,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -82,6 +84,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.DialogProperties
@@ -124,6 +127,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -226,6 +230,13 @@ fun BrowserScreen(
 
     val hooks = browserHooks as? DefaultBrowserHooks
     val snackbarHostState = remember { SnackbarHostState() }
+    val view = LocalView.current
+    val blockedStates = remember { mutableStateMapOf<Long, BlockedBarState>() }
+    fun stateFor(tabId: Long): BlockedBarState = blockedStates.getOrPut(tabId) { BlockedBarState() }
+    var pulseKey by remember { mutableIntStateOf(0) }
+    var blockedBarHeightPx by remember { mutableIntStateOf(0) }
+    val currentBlockedState = currentTabId?.let { stateFor(it) }
+    val isBlockedBarVisible = currentBlockedState != null && currentBlockedState.visible && !isInPip && hooks?.customView == null
 
     val onStartPictureCapture: (Boolean) -> Unit = { fullPage ->
         val tab = currentTab
@@ -437,6 +448,91 @@ fun BrowserScreen(
                 )
                 if (result == SnackbarResult.ActionPerformed) event.onAction?.invoke()
             }
+        }
+    }
+
+    // Blocked notices
+    val latestTabId by rememberUpdatedState(currentTabId)
+    LaunchedEffect(hooks) {
+        hooks?.blockedFlow?.collect { event ->
+            val state = stateFor(event.tabId)
+            val appeared = state.add(event.entry)
+            if (appeared && event.tabId == latestTabId) {
+                val feedbackConstant = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    HapticFeedbackConstants.REJECT
+                } else {
+                    HapticFeedbackConstants.LONG_PRESS
+                }
+                view.performHapticFeedback(feedbackConstant)
+            }
+        }
+    }
+
+    LaunchedEffect(hooks) {
+        hooks?.blockedClearFlow?.collect { tabId ->
+            blockedStates[tabId]?.clear()
+        }
+    }
+
+    var prevTabId by remember { mutableStateOf(currentTabId) }
+    var prevNavKey by remember { mutableStateOf(navKey) }
+    LaunchedEffect(currentTabId, navKey) {
+        if (prevTabId != currentTabId) {
+            prevTabId?.let { blockedStates[it]?.clear() }
+            prevTabId = currentTabId
+            prevNavKey = navKey
+        } else if (prevNavKey != navKey) {
+            currentTabId?.let { blockedStates[it]?.clear() }
+            prevNavKey = navKey
+        }
+    }
+
+    val currentTabIds = remember(tabs) { tabs.map { it.id }.toSet() }
+    LaunchedEffect(currentTabIds) {
+        val removed = blockedStates.keys - currentTabIds
+        for (id in removed) {
+            blockedStates.remove(id)
+        }
+    }
+
+    // Tab notice
+    var tabNoticeJob by remember { mutableStateOf<Job?>(null) }
+    LaunchedEffect(hooks) {
+        hooks?.tabNoticeFlow?.collect { notice ->
+            tabNoticeJob?.cancel()
+            snackbarHostState.currentSnackbarData?.dismiss()
+            tabNoticeJob = scope.launch {
+                val (msg, action, onAct) = when (notice) {
+                    is TabNotice.Single -> Triple(
+                        "Opened in a new tab",
+                        "Switch",
+                        { tabManager.selectTab(notice.tabId) }
+                    )
+                    is TabNotice.Merged -> Triple(
+                        "${notice.count} tabs opened in the background",
+                        "Show tabs",
+                        { tabManager.requestShowTabs() }
+                    )
+                }
+                withTimeoutOrNull(4000L) {
+                    val result = snackbarHostState.showSnackbar(
+                        message = msg,
+                        actionLabel = action,
+                        duration = SnackbarDuration.Indefinite,
+                    )
+                    if (result == SnackbarResult.ActionPerformed) {
+                        onAct()
+                    }
+                }
+                snackbarHostState.currentSnackbarData?.dismiss()
+            }
+        }
+    }
+
+    // Tab counter pulse
+    LaunchedEffect(hooks) {
+        hooks?.tabPulseFlow?.collect {
+            pulseKey++
         }
     }
 
@@ -881,15 +977,24 @@ fun BrowserScreen(
                             .graphicsLayer {
                                 translationY = toolbarTranslation.value
                             }
-                            .onSizeChanged { totalBarHeightPx = it.height.toFloat() }
                             .zIndex(5f),
                     ) {
                         Column(modifier = Modifier.fillMaxWidth()) {
+                            if (!isTopBar && isBlockedBarVisible && currentBlockedState != null) {
+                                BlockedBar(
+                                    state = currentBlockedState,
+                                    modifier = Modifier
+                                        .padding(bottom = 8.dp)
+                                        .onSizeChanged { blockedBarHeightPx = it.height },
+                                )
+                            }
                             BrowserToolbar(
                                 tab = currentTab,
                                 tabs = tabs,
                                 tabCount = tabs.size,
+                                tabPulseKey = pulseKey,
                                 toolbarPosition = browserPrefs.toolbarPosition,
+                                modifier = Modifier.onSizeChanged { totalBarHeightPx = it.height.toFloat() },
                                 isFindMode = isFindMode,
                                 findQuery = findQuery,
                                 findActiveIndex = findActiveIndex,
@@ -1249,13 +1354,36 @@ fun BrowserScreen(
                 )
             }
 
+            if (isTopBar && isBlockedBarVisible && currentBlockedState != null) {
+                BlockedBar(
+                    state = currentBlockedState,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .windowInsetsPadding(WindowInsets.navigationBars)
+                        .padding(bottom = 12.dp)
+                        .onSizeChanged { blockedBarHeightPx = it.height }
+                        .zIndex(4f),
+                )
+            }
+
             // SnackbarHost
             if (!isInPip) {
+                val blockedBarPadding = if (isBlockedBarVisible) {
+                    with(density) { blockedBarHeightPx.toDp() } + 8.dp
+                } else {
+                    0.dp
+                }
                 SnackbarHost(
                     hostState = snackbarHostState,
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .padding(bottom = if (browserPrefs.toolbarPosition == ToolbarPosition.BOTTOM) 68.dp else 16.dp)
+                        .padding(
+                            bottom = if (browserPrefs.toolbarPosition == ToolbarPosition.BOTTOM) {
+                                with(density) { totalBarHeightPx.toDp() } + blockedBarPadding + 8.dp
+                            } else {
+                                16.dp + blockedBarPadding
+                            }
+                        )
                         .windowInsetsPadding(WindowInsets.navigationBars)
                         .zIndex(15f),
                 )
@@ -1382,6 +1510,7 @@ fun BrowserScreen(
             protectionPrefs = protectionPrefs,
             browserPrefs = browserPrefs,
             isAppDark = isAppDark,
+            redirectGuard = protectionPrefs.redirectGuard,
             onDismiss = { showShieldSheet = false },
             onUpdateSitePref = { update ->
                 val host = try { Uri.parse(currentTab.url).host.orEmpty() } catch (_: Exception) { "" }

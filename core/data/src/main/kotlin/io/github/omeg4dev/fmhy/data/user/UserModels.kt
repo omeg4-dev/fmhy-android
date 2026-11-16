@@ -59,6 +59,7 @@ data class SitePrefs(
     val dark: Boolean? = null,
     /** "Fix this site": allow every ad on this host (blocking, element hiding and scriptlets off). */
     val fixSite: Boolean? = null,
+    val blockRedirects: Boolean? = null,
     val updatedAt: Long = 0,
 )
 

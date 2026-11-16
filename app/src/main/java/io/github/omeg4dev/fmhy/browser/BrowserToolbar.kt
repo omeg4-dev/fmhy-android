@@ -7,7 +7,9 @@ import android.content.Intent
 import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -135,6 +137,7 @@ fun BrowserToolbar(
     tab: TabState?,
     tabs: List<TabState> = emptyList(),
     tabCount: Int = tabs.size,
+    tabPulseKey: Int = 0,
     toolbarPosition: ToolbarPosition = ToolbarPosition.TOP,
     isFindMode: Boolean = false,
     findQuery: String = "",
@@ -179,6 +182,20 @@ fun BrowserToolbar(
 ) {
     val haptics = rememberHaptics()
     var showMenuSheet by remember { mutableStateOf(false) }
+
+    val pulseScale = remember { Animatable(1f) }
+    LaunchedEffect(tabPulseKey) {
+        if (tabPulseKey == 0) return@LaunchedEffect
+        pulseScale.snapTo(1f)
+        pulseScale.animateTo(
+            targetValue = 1.3f,
+            animationSpec = tween(durationMillis = 120, easing = FastOutSlowInEasing),
+        )
+        pulseScale.animateTo(
+            targetValue = 1f,
+            animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing),
+        )
+    }
 
     // The toolbar is a plain background, not a Surface, and the activity's root Surface is transparent,
     // so untinted icons would resolve LocalContentColor to black. Pin it to the theme.
@@ -312,6 +329,10 @@ fun BrowserToolbar(
                     }
                     Box(
                         modifier = Modifier
+                            .graphicsLayer {
+                                scaleX = pulseScale.value
+                                scaleY = pulseScale.value
+                            }
                             .size(26.dp)
                             .border(
                                 BorderStroke(2.dp, MaterialTheme.colorScheme.onSurface),

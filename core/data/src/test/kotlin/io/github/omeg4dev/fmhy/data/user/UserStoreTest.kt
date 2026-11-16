@@ -862,6 +862,50 @@ class UserStoreTest {
     }
 
     @Test
+    fun testSitePrefsBlockRedirectsRoundTripAndKeepsRowAlive() = runTest {
+        val store = createStore()
+
+        // blockRedirects alone keeps the row
+        store.setSitePrefs(SitePrefs(host = "redirect.test", blockRedirects = false))
+        val read = store.sitePrefs("redirect.test")
+        assertNotNull(read)
+        assertEquals(false, read?.blockRedirects)
+        assertNull(read?.adblock)
+        assertEquals(1, store.allSitePrefs().size)
+
+        // Setting null with other fields null -> row deleted
+        store.setSitePrefs(SitePrefs(host = "redirect.test", blockRedirects = null))
+        assertNull(store.sitePrefs("redirect.test"))
+        assertTrue(store.allSitePrefs().isEmpty())
+
+        store.close()
+    }
+
+    @Test
+    fun testMigrationV6ToV7AddsBlockRedirectsColumnKeepsRows() = runTest {
+        val dbFile = tempFolder.newFile("legacy_v6.db")
+        val rawConn = BundledSQLiteDriver().open(dbFile.absolutePath)
+        rawConn.execSQL("PRAGMA user_version = 6;")
+        rawConn.execSQL(
+            "CREATE TABLE site_prefs (host TEXT PRIMARY KEY, adblock INTEGER, popups INTEGER, javascript INTEGER, " +
+                "desktop INTEGER, dark INTEGER, fix_site INTEGER, updated_at INTEGER NOT NULL) WITHOUT ROWID;"
+        )
+        rawConn.execSQL("INSERT INTO site_prefs (host, adblock, fix_site, updated_at) VALUES ('old.example', 0, 1, 1000);")
+        rawConn.close()
+
+        val store = UserStore(dbFile)
+        val old = store.sitePrefs("old.example")
+        assertNotNull(old)
+        assertEquals(false, old?.adblock)
+        assertEquals(true, old?.fixSite)
+        assertNull(old?.blockRedirects)
+
+        store.setSitePrefs(old!!.copy(blockRedirects = false))
+        assertEquals(false, store.sitePrefs("old.example")?.blockRedirects)
+        store.close()
+    }
+
+    @Test
     fun testMigrationFromOldSchemaWithoutExcludedColumn() = runTest {
         val dbFile = tempFolder.newFile("legacy_v1.db")
         val rawConn = BundledSQLiteDriver().open(dbFile.absolutePath)
@@ -899,7 +943,7 @@ class UserStoreTest {
         store.withConnection { conn ->
             conn.prepare("PRAGMA user_version;").use { stmt ->
                 assertTrue(stmt.step())
-                assertEquals(6L, stmt.getLong(0))
+                assertEquals(7L, stmt.getLong(0))
             }
         }
         store.close()
@@ -1159,7 +1203,7 @@ class UserStoreTest {
         store.withConnection { conn ->
             conn.prepare("PRAGMA user_version;").use { stmt ->
                 assertTrue(stmt.step())
-                assertEquals(6L, stmt.getLong(0))
+                assertEquals(7L, stmt.getLong(0))
             }
         }
         store.close()
@@ -1230,7 +1274,7 @@ class UserStoreTest {
         store.withConnection { conn ->
             conn.prepare("PRAGMA user_version;").use { stmt ->
                 assertTrue(stmt.step())
-                assertEquals(6L, stmt.getLong(0))
+                assertEquals(7L, stmt.getLong(0))
             }
         }
         store.close()
@@ -1292,7 +1336,7 @@ class UserStoreTest {
         store.withConnection { conn ->
             conn.prepare("PRAGMA user_version;").use { stmt ->
                 assertTrue(stmt.step())
-                assertEquals(6L, stmt.getLong(0))
+                assertEquals(7L, stmt.getLong(0))
             }
         }
         store.close()

@@ -90,6 +90,11 @@ data class BrowserSnackbarEvent(
     val onAction: (() -> Unit)? = null
 )
 
+data class BlockedNoticeEvent(
+    val tabId: Long,
+    val entry: BlockedEntry,
+)
+
 data class ExternalAppDialogState(
     val intent: Intent,
     val appName: String,
@@ -97,6 +102,11 @@ data class ExternalAppDialogState(
 )
 
 interface BrowserHooks {
+    val blockedFlow: MutableSharedFlow<BlockedNoticeEvent> get() = MutableSharedFlow(extraBufferCapacity = 10)
+    val tabNoticeFlow: MutableSharedFlow<TabNotice> get() = MutableSharedFlow(extraBufferCapacity = 10)
+    val tabPulseFlow: MutableSharedFlow<Unit> get() = MutableSharedFlow(extraBufferCapacity = 1)
+    val blockedClearFlow: MutableSharedFlow<Long> get() = MutableSharedFlow(extraBufferCapacity = 10)
+
     fun onMainFrameError(tab: TabState, errorCode: Int, description: String, failingUrl: String) {}
     fun onMainFrameHttpError(tab: TabState, statusCode: Int, failingUrl: String) {}
     fun handleCreateWindow(
@@ -147,6 +157,18 @@ class DefaultBrowserHooks(
     }
 
     val snackbarFlow = MutableSharedFlow<BrowserSnackbarEvent>(extraBufferCapacity = 10)
+    override val blockedFlow = MutableSharedFlow<BlockedNoticeEvent>(extraBufferCapacity = 10)
+    override val tabNoticeFlow = MutableSharedFlow<TabNotice>(extraBufferCapacity = 10)
+    override val tabPulseFlow = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    override val blockedClearFlow = MutableSharedFlow<Long>(extraBufferCapacity = 10)
+    private val tabMerge = BackgroundTabMerge()
+
+    fun updateSitePrefs(tab: TabState, reload: Boolean = false, update: (SitePrefs) -> SitePrefs) {
+        val host = try { Uri.parse(tab.url).host.orEmpty() } catch (_: Exception) { "" }
+        if (host.isNotEmpty()) {
+            tabManager?.updateSitePrefs(tab.id, host, reload = reload, update = update)
+        }
+    }
     var pendingDownload by mutableStateOf<DownloadOffer?>(null)
     val downloadStarted = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     private var appContext: Context? = null
@@ -178,7 +200,24 @@ class DefaultBrowserHooks(
     ): Boolean {
         if (resultMsg == null) return false
         val transport = resultMsg.obj as? WebView.WebViewTransport ?: return false
-        if (livePopupCount.get() >= 3) return false
+        if (livePopupCount.get() >= 3) {
+            tabManager?.incrementBlocked(tab.id)
+            blockedFlow.tryEmit(
+                BlockedNoticeEvent(
+                    tabId = tab.id,
+                    entry = BlockedEntry(
+                        kind = BlockedKind.POPUP,
+                        host = null,
+                        targetUrl = "",
+                        actionLabel = "Open",
+                        onAction = {},
+                        onAlwaysAllow = null,
+                        actionable = false,
+                    )
+                )
+            )
+            return false
+        }
 
         livePopupCount.incrementAndGet()
         val tempWebView = WebView(context)
@@ -239,25 +278,46 @@ class DefaultBrowserHooks(
 
                 when (decision) {
                     is PopupDecision.Allow -> {
-                        tabManager?.openTab(
+                        val newTabId = tabManager?.openTab(
                             url = targetUrl,
                             isPrivate = tab.isPrivate,
                             select = !decision.isBackground,
                         )
+                        if (decision.isBackground && newTabId != null) {
+                            val n = tabMerge.record(newTabId, System.currentTimeMillis())
+                            tabNoticeFlow.tryEmit(n)
+                            tabPulseFlow.tryEmit(Unit)
+                        }
                     }
                     is PopupDecision.Block -> {
                         tabManager?.incrementBlocked(tab.id)
-                        snackbarFlow.tryEmit(
-                            BrowserSnackbarEvent(
-                                message = "Pop-up blocked",
-                                actionLabel = "Open",
-                                onAction = {
-                                    tabManager?.openTab(
-                                        url = targetUrl,
-                                        isPrivate = tab.isPrivate,
-                                        select = true,
-                                    )
-                                }
+                        val host = try { Uri.parse(targetUrl).host } catch (_: Exception) { null }
+                        blockedFlow.tryEmit(
+                            BlockedNoticeEvent(
+                                tabId = tab.id,
+                                entry = BlockedEntry(
+                                    kind = BlockedKind.POPUP,
+                                    host = host,
+                                    targetUrl = targetUrl,
+                                    actionLabel = "Open",
+                                    onAction = {
+                                        tabManager?.openTab(
+                                            url = targetUrl,
+                                            isPrivate = tab.isPrivate,
+                                            select = true,
+                                        )
+                                    },
+                                    onAlwaysAllow = {
+                                        updateSitePrefs(tab, reload = false) {
+                                            it.copy(popups = SitePopupPref.toStored(false))
+                                        }
+                                        tabManager?.openTab(
+                                            url = targetUrl,
+                                            isPrivate = tab.isPrivate,
+                                            select = true,
+                                        )
+                                    },
+                                )
                             )
                         )
                     }
@@ -301,7 +361,7 @@ class DefaultBrowserHooks(
             hasGesture = request.hasGesture(),
             isRedirect = request.isRedirect,
             isFirstLoad = record?.hasStartedFirstLoad != true,
-            redirectGuardEnabled = protectionPrefs.redirectGuard,
+            redirectGuardEnabled = SiteRedirectPref.effective(tab.sitePrefs?.blockRedirects, protectionPrefs.redirectGuard),
             blockAppLinksEnabled = protectionPrefs.blockAppLinks,
             isAllowedOnce = isAllowedOnce,
         )
@@ -309,13 +369,19 @@ class DefaultBrowserHooks(
         when (decision) {
             is RedirectDecision.BlockJavascript -> return true
             is RedirectDecision.BlockAppLink -> {
-                snackbarFlow.tryEmit(
-                    BrowserSnackbarEvent(
-                        message = "Blocked a link that opens an app",
-                        actionLabel = "Open",
-                        onAction = {
-                            openAppLink(context, decision.url, decision.fallbackUrl, tab.id)
-                        }
+                blockedFlow.tryEmit(
+                    BlockedNoticeEvent(
+                        tabId = tab.id,
+                        entry = BlockedEntry(
+                            kind = BlockedKind.APP_LINK,
+                            host = null,
+                            targetUrl = decision.url,
+                            actionLabel = "Open",
+                            onAction = {
+                                openAppLink(context, decision.url, decision.fallbackUrl, tab.id)
+                            },
+                            onAlwaysAllow = null,
+                        )
                     )
                 )
                 return true
@@ -337,14 +403,26 @@ class DefaultBrowserHooks(
                 return true
             }
             is RedirectDecision.BlockRedirect -> {
-                snackbarFlow.tryEmit(
-                    BrowserSnackbarEvent(
-                        message = "Blocked a redirect to ${decision.host}",
-                        actionLabel = "Allow",
-                        onAction = {
-                            tabManager?.allowUrlOnce(tab.id, decision.targetUrl)
-                            tabManager?.loadUrl(tab.id, decision.targetUrl)
-                        }
+                blockedFlow.tryEmit(
+                    BlockedNoticeEvent(
+                        tabId = tab.id,
+                        entry = BlockedEntry(
+                            kind = BlockedKind.REDIRECT,
+                            host = decision.host,
+                            targetUrl = decision.targetUrl,
+                            actionLabel = "Allow",
+                            onAction = {
+                                tabManager?.allowUrlOnce(tab.id, decision.targetUrl)
+                                tabManager?.loadUrl(tab.id, decision.targetUrl)
+                            },
+                            onAlwaysAllow = {
+                                updateSitePrefs(tab, reload = false) {
+                                    it.copy(blockRedirects = false)
+                                }
+                                tabManager?.allowUrlOnce(tab.id, decision.targetUrl)
+                                tabManager?.loadUrl(tab.id, decision.targetUrl)
+                            },
+                        )
                     )
                 )
                 return true
@@ -994,6 +1072,13 @@ class DefaultBrowserHooks(
     }
 
     fun onPageStarted(record: TabRecord, url: String) {
+        val newKey = url.substringBefore('#')
+        val prevKey = record.lastBlockedPageUrl?.substringBefore('#')
+        if (prevKey != newKey) {
+            record.lastBlockedPageUrl = url
+            blockedClearFlow.tryEmit(record.id)
+        }
+
         val browserPrefs = tabManager?.currentBrowserPrefs ?: BrowserPrefs()
         val protectionPrefs = tabManager?.currentProtectionPrefs ?: ProtectionPrefs()
         val host = try { Uri.parse(url).host } catch (_: Exception) { null }

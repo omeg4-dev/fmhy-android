@@ -117,3 +117,10 @@ object RedirectPolicy {
         return RedirectDecision.Allow
     }
 }
+
+object SiteRedirectPref {
+    fun effective(stored: Boolean?, global: Boolean): Boolean = stored ?: global
+
+    /** Short label for the site settings list. */
+    fun label(stored: Boolean): String = if (stored) "redirects blocked" else "redirects allowed"
+}

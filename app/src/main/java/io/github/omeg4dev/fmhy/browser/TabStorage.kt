@@ -54,6 +54,7 @@ class TabRecord(
     val allowedHosts: MutableSet<String> = mutableSetOf(),
     val dismissedSiteBarHosts: MutableSet<String> = mutableSetOf(),
     @Volatile var sourceUrl: String = url,
+    var lastBlockedPageUrl: String? = null,
     var webView: WebView? = null,
     var mutableContext: MutableContextWrapper? = null,
     var crashed: Boolean = false,

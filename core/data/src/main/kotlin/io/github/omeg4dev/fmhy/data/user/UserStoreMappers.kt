@@ -99,6 +99,11 @@ internal fun executeDefaultMigration(conn: SQLiteConnection, fromVersion: Int, t
             conn.execSQL("ALTER TABLE site_prefs ADD COLUMN fix_site INTEGER;")
         }
     }
+    if (fromVersion == 6 && toVersion == 7) {
+        if (tableExists(conn, "site_prefs") && !columnExists(conn, "site_prefs", "block_redirects")) {
+            conn.execSQL("ALTER TABLE site_prefs ADD COLUMN block_redirects INTEGER;")
+        }
+    }
 }
 
 internal fun readBookmarksInternal(conn: SQLiteConnection): List<UserBookmark> {
@@ -181,7 +186,8 @@ internal fun readSitePrefs(stmt: SQLiteStatement): SitePrefs {
         desktop = if (stmt.isNull(4)) null else stmt.getLong(4) != 0L,
         dark = if (stmt.isNull(5)) null else stmt.getLong(5) != 0L,
         fixSite = if (stmt.isNull(6)) null else stmt.getLong(6) != 0L,
-        updatedAt = stmt.getLong(7),
+        blockRedirects = if (stmt.isNull(7)) null else stmt.getLong(7) != 0L,
+        updatedAt = stmt.getLong(8),
     )
 }
 

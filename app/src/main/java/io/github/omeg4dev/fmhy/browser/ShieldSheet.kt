@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.AltRoute
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Check
@@ -55,6 +56,7 @@ fun ShieldSheet(
     protectionPrefs: ProtectionPrefs,
     browserPrefs: BrowserPrefs,
     isAppDark: Boolean,
+    redirectGuard: Boolean = protectionPrefs.redirectGuard,
     onDismiss: () -> Unit,
     onUpdateSitePref: (update: (io.github.omeg4dev.fmhy.data.user.SitePrefs) -> io.github.omeg4dev.fmhy.data.user.SitePrefs) -> Unit,
     onResetDefaults: () -> Unit,
@@ -72,6 +74,7 @@ fun ShieldSheet(
     val hasOverrides = sitePrefs != null && (
         sitePrefs.adblock != null ||
         sitePrefs.popups != null ||
+        sitePrefs.blockRedirects != null ||
         sitePrefs.javascript != null ||
         sitePrefs.desktop != null ||
         sitePrefs.dark != null ||
@@ -82,6 +85,7 @@ fun ShieldSheet(
     val fixOn = sitePrefs?.fixSite == true
     val adblockOn = !fixOn && (sitePrefs?.adblock ?: blockingPrefs.adblock)
     val popupsBlockerOn = SitePopupPref.blockSwitch(sitePrefs?.popups, protectionPrefs.popupBlocker)
+    val redirectsBlockerOn = SiteRedirectPref.effective(sitePrefs?.blockRedirects, redirectGuard)
     val jsOn = sitePrefs?.javascript ?: browserPrefs.javascript
     val desktopOn = sitePrefs?.desktop ?: (tab.desktopSite || browserPrefs.desktopByDefault)
     val darkOn = sitePrefs?.dark ?: (browserPrefs.forceDark && isAppDark)
@@ -163,6 +167,13 @@ fun ShieldSheet(
                 title = "Block pop-ups",
                 checked = popupsBlockerOn,
                 onChange = { v -> onUpdateSitePref { it.copy(popups = SitePopupPref.toStored(v)) } },
+            )
+
+            SwitchRow(
+                icon = Icons.AutoMirrored.Filled.AltRoute,
+                title = "Block redirects without a tap",
+                checked = redirectsBlockerOn,
+                onChange = { v -> onUpdateSitePref { it.copy(blockRedirects = v) } },
             )
 
             SwitchRow(

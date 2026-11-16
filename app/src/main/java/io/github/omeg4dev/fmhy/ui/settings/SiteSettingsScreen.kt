@@ -43,6 +43,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.omeg4dev.fmhy.browser.SitePopupPref
+import io.github.omeg4dev.fmhy.browser.SiteRedirectPref
 import io.github.omeg4dev.fmhy.data.BlockingPrefs
 import io.github.omeg4dev.fmhy.data.BrowserPrefs
 import io.github.omeg4dev.fmhy.data.ProtectionPrefs
@@ -118,6 +119,7 @@ fun SiteSettingsScreen(
                                 buildList {
                                     if (site.adblock != null) add(if (site.adblock == false) "ads allowed" else "ads blocked")
                                     site.popups?.let { add(SitePopupPref.label(it)) }
+                                    site.blockRedirects?.let { add(SiteRedirectPref.label(it)) }
                                     if (site.javascript != null) add(if (site.javascript == false) "JS off" else "JS on")
                                     if (site.desktop != null) add(if (site.desktop == true) "desktop UA" else "mobile UA")
                                     if (site.dark != null) add(if (site.dark == false) "light theme" else "dark theme")
@@ -170,6 +172,7 @@ fun SiteSettingsScreen(
         val site = editingSite!!
         var adblock by remember(site) { mutableStateOf(site.adblock ?: blockingPrefs.adblock) }
         var blockPopups by remember(site) { mutableStateOf(SitePopupPref.blockSwitch(site.popups, protectionPrefs.popupBlocker)) }
+        var blockRedirects by remember(site) { mutableStateOf(SiteRedirectPref.effective(site.blockRedirects, protectionPrefs.redirectGuard)) }
         var javascript by remember(site) { mutableStateOf(site.javascript ?: browserPrefs.javascript) }
         var desktop by remember(site) { mutableStateOf(site.desktop ?: browserPrefs.desktopByDefault) }
         var dark by remember(site) { mutableStateOf(site.dark ?: browserPrefs.forceDark) }
@@ -191,6 +194,11 @@ fun SiteSettingsScreen(
                         title = "Block pop-ups",
                         checked = blockPopups,
                         onChange = { blockPopups = it },
+                    )
+                    SwitchRow(
+                        title = "Block redirects without a tap",
+                        checked = blockRedirects,
+                        onChange = { blockRedirects = it },
                     )
                     SwitchRow(
                         title = "JavaScript",
@@ -215,6 +223,7 @@ fun SiteSettingsScreen(
                         val updated = site.copy(
                             adblock = adblock,
                             popups = SitePopupPref.toStored(blockPopups),
+                            blockRedirects = blockRedirects,
                             javascript = javascript,
                             desktop = desktop,
                             dark = dark,
