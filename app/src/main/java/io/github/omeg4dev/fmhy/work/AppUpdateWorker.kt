@@ -17,6 +17,7 @@ import io.github.omeg4dev.fmhy.BuildConfig
 import io.github.omeg4dev.fmhy.FmhyApp
 import io.github.omeg4dev.fmhy.MainActivity
 import io.github.omeg4dev.fmhy.R
+import io.github.omeg4dev.fmhy.update.EXTRA_SHOW_UPDATE
 import io.github.omeg4dev.fmhy.update.ReleaseParser
 import java.io.IOException
 import java.util.concurrent.TimeUnit
@@ -78,13 +79,28 @@ class AppUpdateWorker(
 
         when (decision) {
             is AppUpdateDecision.NoUpdate -> {
-                container.settingsRepository.updateUpdatePrefs { it.copy(knownAvailable = null) }
+                container.settingsRepository.updateUpdatePrefs {
+                    it.copy(
+                        knownAvailable = null,
+                        knownRelease = null,
+                    )
+                }
             }
             is AppUpdateDecision.UpdateKnown -> {
-                container.settingsRepository.updateUpdatePrefs { it.copy(knownAvailable = decision.version) }
+                container.settingsRepository.updateUpdatePrefs {
+                    it.copy(
+                        knownAvailable = decision.version,
+                        knownRelease = release,
+                    )
+                }
             }
             is AppUpdateDecision.Notify -> {
-                container.settingsRepository.updateUpdatePrefs { it.copy(knownAvailable = decision.version) }
+                container.settingsRepository.updateUpdatePrefs {
+                    it.copy(
+                        knownAvailable = decision.version,
+                        knownRelease = release,
+                    )
+                }
                 val permissionGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     ContextCompat.checkSelfPermission(
                         applicationContext,
@@ -95,7 +111,7 @@ class AppUpdateWorker(
                 }
 
                 if (prefs.notify && permissionGranted) {
-                    postNotification(applicationContext, decision.title, decision.text)
+                    postNotification(applicationContext, decision.version, decision.title, decision.text)
                     container.settingsRepository.updateUpdatePrefs { it.copy(notifiedVersion = decision.version) }
                 }
             }
@@ -104,7 +120,7 @@ class AppUpdateWorker(
         return Result.success()
     }
 
-    private fun postNotification(context: Context, title: String, text: String) {
+    private fun postNotification(context: Context, version: String, title: String, text: String) {
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
             ?: return
 
@@ -119,6 +135,7 @@ class AppUpdateWorker(
 
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(EXTRA_SHOW_UPDATE, version)
         }
         val pendingIntent = PendingIntent.getActivity(
             context,

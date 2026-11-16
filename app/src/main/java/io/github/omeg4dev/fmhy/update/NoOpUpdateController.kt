@@ -12,6 +12,7 @@ object NoOpUpdateController : UpdateController {
     override val needsInstallPermission: StateFlow<Boolean> = MutableStateFlow(false)
 
     override fun checkOnStartup() {}
+    override fun showKnownUpdate(version: String) {}
     override fun checkNow(overrideMobileData: Boolean) {}
     override fun install(overrideMobileData: Boolean) {}
     override fun retry() {}

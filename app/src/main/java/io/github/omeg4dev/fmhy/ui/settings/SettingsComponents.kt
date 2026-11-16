@@ -280,6 +280,7 @@ fun InfoRow(
     icon: ImageVector? = null,
     modifier: Modifier = Modifier,
     settingId: String? = null,
+    trailing: (@Composable () -> Unit)? = null,
 ) {
     ListItem(
         headlineContent = { Text(title, style = MaterialTheme.typography.bodyLarge) },
@@ -291,6 +292,7 @@ fun InfoRow(
             )
         },
         leadingContent = icon?.let { { RowIcon(icon = it) } },
+        trailingContent = trailing,
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
         modifier = modifier
             .settingHighlight(settingId)

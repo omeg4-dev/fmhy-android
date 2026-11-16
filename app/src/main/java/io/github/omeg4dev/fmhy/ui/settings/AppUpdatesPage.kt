@@ -229,6 +229,13 @@ fun AppUpdatesPage(
                             title = eSkippedVersion.title,
                             value = updatePrefs.skippedVersion ?: "None",
                             settingId = eSkippedVersion.id,
+                            trailing = if (updatePrefs.skippedVersion != null) {
+                                {
+                                    TextButton(onClick = { viewModel.updateUpdatePrefs { it.copy(skippedVersion = null) } }) {
+                                        Text("Clear")
+                                    }
+                                }
+                            } else null,
                         )
                     }
                 }

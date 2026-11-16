@@ -1,6 +1,7 @@
 package io.github.omeg4dev.fmhy.update
 
 import io.github.omeg4dev.fmhy.data.UpdateCheckInterval
+import io.github.omeg4dev.fmhy.data.UpdatePrefs
 import io.github.omeg4dev.fmhy.work.NetworkKind
 import io.github.omeg4dev.fmhy.work.NetworkPolicy
 
@@ -16,20 +17,39 @@ object UpdateCheckPolicy {
     /**
      * Determines whether an automatic update check should run on app startup.
      */
-    fun shouldCheckOnStartup(
-        autoCheck: Boolean,
-        lastCheckMs: Long,
-        nowMs: Long,
-        interval: UpdateCheckInterval,
-        knownAvailable: String?,
-        installed: String,
-        skipped: String?,
-        laterUntilMs: Long,
-    ): Boolean {
-        if (!autoCheck) return false
-        if (lastCheckMs <= 0L || lastCheckMs > nowMs) return true
-        if (nowMs - lastCheckMs >= intervalMs(interval)) return true
-        return knownAvailable != null && shouldShowPrompt(knownAvailable, installed, skipped, laterUntilMs, nowMs)
+    fun shouldCheckOnStartup(autoCheck: Boolean): Boolean = autoCheck
+
+    /**
+     * Returns the pending release to show immediately at app startup, or null if prompts should be suppressed.
+     */
+    fun startupRelease(prefs: UpdatePrefs, installed: String, nowMs: Long): ReleaseInfo? {
+        if (!prefs.autoCheck) return null
+        val release = prefs.knownRelease ?: return null
+        return if (shouldShowPrompt(release.version, installed, prefs.skippedVersion, prefs.laterUntilMs, nowMs)) {
+            release
+        } else {
+            null
+        }
+    }
+
+    /**
+     * Returns the release matching a tapped update notification, or null if mismatched, not newer, or skipped.
+     */
+    fun tapRelease(prefs: UpdatePrefs, extraVersion: String?, installed: String): ReleaseInfo? {
+        val release = prefs.knownRelease ?: return null
+        val isSkipped = prefs.skippedVersion != null && (
+            release.version == prefs.skippedVersion ||
+                (ReleaseParser.parseVersion(prefs.skippedVersion) != null &&
+                    ReleaseParser.compareVersions(release.version, prefs.skippedVersion) == 0)
+        )
+        if (extraVersion != null &&
+            extraVersion == release.version &&
+            ReleaseParser.compareVersions(release.version, installed) > 0 &&
+            !isSkipped
+        ) {
+            return release
+        }
+        return null
     }
 
     fun shouldNotify(

@@ -15,6 +15,7 @@ import kotlinx.serialization.json.Json
  * @property apkSize File size in bytes of the APK asset, or 0 if absent.
  * @property pageUrl Web URL of the release on GitHub.
  */
+@Serializable
 data class ReleaseInfo(
     val version: String,
     val notes: String?,

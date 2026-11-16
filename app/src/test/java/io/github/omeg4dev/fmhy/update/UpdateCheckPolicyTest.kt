@@ -1,6 +1,7 @@
 package io.github.omeg4dev.fmhy.update
 
 import io.github.omeg4dev.fmhy.data.UpdateCheckInterval
+import io.github.omeg4dev.fmhy.data.UpdatePrefs
 import io.github.omeg4dev.fmhy.work.NetworkKind
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -10,149 +11,86 @@ import org.junit.Test
 
 class UpdateCheckPolicyTest {
 
+    private fun makeRelease(version: String = "1.1.0"): ReleaseInfo = ReleaseInfo(
+        version = version,
+        notes = "Notes for $version",
+        apkUrl = "https://example.com/app.apk",
+        apkSize = 1000L,
+        pageUrl = "https://example.com/release",
+    )
+
     @Test
-    fun shouldCheckOnStartup_timingAndConditions() {
-        val now = 100_000_000L
-        val interval = UpdateCheckInterval.H24
-        val intervalMs = UpdateCheckPolicy.intervalMs(interval)
-
-        // Auto-check disabled: never checks
-        assertFalse(UpdateCheckPolicy.shouldCheckOnStartup(autoCheck = false, lastCheckMs = 0L, nowMs = now, interval = interval, knownAvailable = null, installed = "1.0.0", skipped = null, laterUntilMs = 0L))
-        assertFalse(UpdateCheckPolicy.shouldCheckOnStartup(autoCheck = false, lastCheckMs = now - intervalMs * 5, nowMs = now, interval = interval, knownAvailable = null, installed = "1.0.0", skipped = null, laterUntilMs = 0L))
-        assertFalse(UpdateCheckPolicy.shouldCheckOnStartup(autoCheck = false, lastCheckMs = now + 1000L, nowMs = now, interval = interval, knownAvailable = null, installed = "1.0.0", skipped = null, laterUntilMs = 0L))
-
-        // First run (lastCheck <= 0): due
-        assertTrue(UpdateCheckPolicy.shouldCheckOnStartup(autoCheck = true, lastCheckMs = 0L, nowMs = now, interval = interval, knownAvailable = null, installed = "1.0.0", skipped = null, laterUntilMs = 0L))
-        assertTrue(UpdateCheckPolicy.shouldCheckOnStartup(autoCheck = true, lastCheckMs = -1L, nowMs = now, interval = interval, knownAvailable = null, installed = "1.0.0", skipped = null, laterUntilMs = 0L))
-
-        // Clock backwards: due
-        assertTrue(UpdateCheckPolicy.shouldCheckOnStartup(autoCheck = true, lastCheckMs = now + 5000L, nowMs = now, interval = interval, knownAvailable = null, installed = "1.0.0", skipped = null, laterUntilMs = 0L))
-
-        // Exactly 24h: due
-        val exactly24hAgo = now - intervalMs
-        assertTrue(UpdateCheckPolicy.shouldCheckOnStartup(autoCheck = true, lastCheckMs = exactly24hAgo, nowMs = now, interval = interval, knownAvailable = null, installed = "1.0.0", skipped = null, laterUntilMs = 0L))
-
-        // 23h 59m: not due
-        val twentyThreeHours59mAgo = now - intervalMs + 60_000L
-        assertFalse(UpdateCheckPolicy.shouldCheckOnStartup(autoCheck = true, lastCheckMs = twentyThreeHours59mAgo, nowMs = now, interval = interval, knownAvailable = null, installed = "1.0.0", skipped = null, laterUntilMs = 0L))
-
-        // 25h: due
-        val twentyFiveHoursAgo = now - intervalMs - 3_600_000L
-        assertTrue(UpdateCheckPolicy.shouldCheckOnStartup(autoCheck = true, lastCheckMs = twentyFiveHoursAgo, nowMs = now, interval = interval, knownAvailable = null, installed = "1.0.0", skipped = null, laterUntilMs = 0L))
+    fun shouldCheckOnStartup_evaluatesAutoCheck() {
+        assertTrue(UpdateCheckPolicy.shouldCheckOnStartup(autoCheck = true))
+        assertFalse(UpdateCheckPolicy.shouldCheckOnStartup(autoCheck = false))
     }
 
     @Test
-    fun shouldCheckOnStartup_perIntervalThresholds() {
-        val now = 10_000_000_000L
-        for (interval in UpdateCheckInterval.entries) {
-            val ms = UpdateCheckPolicy.intervalMs(interval)
-            assertEquals(interval.hours * 3_600_000L, ms)
+    fun startupRelease_evaluatesConditions() {
+        val now = 1_000_000_000L
+        val release = makeRelease("1.1.0")
+        val basePrefs = UpdatePrefs(
+            autoCheck = true,
+            knownRelease = release,
+            skippedVersion = null,
+            laterUntilMs = 0L,
+        )
 
-            // Exactly interval - 1 ms: false (when no knownAvailable)
-            assertFalse(
-                UpdateCheckPolicy.shouldCheckOnStartup(
-                    autoCheck = true,
-                    lastCheckMs = now - ms + 1L,
-                    nowMs = now,
-                    interval = interval,
-                    knownAvailable = null,
-                    installed = "1.0.0",
-                    skipped = null,
-                    laterUntilMs = 0L,
-                )
-            )
+        // Known newer + not snoozed + not skipped -> that release
+        assertEquals(release, UpdateCheckPolicy.startupRelease(basePrefs, installed = "1.0.0", nowMs = now))
 
-            // Exactly interval: true
-            assertTrue(
-                UpdateCheckPolicy.shouldCheckOnStartup(
-                    autoCheck = true,
-                    lastCheckMs = now - ms,
-                    nowMs = now,
-                    interval = interval,
-                    knownAvailable = null,
-                    installed = "1.0.0",
-                    skipped = null,
-                    laterUntilMs = 0L,
-                )
-            )
-        }
+        // Snoozed -> null
+        val snoozedPrefs = basePrefs.copy(laterUntilMs = now + 10_000L)
+        assertNull(UpdateCheckPolicy.startupRelease(snoozedPrefs, installed = "1.0.0", nowMs = now))
+
+        // Later expired -> release
+        val expiredLaterPrefs = basePrefs.copy(laterUntilMs = now - 1L)
+        assertEquals(release, UpdateCheckPolicy.startupRelease(expiredLaterPrefs, installed = "1.0.0", nowMs = now))
+
+        // Skipped version -> null
+        val skippedPrefs = basePrefs.copy(skippedVersion = "1.1.0")
+        assertNull(UpdateCheckPolicy.startupRelease(skippedPrefs, installed = "1.0.0", nowMs = now))
+
+        // Not newer -> null
+        assertNull(UpdateCheckPolicy.startupRelease(basePrefs, installed = "1.1.0", nowMs = now))
+        assertNull(UpdateCheckPolicy.startupRelease(basePrefs, installed = "1.2.0", nowMs = now))
+
+        // AutoCheck off -> null
+        val autoCheckOffPrefs = basePrefs.copy(autoCheck = false)
+        assertNull(UpdateCheckPolicy.startupRelease(autoCheckOffPrefs, installed = "1.0.0", nowMs = now))
+
+        // KnownRelease null -> null
+        val nullReleasePrefs = basePrefs.copy(knownRelease = null)
+        assertNull(UpdateCheckPolicy.startupRelease(nullReleasePrefs, installed = "1.0.0", nowMs = now))
     }
 
     @Test
-    fun shouldCheckOnStartup_insideIntervalWithKnownAvailable() {
-        val now = 500_000_000L
-        val interval = UpdateCheckInterval.H24
-        val insideIntervalLastCheck = now - 10_000L // checked 10s ago
-
-        // Inside interval when knownAvailable is newer and not skipped/snoozed -> true
-        assertTrue(
-            UpdateCheckPolicy.shouldCheckOnStartup(
-                autoCheck = true,
-                lastCheckMs = insideIntervalLastCheck,
-                nowMs = now,
-                interval = interval,
-                knownAvailable = "1.1.0",
-                installed = "1.0.0",
-                skipped = null,
-                laterUntilMs = 0L,
-            )
+    fun tapRelease_evaluatesConditions() {
+        val now = 1_000_000_000L
+        val release = makeRelease("1.1.0")
+        val basePrefs = UpdatePrefs(
+            autoCheck = false,
+            knownRelease = release,
+            skippedVersion = null,
+            laterUntilMs = now + 10_000L,
         )
 
-        // False when skipped
-        assertFalse(
-            UpdateCheckPolicy.shouldCheckOnStartup(
-                autoCheck = true,
-                lastCheckMs = insideIntervalLastCheck,
-                nowMs = now,
-                interval = interval,
-                knownAvailable = "1.1.0",
-                installed = "1.0.0",
-                skipped = "1.1.0",
-                laterUntilMs = 0L,
-            )
-        )
+        // Matches while snoozed -> release
+        assertEquals(release, UpdateCheckPolicy.tapRelease(basePrefs, extraVersion = "1.1.0", installed = "1.0.0"))
 
-        // False when snoozed (laterUntilMs > now)
-        assertFalse(
-            UpdateCheckPolicy.shouldCheckOnStartup(
-                autoCheck = true,
-                lastCheckMs = insideIntervalLastCheck,
-                nowMs = now,
-                interval = interval,
-                knownAvailable = "1.1.0",
-                installed = "1.0.0",
-                skipped = null,
-                laterUntilMs = now + 10_000L,
-            )
-        )
+        // Skipped -> null
+        val skippedPrefs = basePrefs.copy(skippedVersion = "1.1.0")
+        assertNull(UpdateCheckPolicy.tapRelease(skippedPrefs, extraVersion = "1.1.0", installed = "1.0.0"))
 
-        // False when knownAvailable equals installed
-        assertFalse(
-            UpdateCheckPolicy.shouldCheckOnStartup(
-                autoCheck = true,
-                lastCheckMs = insideIntervalLastCheck,
-                nowMs = now,
-                interval = interval,
-                knownAvailable = "1.0.0",
-                installed = "1.0.0",
-                skipped = null,
-                laterUntilMs = 0L,
-            )
-        )
+        // Version mismatch -> null
+        assertNull(UpdateCheckPolicy.tapRelease(basePrefs, extraVersion = "1.2.0", installed = "1.0.0"))
 
-        // False when !autoCheck even with newer knownAvailable
-        assertFalse(
-            UpdateCheckPolicy.shouldCheckOnStartup(
-                autoCheck = false,
-                lastCheckMs = insideIntervalLastCheck,
-                nowMs = now,
-                interval = interval,
-                knownAvailable = "1.1.0",
-                installed = "1.0.0",
-                skipped = null,
-                laterUntilMs = 0L,
-            )
-        )
+        // Extra null -> null
+        assertNull(UpdateCheckPolicy.tapRelease(basePrefs, extraVersion = null, installed = "1.0.0"))
+
+        // Not newer -> null
+        assertNull(UpdateCheckPolicy.tapRelease(basePrefs, extraVersion = "1.1.0", installed = "1.1.0"))
+        assertNull(UpdateCheckPolicy.tapRelease(basePrefs, extraVersion = "1.1.0", installed = "1.2.0"))
     }
 
     @Test

@@ -15,9 +15,11 @@ import androidx.datastore.preferences.preferencesDataStore
 import io.github.omeg4dev.fmhy.data.adblock.FilterListCatalog
 import io.github.omeg4dev.fmhy.nav.BottomBarStyle
 import io.github.omeg4dev.fmhy.ui.home.HomeLayout
+import io.github.omeg4dev.fmhy.update.ReleaseInfo
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "fmhy_settings")
@@ -235,6 +237,7 @@ class DefaultSettingsRepository(
         private val KEY_UPDATE_SKIPPED_VERSION = stringPreferencesKey("update_skipped_version")
         private val KEY_UPDATE_INSTALL_EXPLAINED = booleanPreferencesKey("update_install_explained")
         private val KEY_UPDATE_KNOWN_AVAILABLE = stringPreferencesKey("update_known_available")
+        private val KEY_UPDATE_KNOWN_RELEASE = stringPreferencesKey("update_known_release")
         private val KEY_UPDATE_NOTIFY = booleanPreferencesKey("update_notify")
         private val KEY_UPDATE_INTERVAL = stringPreferencesKey("update_interval")
         private val KEY_UPDATE_NOTIFIED_VERSION = stringPreferencesKey("update_notified_version")
@@ -794,6 +797,9 @@ class DefaultSettingsRepository(
     private fun readUpdatePrefs(prefs: Preferences): UpdatePrefs {
         val default = UpdatePrefs()
         val interval = parseUpdateCheckInterval(prefs[KEY_UPDATE_INTERVAL], default.interval)
+        val knownRelease = prefs[KEY_UPDATE_KNOWN_RELEASE]?.let { raw ->
+            runCatching { json.decodeFromString<ReleaseInfo>(raw) }.getOrNull()
+        }
         return UpdatePrefs(
             autoCheck = prefs[KEY_UPDATE_AUTO_CHECK] ?: default.autoCheck,
             lastCheckMs = prefs[KEY_UPDATE_LAST_CHECK_MS] ?: default.lastCheckMs,
@@ -801,6 +807,7 @@ class DefaultSettingsRepository(
             skippedVersion = prefs[KEY_UPDATE_SKIPPED_VERSION] ?: default.skippedVersion,
             installExplained = prefs[KEY_UPDATE_INSTALL_EXPLAINED] ?: default.installExplained,
             knownAvailable = prefs[KEY_UPDATE_KNOWN_AVAILABLE] ?: default.knownAvailable,
+            knownRelease = knownRelease,
             notify = prefs[KEY_UPDATE_NOTIFY] ?: default.notify,
             interval = interval,
             notifiedVersion = prefs[KEY_UPDATE_NOTIFIED_VERSION] ?: default.notifiedVersion,
@@ -821,6 +828,11 @@ class DefaultSettingsRepository(
             prefs[KEY_UPDATE_KNOWN_AVAILABLE] = p.knownAvailable
         } else {
             prefs.remove(KEY_UPDATE_KNOWN_AVAILABLE)
+        }
+        if (p.knownRelease != null) {
+            prefs[KEY_UPDATE_KNOWN_RELEASE] = json.encodeToString(p.knownRelease)
+        } else {
+            prefs.remove(KEY_UPDATE_KNOWN_RELEASE)
         }
         prefs[KEY_UPDATE_NOTIFY] = p.notify
         prefs[KEY_UPDATE_INTERVAL] = p.interval.name

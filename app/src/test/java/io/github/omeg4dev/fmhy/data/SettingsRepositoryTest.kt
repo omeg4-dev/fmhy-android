@@ -8,6 +8,7 @@ import io.github.omeg4dev.fmhy.data.adblock.FilterListCatalog
 import io.github.omeg4dev.fmhy.nav.BottomBarStyle
 import io.github.omeg4dev.fmhy.ui.home.HomeBlock
 import io.github.omeg4dev.fmhy.ui.home.HomeLayout
+import io.github.omeg4dev.fmhy.update.ReleaseInfo
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestScope
@@ -447,6 +448,15 @@ class SettingsRepositoryTest {
         assertEquals(true, defaultPrefs.notify)
         assertEquals(UpdateCheckInterval.H12, defaultPrefs.interval)
         assertNull(defaultPrefs.notifiedVersion)
+        assertNull(defaultPrefs.knownRelease)
+
+        val release = ReleaseInfo(
+            version = "0.7.0",
+            notes = "Test notes",
+            apkUrl = "https://example.com/app.apk",
+            apkSize = 123456L,
+            pageUrl = "https://example.com/releases/0.7.0",
+        )
 
         val expected = UpdatePrefs(
             autoCheck = false,
@@ -455,6 +465,7 @@ class SettingsRepositoryTest {
             skippedVersion = "0.6.0",
             installExplained = true,
             knownAvailable = "0.7.0",
+            knownRelease = release,
             notify = false,
             interval = UpdateCheckInterval.WEEK,
             notifiedVersion = "1.2.0",
@@ -462,10 +473,25 @@ class SettingsRepositoryTest {
         repo.updateUpdatePrefs { expected }
         assertEquals(expected, repo.updatePrefs.first())
 
-        // Test clearing skippedVersion, knownAvailable, and notifiedVersion (null values)
-        repo.updateUpdatePrefs { it.copy(skippedVersion = null, knownAvailable = null, notifiedVersion = null) }
+        // Test clearing skippedVersion, knownAvailable, knownRelease, and notifiedVersion (null values)
+        repo.updateUpdatePrefs {
+            it.copy(
+                skippedVersion = null,
+                knownAvailable = null,
+                knownRelease = null,
+                notifiedVersion = null,
+            )
+        }
         val cleared = repo.updatePrefs.first()
-        assertEquals(expected.copy(skippedVersion = null, knownAvailable = null, notifiedVersion = null), cleared)
+        assertEquals(
+            expected.copy(
+                skippedVersion = null,
+                knownAvailable = null,
+                knownRelease = null,
+                notifiedVersion = null,
+            ),
+            cleared,
+        )
     }
 
     @Test

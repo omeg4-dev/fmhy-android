@@ -827,7 +827,7 @@ object SettingsCatalog {
         id = "app_updates.interval",
         page = SettingsPage.APP_UPDATES,
         title = "Check frequency",
-        description = "How often to look for new app versions (6 hours, 12 hours, daily or weekly)",
+        description = "How often the background check looks for new app versions (6 hours, 12 hours, daily or weekly). The app also checks at every start",
         keywords = listOf("frequency", "interval", "hours", "daily", "weekly", "check", "background"),
     )
     val appUpdatesCheckNow = SettingEntry(

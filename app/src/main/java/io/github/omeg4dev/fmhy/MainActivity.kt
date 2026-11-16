@@ -30,6 +30,7 @@ import io.github.omeg4dev.fmhy.di.AppContainer
 import io.github.omeg4dev.fmhy.theme.FMHYTheme
 import io.github.omeg4dev.fmhy.ui.common.GesturePrefs
 import io.github.omeg4dev.fmhy.ui.common.SectionNamePrefs
+import io.github.omeg4dev.fmhy.update.EXTRA_SHOW_UPDATE
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
@@ -112,6 +113,13 @@ class MainActivity : ComponentActivity() {
         if (intent == null) return
         if (BuildConfig.DEBUG && intent.hasExtra("debug_tracker_url")) {
             container.debugTrackerUrl = intent.getStringExtra("debug_tracker_url")
+        }
+        if (container.updateController.enabled) {
+            val showUpdate = intent.getStringExtra(EXTRA_SHOW_UPDATE)
+            if (showUpdate != null) {
+                container.updateController.showKnownUpdate(showUpdate)
+                intent.removeExtra(EXTRA_SHOW_UPDATE)
+            }
         }
         // `open` extras (launcher shortcuts, widget taps) are routed in MainNavigation's intentFlow collector,
         // which is replayed on cold start; see shortcutDestination().

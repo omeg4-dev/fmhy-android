@@ -62,6 +62,9 @@ class UpdateControllerImpl(
     private var pendingMobileAction: (() -> Unit)? = null
     private var isWaitingForInstallPermission = false
 
+    /** An automatic check was skipped (Wi-Fi only, on mobile data): run it once Wi-Fi is back. No card is shown. */
+    @Volatile private var autoCheckWaitingForWifi = false
+
     private var currentRelease: ReleaseInfo? = null
     private var currentApkFile: File? = null
 
@@ -76,7 +79,7 @@ class UpdateControllerImpl(
                 _availableVersion.value = prefs.knownAvailable
             } else if (prefs.knownAvailable != null) {
                 _availableVersion.value = null
-                settingsRepository.updateUpdatePrefs { it.copy(knownAvailable = null) }
+                settingsRepository.updateUpdatePrefs { it.copy(knownAvailable = null, knownRelease = null) }
             }
         }
 
@@ -88,8 +91,11 @@ class UpdateControllerImpl(
                 kind to dataUsage.appDataWifiOnly
             }.collect { (kind, wifiOnly) ->
                 val currentState = _state.value
-                if (currentState is UpdateState.WaitingForWifi) {
-                    val allowed = NetworkPolicy.allowed(switchOn = wifiOnly, kind = kind, overrideThisTime = false)
+                val allowed = NetworkPolicy.allowed(switchOn = wifiOnly, kind = kind, overrideThisTime = false)
+                if (allowed && autoCheckWaitingForWifi) {
+                    autoCheckWaitingForWifi = false
+                    checkInternal(manual = false, overrideMobileData = false)
+                } else if (currentState is UpdateState.WaitingForWifi) {
                     if (allowed) {
                         if (currentState.release != null) {
                             startDownload(currentState.release)
@@ -124,18 +130,28 @@ class UpdateControllerImpl(
         appScope.launch {
             val prefs = settingsRepository.updatePrefs.first()
             val now = System.currentTimeMillis()
-            if (UpdateCheckPolicy.shouldCheckOnStartup(
-                    autoCheck = prefs.autoCheck,
-                    lastCheckMs = prefs.lastCheckMs,
-                    nowMs = now,
-                    interval = prefs.interval,
-                    knownAvailable = prefs.knownAvailable,
-                    installed = BuildConfig.VERSION_NAME,
-                    skipped = prefs.skippedVersion,
-                    laterUntilMs = prefs.laterUntilMs,
-                )
-            ) {
+            val release = UpdateCheckPolicy.startupRelease(prefs, BuildConfig.VERSION_NAME, now)
+            if (release != null && _state.value is UpdateState.Idle) {
+                _state.value = UpdateState.Available(release)
+                currentRelease = release
+            }
+            if (UpdateCheckPolicy.shouldCheckOnStartup(prefs.autoCheck)) {
                 checkInternal(manual = false, overrideMobileData = false)
+            }
+        }
+    }
+
+    override fun showKnownUpdate(version: String) {
+        appScope.launch {
+            val prefs = settingsRepository.updatePrefs.first()
+            val release = UpdateCheckPolicy.tapRelease(prefs, version, BuildConfig.VERSION_NAME) ?: return@launch
+            val currentState = _state.value
+            if (currentState is UpdateState.Idle ||
+                currentState is UpdateState.Available ||
+                (currentState is UpdateState.Checking && !currentState.manual)
+            ) {
+                _state.value = UpdateState.Available(release)
+                currentRelease = release
             }
         }
     }
@@ -164,13 +180,16 @@ class UpdateControllerImpl(
                     return@launch
                 }
                 UpdateCheckPolicy.NetworkDecision.WAIT_FOR_WIFI -> {
-                    _state.value = UpdateState.WaitingForWifi(null)
+                    // Silent: showing "Waiting for Wi-Fi" at every launch on mobile data is noise.
+                    autoCheckWaitingForWifi = true
                     return@launch
                 }
                 UpdateCheckPolicy.NetworkDecision.PROCEED -> {}
             }
 
-            _state.value = UpdateState.Checking(manual = manual)
+            if (manual || _state.value !is UpdateState.Available) {
+                _state.value = UpdateState.Checking(manual = manual)
+            }
 
             val client = okHttpClient.newBuilder()
                 .callTimeout(15, TimeUnit.SECONDS)
@@ -206,7 +225,12 @@ class UpdateControllerImpl(
                     val isNewer = ReleaseParser.compareVersions(release.version, installed) > 0
 
                     if (isNewer) {
-                        settingsRepository.updateUpdatePrefs { it.copy(knownAvailable = release.version) }
+                        settingsRepository.updateUpdatePrefs {
+                            it.copy(
+                                knownAvailable = release.version,
+                                knownRelease = release,
+                            )
+                        }
                         _availableVersion.value = release.version
 
                         val prefs = settingsRepository.updatePrefs.first()
@@ -217,13 +241,21 @@ class UpdateControllerImpl(
                             laterUntilMs = prefs.laterUntilMs,
                             nowMs = now,
                         )
-                        if (shouldPrompt) {
+                        // A card already on screen (from launch or a notification tap) stays, even if snoozed.
+                        val shown = _state.value
+                        val keepAvailable = !manual && shown is UpdateState.Available && shown.release.version == release.version
+                        if (shouldPrompt || keepAvailable) {
                             _state.value = UpdateState.Available(release)
                         } else {
                             _state.value = UpdateState.Idle
                         }
                     } else {
-                        settingsRepository.updateUpdatePrefs { it.copy(knownAvailable = null) }
+                        settingsRepository.updateUpdatePrefs {
+                            it.copy(
+                                knownAvailable = null,
+                                knownRelease = null,
+                            )
+                        }
                         _availableVersion.value = null
                         if (manual) {
                             _state.value = UpdateState.UpToDate(manual = true)
@@ -244,7 +276,9 @@ class UpdateControllerImpl(
         if (manual) {
             _state.value = UpdateState.CheckFailed("Couldn't check for updates. Try again later.")
         } else {
-            _state.value = UpdateState.Idle
+            if (_state.value !is UpdateState.Available) {
+                _state.value = UpdateState.Idle
+            }
         }
     }
 
@@ -567,7 +601,12 @@ class UpdateControllerImpl(
             UpdateInstallOutcome.SUCCESS -> {
                 currentApkFile?.delete()
                 appScope.launch {
-                    settingsRepository.updateUpdatePrefs { it.copy(knownAvailable = null) }
+                    settingsRepository.updateUpdatePrefs {
+                        it.copy(
+                            knownAvailable = null,
+                            knownRelease = null,
+                        )
+                    }
                 }
                 _availableVersion.value = null
                 _state.value = UpdateState.Idle

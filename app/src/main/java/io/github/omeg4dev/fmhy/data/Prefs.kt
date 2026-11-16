@@ -2,6 +2,7 @@ package io.github.omeg4dev.fmhy.data
 
 import io.github.omeg4dev.fmhy.browser.download.ScanService
 import io.github.omeg4dev.fmhy.data.adblock.FilterListCatalog
+import io.github.omeg4dev.fmhy.update.ReleaseInfo
 import io.github.omeg4dev.fmhy.ui.home.HomeBlock
 import io.github.omeg4dev.fmhy.ui.home.HomeLayout
 
@@ -195,6 +196,7 @@ data class UpdatePrefs(
     val skippedVersion: String? = null,
     val installExplained: Boolean = false,
     val knownAvailable: String? = null,
+    val knownRelease: ReleaseInfo? = null,
     val notify: Boolean = true,
     val interval: UpdateCheckInterval = UpdateCheckInterval.H12,
     val notifiedVersion: String? = null,
