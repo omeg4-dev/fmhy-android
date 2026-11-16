@@ -139,6 +139,7 @@ class DefaultSettingsRepository(
         private val KEY_HOME_SEARCH_EXACT = booleanPreferencesKey("home_search_exact")
         private val KEY_HOME_SWIPE_TO_BOOKMARK = booleanPreferencesKey("home_swipe_to_bookmark")
         private val KEY_HOME_SWAP_TAP_HOLD = booleanPreferencesKey("home_swap_tap_hold")
+        private val KEY_HOME_SEARCH_TAP_TARGET = stringPreferencesKey("home_search_tap_target")
         private val KEY_HOME_SWIPE_BETWEEN_SCREENS = booleanPreferencesKey("home_swipe_between_screens")
         private val KEY_HOME_WEBSITE_CATEGORY_NAMES = booleanPreferencesKey("home_website_category_names")
 
@@ -461,6 +462,7 @@ class DefaultSettingsRepository(
             searchExact = prefs[KEY_HOME_SEARCH_EXACT] ?: default.searchExact,
             swipeToBookmark = prefs[KEY_HOME_SWIPE_TO_BOOKMARK] ?: default.swipeToBookmark,
             swapTapHold = prefs[KEY_HOME_SWAP_TAP_HOLD] ?: default.swapTapHold,
+            searchTapTarget = prefs[KEY_HOME_SEARCH_TAP_TARGET]?.let { runCatching { SearchTapTarget.valueOf(it) }.getOrNull() } ?: default.searchTapTarget,
             swipeBetweenScreens = prefs[KEY_HOME_SWIPE_BETWEEN_SCREENS] ?: default.swipeBetweenScreens,
             websiteCategoryNames = prefs[KEY_HOME_WEBSITE_CATEGORY_NAMES] ?: default.websiteCategoryNames,
         )
@@ -472,6 +474,7 @@ class DefaultSettingsRepository(
         prefs[KEY_HOME_NEW_BADGE_DAYS] = p.newBadgeDays
         prefs[KEY_HOME_SWIPE_TO_BOOKMARK] = p.swipeToBookmark
         prefs[KEY_HOME_SWAP_TAP_HOLD] = p.swapTapHold
+        prefs[KEY_HOME_SEARCH_TAP_TARGET] = p.searchTapTarget.name
         prefs[KEY_HOME_SWIPE_BETWEEN_SCREENS] = p.swipeBetweenScreens
         prefs[KEY_HOME_WEBSITE_CATEGORY_NAMES] = p.websiteCategoryNames
     }

@@ -389,6 +389,20 @@ class SettingsRepositoryTest {
     }
 
     @Test
+    fun testSearchTapTargetDefaultPersistAndInvalidFallback() = runTest {
+        val (repo, rawStore) = createRepository(this)
+        assertEquals(SearchTapTarget.SITE, repo.homePrefs.first().searchTapTarget)
+
+        repo.updateHome { it.copy(searchTapTarget = SearchTapTarget.SECTION) }
+        assertEquals(SearchTapTarget.SECTION, repo.homePrefs.first().searchTapTarget)
+
+        rawStore.edit {
+            it[stringPreferencesKey("home_search_tap_target")] = "bogus"
+        }
+        assertEquals(SearchTapTarget.SITE, repo.homePrefs.first().searchTapTarget)
+    }
+
+    @Test
     fun testWebsiteCategoryNamesDefaultOnAndPersist() = runTest {
         val (repo, _) = createRepository(this)
         assertTrue(repo.homePrefs.first().websiteCategoryNames)

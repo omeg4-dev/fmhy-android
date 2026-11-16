@@ -21,6 +21,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.omeg4dev.fmhy.data.SearchTapTarget
 import io.github.omeg4dev.fmhy.data.SectionLayout
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -44,6 +45,7 @@ fun ListsPage(
     // Show indexes
     val eShowIndexes = SettingsCatalog.listsShowIndexes
     val eNewBadges = SettingsCatalog.listsNewBadges
+    val eSearchTapTarget = SettingsCatalog.listsSearchTapTarget
     // Swap tap and hold
     val eSwapTapAndHold = SettingsCatalog.listsSwapTapAndHold
     val eSwipeToBookmark = SettingsCatalog.listsSwipeToBookmark
@@ -63,6 +65,7 @@ fun ListsPage(
                 eNewBadges.id,
             ),
             listOf(
+                eSearchTapTarget.id,
                 eSwapTapAndHold.id,
                 eSwipeToBookmark.id,
                 eSwipeBetweenScreens.id,
@@ -164,6 +167,17 @@ fun ListsPage(
             // Gestures & feedback section
             item {
                 SettingsSection(title = "Gestures & feedback") {
+                    ChoiceRow(
+                        title = eSearchTapTarget.title,
+                        options = listOf(
+                            SearchTapTarget.SITE to "Site",
+                            SearchTapTarget.SECTION to "Its section",
+                        ),
+                        selected = homePrefs.searchTapTarget,
+                        settingId = eSearchTapTarget.id,
+                        onSelect = { t -> viewModel.updateHome { it.copy(searchTapTarget = t) } },
+                    )
+                    SettingsDivider()
                     SwitchRow(
                         title = eSwapTapAndHold.title,
                         summary = eSwapTapAndHold.description,

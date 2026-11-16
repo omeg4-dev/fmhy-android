@@ -65,7 +65,9 @@ import io.github.omeg4dev.fmhy.data.search.QueryEdit
 import io.github.omeg4dev.fmhy.data.search.QuerySuggestion
 import io.github.omeg4dev.fmhy.data.search.SuggestionKind
 import io.github.omeg4dev.fmhy.data.search.SearchHit
+import io.github.omeg4dev.fmhy.ui.common.LocalGesturePrefs
 import io.github.omeg4dev.fmhy.ui.common.Motion
+import io.github.omeg4dev.fmhy.ui.common.RowAction
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -599,6 +601,7 @@ fun SearchScreen(
                                                             nav.push(SectionNavKey(hit.entry.sectionId, anchor = anchor, focusEntryId = hit.entry.id))
                                                         }
                                                     },
+                                                    siteAction = if (LocalGesturePrefs.current.searchTapOpensSection) RowAction.SHOW_IN_SECTION else RowAction.OPEN_SITE,
                                                     onOpenUrl = { linkOpener.openUrl(it) },
                                                     onShowSnackbar = onShowSnackbar,
                                                 )

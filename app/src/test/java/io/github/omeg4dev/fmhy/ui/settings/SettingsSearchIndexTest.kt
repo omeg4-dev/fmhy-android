@@ -235,4 +235,13 @@ class SettingsSearchIndexTest {
             personalHomeResults.any { it.entry.id == "home.blocks" },
         )
     }
+
+    @Test
+    fun searchTapTargetFoundByKeywords() {
+        val results = SettingsSearchIndex.search("search result")
+        assertTrue(
+            "Searching 'search result' must find lists.search_tap_target",
+            results.any { it.entry.id == "lists.search_tap_target" },
+        )
+    }
 }

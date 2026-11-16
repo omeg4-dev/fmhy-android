@@ -76,6 +76,8 @@ enum class SearchEngine(val label: String, val queryUrl: String) {
     BING("Bing", "https://www.bing.com/search?q="),
 }
 
+enum class SearchTapTarget { SITE, SECTION }
+
 data class HomePrefs(
     val blocks: HomeLayout = HomeLayout.default(),
     /** 0 = NEW badges off. */
@@ -84,6 +86,7 @@ data class HomePrefs(
     val searchExact: Boolean = false,
     val swipeToBookmark: Boolean = false,
     val swapTapHold: Boolean = false,
+    val searchTapTarget: SearchTapTarget = SearchTapTarget.SITE,
     val swipeBetweenScreens: Boolean = true,
     /** Main category names from the FMHY website (Streaming, Listening…). Off = the wiki titles used before 1.1.0. */
     val websiteCategoryNames: Boolean = true,

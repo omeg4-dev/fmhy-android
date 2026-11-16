@@ -24,6 +24,7 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.omeg4dev.fmhy.data.Appearance
 import io.github.omeg4dev.fmhy.data.HomePrefs
+import io.github.omeg4dev.fmhy.data.SearchTapTarget
 import io.github.omeg4dev.fmhy.data.ThemeMode
 import io.github.omeg4dev.fmhy.di.AppContainer
 import io.github.omeg4dev.fmhy.theme.FMHYTheme
@@ -59,10 +60,11 @@ class MainActivity : ComponentActivity() {
             val appearance by container.settingsRepository.appearance.collectAsStateWithLifecycle(initialValue = Appearance())
             val homePrefs by container.settingsRepository.homePrefs.collectAsStateWithLifecycle(initialValue = HomePrefs())
             SideEffect { SectionNamePrefs.websiteNames = homePrefs.websiteCategoryNames }
-            val gesturePrefs = remember(homePrefs.swipeToBookmark, homePrefs.swapTapHold) {
+            val gesturePrefs = remember(homePrefs.swipeToBookmark, homePrefs.swapTapHold, homePrefs.searchTapTarget) {
                 GesturePrefs(
                     swipeToBookmark = homePrefs.swipeToBookmark,
                     swapTapHold = homePrefs.swapTapHold,
+                    searchTapOpensSection = homePrefs.searchTapTarget == SearchTapTarget.SECTION,
                 )
             }
             val isSystemDark = isSystemInDarkTheme()

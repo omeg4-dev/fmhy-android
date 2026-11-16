@@ -100,6 +100,7 @@ fun EntryRow(
     updateLine: String? = null,
     history: List<ChangeItem>? = null,
     onShowInSection: (() -> Unit)? = null,
+    siteAction: RowAction = RowAction.OPEN_SITE,
     followState: FollowState? = null,
     onToggleFollow: (() -> Unit)? = null,
     isPinned: Boolean? = null,
@@ -357,14 +358,26 @@ fun EntryRow(
     }
 
     val swapTapHold = LocalGesturePrefs.current.swapTapHold
-    val gestures = rowGestures(swapTapHold)
-    val altActionLabel = if (gestures.onTap == RowAction.OPEN_SITE) "Show details" else "Open site"
-    val altAction: () -> Boolean = {
-        if (gestures.onTap == RowAction.OPEN_SITE) {
-            showBottomSheet = true
-        } else {
-            onOpenUrl(entry.url)
+    val effectiveSiteAction = if (siteAction == RowAction.SHOW_IN_SECTION && onShowInSection == null) RowAction.OPEN_SITE else siteAction
+    val gestures = rowGestures(swapTapHold, effectiveSiteAction)
+
+    fun performRowAction(action: RowAction) {
+        when (action) {
+            RowAction.OPEN_SITE -> onOpenUrl(entry.url)
+            RowAction.OPEN_MENU -> showBottomSheet = true
+            RowAction.SHOW_IN_SECTION -> onShowInSection?.invoke()
         }
+    }
+
+    fun labelOf(action: RowAction): String = when (action) {
+        RowAction.OPEN_SITE -> "Open site"
+        RowAction.OPEN_MENU -> "Show details"
+        RowAction.SHOW_IN_SECTION -> "Show in section"
+    }
+
+    val altActionLabel = labelOf(gestures.onHold)
+    val altAction: () -> Boolean = {
+        performRowAction(gestures.onHold)
         true
     }
 
@@ -385,20 +398,14 @@ fun EntryRow(
             // Default: tap opens the site directly, hold opens details (swappable in Settings).
             .combinedClickable(
                 onClick = {
-                    when (gestures.onTap) {
-                        RowAction.OPEN_SITE -> onOpenUrl(entry.url)
-                        RowAction.OPEN_MENU -> showBottomSheet = true
-                    }
+                    performRowAction(gestures.onTap)
                 },
                 onLongClick = {
                     haptics.longPress()
-                    when (gestures.onHold) {
-                        RowAction.OPEN_SITE -> onOpenUrl(entry.url)
-                        RowAction.OPEN_MENU -> showBottomSheet = true
-                    }
+                    performRowAction(gestures.onHold)
                 },
-                onClickLabel = if (gestures.onTap == RowAction.OPEN_SITE) "Open site" else "Show details",
-                onLongClickLabel = if (gestures.onHold == RowAction.OPEN_SITE) "Open site" else "Show details",
+                onClickLabel = labelOf(gestures.onTap),
+                onLongClickLabel = labelOf(gestures.onHold),
             ),
         color = Color.Transparent,
     ) {

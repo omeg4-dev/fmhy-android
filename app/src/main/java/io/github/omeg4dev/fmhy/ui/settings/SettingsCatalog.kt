@@ -136,6 +136,13 @@ object SettingsCatalog {
         description = "Show NEW badges on recently added sites for a set number of days",
         keywords = listOf("new", "badges", "recent", "added", "days"),
     )
+    val listsSearchTapTarget = SettingEntry(
+        id = "lists.search_tap_target",
+        page = SettingsPage.LISTS,
+        title = "Tap a search result opens",
+        description = "The site, or its section in Browse (the site stays in the details sheet)",
+        keywords = listOf("tap", "search", "result", "section", "open", "site", "gesture", "jump", "browse"),
+    )
     val listsSwapTapAndHold = SettingEntry(
         id = "lists.swap_tap_and_hold",
         page = SettingsPage.LISTS,
@@ -858,6 +865,7 @@ object SettingsCatalog {
         listsStarredOnly,
         listsShowIndexes,
         listsNewBadges,
+        listsSearchTapTarget,
         listsSwapTapAndHold,
         listsSwipeToBookmark,
         listsSwipeBetweenScreens,
