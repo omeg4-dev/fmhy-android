@@ -11,7 +11,7 @@ import kotlinx.serialization.json.Json
  *
  * @property version Normalized release tag name without a leading "v" or "V" prefix (e.g., "0.6.0").
  * @property notes Extracted release notes from the "What's new" section, or null if missing or empty.
- * @property apkUrl Download URL for the first APK asset found in the release.
+ * @property apkUrl Download URL of the normal APK asset (`-android.apk` preferred, never `-fdroid.apk`).
  * @property apkSize File size in bytes of the APK asset, or 0 if absent.
  * @property pageUrl Web URL of the release on GitHub.
  */
@@ -85,9 +85,15 @@ object ReleaseParser {
             val rawTag = dto.tagName?.trim() ?: return null
             if (rawTag.isEmpty() || parseVersion(rawTag) == null) return null
 
-            val apkAsset = dto.assets.firstOrNull { asset ->
-                asset.name?.endsWith(".apk", ignoreCase = true) == true
-            } ?: return null
+            // GitHub lists assets by name, so "fmhy-x.y.z-fdroid.apk" comes first. That build has no
+            // updater and no bundled wiki: never offer it as an update.
+            val apks = dto.assets.filter { asset ->
+                val name = asset.name ?: return@filter false
+                name.endsWith(".apk", ignoreCase = true) && !name.contains("-fdroid", ignoreCase = true)
+            }
+            val apkAsset = apks.firstOrNull { it.name?.endsWith("-android.apk", ignoreCase = true) == true }
+                ?: apks.firstOrNull()
+                ?: return null
 
             val apkUrl = apkAsset.browserDownloadUrl
             if (apkUrl.isNullOrBlank() || !isTrustedApkUrl(apkUrl, repo)) return null

@@ -307,4 +307,37 @@ class ReleaseParserTest {
             ReleaseParser.parse(releaseJson(htmlUrl = "https://evil.example/phish"), repo)?.pageUrl,
         )
     }
+
+    private fun assetsJson(vararg names: String): String {
+        val assets = names.joinToString(",") { n ->
+            """{"name":"$n","size":100,"browser_download_url":"https://github.com/omeg4-dev/fmhy-android/releases/download/v1.2.0/$n"}"""
+        }
+        return """{"tag_name":"v1.2.0","draft":false,"prerelease":false,"assets":[$assets]}"""
+    }
+
+    @Test
+    fun parse_skipsFdroidApkListedFirst() {
+        // GitHub lists assets by name, so the F-Droid build comes before the normal one.
+        val info = ReleaseParser.parse(assetsJson("fmhy-1.2.0-fdroid.apk", "fmhy-1.2.0.apk"))
+        assertEquals(
+            "https://github.com/omeg4-dev/fmhy-android/releases/download/v1.2.0/fmhy-1.2.0.apk",
+            info?.apkUrl,
+        )
+    }
+
+    @Test
+    fun parse_prefersAndroidApk() {
+        val info = ReleaseParser.parse(
+            assetsJson("fmhy-1.2.0-fdroid.apk", "fmhy-1.2.0.apk", "fmhy-1.2.0-android.apk"),
+        )
+        assertEquals(
+            "https://github.com/omeg4-dev/fmhy-android/releases/download/v1.2.0/fmhy-1.2.0-android.apk",
+            info?.apkUrl,
+        )
+    }
+
+    @Test
+    fun parse_returnsNullWhenOnlyFdroidApk() {
+        assertNull(ReleaseParser.parse(assetsJson("fmhy-1.2.0-fdroid.apk")))
+    }
 }
