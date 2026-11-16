@@ -84,13 +84,24 @@ Android 8.0+ · Free & Open Source · No ads · No tracking
 
 Download the latest APK from [**Releases**](https://github.com/omeg4-dev/fmhy-android/releases/latest) and open it on your phone (Android 8.0 or newer). The app updates in place and can notify you when a new version is out.
 
+### Which file do I download?
+
+Each release has two APKs. **Take the one ending in `-android.apk`.**
+
+| File | For whom | Wiki included | In-app updates |
+|---|---|---|---|
+| `fmhy-x.y.z-android.apk` | Everyone installing from GitHub | Yes, works offline from the first launch | Yes |
+| `fmhy-x.y.z-fdroid.apk` | F-Droid's build check (the F-Droid listing is not live yet) | No, downloaded at first launch | No, F-Droid would handle updates |
+
+Both are built from the same source and signed with the same key. If **Settings → App updates** only says "Updates come from the app store on this build.", you have the F-Droid build: install the `-android.apk` over it once. Nothing is lost.
+
 *Note: If you're updating from a version older than `0.4.0`, uninstall the old version first (the signing key changed).*
 
 ## 🔧 Building
 
 ```bash
 ./gradlew :app:assembleRelease      # unsigned unless a release keystore is configured
-./gradlew :core:data:test :app:testDebugUnitTest
+./gradlew :core:data:test :app:testGithubDebugUnitTest
 ```
 
 * `app/` — Android UI (Kotlin, Compose)

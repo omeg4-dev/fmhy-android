@@ -1,0 +1,5 @@
+- Browser: save a picture of the page, visible area or full page
+- Search: new setting to open a result's section instead of the site
+- App updates are suggested at every start (GitHub build)
+- What's new: filters moved into one sheet and can be remembered
+- Browser: blocked pop-ups and redirects show a bar that stays, with "Always allow on this site"
