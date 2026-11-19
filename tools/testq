@@ -1,0 +1,115 @@
+#!/usr/bin/env python3
+"""Run a Gradle test task via ./gw and print only a summary.
+
+  tools/testq :core:data:test --tests 'io.github.omeg4dev.fmhy.data.parse.*'
+  tools/testq :app:testGithubDebugUnitTest --tests '*UpdateControllerTest'
+
+Prints `PASS N tests (M modules) in Ts` or `FAIL F/N` plus, per failure, Class.method and the first
+8 lines of the failure. Compilation errors: only `e: ` lines (max 30). Exit code = Gradle's.
+If Gradle skipped the tests (up to date / from cache) it says so; add `--rerun` to force a run.
+"""
+from __future__ import annotations
+
+import os
+import re
+import subprocess
+import sys
+import time
+import xml.etree.ElementTree as ET
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parent.parent
+# Stack frames from the test runner / JDK carry no signal for the reader.
+NOISE = re.compile(r"^\s+at (\S+/)?(org\.junit|junit\.|java\.|jdk\.|sun\.|kotlin\.|org\.gradle|worker\.org\.gradle)")
+SKIP_DIRS = {"node_modules", "docs", "pipeline", "dist"}
+
+
+def result_files(since: float) -> list[Path]:
+    out = []
+    for root, dirs, files in os.walk(REPO):
+        rel = Path(root).relative_to(REPO)
+        dirs[:] = [d for d in dirs if not d.startswith(".") and d not in SKIP_DIRS
+                   and not (rel.name == "build" and d != "test-results")]
+        if "test-results" in rel.parts:
+            for f in files:
+                if f.startswith("TEST-") and f.endswith(".xml"):
+                    p = Path(root) / f
+                    if p.stat().st_mtime >= since:
+                        out.append(p)
+    return out
+
+
+def what_went_wrong(log: list[str]) -> list[str]:
+    """Gradle's '* What went wrong:' block without the '* Try:' boilerplate; else the last 15 lines."""
+    if "* What went wrong:" in log:
+        block = log[log.index("* What went wrong:") + 1:]
+        return block[:block.index("* Try:")] if "* Try:" in block else block[:15]
+    return log[-15:]
+
+
+def main() -> int:
+    args = sys.argv[1:]
+    if not args or args[0] in ("-h", "--help"):
+        print(__doc__.strip())
+        return 0 if args else 2
+    t0 = time.time()
+    r = subprocess.run([str(REPO / "gw"), *args], cwd=REPO, capture_output=True, text=True)
+    secs = round(time.time() - t0)
+    log = (r.stdout + "\n" + r.stderr).splitlines()
+
+    errors = [l for l in log if l.startswith("e: ")]
+    files = [] if errors else result_files(t0)
+    total = skipped = 0
+    modules: set[str] = set()
+    failures: list[tuple[str, str]] = []
+    for f in files:
+        try:
+            suite = ET.parse(f).getroot()
+        except ET.ParseError:
+            continue
+        modules.add(str(f.relative_to(REPO)).split("/build/", 1)[0])
+        for tc in suite.iter("testcase"):
+            total += 1
+            if tc.find("skipped") is not None:
+                skipped += 1
+            for kind in ("failure", "error"):
+                el = tc.find(kind)
+                if el is not None:
+                    cls = tc.get("classname", "?").rsplit(".", 1)[-1]
+                    body = (el.text or el.get("message") or kind).strip()
+                    lines = [l for l in body.splitlines() if not NOISE.search(l)]
+                    failures.append((f"{cls}.{tc.get('name', '?')}", "\n".join(lines)))
+
+    if total:
+        skip = f", {skipped} skipped" if skipped else ""
+        nmod = f"{len(modules)} module{'s' if len(modules) != 1 else ''}"
+        if failures:
+            print(f"FAIL {len(failures)}/{total} tests ({nmod}{skip}) in {secs}s")
+            for name, body in failures:
+                print(f"- {name}")
+                for line in body.splitlines()[:8]:
+                    print(f"    {line}")
+        else:
+            print(f"PASS {total} tests ({nmod}{skip}) in {secs}s")
+        if r.returncode != 0 and not failures:
+            print(f"Gradle exit {r.returncode}; last lines:")
+            print("\n".join(log[-15:]))
+        return r.returncode
+
+    if errors:
+        print(f"COMPILE FAIL in {secs}s ({len(errors)} errors)")
+        print("\n".join(errors[:30]))
+        if len(errors) > 30:
+            print(f"… {len(errors) - 30} more")
+    elif r.returncode == 0:
+        state = "up to date" if any(re.search(r"test\w* (UP-TO-DATE|FROM-CACHE)", l) for l in log) \
+            else "no test results written"
+        print(f"PASS (tests not re-run: {state}) in {secs}s; add --rerun to force")
+    else:
+        print(f"FAIL (Gradle exit {r.returncode}, no test results) in {secs}s:")
+        print("\n".join(l for l in what_went_wrong(log) if l.strip()))
+    return r.returncode
+
+
+if __name__ == "__main__":
+    sys.exit(main())

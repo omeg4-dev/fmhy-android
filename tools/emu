@@ -1,0 +1,371 @@
+#!/usr/bin/env python3
+"""Compact emulator helper for io.github.omeg4dev.fmhy (token-cheap adb output).
+
+Device: $ANDROID_SERIAL, else the only online emulator-* entry. A physical phone is never picked
+implicitly (reset would wipe its app data); set ANDROID_SERIAL to target one on purpose.
+
+  emu ui [--grep RE] [--all]          UI tree as one line per useful node
+  emu shot [--crop X,Y,W,H] [--width 540] [--out PATH]
+  emu tap TEXT [--nth N] [--desc]     tap a node by text (falls back to content-desc)
+  emu wait TEXT [--timeout 10]        poll until TEXT is on screen
+  emu log mark | log crashes          clear logcat / print crashes, ANRs, StrictMode, our E/ lines
+  emu install [--flavor github|fdroid]
+  emu start | stop | reset            launch / force-stop / pm clear
+"""
+from __future__ import annotations
+
+import argparse
+import difflib
+import io
+import os
+import re
+import subprocess
+import sys
+import tempfile
+import time
+import xml.etree.ElementTree as ET
+from pathlib import Path
+
+PKG = "io.github.omeg4dev.fmhy"
+REPO = Path(__file__).resolve().parent.parent
+UI_CAP = 150
+LOG_CAP = 60
+# Log tags our code uses (see rg 'Log\.[ewdiv]\(' app core); pids of our process are matched too.
+OUR_TAGS = re.compile(r"^(Fmhy|UpdateController|AppContainer|AppUpdateWorker|TabManager|TrackerSync|HistorySync)")
+
+
+def die(msg: str, code: int = 2) -> None:
+    print(msg, file=sys.stderr)
+    sys.exit(code)
+
+
+def pick_serial() -> str:
+    env = os.environ.get("ANDROID_SERIAL")
+    if env:
+        return env
+    out = subprocess.run(["adb", "devices"], capture_output=True, text=True).stdout
+    devs = [l.split()[0] for l in out.splitlines()[1:] if l.strip().endswith("\tdevice")]
+    emus = [d for d in devs if d.startswith("emulator-")]
+    if len(emus) == 1:
+        return emus[0]
+    if not emus:
+        extra = f" (physical {devs} ignored; set ANDROID_SERIAL to use one)" if devs else ""
+        die("emu: no emulator online; start fmhy36 (docs/emulator.md)" + extra)
+    die(f"emu: several emulators {emus}; set ANDROID_SERIAL")
+    return ""
+
+
+SERIAL = ""
+
+
+def adb(*args: str, binary: bool = False, check: bool = True, timeout: float = 60):
+    r = subprocess.run(["adb", "-s", SERIAL, *args], capture_output=True, timeout=timeout,
+                       text=not binary)
+    if check and r.returncode != 0:
+        err = r.stderr if not binary else r.stderr.decode(errors="replace")
+        die(f"emu: adb {' '.join(args)} failed: {err.strip()[:300]}")
+    return r
+
+
+# ---------------------------------------------------------------- UI tree
+
+class Node:
+    __slots__ = ("text", "desc", "rid", "flags", "x", "y", "useful", "cls", "summary")
+
+    def __init__(self, e: ET.Element):
+        g = e.attrib.get
+        self.text = " ".join((g("text") or "").split())
+        self.desc = " ".join((g("content-desc") or "").split())
+        rid = g("resource-id") or ""
+        self.rid = rid.split(":id/", 1)[-1]
+        self.cls = (g("class") or "").rsplit(".", 1)[-1]
+        f = []
+        if g("clickable") == "true":
+            f.append("click")
+        if g("long-clickable") == "true":
+            f.append("long")
+        if g("checkable") == "true":
+            f.append("checked" if g("checked") == "true" else "unchecked")
+        if g("selected") == "true":
+            f.append("selected")
+        if g("scrollable") == "true":
+            f.append("scroll")
+        if g("focused") == "true":
+            f.append("focused")
+        if "EditText" in self.cls:
+            f.append("edit")
+        if g("enabled") == "false":
+            f.append("disabled")
+        self.flags = f
+        self.summary = ""
+        m = re.findall(r"\d+", g("bounds") or "")
+        x1, y1, x2, y2 = (int(v) for v in m) if len(m) == 4 else (0, 0, 0, 0)
+        self.x, self.y = (x1 + x2) // 2, (y1 + y2) // 2
+        visible = x2 > x1 and y2 > y1
+        self.useful = visible and bool(self.text or self.desc or "click" in f or "edit" in f)
+
+    def line(self) -> str:
+        t = self.text if len(self.text) <= 80 else self.text[:77] + "..."
+        t = t or self.summary
+        d = self.desc if len(self.desc) <= 60 else self.desc[:57] + "..."
+        return f"{t} | {d} | {self.rid} | {','.join(self.flags)} | {self.x},{self.y}"
+
+
+def build_nodes(root: ET.Element) -> list[Node]:
+    """Nodes in document order; an unlabelled clickable node gets its descendants' labels as `{a · b}`."""
+    out: list[Node] = []
+    for e in root.iter("node"):
+        n = Node(e)
+        if n.useful and not (n.text or n.desc):
+            kids = []
+            for d in e.iter("node"):
+                v = (d.attrib.get("text") or d.attrib.get("content-desc") or "").strip()
+                if d is not e and v and v not in kids:
+                    kids.append(" ".join(v.split()))
+            if kids:
+                summary = " · ".join(kids[:3])
+                n.summary = "{" + (summary if len(summary) <= 60 else summary[:57] + "...") + "}"
+        out.append(n)
+    return out
+
+
+def dump_nodes() -> list[Node]:
+    last = ""
+    for _ in range(4):
+        r = adb("exec-out", "sh", "-c",
+                "uiautomator dump /sdcard/emu-ui.xml >/dev/null 2>&1 && cat /sdcard/emu-ui.xml",
+                check=False, timeout=30)
+        xml = r.stdout
+        i = xml.find("<?xml")
+        if i >= 0:
+            try:
+                root = ET.fromstring(xml[i:])
+                return build_nodes(root)
+            except ET.ParseError as ex:
+                last = str(ex)
+        else:
+            last = (r.stderr or xml).strip()[:200]
+        time.sleep(0.5)
+    die(f"emu: uiautomator dump failed: {last}")
+    return []
+
+
+def cmd_ui(a) -> int:
+    nodes = dump_nodes()
+    lines = [n.line() for n in nodes if a.all or n.useful]
+    if a.grep:
+        rx = re.compile(a.grep, re.I)
+        lines = [l for l in lines if rx.search(l)]
+    for l in lines[:UI_CAP]:
+        print(l)
+    if len(lines) > UI_CAP:
+        print(f"… {len(lines) - UI_CAP} more (use --grep)")
+    return 0
+
+
+def find_node(nodes: list[Node], label: str, use_desc: bool, nth: int) -> Node | None:
+    def matches(field: str) -> list[Node]:
+        vals = [(n, getattr(n, field)) for n in nodes if n.useful and getattr(n, field)]
+        low = label.lower()
+        for test in (lambda v: v == label, lambda v: v.lower() == low, lambda v: low in v.lower()):
+            hit = [n for n, v in vals if test(v)]
+            if hit:
+                return hit
+        return []
+
+    hits = matches("desc") if use_desc else (matches("text") or matches("desc"))
+    return hits[nth - 1] if len(hits) >= nth else None
+
+
+def closest(nodes: list[Node], label: str) -> list[str]:
+    labels = list(dict.fromkeys(v for n in nodes for v in (n.text, n.desc) if v))
+    best = difflib.get_close_matches(label, labels, n=5, cutoff=0.0)
+    return best or labels[:5]
+
+
+def cmd_tap(a) -> int:
+    nodes = dump_nodes()
+    n = find_node(nodes, a.text, a.desc, a.nth)
+    if not n:
+        print(f'not found: "{a.text}". closest: ' + " · ".join(f'"{l}"' for l in closest(nodes, a.text)))
+        return 1
+    adb("shell", "input", "tap", str(n.x), str(n.y))
+    print(f'tapped "{a.text}" at {n.x},{n.y}')
+    return 0
+
+
+def cmd_wait(a) -> int:
+    end = time.monotonic() + a.timeout
+    low = a.text.lower()
+    while True:
+        nodes = dump_nodes()
+        if any(low in n.text.lower() or low in n.desc.lower() for n in nodes):
+            print(f'found "{a.text}"')
+            return 0
+        if time.monotonic() >= end:
+            print(f'timeout: "{a.text}" not on screen after {a.timeout:g}s')
+            return 1
+        time.sleep(0.3)
+
+
+# ---------------------------------------------------------------- screenshot
+
+def default_shot_path() -> Path:
+    base = Path(os.environ.get("CLAUDE_SCRATCH") or os.environ.get("TMPDIR") or tempfile.gettempdir())
+    base.mkdir(parents=True, exist_ok=True)
+    n = 1
+    while (base / f"emu-shot-{n}.png").exists():
+        n += 1
+    return base / f"emu-shot-{n}.png"
+
+
+def cmd_shot(a) -> int:
+    from PIL import Image
+
+    png = adb("exec-out", "screencap", "-p", binary=True).stdout
+    img = Image.open(io.BytesIO(png)).convert("RGB")
+    if a.crop:
+        try:
+            x, y, w, h = (int(v) for v in a.crop.split(","))
+        except ValueError:
+            die("emu: --crop needs X,Y,W,H")
+        img = img.crop((x, y, x + w, y + h))
+    if a.width and img.width > a.width:
+        img = img.resize((a.width, round(img.height * a.width / img.width)), Image.LANCZOS)
+    out = Path(a.out) if a.out else default_shot_path()
+    img.save(out, optimize=True)
+    print(f"{out} {out.stat().st_size // 1024}KB {img.width}x{img.height}")
+    return 0
+
+
+# ---------------------------------------------------------------- logcat
+
+LINE = re.compile(r"^\S+\s+\S+\s+(\d+)\s+(\d+)\s+([VDIWEF])\s+(.*?)\s*: (.*)$")
+
+
+def cmd_log(a) -> int:
+    if a.action == "mark":
+        adb("logcat", "-c")
+        print("logcat cleared")
+        return 0
+    raw = adb("logcat", "-d", "-v", "threadtime", timeout=60).stdout.splitlines()
+    rows = [m.groups() for m in map(LINE.match, raw) if m]
+    pids = set()
+    pid_now = adb("shell", "pidof", PKG, check=False).stdout.split()
+    pids.update(pid_now)
+    for _, _, _, tag, msg in rows:
+        m = re.search(rf"Start proc (\d+):{re.escape(PKG)}", msg)
+        if m:
+            pids.add(m.group(1))
+
+    blocks: list[list[str]] = []
+    i = 0
+    while i < len(rows):
+        pid, tid, lvl, tag, msg = rows[i]
+        start = (
+            (tag == "AndroidRuntime" and "FATAL EXCEPTION" in msg)
+            or (lvl == "E" and msg.startswith("ANR in"))
+            or (tag == "StrictMode" and (pid in pids or not pids))
+        )
+        if start:
+            blk = [f"{lvl}/{tag}: {msg}"]
+            j = i + 1
+            while j < len(rows) and len(blk) < 14:
+                p2, t2, l2, tag2, m2 = rows[j]
+                if (p2, t2, tag2) != (pid, tid, tag):
+                    break
+                if tag == "StrictMode" and (m2.startswith("StrictMode policy violation")):
+                    break
+                blk.append(f"  {m2.strip()}")
+                j += 1
+            blocks.append(blk)
+            i = j
+            continue
+        if lvl in "EF" and (pid in pids or OUR_TAGS.match(tag)):
+            blocks.append([f"{lvl}/{tag}: {msg}"])
+        i += 1
+
+    seen: dict[str, int] = {}
+    order: list[list[str]] = []
+    for b in blocks:
+        key = re.sub(r"\d+", "#", "\n".join(b[:3]))
+        if key in seen:
+            seen[key] += 1
+        else:
+            seen[key] = 1
+            order.append(b)
+    out: list[str] = []
+    for b in order:
+        key = re.sub(r"\d+", "#", "\n".join(b[:3]))
+        n = seen[key]
+        out.extend(b if n == 1 else [b[0] + f"  (×{n})", *b[1:]])
+    for l in out[:LOG_CAP]:
+        print(l)
+    if len(out) > LOG_CAP:
+        print(f"… {len(out) - LOG_CAP} more lines")
+    return 0
+
+
+# ---------------------------------------------------------------- app control
+
+def cmd_install(a) -> int:
+    task = f":app:install{a.flavor.capitalize()}Debug"
+    t0 = time.monotonic()
+    env = {**os.environ, "ANDROID_SERIAL": SERIAL}  # AGP installs only on this device
+    r = subprocess.run([str(REPO / "gw"), "-q", task], cwd=REPO, env=env,
+                       capture_output=True, text=True)
+    secs = round(time.monotonic() - t0)
+    if r.returncode == 0:
+        print(f"OK ({secs}s) {task} on {SERIAL}")
+        return 0
+    lines = (r.stdout + r.stderr).rstrip().splitlines()
+    print(f"FAIL ({secs}s) {task}")
+    print("\n".join(lines[-15:]))
+    return r.returncode
+
+
+def cmd_start(a) -> int:
+    r = adb("shell", "monkey", "-p", PKG, "-c", "android.intent.category.LAUNCHER", "1", check=False)
+    ok = "Events injected: 1" in (r.stdout + r.stderr)
+    print(f"started {PKG}" if ok else f"start failed: {(r.stdout + r.stderr).strip()[-200:]}")
+    return 0 if ok else 1
+
+
+def cmd_stop(a) -> int:
+    adb("shell", "am", "force-stop", PKG)
+    print(f"stopped {PKG}")
+    return 0
+
+
+def cmd_reset(a) -> int:
+    r = adb("shell", "pm", "clear", PKG, check=False)
+    ok = "Success" in r.stdout
+    print(f"cleared data of {PKG}" if ok else f"reset failed: {(r.stdout + r.stderr).strip()}")
+    return 0 if ok else 1
+
+
+def main() -> int:
+    global SERIAL
+    p = argparse.ArgumentParser(prog="emu", description=__doc__,
+                                formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = p.add_subparsers(dest="cmd", required=True)
+    s = sub.add_parser("ui"); s.add_argument("--grep"); s.add_argument("--all", action="store_true")
+    s.set_defaults(fn=cmd_ui)
+    s = sub.add_parser("shot"); s.add_argument("--crop"); s.add_argument("--width", type=int, default=540)
+    s.add_argument("--out"); s.set_defaults(fn=cmd_shot)
+    s = sub.add_parser("tap"); s.add_argument("text"); s.add_argument("--nth", type=int, default=1)
+    s.add_argument("--desc", action="store_true"); s.set_defaults(fn=cmd_tap)
+    s = sub.add_parser("wait"); s.add_argument("text"); s.add_argument("--timeout", type=float, default=10)
+    s.set_defaults(fn=cmd_wait)
+    s = sub.add_parser("log"); s.add_argument("action", choices=["mark", "crashes"]); s.set_defaults(fn=cmd_log)
+    s = sub.add_parser("install"); s.add_argument("--flavor", choices=["github", "fdroid"], default="github")
+    s.set_defaults(fn=cmd_install)
+    for name, fn in (("start", cmd_start), ("stop", cmd_stop), ("reset", cmd_reset)):
+        sub.add_parser(name).set_defaults(fn=fn)
+    a = p.parse_args()
+    SERIAL = pick_serial()
+    return a.fn(a)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
