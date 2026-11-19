@@ -165,6 +165,10 @@ fun SearchScreen(
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusRequester = remember { FocusRequester() }
+    fun hideKeyboard() {
+        keyboardController?.hide()
+        focusManager.clearFocus()
+    }
     val nav = LocalAppNav.current
     val resultsListState = rememberLazyListState()
     val entrance = rememberListEntrance(remember(state.categories, state.groups) { Objects.hash(state.categories, state.groups) })
@@ -519,6 +523,7 @@ fun SearchScreen(
                                             hit = cat,
                                             query = state.query,
                                             onClick = {
+                                                hideKeyboard()
                                                 nav.select(Tab.BROWSE)
                                                 nav.push(SectionNavKey(cat.section.id, anchor = cat.heading?.anchor))
                                             },
@@ -591,6 +596,7 @@ fun SearchScreen(
                                                     descHl = hit.descriptionHl,
                                                     isNew = hit.entry.id in state.newEntryIds,
                                                     onShowInSection = {
+                                                        hideKeyboard()
                                                         scope.launch {
                                                             val anchor = try {
                                                                 hit.entry.headingId?.let { hid ->
