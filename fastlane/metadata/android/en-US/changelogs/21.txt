@@ -1,0 +1,2 @@
+- Home shows up faster after launch, install and update
+- Search: the keyboard no longer stays open when a result opens its section
