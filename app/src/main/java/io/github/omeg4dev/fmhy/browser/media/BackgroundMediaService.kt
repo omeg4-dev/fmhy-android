@@ -23,6 +23,8 @@ import io.github.omeg4dev.fmhy.R
 import io.github.omeg4dev.fmhy.browser.BrowserActivity
 import io.github.omeg4dev.fmhy.browser.TabManager
 import io.github.omeg4dev.fmhy.browser.TabState
+import io.github.omeg4dev.fmhy.browser.controlMedia
+import io.github.omeg4dev.fmhy.browser.endBackgroundPlayback
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob

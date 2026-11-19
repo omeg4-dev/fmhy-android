@@ -52,6 +52,8 @@ import androidx.compose.ui.unit.dp
 import io.github.omeg4dev.fmhy.browser.TabManager
 import io.github.omeg4dev.fmhy.browser.TabState
 import io.github.omeg4dev.fmhy.browser.bringBrowserToFront
+import io.github.omeg4dev.fmhy.browser.closeAllTabsIncludingRestorable
+import io.github.omeg4dev.fmhy.browser.closeTab
 import io.github.omeg4dev.fmhy.browser.openBrowserNewTab
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 

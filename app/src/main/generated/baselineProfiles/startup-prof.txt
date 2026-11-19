@@ -25788,11 +25788,11 @@ PLio/github/omeg4dev/fmhy/browser/OriginBounds;-><init>(IIII)V
 Lio/github/omeg4dev/fmhy/browser/TabManager;
 SPLio/github/omeg4dev/fmhy/browser/TabManager;-><clinit>()V
 SPLio/github/omeg4dev/fmhy/browser/TabManager;-><init>(Landroid/content/Context;Lio/github/omeg4dev/fmhy/data/SettingsRepository;Lio/github/omeg4dev/fmhy/data/user/UserStore;Lio/github/omeg4dev/fmhy/browser/adblock/AdblockService;Lio/github/omeg4dev/fmhy/browser/adblock/ScriptletLibrary;Lio/github/omeg4dev/fmhy/browser/BrowserHooks;Lkotlinx/coroutines/CoroutineScope;Lio/github/omeg4dev/fmhy/work/NetworkMonitor;)V
-SPLio/github/omeg4dev/fmhy/browser/TabManager;->access$getRecords$p(Lio/github/omeg4dev/fmhy/browser/TabManager;)Ljava/util/List;
-SPLio/github/omeg4dev/fmhy/browser/TabManager;->access$getSettingsRepository$p(Lio/github/omeg4dev/fmhy/browser/TabManager;)Lio/github/omeg4dev/fmhy/data/SettingsRepository;
+SPLio/github/omeg4dev/fmhy/browser/TabManager;->getRecords$app()Ljava/util/List;
+SPLio/github/omeg4dev/fmhy/browser/TabManager;->getSettingsRepository$app()Lio/github/omeg4dev/fmhy/data/SettingsRepository;
 SPLio/github/omeg4dev/fmhy/browser/TabManager;->getBrowserTabCount()Lkotlinx/coroutines/flow/StateFlow;
 SPLio/github/omeg4dev/fmhy/browser/TabManager;->getLinkQueue()Lio/github/omeg4dev/fmhy/browser/BrowserLinkQueue;
-SPLio/github/omeg4dev/fmhy/browser/TabManager;->getMainHandler()Landroid/os/Handler;
+SPLio/github/omeg4dev/fmhy/browser/TabManager;->getMainHandler$app()Landroid/os/Handler;
 SPLio/github/omeg4dev/fmhy/browser/TabManager;->getTabs()Lkotlinx/coroutines/flow/StateFlow;
 SPLio/github/omeg4dev/fmhy/browser/TabManager;->mainHandler_delegate$lambda$0()Landroid/os/Handler;
 SPLio/github/omeg4dev/fmhy/browser/TabManager;->postToMain$lambda$0(Lkotlin/jvm/functions/Function0;)V
