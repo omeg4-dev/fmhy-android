@@ -15,6 +15,8 @@ open class SearchEngine(private val store: DatasetStore) {
     private companion object {
         /** Categories computed per search; the UI shows the best few and expands the rest on demand. */
         const val CATEGORY_LIMIT = 50
+
+        val NON_WORD = Regex("[^\\p{L}\\p{N}]+")
     }
 
     private val json = Json { ignoreUnknownKeys = true }
@@ -173,15 +175,20 @@ open class SearchEngine(private val store: DatasetStore) {
         }
         val counts = HashMap<String, Int>()
         fun addTokens(text: String) {
-            for (t in text.lowercase().split(Regex("[^\\p{L}\\p{N}]+"))) {
+            for (t in text.lowercase().split(NON_WORD)) {
                 if (t.length >= 3) counts[t] = (counts[t] ?: 0) + 1
             }
         }
-        store.withConnection { conn ->
+        // Only copy the rows while holding the dataset connection; tokenizing 20k+ names there would
+        // block every other reader (Home's sections list) for seconds at app start.
+        val names = store.withConnection { conn ->
+            val out = ArrayList<String>(32_768)
             conn.prepare("SELECT name FROM entries").use { stmt ->
-                while (stmt.step()) addTokens(stmt.getText(0))
+                while (stmt.step()) out.add(stmt.getText(0))
             }
+            out
         }
+        for (name in names) addTokens(name)
         for (h in store.allHeadings()) addTokens(h.title)
         synchronized(this) {
             vocabulary = counts
@@ -259,13 +266,16 @@ open class SearchEngine(private val store: DatasetStore) {
             if (hostIndexVersion == version) return hostIndex
         }
         val counts = HashMap<String, Int>()
-        store.withConnection { conn ->
+        val urls = store.withConnection { conn ->
+            val out = ArrayList<String>(32_768)
             conn.prepare("SELECT url FROM entries").use { stmt ->
-                while (stmt.step()) {
-                    val host = hostOf(stmt.getText(0)) ?: continue
-                    counts[host] = (counts[host] ?: 0) + 1
-                }
+                while (stmt.step()) out.add(stmt.getText(0))
             }
+            out
+        }
+        for (url in urls) {
+            val host = hostOf(url) ?: continue
+            counts[host] = (counts[host] ?: 0) + 1
         }
         val built = counts.entries.sortedWith(compareBy({ -it.value }, { it.key })).map { it.key to it.value }
         synchronized(this) {

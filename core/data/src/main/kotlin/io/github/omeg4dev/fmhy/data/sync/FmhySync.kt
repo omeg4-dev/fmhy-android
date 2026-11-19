@@ -35,6 +35,9 @@ private const val GUARD_MIN_KEPT = 0.7
 private const val GUARD_MIN_ENTRIES = 200
 private const val GUARD_MIN_SECTIONS = 6
 
+/** Buffer for unpacking the bundled snapshot (gzip default is 512 bytes). */
+private const val COPY_BUFFER_BYTES = 256 * 1024
+
 data class Sources(
     val primary: String = "https://raw.githubusercontent.com/fmhy/edit/main/",
     val fallback: String = "https://cdn.jsdelivr.net/gh/fmhy/edit@main/",
@@ -536,9 +539,11 @@ open class FmhySync(
         val tmpDb = File(dir, "snapshot.tmp.db")
         try {
             tmpDb.delete()
-            GZIPInputStream(gzStream).use { gzIn ->
+            // GZIPInputStream reads 512 bytes at a time by default and an asset stream is unbuffered:
+            // large buffers make unpacking the ~23 MB database several times faster.
+            GZIPInputStream(gzStream, COPY_BUFFER_BYTES).use { gzIn ->
                 tmpDb.outputStream().use { out ->
-                    gzIn.copyTo(out)
+                    gzIn.copyTo(out, COPY_BUFFER_BYTES)
                 }
             }
 
