@@ -244,4 +244,15 @@ class SettingsSearchIndexTest {
             results.any { it.entry.id == "lists.search_tap_target" },
         )
     }
+
+    @Test
+    fun privateDnsFoundByKeywords() {
+        listOf("dns", "doh", "dot").forEach { query ->
+            val results = SettingsSearchIndex.search(query)
+            assertTrue(
+                "Searching '$query' must find protection.private_dns",
+                results.any { it.entry.id == "protection.private_dns" },
+            )
+        }
+    }
 }

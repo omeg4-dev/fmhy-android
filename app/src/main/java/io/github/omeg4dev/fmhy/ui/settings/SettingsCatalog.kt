@@ -537,6 +537,13 @@ object SettingsCatalog {
         description = "Shows a \"No VPN active\" page while no VPN is on. You can still load a site once. Needs \"Show VPN and HTTPS ring\"",
         keywords = listOf("vpn", "block", "disable", "browsing", "without", "kill", "switch"),
     )
+    val protectionPrivateDns = SettingEntry(
+        id = "protection.private_dns",
+        page = SettingsPage.PROTECTION,
+        title = "Private DNS (system)",
+        description = "Shows the state of Android's Private DNS and opens its setting. Android applies it to the in-app browser",
+        keywords = listOf("dns", "doh", "dot", "private", "tls", "resolver", "provider", "adguard", "cloudflare"),
+    )
     val protectionBlockPopups = SettingEntry(
         id = "protection.block_popups",
         page = SettingsPage.PROTECTION,
@@ -924,6 +931,7 @@ object SettingsCatalog {
         protectionShowVpnHomeIcon,
         protectionShowIpCountry,
         protectionBlockWithoutVpn,
+        protectionPrivateDns,
         protectionBlockPopups,
         protectionBlockRedirects,
         protectionBlockAppLinks,

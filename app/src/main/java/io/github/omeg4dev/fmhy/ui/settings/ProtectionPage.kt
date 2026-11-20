@@ -17,9 +17,14 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -32,6 +37,11 @@ fun ProtectionPage(
     extraRows: LazyListScope.() -> Unit = {},
 ) {
     val protectionPrefs by viewModel.protectionPrefs.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    var state by remember { mutableStateOf(readPrivateDnsState(context)) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        state = readPrivateDnsState(context)
+    }
 
     val eWarnUnsafeSites = SettingsCatalog.protectionWarnUnsafeSites
     val eWarnPotentiallyUnsafeSites = SettingsCatalog.protectionWarnPotentiallyUnsafeSites
@@ -40,6 +50,7 @@ fun ProtectionPage(
     val eShowVpnHomeIcon = SettingsCatalog.protectionShowVpnHomeIcon
     val eShowIpCountry = SettingsCatalog.protectionShowIpCountry
     val eBlockWithoutVpn = SettingsCatalog.protectionBlockWithoutVpn
+    val ePrivateDns = SettingsCatalog.protectionPrivateDns
     val eBlockPopups = SettingsCatalog.protectionBlockPopups
     val eBlockRedirects = SettingsCatalog.protectionBlockRedirects
     val eBlockAppLinks = SettingsCatalog.protectionBlockAppLinks
@@ -68,7 +79,14 @@ fun ProtectionPage(
         eShowIpCountry.id,
         eBlockWithoutVpn.id,
     )
-    val sectionSettingIds = remember { listOf(sitesIds, popupIds, downloadIds, vpnIds) }
+    val dnsIds = if (privateDnsSupported()) listOf(ePrivateDns.id) else emptyList()
+    val sectionSettingIds = remember {
+        if (privateDnsSupported()) {
+            listOf(sitesIds, popupIds, downloadIds, vpnIds, dnsIds)
+        } else {
+            listOf(sitesIds, popupIds, downloadIds, vpnIds)
+        }
+    }
     val listState = rememberFocusedListState(sectionSettingIds)
 
     Scaffold(
@@ -237,6 +255,19 @@ fun ProtectionPage(
                             viewModel.updateProtection { it.copy(blockWithoutVpn = checked) }
                         },
                     )
+                }
+            }
+
+            if (privateDnsSupported()) {
+                item {
+                    SettingsSection(title = "DNS") {
+                        NavRow(
+                            title = ePrivateDns.title,
+                            summary = privateDnsSummary(state),
+                            settingId = ePrivateDns.id,
+                            onClick = { openPrivateDnsSettings(context) },
+                        )
+                    }
                 }
             }
 
