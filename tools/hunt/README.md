@@ -11,6 +11,18 @@ online emulator (or `$ANDROID_SERIAL`) and reuse `tools/emu`.
 | `monkey.sh [--seeds 3] [--events 4000]` / `--seed S` | offline monkey (airplane mode on, always switched off again), crashscan per seed | ~10 min default |
 | `perf.py startup` / `jank home\|section\|search` / `mem` | cold start median/max, gfxinfo janky % and p90/p99, PSS growth over a 5-min loop; `--save-baseline` | 1–6 min |
 
+Logic probes (no emulator):
+
+| Entry point | What | Typical time |
+|---|---|---|
+| `tools/testq :core:data:test --tests '*QueryPlanTest'` | `EXPLAIN QUERY PLAN` of every SQL statement `DatasetStore`/`UserStore` run (bundled snapshot + seeded user DB); fails on an unindexed `SCAN` of a table ≥ 1000 rows unless allowlisted; known findings are printed as `QUERY-PLAN FINDING` | ~20 s |
+| `tools/testq :core:data:test --tests '*FmhyParserFuzzTest'` | 2000 seeded mutations of real sections (`FUZZ_SEED=<n>` to replay); invariants: no throw, http(s) links only, entry count/line bounds, deterministic, no blank names | ~15 s |
+| `uv run --project pipeline pytest pipeline/tests/test_fuzz.py -q` | same invariants for the Python `parse.py` (hypothesis, 300 examples per invariant, no shrinking) | ~75 s |
+| `tools/hunt/parity.sh [--rev REV]` | Python reference dump of `.cache/fmhy-edit` REV, then Kotlin `ParityTest`; prints `PARITY OK` or the first 20 differing rows | ~15 s |
+
+Known findings stay in the tests as `@Ignore("hunt finding: …")`, `pytest.mark.xfail(strict=True)` or
+`knownFindings` (QueryPlanTest), so a fix shows up as an unexpected pass.
+
 StrictMode: every debug build turns it on (thread + VM policy, `penaltyLog`) unless
 `adb shell setprop debug.fmhy.strict 0`; release builds never read the property. `journeys.py`
 forces it to `1` and restores the previous value.

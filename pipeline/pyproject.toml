@@ -12,7 +12,11 @@ dependencies = [
 fmhy-build = "fmhy_pipeline.cli:main"
 
 [dependency-groups]
-dev = ["pytest>=8", "ruff>=0.14"]
+dev = [
+    "hypothesis>=6.170.17",
+    "pytest>=8",
+    "ruff>=0.14",
+]
 
 [build-system]
 requires = ["hatchling"]

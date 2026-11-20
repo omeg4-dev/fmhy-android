@@ -1,6 +1,7 @@
 package io.github.omeg4dev.fmhy.data
 
 import androidx.sqlite.SQLiteConnection
+import androidx.sqlite.SQLiteDriver
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import androidx.sqlite.execSQL
 import io.github.omeg4dev.fmhy.data.model.Change
@@ -33,6 +34,8 @@ import kotlinx.serialization.json.Json
 open class DatasetStore(
     val dbFile: File,
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
+    /** Test seam: QueryPlanTest passes a recording driver. */
+    private val driver: SQLiteDriver = BundledSQLiteDriver(),
 ) {
 
     private val mutex = Mutex()
@@ -50,7 +53,7 @@ open class DatasetStore(
 
     private fun openInternal() {
         if (!dbFile.exists()) return
-        val conn = BundledSQLiteDriver().open(dbFile.absolutePath)
+        val conn = driver.open(dbFile.absolutePath)
         conn.execSQL("PRAGMA busy_timeout = 5000;")
         conn.execSQL("PRAGMA journal_mode = WAL;")
         conn.execSQL("PRAGMA foreign_keys = OFF;")

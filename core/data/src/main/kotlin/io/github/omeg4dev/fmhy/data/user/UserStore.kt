@@ -1,6 +1,7 @@
 package io.github.omeg4dev.fmhy.data.user
 
 import androidx.sqlite.SQLiteConnection
+import androidx.sqlite.SQLiteDriver
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import androidx.sqlite.execSQL
 import java.io.Closeable
@@ -33,6 +34,8 @@ open class UserStore(
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
     internal val targetVersion: Int = USER_DB_VERSION,
     internal val customMigrations: Map<Int, (SQLiteConnection) -> Unit> = emptyMap(),
+    /** Test seam: QueryPlanTest passes a recording driver. */
+    private val driver: SQLiteDriver = BundledSQLiteDriver(),
 ) : Closeable {
 
     private val mutex = Mutex()
@@ -57,7 +60,7 @@ open class UserStore(
         if (!dbFile.exists()) {
             initDatabase(dbFile)
         }
-        val conn = BundledSQLiteDriver().open(dbFile.absolutePath)
+        val conn = driver.open(dbFile.absolutePath)
         conn.execSQL("PRAGMA busy_timeout = 5000;")
         conn.execSQL("PRAGMA journal_mode = WAL;")
         conn.execSQL("PRAGMA foreign_keys = ON;")
