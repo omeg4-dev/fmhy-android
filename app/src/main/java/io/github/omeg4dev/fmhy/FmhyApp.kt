@@ -1,8 +1,6 @@
 package io.github.omeg4dev.fmhy
 
 import android.app.Application
-import android.content.pm.ApplicationInfo
-import android.os.StrictMode
 import android.util.Log
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
@@ -42,17 +40,7 @@ class FmhyApp : Application() {
             previousHandler?.uncaughtException(t, e)
         }
 
-        val isDebug = (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
-        if (isDebug) {
-            StrictMode.setThreadPolicy(
-                StrictMode.ThreadPolicy.Builder()
-                    .detectDiskReads()
-                    .detectDiskWrites()
-                    .detectNetwork()
-                    .penaltyLog()
-                    .build()
-            )
-        }
+        DebugStrictMode.applyIfRequested()
 
         container = DefaultAppContainer(this, store)
         container.initialize()
