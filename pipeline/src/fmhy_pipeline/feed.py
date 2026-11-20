@@ -42,7 +42,7 @@ def build_feed(
     since = now - days * 86400
     history_db.flush()
     rows = history_db.con.execute(
-        f"""
+        """
         SELECT ts, kind, section_id, name, url, detail, commit_sha
         FROM change_log
         WHERE ts >= ? AND url != '' AND commit_sha NOT IN (

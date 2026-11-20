@@ -47,7 +47,7 @@ def _date_to_ts(date_str: str) -> int:
     import datetime
     try:
         d = datetime.date.fromisoformat(date_str.strip())
-        return int(datetime.datetime(d.year, d.month, d.day, tzinfo=datetime.timezone.utc).timestamp())
+        return int(datetime.datetime(d.year, d.month, d.day, tzinfo=datetime.UTC).timestamp())
     except Exception:
         return 0
 

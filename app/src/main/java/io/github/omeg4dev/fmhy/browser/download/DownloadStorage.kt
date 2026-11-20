@@ -8,6 +8,7 @@ import android.os.Environment
 import android.provider.DocumentsContract
 import android.provider.MediaStore
 import android.provider.OpenableColumns
+import androidx.annotation.RequiresApi
 import androidx.core.content.FileProvider
 import io.github.omeg4dev.fmhy.data.SettingsRepository
 import kotlinx.coroutines.flow.first
@@ -132,6 +133,7 @@ class DownloadStorage(
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.Q) // MediaStore.Downloads; only caller checks SDK_INT >= Q
     private fun finalizeMediaStore(part: File, fileName: String, mimeType: String): SavedFile {
         val resolver = context.contentResolver
         val existingNames = mutableSetOf<String>()

@@ -23,7 +23,6 @@ import sqlite3
 import tempfile
 import time
 from pathlib import Path
-from typing import Optional
 
 from .delta import apply_delta, compute_delta, tables_equal
 
@@ -255,7 +254,7 @@ def _check_content_equal(old_db: str, new_db: str) -> tuple[bool, str]:
     """
     Check if two databases have the same content, ignoring meta.created and meta.version.
     """
-    from .delta import _DATA_TABLES, _PKS, _read_all_rows
+    from .delta import _DATA_TABLES, _read_all_rows
 
     tables = _DATA_TABLES + ["changes"]
 

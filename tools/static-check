@@ -1,0 +1,217 @@
+#!/usr/bin/env python3
+"""Run the static analyzers and print only findings that are NOT in their baselines.
+
+  tools/static-check                     # Android Lint + detekt + ruff; exit 1 on any new finding
+  tools/static-check --only ruff         # subset: lint, detekt, ruff (comma separated)
+  tools/static-check --baseline-stats    # counts per rule of the baselined findings (no Gradle run)
+
+Output: one line per new finding, `tool rule path:line message`, at most 40 lines; on a clean tree a
+single `static-check: clean ...` line. Exit 0 clean, 1 new findings, 2 analyzer/build error.
+
+Baselines (regenerate only on purpose, e.g. after fixing baselined findings):
+  Lint    app/lint-baseline.xml                 ./gw :app:updateLintBaselineGithubDebug
+  detekt  config/detekt-baseline-*.xml          ./gw :core:data:detektBaselineMain :app:detektBaselineGithubDebug
+  ruff    extend-per-file-ignores in pipeline/pyproject.toml and ruff.toml (edit by hand)
+"""
+from __future__ import annotations
+
+import argparse
+import collections
+import json
+import re
+import subprocess
+import sys
+import time
+import tomllib
+import xml.etree.ElementTree as ET
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parent.parent
+MAX_LINES = 40
+TOOLS = ("lint", "detekt", "ruff")
+
+# Gradle task -> report it writes (checkstyle XML for detekt, lint XML for lint).
+GRADLE = {
+    "lint": {":app:lintGithubDebug": "app/build/reports/lint-results-githubDebug.xml"},
+    "detekt": {
+        ":core:data:detektMain": "core/data/build/reports/detekt/main.xml",
+        ":app:detektGithubDebug": "app/build/reports/detekt/githubDebug.xml",
+    },
+}
+LINT_META = {"LintBaseline", "LintBaselineFixed"}  # lint's own notes about the baseline
+# Lint checks whose default severity is Error/Fatal. The baseline file stores no severity, so baselined
+# errors are matched by id; extend this set if the reminder line says an id is unknown.
+LINT_ERROR_IDS = {
+    "NewApi", "WrongConstant", "StateFlowValueCalledInComposition", "UnusedMaterial3ScaffoldPaddingParameter",
+    "MissingPermission", "Range", "ResourceType", "WrongThread", "SupportAnnotationUsage", "MissingSuperCall",
+    "CheckResult", "UnsafeOptInUsageError", "ScopedStorage", "MissingClass", "Instantiatable",
+    "UnrememberedMutableState", "ComposableNaming", "RememberReturnType", "FrequentlyChangedStateReadInComposition",
+    "ReturnFromAwaitPointerEventScope", "SuspiciousIndentation", "ExportedReceiver", "ProtectedPermissions",
+}
+RUFF = ["uv", "run", "--quiet", "--project", "pipeline", "ruff", "check", "pipeline", "tools"]
+
+
+def rel(path: str) -> str:
+    p = Path(path)
+    try:
+        return str(p.resolve().relative_to(REPO))
+    except ValueError:
+        return path
+
+
+def one_line(msg: str) -> str:
+    return " ".join(msg.split())
+
+
+def lint_baselined_errors(report: Path) -> str | None:
+    """One reminder line naming the error-severity issues hidden by the baseline (they are known bugs)."""
+    hint = next((i.get("message", "") for i in ET.parse(report).getroot().iter("issue")
+                 if i.get("id") == "LintBaseline"), "")
+    m = re.match(r"(\d+) errors?", hint)
+    if not m or m.group(1) == "0":
+        return None
+    known = []
+    for issue in ET.parse(REPO / "app/lint-baseline.xml").getroot().iter("issue"):
+        if issue.get("id") in LINT_ERROR_IDS:
+            loc = issue.find("location")
+            known.append(f"{issue.get('id')} {Path(loc.get('file', '?')).name}:{loc.get('line', '?')}")
+    note = "" if len(known) == int(m.group(1)) else " (some ids unknown to static-check)"
+    return f"lint: {m.group(1)} known errors in baseline{note}: " + ", ".join(known)
+
+
+def lint_findings(report: Path) -> list[str]:
+    out = []
+    for issue in ET.parse(report).getroot().iter("issue"):
+        rule = issue.get("id", "?")
+        if rule in LINT_META:
+            continue
+        loc = issue.find("location")
+        where = "?"
+        if loc is not None:
+            where = f"{rel(loc.get('file', '?'))}:{loc.get('line', '?')}"
+        out.append(f"lint {rule} {where} {one_line(issue.get('message', ''))}")
+    return out
+
+
+def detekt_findings(report: Path) -> list[str]:
+    out = []
+    for f in ET.parse(report).getroot().iter("file"):
+        for err in f.iter("error"):
+            rule = err.get("source", "?").removeprefix("detekt.")
+            out.append(f"detekt {rule} {rel(f.get('name', '?'))}:{err.get('line', '?')} "
+                       f"{one_line(err.get('message', ''))}")
+    return out
+
+
+def run_gradle(tools: list[str]) -> tuple[list[str], list[str], list[str]]:
+    """Returns (findings, errors, notes)."""
+    tasks = {t: r for tool in tools for t, r in GRADLE[tool].items()}
+    proc = subprocess.run(["./gw", *tasks, "--continue"], cwd=REPO, capture_output=True, text=True)
+    log = proc.stdout + proc.stderr
+    failed = set(re.findall(r"^> Task (\S+) FAILED", log, re.M))
+    findings, errors, notes = [], [], []
+    other = failed - set(tasks)
+    if other:
+        errors.append(f"gradle: failed tasks {', '.join(sorted(other))}")
+        errors += [ln for ln in log.splitlines() if ln.startswith("e: ")][:10]
+    for task, report in tasks.items():
+        path = REPO / report
+        if task in other or not path.exists():
+            if not other:
+                errors.append(f"gradle: {task} wrote no report ({report})")
+            continue
+        found = lint_findings(path) if "lint" in task else detekt_findings(path)
+        if "lint" in task and (note := lint_baselined_errors(path)):
+            notes.append(note)
+        if task in failed and not found:
+            errors.append(f"gradle: {task} failed without findings, run ./gw {task}")
+        findings += found
+    if proc.returncode and not failed:
+        errors.append("gradle: build failed: " + one_line(log[-400:]))
+    return findings, errors, notes
+
+
+def ruff_findings() -> tuple[list[str], list[str]]:
+    proc = subprocess.run([*RUFF, "--output-format", "json"], cwd=REPO, capture_output=True, text=True)
+    try:
+        items = json.loads(proc.stdout or "[]")
+    except json.JSONDecodeError:
+        return [], ["ruff: " + one_line((proc.stdout + proc.stderr)[-400:])]
+    return [f"ruff {i['code']} {rel(i['filename'])}:{i['location']['row']} {one_line(i['message'])}"
+            for i in items], []
+
+
+def check(tools: list[str]) -> int:
+    start = time.time()
+    findings, errors, notes = [], [], []
+    gradle_tools = [t for t in tools if t in GRADLE]
+    if gradle_tools:
+        findings, errors, notes = run_gradle(gradle_tools)
+    if "ruff" in tools:
+        f, e = ruff_findings()
+        findings += f
+        errors += e
+    lines = errors + findings
+    for ln in lines[:MAX_LINES]:
+        print(ln[:200])
+    if len(lines) > MAX_LINES:
+        print(f"... {len(lines) - MAX_LINES} more (reports under */build/reports/)")
+    for ln in notes:
+        print(ln[:200])
+    secs = round(time.time() - start)
+    if errors:
+        print(f"static-check: ERROR ({len(errors)} analyzer errors) in {secs}s")
+        return 2
+    if findings:
+        per = collections.Counter(ln.split(" ", 1)[0] for ln in findings)
+        print(f"static-check: {len(findings)} new findings ({dict(per)}) in {secs}s")
+        return 1
+    print(f"static-check: clean ({', '.join(tools)}) in {secs}s")
+    return 0
+
+
+def baseline_stats(tools: list[str]) -> int:
+    rows: list[tuple[str, str, int]] = []
+    if "lint" in tools:
+        c = collections.Counter(i.get("id") for i in ET.parse(REPO / "app/lint-baseline.xml").getroot().iter("issue"))
+        rows += [("lint", k, n) for k, n in c.items()]
+    if "detekt" in tools:
+        c = collections.Counter()
+        for f in sorted((REPO / "config").glob("detekt-baseline-*.xml")):
+            c.update((e.text or "?").split(":", 1)[0] for e in ET.parse(f).getroot().iter("ID"))
+        rows += [("detekt", k, n) for k, n in c.items()]
+    if "ruff" in tools:
+        # Per-file ignores cannot be switched off from the CLI: rerun isolated with the same rule selection.
+        cfg = tomllib.loads((REPO / "pipeline/pyproject.toml").read_text())
+        select = ",".join(cfg["tool"]["ruff"]["lint"]["select"])
+        target = cfg["tool"]["ruff"].get("target-version", "py313")
+        proc = subprocess.run([*RUFF, "--isolated", "--target-version", target, "--select", select,
+                               "--output-format", "json"], cwd=REPO, capture_output=True, text=True)
+        c = collections.Counter(i["code"] for i in json.loads(proc.stdout or "[]"))
+        rows += [("ruff", k, n) for k, n in c.items()]
+    totals = collections.Counter()
+    for tool, _, n in rows:
+        totals[tool] += n
+    print("baselined: " + ", ".join(f"{t} {totals[t]}" for t in tools))
+    if "lint" in tools:
+        errs = [r for t, r, _ in rows if t == "lint" and r in LINT_ERROR_IDS]
+        if errs:
+            print("lint error-severity ids in baseline (known bugs): " + ", ".join(sorted(errs)))
+    for tool, rule, n in sorted(rows, key=lambda r: (-r[2], r[0], r[1])):
+        print(f"{n:4d} {tool} {rule}")
+    return 0
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--only", default=",".join(TOOLS), help="comma separated subset of: lint,detekt,ruff")
+    ap.add_argument("--baseline-stats", action="store_true", help="counts per rule of baselined findings")
+    a = ap.parse_args()
+    tools = [t.strip() for t in a.only.split(",") if t.strip()]
+    if bad := [t for t in tools if t not in TOOLS]:
+        ap.error(f"unknown tool(s): {', '.join(bad)}")
+    return baseline_stats(tools) if a.baseline_stats else check(tools)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

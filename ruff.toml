@@ -1,0 +1,7 @@
+# Repo-level ruff config so tools/*.py use the same rules as pipeline/ (not a user-level config).
+extend = "pipeline/pyproject.toml"
+
+# Baseline: findings that existed when ruff was added (2026-11-20).
+# TODO: fix and remove; tools/static-check --baseline-stats lists them for /bug-hunt.
+[lint.extend-per-file-ignores]
+"tools/make_icons.py" = ["B905", "RUF046"]

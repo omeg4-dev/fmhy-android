@@ -8,9 +8,7 @@ Uses markdown-it-py for inline parsing (no regex-only link extraction).
 from __future__ import annotations
 
 import re
-import json
 from dataclasses import dataclass, field
-from typing import Optional
 
 from markdown_it import MarkdownIt
 
@@ -118,7 +116,7 @@ class InlineToken:
     kind: str  # 'link' | 'text' | 'bold_open' | 'bold_close' | 'softbreak' | 'other'
     text: str = ""
     url: str = ""
-    children: list["InlineToken"] = field(default_factory=list)
+    children: list[InlineToken] = field(default_factory=list)
 
 
 def _extract_inline_links(text: str) -> list[InlineLink]:
@@ -229,7 +227,7 @@ class ParsedEntry:
     extra_links: list[dict] = field(default_factory=list)
     description: str = ""
     tags: str = ""
-    heading_id: Optional[str] = None
+    heading_id: str | None = None
     heading_path: str = ""
     section_id: str = ""
     ord: int = 0
@@ -238,7 +236,7 @@ class ParsedEntry:
 @dataclass
 class ParsedNote:
     text_md: str
-    heading_id: Optional[str] = None
+    heading_id: str | None = None
     section_id: str = ""
     ord: int = 0
 
@@ -248,7 +246,7 @@ class ParsedHeading:
     level: int  # 1..4
     title: str
     anchor: str
-    parent_id: Optional[str] = None
+    parent_id: str | None = None
     id: str = ""
     section_id: str = ""
     ord: int = 0
@@ -884,7 +882,7 @@ def parse_section(
 def _parse_bullet_line(
     content: str,
     section_id: str,
-    heading_id: Optional[str],
+    heading_id: str | None,
     heading_path: str,
     ord_start: int,
     is_inline_more: int = 0,
@@ -972,7 +970,7 @@ def _parse_bullet_line(
 def _parse_inline_more_line(
     content: str,
     section_id: str,
-    heading_id: Optional[str],
+    heading_id: str | None,
     heading_path: str,
     ord_start: int,
     line_number: int = 0,

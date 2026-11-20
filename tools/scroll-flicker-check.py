@@ -56,7 +56,7 @@ def page_html() -> str:
 def serve(port: int) -> None:
     root = Path(tempfile.mkdtemp(prefix="flicker-page-"))
     (root / "index.html").write_text(page_html())
-    handler = lambda *a, **k: http.server.SimpleHTTPRequestHandler(*a, directory=str(root), **k)  # noqa: E731
+    handler = lambda *a, **k: http.server.SimpleHTTPRequestHandler(*a, directory=str(root), **k)
     print(f"serving http://10.0.2.2:{port}/ (emulator) from {root}", flush=True)
     http.server.ThreadingHTTPServer(("127.0.0.1", port), handler).serve_forever()
 

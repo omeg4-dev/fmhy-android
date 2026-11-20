@@ -12,7 +12,7 @@ dependencies = [
 fmhy-build = "fmhy_pipeline.cli:main"
 
 [dependency-groups]
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "ruff>=0.14"]
 
 [build-system]
 requires = ["hatchling"]
@@ -23,3 +23,21 @@ packages = ["src/fmhy_pipeline"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E9", "F", "B", "PERF", "SIM", "UP", "RUF"]
+
+# Baseline: findings that existed when ruff was added (2026-11-20). Only new rules per file fail.
+# TODO: fix and remove; tools/static-check --baseline-stats lists them for /bug-hunt.
+[tool.ruff.lint.extend-per-file-ignores]
+"src/fmhy_pipeline/cli.py" = ["F841"]
+"src/fmhy_pipeline/delta.py" = ["B905", "RUF005"]
+"src/fmhy_pipeline/history.py" = ["B007", "PERF401", "PERF403", "RUF059", "SIM102"]
+"src/fmhy_pipeline/parse.py" = ["F841", "PERF401", "RUF001", "RUF059", "SIM102"]
+"src/fmhy_pipeline/publish.py" = ["RUF005", "RUF059"]
+"src/fmhy_pipeline/slug.py" = ["RUF002"]
+"tests/test_feed_verify.py" = ["RUF005"]
+"tests/test_pipeline.py" = ["F841", "RUF005", "RUF059", "SIM108"]

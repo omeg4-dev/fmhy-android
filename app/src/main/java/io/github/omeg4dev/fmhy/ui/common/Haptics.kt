@@ -1,5 +1,6 @@
 package io.github.omeg4dev.fmhy.ui.common
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.media.AudioAttributes
 import android.os.Build
@@ -160,6 +161,8 @@ private class VibratorHaptics(private val vibrator: Vibrator) : AppHaptics {
     }
 
     /** Null when a primitive is missing or reported with zero duration (advertised but not really playable). */
+    // ids are Composition.PRIMITIVE_* values; lint cannot follow them through the IntArray.
+    @SuppressLint("WrongConstant")
     @androidx.annotation.RequiresApi(Build.VERSION_CODES.R)
     private fun composition(kind: HapticKind): VibrationEffect? {
         val steps = primitivePattern(kind)

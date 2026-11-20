@@ -1,0 +1,52 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>DoubleMutabilityForCollection:DatasetStoreSectionItems.kt:var currentMoreEntries = mutableListOf&lt;Entry&gt;()</ID>
+    <ID>ImplicitDefaultLocale:FmhySyncIO.kt:"%02x".format(it)</ID>
+    <ID>ImplicitDefaultLocale:HistorySync.kt:HistorySync.Companion$"%02x".format(it)</ID>
+    <ID>ImplicitDefaultLocale:SnapshotBuilder.kt:SnapshotBuilder$"%02x".format(it)</ID>
+    <ID>ImplicitDefaultLocale:SnapshotBuilder.kt:SnapshotBuilder$"Completed in %.2f s".format(elapsedSec)</ID>
+    <ID>ImplicitDefaultLocale:TrackerSync.kt:TrackerSync.Companion$"%02x".format(it)</ID>
+    <ID>InjectDispatcher:DocFetcher.kt:DocFetcher$IO</ID>
+    <ID>InjectDispatcher:FilterListUpdater.kt:FilterListUpdater$IO</ID>
+    <ID>InjectDispatcher:FmhySync.kt:FmhySync$Default</ID>
+    <ID>InjectDispatcher:FmhySync.kt:FmhySync$IO</ID>
+    <ID>InjectDispatcher:HistorySync.kt:HistorySync$IO</ID>
+    <ID>InjectDispatcher:PasteLinks.kt:PasteResolver$IO</ID>
+    <ID>InjectDispatcher:TrackerSync.kt:TrackerSync$IO</ID>
+    <ID>InstanceOfCheckForException:PasteLinks.kt:PasteResolver$e is IOException</ID>
+    <ID>MapGetWithNotNullAssertionOperator:FmhySync.kt:FmhySync$state.files[fmhySitesPath]!!</ID>
+    <ID>MapGetWithNotNullAssertionOperator:FmhySync.kt:FmhySync$state.files[siteListPath]!!</ID>
+    <ID>MapGetWithNotNullAssertionOperator:FmhySync.kt:FmhySync$state.files[siteListPlusPath]!!</ID>
+    <ID>SwallowedException:DocFetcher.kt:DocFetcher$e: Exception</ID>
+    <ID>ThrowingExceptionFromFinally:DatasetStore.kt:DatasetStore$throw openException</ID>
+    <ID>TooGenericExceptionCaught:DatasetStore.kt:DatasetStore$e: Throwable</ID>
+    <ID>TooGenericExceptionCaught:DatasetStore.kt:DatasetStore$openException: Throwable</ID>
+    <ID>TooGenericExceptionCaught:DatasetStore.kt:DatasetStore$t: Throwable</ID>
+    <ID>TooGenericExceptionCaught:DocFetcher.kt:DocFetcher$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:DocFetcher.kt:DocFetcher$fallbackEx: Exception</ID>
+    <ID>TooGenericExceptionCaught:FilterListUpdater.kt:FilterListUpdater$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:FilterListUpdater.kt:OkHttpListFetcher$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:FmhySync.kt:FmhySync$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:FmhySyncIO.kt:e: Exception</ID>
+    <ID>TooGenericExceptionCaught:HistorySync.kt:HistorySync$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:HistorySync.kt:HistorySync$e: Throwable</ID>
+    <ID>TooGenericExceptionCaught:PasteLinks.kt:PasteResolver$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:TrackerSync.kt:TrackerSync$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:TrackerSync.kt:TrackerSync$e: Throwable</ID>
+    <ID>TooGenericExceptionCaught:UserStore.kt:UserStore$e: Throwable</ID>
+    <ID>TooGenericExceptionCaught:UserStoreMappers.kt:e: Throwable</ID>
+    <ID>UnsafeCallOnNullableType:FilterEngine.kt:FilterEngine$firstRedirect.redirectResource!!</ID>
+    <ID>UnsafeCallOnNullableType:FmhyParser.kt:FmhyParser$current!!</ID>
+    <ID>UnsafeCallOnNullableType:FmhySync.kt:FmhySync$state.files[fmhySitesPath]!!</ID>
+    <ID>UnsafeCallOnNullableType:FmhySync.kt:FmhySync$state.files[siteListPath]!!</ID>
+    <ID>UnsafeCallOnNullableType:FmhySync.kt:FmhySync$state.files[siteListPlusPath]!!</ID>
+    <ID>UnusedParameter:FmhyParser.kt:FmhyParser$sectionId: String</ID>
+    <ID>UnusedParameter:QueryAssist.kt:QueryAssist$prefix: String</ID>
+    <ID>UnusedVariable:Base64Map.kt:Base64Map.Companion$i</ID>
+    <ID>UnusedVariable:FilterEngineCodec.kt:FilterEngineCodec$i</ID>
+    <ID>UnusedVariable:FmhyParser.kt:FmhyParser$step</ID>
+    <ID>UnusedVariable:FmhySync.kt:FmhySync$val changedHeadingsOrNotes = diffResult.changedHeadingsOrNotes</ID>
+  </CurrentIssues>
+</SmellBaseline>

@@ -18,7 +18,6 @@ import os
 import shutil
 import sqlite3
 import subprocess
-import tempfile
 import time
 from pathlib import Path
 
@@ -82,7 +81,7 @@ class TestAnchorTracker:
 # normalize_url tests
 # ============================================================
 
-from fmhy_pipeline.ids import normalize_url, IdAssigner
+from fmhy_pipeline.ids import normalize_url
 
 
 class TestNormalizeUrl:
@@ -195,12 +194,9 @@ class TestBase64Decode:
 
 from fmhy_pipeline.parse import (
     _parse_bullet_line,
-    _parse_head_links,
     _parse_inline_more_line,
-    _split_head_desc,
     parse_section,
     _NOTE_MARKER_RE,
-    _detect_tier,
     ParsedNote,
 )
 
@@ -501,7 +497,6 @@ class TestDeltaRoundTrip:
         upsert_ids = [r["id"] for r in delta["upsert"]["entries"]]
         assert "bbb222" in upsert_ids
 
-        import shutil
         shutil.copy2(db1, applied)
         apply_delta(applied, delta)
 
@@ -525,7 +520,6 @@ class TestDeltaRoundTrip:
         assert "entries" in delta.get("delete", {})
         assert "bbb222" in delta["delete"]["entries"]
 
-        import shutil
         shutil.copy2(db1, applied)
         apply_delta(applied, delta)
         ok, reason = tables_equal(applied, db2)
@@ -547,7 +541,6 @@ class TestDeltaRoundTrip:
         delta = compute_delta(db1, db2, 1, 2)
         assert "entries" in delta["upsert"]
 
-        import shutil
         shutil.copy2(db1, applied)
         apply_delta(applied, delta)
         ok, reason = tables_equal(applied, db2)
@@ -578,7 +571,6 @@ class TestDeltaRoundTrip:
         delta = compute_delta(db1, db2, 1, 2)
         assert len(delta.get("changes_append", [])) == 1
 
-        import shutil
         shutil.copy2(db1, applied)
         apply_delta(applied, delta)
         ok, reason = tables_equal(applied, db2)
@@ -926,7 +918,6 @@ def test_site_lists_delta_upsert_and_delete(tmp_path):
     delete_keys = [tuple(k) if isinstance(k, (list, tuple)) else k for k in delta["delete"]["site_lists"]]
     assert ("remove-me.org", "potentially_unsafe") in delete_keys
 
-    import shutil
     shutil.copy2(db1, applied)
     apply_delta(applied, delta)
 

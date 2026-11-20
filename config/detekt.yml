@@ -1,0 +1,116 @@
+# detekt: only rule sets that find bugs. Style-type sets are off (token cost, no bugs found),
+# except the dead-code rules in `style` below. Built on the default config (buildUponDefaultConfig = true).
+potential-bugs:
+  active: true
+coroutines:
+  active: true
+performance:
+  active: true
+exceptions:
+  active: true
+
+comments:
+  active: false
+complexity:
+  active: false
+empty-blocks:
+  active: false
+naming:
+  active: false
+
+# Compose rules (io.nlopez.compose.rules:detekt): on, they catch state/remember/modifier misuse.
+Compose:
+  active: true
+
+# style: only the dead-code rules (unused variables/parameters/private members); every other
+# style rule that is on by default is switched off here.
+style:
+  active: true
+  UnusedParameter:
+    active: true
+  UnusedPrivateClass:
+    active: true
+  UnusedPrivateFunction:
+    active: true
+  UnusedPrivateProperty:
+    active: true
+  UnusedVariable:
+    active: true
+  AbstractClassCanBeConcreteClass:
+    active: false
+  AbstractClassCanBeInterface:
+    active: false
+  DestructuringDeclarationWithTooManyEntries:
+    active: false
+  EqualsNullCall:
+    active: false
+  ExplicitItLambdaMultipleParameters:
+    active: false
+  ExplicitItLambdaParameter:
+    active: false
+  ForbiddenComment:
+    active: false
+  ForbiddenVoid:
+    active: false
+  FunctionOnlyReturningConstant:
+    active: false
+  LoopWithTooManyJumpStatements:
+    active: false
+  MagicNumber:
+    active: false
+  MaxLineLength:
+    active: false
+  MayBeConstant:
+    active: false
+  ModifierOrder:
+    active: false
+  NestedClassesVisibility:
+    active: false
+  NewLineAtEndOfFile:
+    active: false
+  ObjectLiteralToLambda:
+    active: false
+  OptionalAbstractKeyword:
+    active: false
+  ProtectedMemberInFinalClass:
+    active: false
+  RedundantHigherOrderMapUsage:
+    active: false
+  ReturnCount:
+    active: false
+  SafeCast:
+    active: false
+  SerialVersionUIDInSerializableClass:
+    active: false
+  ThrowsCount:
+    active: false
+  UnnecessaryApply:
+    active: false
+  UnnecessaryFilter:
+    active: false
+  UnnecessaryInheritance:
+    active: false
+  UseAnyOrNoneInsteadOfFind:
+    active: false
+  UseArrayLiteralsInAnnotations:
+    active: false
+  UseCheckNotNull:
+    active: false
+  UseCheckOrError:
+    active: false
+  UseIsNullOrEmpty:
+    active: false
+  UseOrEmpty:
+    active: false
+  UseRequire:
+    active: false
+  UseRequireNotNull:
+    active: false
+  UselessCallOnNotNull:
+    active: false
+  UtilityClassWithPublicConstructor:
+    active: false
+  VarCouldBeVal:
+    active: false
+  WildcardImport:
+    active: false

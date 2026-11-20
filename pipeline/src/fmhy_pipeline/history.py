@@ -13,15 +13,12 @@ from __future__ import annotations
 
 import collections
 import hashlib
-import os
 import sqlite3
 import subprocess
 import time
 from pathlib import Path
-from typing import Optional
 
 from .ids import entry_id, normalize_url
-from .parse import parse_section
 from .sections import _EXCLUDED
 
 
@@ -429,7 +426,7 @@ def walk_history(
     rev: str,
     history_db: HistoryDB,
     *,
-    max_commits: Optional[int] = None,
+    max_commits: int | None = None,
 ) -> None:
     """
     Walk git history from rev, updating the history DB with changes.

@@ -1,0 +1,278 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>ComposableParamOrder:AboutPage.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable fun AboutPage</ID>
+    <ID>ComposableParamOrder:AppearancePage.kt:@Composable private fun AppIconPreview</ID>
+    <ID>ComposableParamOrder:BrowserEditMode.kt:@Composable fun BrowserEditMode</ID>
+    <ID>ComposableParamOrder:BrowserPage.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable fun BrowserPage</ID>
+    <ID>ComposableParamOrder:BrowserScreen.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable fun BrowserScreen</ID>
+    <ID>ComposableParamOrder:BrowserScreenState.kt:@Composable internal fun rememberBrowserScreenScope: BrowserScreenScope</ID>
+    <ID>ComposableParamOrder:BrowserToolbar.kt:@Composable fun BrowserToolbar</ID>
+    <ID>ComposableParamOrder:BrowserToolbar.kt:@Composable private fun MenuActionRow</ID>
+    <ID>ComposableParamOrder:BrowserToolbar.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable fun BrowserMenuSheet</ID>
+    <ID>ComposableParamOrder:CalloutBox.kt:@Composable fun CalloutBox</ID>
+    <ID>ComposableParamOrder:CheckLinkScreen.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable fun CheckLinkScreen</ID>
+    <ID>ComposableParamOrder:DownloadsSheet.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable fun DownloadsSheet</ID>
+    <ID>ComposableParamOrder:EntryDetailSheet.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable fun EntryDetailBottomSheet</ID>
+    <ID>ComposableParamOrder:EntryIcons.kt:@Composable internal fun EntryMarker</ID>
+    <ID>ComposableParamOrder:EntryRow.kt:@OptIn(ExperimentalFoundationApi::class) @Composable fun EntryRow</ID>
+    <ID>ComposableParamOrder:Motion.kt:@Composable fun SkeletonRows</ID>
+    <ID>ComposableParamOrder:OnboardingPreviews.kt:@Composable fun LookPreview</ID>
+    <ID>ComposableParamOrder:OnboardingPreviews.kt:@Composable fun StayUpdatedPreview</ID>
+    <ID>ComposableParamOrder:SavedScreen.kt:@Composable private fun RemovedSiteRow</ID>
+    <ID>ComposableParamOrder:SectionScreen.kt:@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class) @Composable fun SectionScreen</ID>
+    <ID>ComposableParamOrder:SettingsComponents.kt:@Composable fun ExpandableSection</ID>
+    <ID>ComposableParamOrder:SettingsComponents.kt:@Composable fun InfoRow</ID>
+    <ID>ComposableParamOrder:SettingsComponents.kt:@Composable fun NavRow</ID>
+    <ID>ComposableParamOrder:SettingsComponents.kt:@Composable fun RowIcon</ID>
+    <ID>ComposableParamOrder:SettingsComponents.kt:@Composable fun SettingsSection</ID>
+    <ID>ComposableParamOrder:SettingsComponents.kt:@Composable fun SliderRow</ID>
+    <ID>ComposableParamOrder:SettingsComponents.kt:@Composable fun SwitchRow</ID>
+    <ID>ComposableParamOrder:ShieldSheet.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable fun ShieldSheet</ID>
+    <ID>ComposableParamOrder:SubsectionActionsMenu.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable fun SubsectionActionsMenu</ID>
+    <ID>ComposableParamOrder:VerdictCard.kt:@Composable fun VerdictCard</ID>
+    <ID>CompositionLocalAllowlist:AppNavState.kt:/** Like [LocalAppNav], but null outside the main navigation (e.g. CheckLinkActivity, BrowserActivity). */ val LocalAppNavOrNull = staticCompositionLocalOf&lt;AppNavState?&gt; { null }</ID>
+    <ID>CompositionLocalAllowlist:AppNavState.kt:val LocalAppNav = staticCompositionLocalOf&lt;AppNavState&gt; { error("no nav") }</ID>
+    <ID>CompositionLocalAllowlist:Bookmarks.kt:val LocalBookmarks = compositionLocalOf { BookmarksState() }</ID>
+    <ID>CompositionLocalAllowlist:Bookmarks.kt:val LocalSnackbarHost = compositionLocalOf&lt;SnackbarHostState?&gt; { null }</ID>
+    <ID>CompositionLocalAllowlist:CalloutColors.kt:val LocalCalloutColors = staticCompositionLocalOf { calloutColors(CalloutSet.GREEN_TEAL, dark = false) }</ID>
+    <ID>CompositionLocalAllowlist:CrossLinkLocals.kt:/** Decodes pastebin-hidden links for Copy / Share (Open goes through [LinkOpener]). */ val LocalPasteDecoder = staticCompositionLocalOf&lt;PasteDecoder?&gt; { null }</ID>
+    <ID>CompositionLocalAllowlist:CrossLinkLocals.kt:val LocalCrossLinks = staticCompositionLocalOf&lt;CrossLinks?&gt; { null }</ID>
+    <ID>CompositionLocalAllowlist:GesturePrefs.kt:val LocalGesturePrefs = staticCompositionLocalOf { GesturePrefs() }</ID>
+    <ID>CompositionLocalAllowlist:GesturePrefs.kt:val LocalWebsiteStyle = staticCompositionLocalOf { false }</ID>
+    <ID>CompositionLocalAllowlist:Haptics.kt:val LocalHapticsEnabled = staticCompositionLocalOf { true }</ID>
+    <ID>CompositionLocalAllowlist:LocalBottomBar.kt:val LocalBottomBarPadding = compositionLocalOf&lt;Dp&gt; { 0.dp }</ID>
+    <ID>CompositionLocalAllowlist:MainActivity.kt:val LocalForceDarkBars = staticCompositionLocalOf&lt;MutableState&lt;Boolean&gt;&gt; { mutableStateOf(false) }</ID>
+    <ID>CompositionLocalAllowlist:MarkdownText.kt:val LocalMarkdownLinkColor = compositionLocalOf&lt;Color?&gt; { null }</ID>
+    <ID>CompositionLocalAllowlist:Navigation.kt:val LocalBottomBarController = staticCompositionLocalOf { BottomBarController {} }</ID>
+    <ID>CompositionLocalAllowlist:SettingsFocus.kt:val LocalSettingFocus = compositionLocalOf&lt;String?&gt; { null }</ID>
+    <ID>CompositionLocalAllowlist:StoreLocals.kt:val LocalAppContainer = staticCompositionLocalOf&lt;AppContainer?&gt; { null }</ID>
+    <ID>CompositionLocalAllowlist:StoreLocals.kt:val LocalDatasetStore = staticCompositionLocalOf&lt;DatasetStore?&gt; { null }</ID>
+    <ID>CompositionLocalAllowlist:StoreLocals.kt:val LocalUserStore = staticCompositionLocalOf&lt;UserStore?&gt; { null }</ID>
+    <ID>CompositionLocalAllowlist:Theme.kt:val LocalIsDarkTheme = staticCompositionLocalOf { false }</ID>
+    <ID>DoubleMutabilityForCollection:PostSiteRow.kt:var current = mutableListOf&lt;MarkdownBlock&gt;()</ID>
+    <ID>ImplicitDefaultLocale:FileHash.kt:FileHash$"%02x".format(it)</ID>
+    <ID>ImplicitDefaultLocale:SearchBlock.kt:"%,d".format(totalEntries)</ID>
+    <ID>ImplicitDefaultLocale:SearchScreen.kt:"%,d".format(state.total)</ID>
+    <ID>ImplicitDefaultLocale:SectionsBlock.kt:"%,d".format(section.entryCount)</ID>
+    <ID>ImplicitDefaultLocale:SyncPage.kt:"%,d sites".format(state.entryCount)</ID>
+    <ID>ImplicitDefaultLocale:TabManagerNavigation.kt:String.format("#%06X", 0xFFFFFF and currentAppearance.accentSeed)</ID>
+    <ID>InjectDispatcher:AppContainer.kt:DefaultAppContainer$Default</ID>
+    <ID>InjectDispatcher:AppContainer.kt:DefaultAppContainer$IO</ID>
+    <ID>InjectDispatcher:BrowserHooks.kt:DefaultBrowserHooks$IO</ID>
+    <ID>InjectDispatcher:BrowserHooksDownloads.kt:IO</ID>
+    <ID>InjectDispatcher:BrowserHooksPageLoad.kt:IO</ID>
+    <ID>InjectDispatcher:BrowserHooksRescue.kt:IO</ID>
+    <ID>InjectDispatcher:DownloadChecks.kt:DownloadChecks$IO</ID>
+    <ID>InjectDispatcher:DownloadController.kt:DownloadController$IO</ID>
+    <ID>InjectDispatcher:FmhyWidgetProvider.kt:FmhyWidgetProvider.Companion$IO</ID>
+    <ID>InjectDispatcher:HybridAnalysisClient.kt:HybridAnalysisClient$IO</ID>
+    <ID>InjectDispatcher:IpLookup.kt:IpLookup$IO</ID>
+    <ID>InjectDispatcher:NewPostsChecker.kt:NewPostsChecker$IO</ID>
+    <ID>InjectDispatcher:PageCapture.kt:PictureStore$IO</ID>
+    <ID>InjectDispatcher:PostsViewModel.kt:PostsViewModel$IO</ID>
+    <ID>InjectDispatcher:SearchViewModel.kt:SearchViewModel$Default</ID>
+    <ID>InjectDispatcher:SearchViewModel.kt:SearchViewModel$IO</ID>
+    <ID>InjectDispatcher:SectionViewModel.kt:SectionViewModel$Default</ID>
+    <ID>InjectDispatcher:UpdateControllerImpl.kt:UpdateControllerImpl$IO</ID>
+    <ID>InjectDispatcher:VirusTotalClient.kt:VirusTotalClient$IO</ID>
+    <ID>InjectDispatcher:WhatsNewViewModel.kt:WhatsNewViewModel$Default</ID>
+    <ID>InjectDispatcher:WhatsNewViewModel.kt:WhatsNewViewModel$IO</ID>
+    <ID>InstanceOfCheckForException:DownloadStorage.kt:DownloadStorage$e is IOException</ID>
+    <ID>InstanceOfCheckForException:PageCapture.kt:PictureStore$e is IOException</ID>
+    <ID>LambdaParameterEventTrailing:BrowserMenuSheet.kt:onClick: () -&gt; Unit</ID>
+    <ID>LambdaParameterEventTrailing:SettingsComponents.kt:onChange: (Boolean) -&gt; Unit</ID>
+    <ID>LambdaParameterEventTrailing:SettingsComponents.kt:onClick: () -&gt; Unit</ID>
+    <ID>LambdaParameterInRestartableEffect:CategoryScreen.kt:onShowSnackbar: (String) -&gt; Unit = {}</ID>
+    <ID>LambdaParameterInRestartableEffect:LinkMenuSheet.kt:onDismiss: () -&gt; Unit</ID>
+    <ID>LambdaParameterInRestartableEffect:LinkMenuSheet.kt:onLookupVerdict: suspend (String) -&gt; SiteBarState?</ID>
+    <ID>LambdaParameterInRestartableEffect:OnboardingComponents.kt:onCheckFinished: () -&gt; Unit = {}</ID>
+    <ID>LambdaParameterInRestartableEffect:SectionScreen.kt:onShowSnackbar: (String) -&gt; Unit = {}</ID>
+    <ID>MissingReadOnlyComposable:FmhyBrand.kt:@Composable fun fmhyBlue: Color</ID>
+    <ID>MissingReadOnlyComposable:SearchBarField.kt:@Composable internal fun searchBarContainerColor: Color</ID>
+    <ID>MissingReadOnlyComposable:StatusPopup.kt:@Composable internal fun statusToneColor: Color</ID>
+    <ID>ModifierComposed:JumpHighlight.kt:fun Modifier.jumpHighlight: Modifier</ID>
+    <ID>ModifierComposed:Motion.kt:fun Modifier.enterStagger: Modifier</ID>
+    <ID>ModifierComposed:Motion.kt:fun Modifier.enterStaggerOrdered: Modifier</ID>
+    <ID>ModifierComposed:OnboardingScreen.kt:private fun Modifier.enterStaggerChip: Modifier</ID>
+    <ID>ModifierComposed:SettingsFocus.kt:fun Modifier.settingHighlight: Modifier</ID>
+    <ID>ModifierMissing:BrowserBarItem.kt:@OptIn(ExperimentalFoundationApi::class) @Composable fun RowScope.BrowserBarItem</ID>
+    <ID>ModifierMissing:CategoryScreen.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable fun CategoryScreen</ID>
+    <ID>ModifierMissing:CheckLinkScreen.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable fun CheckLinkScreen</ID>
+    <ID>ModifierMissing:HomeScreen.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable fun HomeScreen</ID>
+    <ID>ModifierMissing:Navigation.kt:@Composable fun MainNavigation</ID>
+    <ID>ModifierMissing:PostsScreen.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable fun PostsScreen</ID>
+    <ID>ModifierMissing:ReaderScreen.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable fun ReaderScreen</ID>
+    <ID>ModifierMissing:SavedScreen.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable fun SavedScreen</ID>
+    <ID>ModifierMissing:SearchScreen.kt:@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, ExperimentalLayoutApi::class) @Composable fun SearchScreen</ID>
+    <ID>ModifierMissing:SectionScreen.kt:@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class) @Composable fun SectionScreen</ID>
+    <ID>ModifierMissing:WhatsNewHub.kt:@OptIn(ExperimentalMaterial3Api::class) @Composable fun WhatsNewHub</ID>
+    <ID>ModifierMissing:WhatsNewScreen.kt:@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class, ExperimentalFoundationApi::class) @Composable fun WhatsNewScreen</ID>
+    <ID>ModifierReused:BrowserScreen.kt:Box( modifier = modifier .fillMaxSize() .graphicsLayer { scaleX = backScale.value scaleY = backScale.value alpha = backAlpha.value translationX = backTranslateX.value val r = backRadius.value if (r &gt; 0f) { shape = RoundedCornerShape(r.dp) clip = true } } .background(MaterialTheme.colorScheme.background) ) { // 1. Status bar background: solid surfaceContainer at all times (no transparent band) if (!isInPip) { Box( modifier = Modifier .fillMaxWidth() .windowInsetsTopHeight(WindowInsets.statusBars) .background(MaterialTheme.colorScheme.surfaceContainer) .align(Alignment.TopCenter) .zIndex(10f), ) } // 2. Navigation bar background if toolbar is at bottom if (browserPrefs.toolbarPosition == ToolbarPosition.BOTTOM &amp;&amp; !isInPip) { Box( modifier = Modifier .fillMaxWidth() .windowInsetsBottomHeight(WindowInsets.navigationBars) .background(MaterialTheme.colorScheme.surfaceContainer) .align(Alignment.BottomCenter) .zIndex(10f), ) } // 3. WebView container fills whole area between status bar and navigation bar Box( modifier = Modifier .fillMaxSize() .padding( top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding(), bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(), ), ) { BrowserScreenPage(this) BrowserScreenBars(this) } // Full-screen video (WebChromeClient custom view) if (customView != null) { AndroidView( factory = { ctx -&gt; (customView.parent as? ViewGroup)?.removeView(customView) DoubleTapSeekLayout(ctx) { seconds -&gt; haptics.tick() tabManager.seekActiveVideo(seconds) }.also { it.setContent(customView) } }, update = { it.seekEnabled = browserPrefs.doubleTapSeek }, onRelease = { it.removeAllViews() }, modifier = Modifier.fillMaxSize().background(Color.Black).zIndex(20f), ) } if (isTopBar &amp;&amp; isBlockedBarVisible &amp;&amp; currentBlockedState != null) { BlockedBar( state = currentBlockedState, modifier = Modifier .align(Alignment.BottomCenter) .windowInsetsPadding(WindowInsets.navigationBars) .padding(bottom = 12.dp) .onSizeChanged { blockedBarHeightPx = it.height } .zIndex(4f), ) } // SnackbarHost if (!isInPip) { val blockedBarPadding = if (isBlockedBarVisible) { with(density) { blockedBarHeightPx.toDp() } + 8.dp } else { 0.dp } SnackbarHost( hostState = snackbarHostState, modifier = Modifier .align(Alignment.BottomCenter) .padding( bottom = if (browserPrefs.toolbarPosition == ToolbarPosition.BOTTOM) { with(density) { totalBarHeightPx.toDp() } + blockedBarPadding + 8.dp } else { 16.dp + blockedBarPadding } ) .windowInsetsPadding(WindowInsets.navigationBars) .zIndex(15f), ) } }</ID>
+    <ID>ModifierReused:BrowserScreen.kt:with(s) { BrowserScreenEffects() CompositionLocalProvider(LocalBookmarks provides bookmarksState) { Box( modifier = modifier .fillMaxSize() .graphicsLayer { scaleX = backScale.value scaleY = backScale.value alpha = backAlpha.value translationX = backTranslateX.value val r = backRadius.value if (r &gt; 0f) { shape = RoundedCornerShape(r.dp) clip = true } } .background(MaterialTheme.colorScheme.background) ) { // 1. Status bar background: solid surfaceContainer at all times (no transparent band) if (!isInPip) { Box( modifier = Modifier .fillMaxWidth() .windowInsetsTopHeight(WindowInsets.statusBars) .background(MaterialTheme.colorScheme.surfaceContainer) .align(Alignment.TopCenter) .zIndex(10f), ) } // 2. Navigation bar background if toolbar is at bottom if (browserPrefs.toolbarPosition == ToolbarPosition.BOTTOM &amp;&amp; !isInPip) { Box( modifier = Modifier .fillMaxWidth() .windowInsetsBottomHeight(WindowInsets.navigationBars) .background(MaterialTheme.colorScheme.surfaceContainer) .align(Alignment.BottomCenter) .zIndex(10f), ) } // 3. WebView container fills whole area between status bar and navigation bar Box( modifier = Modifier .fillMaxSize() .padding( top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding(), bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(), ), ) { BrowserScreenPage(this) BrowserScreenBars(this) } // Full-screen video (WebChromeClient custom view) if (customView != null) { AndroidView( factory = { ctx -&gt; (customView.parent as? ViewGroup)?.removeView(customView) DoubleTapSeekLayout(ctx) { seconds -&gt; haptics.tick() tabManager.seekActiveVideo(seconds) }.also { it.setContent(customView) } }, update = { it.seekEnabled = browserPrefs.doubleTapSeek }, onRelease = { it.removeAllViews() }, modifier = Modifier.fillMaxSize().background(Color.Black).zIndex(20f), ) } if (isTopBar &amp;&amp; isBlockedBarVisible &amp;&amp; currentBlockedState != null) { BlockedBar( state = currentBlockedState, modifier = Modifier .align(Alignment.BottomCenter) .windowInsetsPadding(WindowInsets.navigationBars) .padding(bottom = 12.dp) .onSizeChanged { blockedBarHeightPx = it.height } .zIndex(4f), ) } // SnackbarHost if (!isInPip) { val blockedBarPadding = if (isBlockedBarVisible) { with(density) { blockedBarHeightPx.toDp() } + 8.dp } else { 0.dp } SnackbarHost( hostState = snackbarHostState, modifier = Modifier .align(Alignment.BottomCenter) .padding( bottom = if (browserPrefs.toolbarPosition == ToolbarPosition.BOTTOM) { with(density) { totalBarHeightPx.toDp() } + blockedBarPadding + 8.dp } else { 16.dp + blockedBarPadding } ) .windowInsetsPadding(WindowInsets.navigationBars) .zIndex(15f), ) } } } BrowserScreenSheets() BrowserScreenDialogs() }</ID>
+    <ID>MultipleEmitters:EntryRowActions.kt:@Composable internal fun EntryAltActions</ID>
+    <ID>MultipleEmitters:EntryRowBadges.kt:@Composable internal fun EntryFolderNoteMetadata</ID>
+    <ID>MultipleEmitters:OnboardingPreviews.kt:@Composable private fun CustomTabMock</ID>
+    <ID>MultipleEmitters:OnboardingPreviews.kt:@Composable private fun InAppBrowsingMock</ID>
+    <ID>MutableStateAutoboxing:BrowserScreenBars.kt:mutableStateOf(1f)</ID>
+    <ID>MutableStateAutoboxing:ReaderScreen.kt:mutableStateOf(0)</ID>
+    <ID>ParameterNaming:DownloadsSheet.kt:onCheckFinished: (DownloadItem) -&gt; Unit</ID>
+    <ID>ParameterNaming:DownloadsSheet.kt:onInstallExplained: () -&gt; Unit = {}</ID>
+    <ID>ParameterNaming:OnboardingComponents.kt:onCheckFinished: () -&gt; Unit = {}</ID>
+    <ID>ParameterNaming:OnboardingScreen.kt:onFinished: () -&gt; Unit</ID>
+    <ID>RedundantSuspendModifier:PostsListing.kt:PostsListing$suspend</ID>
+    <ID>SpreadOperator:Haptics.kt:VibratorHaptics$(*ids)</ID>
+    <ID>SwallowedException:AdblockService.kt:AdblockService$e: CancellationException</ID>
+    <ID>SwallowedException:DownloadController.kt:DownloadController$e: Exception</ID>
+    <ID>SwallowedException:DownloadController.kt:DownloadController$e: FileNotFoundException</ID>
+    <ID>SwallowedException:DownloadController.kt:DownloadController$e: IOException</ID>
+    <ID>SwallowedException:FollowNotifyPrompt.kt:e: Exception</ID>
+    <ID>SwallowedException:PostsListing.kt:PostsListing$e: Exception</ID>
+    <ID>SwallowedException:PostsViewModel.kt:PostsViewModel$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:AdblockService.kt:AdblockService$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:AppContainer.kt:DefaultAppContainer$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:AppUpdateWorker.kt:AppUpdateWorker$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:BackupPage.kt:e: Exception</ID>
+    <ID>TooGenericExceptionCaught:BookmarksRepository.kt:BookmarksRepository$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:DownloadChecks.kt:DownloadChecks$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:DownloadController.kt:DownloadController$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:DownloadStorage.kt:DownloadStorage$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:DownloadsSheet.kt:e: Exception</ID>
+    <ID>TooGenericExceptionCaught:FmhyApp.kt:FmhyApp$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:FmhyWidgetProvider.kt:FmhyWidgetProvider$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:FollowNotifyPrompt.kt:e: Exception</ID>
+    <ID>TooGenericExceptionCaught:PageCapture.kt:PictureStore$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:PasteDecoder.kt:PasteDecoder$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:PostsListing.kt:PostsListing$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:PostsViewModel.kt:PostsViewModel$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:SettingsViewModel.kt:SettingsViewModel$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:TabManagerWebView.kt:e: Throwable</ID>
+    <ID>TooGenericExceptionCaught:UpdateControllerImpl.kt:UpdateControllerImpl$e: Exception</ID>
+    <ID>TooGenericExceptionThrown:PostsListing.kt:PostsListing$throw Exception("Empty listing from GitHub")</ID>
+    <ID>TooGenericExceptionThrown:PostsListing.kt:PostsListing$throw Exception("HTTP ${resp.code}: ${resp.message}")</ID>
+    <ID>TooGenericExceptionThrown:PostsListing.kt:PostsListing$throw Exception("Invalid response structure from jsDelivr")</ID>
+    <ID>UnnecessaryComposable:StatusPopup.kt:@Composable internal fun statusGlyphVector: ImageVector</ID>
+    <ID>UnnecessaryNotNullOperator:WhatsNewGrouping.kt:WhatsNewGrouping$addedItem!!</ID>
+    <ID>UnnecessaryNotNullOperator:WhatsNewGrouping.kt:WhatsNewGrouping$removedItem!!</ID>
+    <ID>UnnecessarySafeCall:BrowserScreenPage.kt:&lt;no name provided&gt;$currentTab?.let { tabManager.getTabRecord(it.id) }</ID>
+    <ID>UnnecessarySafeCall:BrowserScreenPage.kt:currentTab?.let { tabManager.getTabRecord(it.id)?.lastTouchAt = System.currentTimeMillis() }</ID>
+    <ID>UnnecessarySafeCall:BrowserScreenState.kt:currentTab?.isLoading</ID>
+    <ID>UnnecessarySafeCall:BrowserScreenState.kt:currentTab?.rescueState</ID>
+    <ID>UnnecessarySafeCall:BrowserToolbar.kt:tab?.favicon</ID>
+    <ID>UnnecessarySafeCall:BrowserToolbar.kt:tab?.interstitialState</ID>
+    <ID>UnnecessarySafeCall:BrowserToolbar.kt:tab?.isPrivate</ID>
+    <ID>UnnecessarySafeCall:BrowserToolbar.kt:tab?.showsBlockPage</ID>
+    <ID>UnnecessarySafeCall:BrowserToolbar.kt:tab?.siteBarState</ID>
+    <ID>UnnecessarySafeCall:BrowserToolbar.kt:tab?.sitePrefs</ID>
+    <ID>UnnecessarySafeCall:DownloadsSheet.kt:sr?.error</ID>
+    <ID>UnnecessarySafeCall:HybridAnalysisClient.kt:HybridAnalysisClient$resp.body?.string()</ID>
+    <ID>UnnecessarySafeCall:HybridAnalysisClient.kt:HybridAnalysisClient$response.body?.string()</ID>
+    <ID>UnnecessarySafeCall:InterstitialMerge.kt:InterstitialMerge$verdict?.reason</ID>
+    <ID>UnnecessarySafeCall:UpdateControllerImpl.kt:UpdateControllerImpl$response.body?.string()</ID>
+    <ID>UnnecessarySafeCall:VirusTotalClient.kt:VirusTotalClient$resp.body?.string()</ID>
+    <ID>UnnecessarySafeCall:VirusTotalClient.kt:VirusTotalClient$response.body?.string()</ID>
+    <ID>UnnecessarySafeCall:VtCheckSection.kt:result?.checkedAt</ID>
+    <ID>UnnecessarySafeCall:WhatsNewCards.kt:card.entry?.headingPath</ID>
+    <ID>UnreachableCode:DownloadController.kt:DownloadController$resp.body ?: throw IOException("Empty response body")</ID>
+    <ID>UnreachableCode:UpdateControllerImpl.kt:UpdateControllerImpl$response.body ?: throw IOException("Empty response body")</ID>
+    <ID>UnsafeCallOnNullableType:BrowserOverlays.kt:linkCheckResult!!</ID>
+    <ID>UnsafeCallOnNullableType:CheckLinkActivity.kt:verdict!!</ID>
+    <ID>UnsafeCallOnNullableType:DownloadNotificationText.kt:DownloadNotificationText$item.fraction!!</ID>
+    <ID>UnsafeCallOnNullableType:DownloadService.kt:DownloadService$pendingJob!!</ID>
+    <ID>UnsafeCallOnNullableType:DownloadsSheet.kt:pasteError!!</ID>
+    <ID>UnsafeCallOnNullableType:DownloadsSheet.kt:pendingCheckChooserItem!!</ID>
+    <ID>UnsafeCallOnNullableType:DownloadsSheet.kt:pendingDangerousInstallItem!!</ID>
+    <ID>UnsafeCallOnNullableType:DownloadsSheet.kt:pendingDangerousKeepItem!!</ID>
+    <ID>UnsafeCallOnNullableType:DownloadsSheet.kt:pendingDangerousOpenItem!!</ID>
+    <ID>UnsafeCallOnNullableType:DownloadsSheet.kt:pendingDeleteItem!!</ID>
+    <ID>UnsafeCallOnNullableType:DownloadsSheet.kt:pendingDiscardItem!!</ID>
+    <ID>UnsafeCallOnNullableType:DownloadsSheet.kt:pendingUploadTooBigService!!</ID>
+    <ID>UnsafeCallOnNullableType:DownloadsSheet.kt:pendingUploadWarning!!</ID>
+    <ID>UnsafeCallOnNullableType:DownloadsSheet.kt:pickedFileError!!</ID>
+    <ID>UnsafeCallOnNullableType:DownloadsSheet.kt:pickedFileResult!!</ID>
+    <ID>UnsafeCallOnNullableType:DownloadsSheet.kt:pickedFileUploadTooBigService!!</ID>
+    <ID>UnsafeCallOnNullableType:DownloadsSheet.kt:pickedFileUploadWarningService!!</ID>
+    <ID>UnsafeCallOnNullableType:DownloadsSheet.kt:viewingResultItem!!</ID>
+    <ID>UnsafeCallOnNullableType:HomeScreen.kt:detailEntry!!</ID>
+    <ID>UnsafeCallOnNullableType:HomeScreen.kt:pendingCrash!!</ID>
+    <ID>UnsafeCallOnNullableType:ReportModels.kt:CrashDetails.Companion$root.cause!!</ID>
+    <ID>UnsafeCallOnNullableType:ScanVerdicts.kt:ScanVerdicts$valid.maxByOrNull { it.verdict.rank }!!</ID>
+    <ID>UnsafeCallOnNullableType:SearchScreen.kt:state.verdict!!</ID>
+    <ID>UnsafeCallOnNullableType:SiteSettingsScreen.kt:editingSite!!</ID>
+    <ID>UnsafeCallOnNullableType:TabManagerWebView.kt:record.savedState!!</ID>
+    <ID>UnsafeCallOnNullableType:WordDiff.kt:WordDiff$currentType!!</ID>
+    <ID>UnusedParameter:BrowserHooksPopups.kt:onAskOpenExternal: (intent: Intent, appName: String) -&gt; Unit</ID>
+    <ID>UnusedParameter:BrowserHooksPopups.kt:openNewTab: (url: String) -&gt; Unit</ID>
+    <ID>UnusedParameter:BrowserWebViewFactory.kt:BrowserWebViewFactory$protectionPrefs: ProtectionPrefs</ID>
+    <ID>UnusedParameter:DownloadsPage.kt:onShowSnackbar: (String) -&gt; Unit</ID>
+    <ID>UnusedParameter:DownloadsSheet.kt:nowMs: Long</ID>
+    <ID>UnusedParameter:DownloadsSheet.kt:onOpenUrl: (String) -&gt; Unit</ID>
+    <ID>UnusedParameter:FileHash.kt:FileHash$totalBytes: Long = -1</ID>
+    <ID>UnusedParameter:JobProgress.kt:added: Int</ID>
+    <ID>UnusedParameter:JobProgress.kt:removed: Int</ID>
+    <ID>UnusedParameter:PostsScreen.kt:onShowSnackbar: (String) -&gt; Unit = {}</ID>
+    <ID>UnusedParameter:RescueDecision.kt:RescueDecision$networkReady: Boolean</ID>
+    <ID>UnusedParameter:SavedScreen.kt:bookmark: Bookmark</ID>
+    <ID>UnusedParameter:SectionItems.kt:headings: List&lt;Heading&gt; = emptyList()</ID>
+    <ID>UnusedParameter:TabManagerPageState.kt:tabId: Long</ID>
+    <ID>UnusedParameter:VideoSources.kt:VideoSources$width: Int</ID>
+    <ID>UnusedPrivateProperty:AdblockService.kt:AdblockService$private val scriptletLibrary: ScriptletLibrary</ID>
+    <ID>UnusedPrivateProperty:DownloadChecks.kt:DownloadChecks$private val settings: SettingsRepository</ID>
+    <ID>UnusedPrivateProperty:Motion.kt:EntranceTracker$private val capacity: Int = 32</ID>
+    <ID>UnusedPrivateProperty:PostsViewModel.kt:PostsViewModel$private val docFetcher: DocFetcher = container.docFetcher</ID>
+    <ID>UnusedPrivateProperty:SearchViewModel.kt:SearchViewModel$private val safeGuard: SafeGuard = SafeGuard(store)</ID>
+    <ID>UnusedPrivateProperty:TabManager.kt:TabManager$private val scriptletLibrary: ScriptletLibrary</ID>
+    <ID>UnusedVariable:BrowserHooksPageLoad.kt:i</ID>
+    <ID>UnusedVariable:BrowserScreenState.kt:val adblockStatus by adblockStatusRef</ID>
+    <ID>UnusedVariable:BrowserScreenState.kt:val applyBarsState by applyBarsStateRef</ID>
+    <ID>UnusedVariable:BrowserScreenState.kt:val blockingPrefs by blockingPrefsRef</ID>
+    <ID>UnusedVariable:BrowserScreenState.kt:val checkPrefs by checkPrefsRef</ID>
+    <ID>UnusedVariable:BrowserScreenState.kt:val downloadSummary by downloadSummaryRef</ID>
+    <ID>UnusedVariable:BrowserScreenState.kt:val latestTabId by latestTabIdRef</ID>
+    <ID>UnusedVariable:BrowserScreenState.kt:val loadingState by loadingStateRef</ID>
+    <ID>UnusedVariable:BrowserScreenState.kt:val restored by restoredRef</ID>
+    <ID>UnusedVariable:BrowserScreenState.kt:val showDownloadsRequested by showDownloadsRequestedRef</ID>
+    <ID>UnusedVariable:BrowserScreenState.kt:val showTabsRequested by showTabsRequestedRef</ID>
+    <ID>UnusedVariable:BrowserScreenState.kt:val updatePrefs by updatePrefsRef</ID>
+    <ID>UnusedVariable:BrowserScreenState.kt:val webViewVersion by webViewVersionRef</ID>
+    <ID>UnusedVariable:BrowserScreenState.kt:var blockedBarHeightPx by blockedBarHeightPxRef</ID>
+    <ID>UnusedVariable:BrowserScreenState.kt:var findActiveIndex by findActiveIndexRef</ID>
+    <ID>UnusedVariable:BrowserScreenState.kt:var findQuery by findQueryRef</ID>
+    <ID>UnusedVariable:BrowserScreenState.kt:var findTotalMatches by findTotalMatchesRef</ID>
+    <ID>UnusedVariable:BrowserScreenState.kt:var notificationPermissionRequestedThisSession by notificationPermissionRequestedThisSessionRef</ID>
+    <ID>UnusedVariable:BrowserScreenState.kt:var offerAccepted by offerAcceptedRef</ID>
+    <ID>UnusedVariable:BrowserScreenState.kt:var pendingExternalApp by pendingExternalAppRef</ID>
+    <ID>UnusedVariable:BrowserScreenState.kt:var pendingHideElementRule by pendingHideElementRuleRef</ID>
+    <ID>UnusedVariable:BrowserScreenState.kt:var pendingLinkMenu by pendingLinkMenuRef</ID>
+    <ID>UnusedVariable:BrowserScreenState.kt:var prevNavKey by prevNavKeyRef</ID>
+    <ID>UnusedVariable:BrowserScreenState.kt:var prevTabId by prevTabIdRef</ID>
+    <ID>UnusedVariable:BrowserScreenState.kt:var pulseKey by pulseKeyRef</ID>
+    <ID>UnusedVariable:BrowserScreenState.kt:var redirectWarningEvent by redirectWarningEventRef</ID>
+    <ID>UnusedVariable:BrowserScreenState.kt:var showBlockedSheet by showBlockedSheetRef</ID>
+    <ID>UnusedVariable:BrowserScreenState.kt:var showConnectionSheet by showConnectionSheetRef</ID>
+    <ID>UnusedVariable:BrowserScreenState.kt:var showDownloadsSheet by showDownloadsSheetRef</ID>
+    <ID>UnusedVariable:BrowserScreenState.kt:var showKeyPromptDialog by showKeyPromptDialogRef</ID>
+    <ID>UnusedVariable:BrowserScreenState.kt:var showPictureChoice by showPictureChoiceRef</ID>
+    <ID>UnusedVariable:BrowserScreenState.kt:var showShieldSheet by showShieldSheetRef</ID>
+    <ID>UnusedVariable:BrowserScreenState.kt:var showTabsSheet by showTabsSheetRef</ID>
+    <ID>UnusedVariable:BrowserScreenState.kt:var tabNoticeJob by tabNoticeJobRef</ID>
+    <ID>UnusedVariable:EntryDetailSheet.kt:val scope = rememberCoroutineScope()</ID>
+    <ID>UnusedVariable:ScrollTarget.kt:iteration</ID>
+    <ID>UnusedVariable:WhatsNewScreen.kt:val snapshot = follows.firstOrNull { it.sectionId == target.sectionId &amp;&amp; it.headingId == target.headingId } ?: Follow(target.sectionId, target.headingId, fullTitle, System.currentTimeMillis())</ID>
+    <ID>VarsWithoutStateBacking:DownloadsSheet.kt:var baseModifier = Modifier .fillMaxWidth() .defaultMinSize(minHeight = 72.dp)</ID>
+    <ID>VarsWithoutStateBacking:PostBody.kt:var i = 0</ID>
+    <ID>VarsWithoutStateBacking:StatusNoticeOverlay.kt:var shown: T? = remember { null }</ID>
+    <ID>ViewModelForwarding:AdBlockingPage.kt:MobileDataConfirmationDialog(viewModel)</ID>
+    <ID>ViewModelForwarding:NotificationsPage.kt:MobileDataConfirmationDialog(viewModel)</ID>
+    <ID>ViewModelForwarding:SyncPage.kt:MobileDataConfirmationDialog(viewModel)</ID>
+    <ID>ViewModelForwarding:WhatsNewScreen.kt:ReplacementsBottomSheet( card = card, viewModel = viewModel, onOpenUrl = { linkOpener.openUrl(it) }, onShowSnackbar = onShowSnackbar, onDismiss = { selectedRemovedCard = null }, )</ID>
+    <ID>ViewModelInjection:Navigation.kt:val homeViewModel: HomeViewModel = viewModel { HomeViewModel(container.datasetStore, container.settingsRepository, container) }</ID>
+    <ID>ViewModelInjection:Navigation.kt:val savedViewModel: SavedViewModel = viewModel { SavedViewModel( container.datasetStore, container.bookmarks, container.userStore, container.settingsRepository, ) }</ID>
+    <ID>ViewModelInjection:Navigation.kt:val searchViewModel: SearchViewModel = viewModel { SearchViewModel( key.initialQuery, container.datasetStore, container.searchEngine, container.settingsRepository, container.safeGuard, container.syncStatus, ) }</ID>
+    <ID>ViewModelInjection:Navigation.kt:val sectionViewModel: SectionViewModel = viewModel(key = key.sectionId) { SectionViewModel(key.sectionId, key.anchor, container.datasetStore, container.settingsRepository, container.userStore) }</ID>
+    <ID>ViewModelInjection:Navigation.kt:val sectionViewModel: SectionViewModel = viewModel(key = key.sectionId) { SectionViewModel(key.sectionId, null, container.datasetStore, container.settingsRepository, container.userStore) }</ID>
+    <ID>ViewModelInjection:Navigation.kt:val settingsViewModel: SettingsViewModel = viewModel { SettingsViewModel( container.datasetStore, container.settingsRepository, container, ) }</ID>
+    <ID>ViewModelInjection:Navigation.kt:val whatsNewViewModel: io.github.omeg4dev.fmhy.ui.whatsnew.WhatsNewViewModel = viewModel(key = "whatsnew-${key.filter}-${key.type}-${key.period}") { io.github.omeg4dev.fmhy.ui.whatsnew.WhatsNewViewModel( initialFilter = key.filter, initialType = key.type, initialPeriod = key.period, container = container, ) }</ID>
+  </CurrentIssues>
+</SmellBaseline>

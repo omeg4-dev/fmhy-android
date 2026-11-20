@@ -4,7 +4,7 @@
 File set__name.svg -> ic_<prefix>_<name>.xml. currentColor paths get #FF000000 (tint at use site);
 explicitly coloured paths (twemoji) keep their colour.
 """
-import re, sys, pathlib, xml.etree.ElementTree as ET
+import sys, pathlib, xml.etree.ElementTree as ET
 
 NAMES = {
     "carbon__logo-discord": "ic_link_discord", "carbon__logo-github": "ic_link_github",

@@ -83,6 +83,22 @@ android {
         excludes += "/META-INF/{AL2.0,LGPL2.1}"
       }
     }
+
+    // Existing findings live in lint-baseline.xml; only new ones fail (tools/static-check).
+    lint {
+      baseline = file("lint-baseline.xml")
+      checkDependencies = false
+      abortOnError = true
+      warningsAsErrors = false
+      disable += setOf(
+        "GradleDependency", // newer library versions: changes with time, not code; updates are planned work
+        "NewerVersionAvailable", // same, and needs network (builds are offline)
+        "AndroidGradlePluginVersion", // same for AGP
+        "OldTargetApi", // targetSdk bumps are planned work; flips with each lint update
+        "UseTomlInstead", // build-script style only
+        "UseKtx", // suggests KTX extension calls; style only, finds no bugs
+      )
+    }
 }
 
 // Baseline profile is generated on a device (./gw :app:generateBaselineProfile) and

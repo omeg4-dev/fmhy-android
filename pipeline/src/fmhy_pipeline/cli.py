@@ -100,7 +100,7 @@ def cmd_check(args) -> None:
 
 def cmd_build(args) -> None:
     """Full build and publish."""
-    from .publish import check_guards, load_manifest, publish
+    from .publish import load_manifest, publish
 
     out_dir = args.out
     state_dir = args.state

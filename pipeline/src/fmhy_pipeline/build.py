@@ -5,14 +5,11 @@ Build the full SQLite dataset from parsed FMHY content.
 from __future__ import annotations
 
 import json
-import os
 import re
 import sqlite3
 import subprocess
-import tempfile
 import time
 from pathlib import Path
-from typing import Optional
 
 from .base64links import Base64Resolver
 from .ids import IdAssigner, normalize_url
@@ -71,14 +68,14 @@ def build_full(
     reasons_json: str,
     out_path: str,
     *,
-    schema_path: Optional[Path] = None,
-    history_db: Optional[str] = None,
-    id_override: Optional[dict[tuple[str, str], str]] = None,
-    first_seen_override: Optional[dict] = None,
-    last_changed_override: Optional[dict] = None,
-    starred_at_override: Optional[dict] = None,
-    num_override: Optional[dict] = None,
-    changes_rows: Optional[list[dict]] = None,
+    schema_path: Path | None = None,
+    history_db: str | None = None,
+    id_override: dict[tuple[str, str], str] | None = None,
+    first_seen_override: dict | None = None,
+    last_changed_override: dict | None = None,
+    starred_at_override: dict | None = None,
+    num_override: dict | None = None,
+    changes_rows: list[dict] | None = None,
 ) -> dict:
     """
     Build a full SQLite dataset file.

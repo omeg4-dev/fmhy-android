@@ -6,7 +6,6 @@ In Part B, the history DB takes over for stable IDs across revisions.
 
 import functools
 import hashlib
-import re
 import urllib.parse
 
 

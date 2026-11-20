@@ -95,7 +95,7 @@ def render_logo(
     b_cmask = cyan_mask.filter(ImageFilter.GaussianBlur(3.0 * scale))
     max_c = b_cmask.getextrema()[1]
     if max_c > 0:
-        target_c_alpha = int(round(0.75 * 255))
+        target_c_alpha = round(0.75 * 255)
         lut_c = [min(255, int(round(a * (target_c_alpha / max_c)))) for a in range(256)]
         b_cmask = b_cmask.point(lut_c)
 
@@ -169,7 +169,7 @@ def render_logo(
     b_mmask = mag_mask.filter(ImageFilter.GaussianBlur(3.0 * scale))
     max_m = b_mmask.getextrema()[1]
     if max_m > 0:
-        target_m_alpha = int(round(0.80 * 255))
+        target_m_alpha = round(0.80 * 255)
         lut_m = [min(255, int(round(a * (target_m_alpha / max_m)))) for a in range(256)]
         b_mmask = b_mmask.point(lut_m)
 
