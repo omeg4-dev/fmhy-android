@@ -71,6 +71,7 @@ import io.github.omeg4dev.fmhy.ui.common.LocalSnackbarHost
 import io.github.omeg4dev.fmhy.ui.common.PasteAction
 import io.github.omeg4dev.fmhy.ui.common.SkeletonRows
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
+import io.github.omeg4dev.fmhy.ui.common.CriticalNoteDialog
 import io.github.omeg4dev.fmhy.ui.common.enterStagger
 import io.github.omeg4dev.fmhy.ui.common.displayTitle
 import io.github.omeg4dev.fmhy.ui.common.linkText
@@ -526,6 +527,7 @@ fun WhatsNewScreen(
     }
 
     UnsafeWarningDialog(linkOpener)
+    CriticalNoteDialog(linkOpener)
 
     actionsMenuTarget?.let { target ->
         val tree = FollowTree(follows)

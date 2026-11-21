@@ -54,6 +54,7 @@ import io.github.omeg4dev.fmhy.ui.common.linkText
 import io.github.omeg4dev.fmhy.ui.common.MarkdownBlocks
 import io.github.omeg4dev.fmhy.ui.common.ReaderStyle
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
+import io.github.omeg4dev.fmhy.ui.common.CriticalNoteDialog
 import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
@@ -406,6 +407,7 @@ fun ReaderScreen(
     }
 
     UnsafeWarningDialog(linkOpener)
+    CriticalNoteDialog(linkOpener)
 }
 
 /** Finds the FMHY entry whose URL matches [url] (normalised), or null. */

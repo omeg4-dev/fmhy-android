@@ -133,6 +133,7 @@ import io.github.omeg4dev.fmhy.ui.common.LocalSnackbarHost
 import io.github.omeg4dev.fmhy.ui.common.SkeletonRows
 import io.github.omeg4dev.fmhy.ui.common.SwipeToSave
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
+import io.github.omeg4dev.fmhy.ui.common.CriticalNoteDialog
 import io.github.omeg4dev.fmhy.ui.common.enterStaggerOrdered
 import io.github.omeg4dev.fmhy.ui.common.rememberListEntrance
 import io.github.omeg4dev.fmhy.ui.common.parseHighlight
@@ -732,6 +733,7 @@ fun SearchScreen(
     }
 
     UnsafeWarningDialog(linkOpener)
+    CriticalNoteDialog(linkOpener)
 }
 
 /** Plain search words of [query]: operators (`in:`, `is:`, `site:`), excludes and quotes dropped. */

@@ -8,10 +8,20 @@ import androidx.core.net.toUri
 import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
@@ -19,6 +29,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -35,6 +46,7 @@ import io.github.omeg4dev.fmhy.data.link.CrossLinks
 import io.github.omeg4dev.fmhy.data.link.LinkTarget
 import io.github.omeg4dev.fmhy.data.link.PasteLinks
 import io.github.omeg4dev.fmhy.data.link.PasteResolver
+import io.github.omeg4dev.fmhy.data.model.CriticalNote
 import io.github.omeg4dev.fmhy.data.user.UserStore
 import io.github.omeg4dev.fmhy.di.AppContainer
 import io.github.omeg4dev.fmhy.MainActivity
@@ -50,6 +62,13 @@ data class PendingNote(
     val path: String,
     val originalUrl: String,
     val title: String,
+)
+
+data class PendingCriticalWarning(
+    val note: CriticalNote,
+    val url: String,
+    val entryId: String?,
+    val originBounds: OriginBounds?,
 )
 
 class LinkOpener(
@@ -76,6 +95,9 @@ class LinkOpener(
         private set
     private var pendingUnsafeEntryId: String? = null
     private var pendingUnsafeBounds: OriginBounds? = null
+
+    var pendingCriticalWarning by mutableStateOf<PendingCriticalWarning?>(null)
+        private set
 
     var pendingNote by mutableStateOf<PendingNote?>(null)
         private set
@@ -130,7 +152,7 @@ class LinkOpener(
                 pendingUnsafeEntryId = entryId
                 pendingUnsafeBounds = originBounds
             } else {
-                openUrlDirectly(url, entryId, originBounds)
+                maybeWarnCritical(url, entryId, originBounds)
             }
         }
     }
@@ -144,7 +166,7 @@ class LinkOpener(
         pendingUnsafeEntryId = null
         pendingUnsafeBounds = null
         if (url != null) {
-            openUrlDirectly(url, entryId, bounds)
+            maybeWarnCritical(url, entryId, bounds)
         }
     }
 
@@ -153,6 +175,57 @@ class LinkOpener(
         pendingUnsafeReason = null
         pendingUnsafeEntryId = null
         pendingUnsafeBounds = null
+    }
+
+    private fun maybeWarnCritical(url: String, entryId: String? = null, originBounds: OriginBounds? = null) {
+        coroutineScope.launch {
+            val criticalWarning = settingsRepository.protectionPrefs.first().criticalNoteWarning
+            if (!criticalWarning || !store.isAvailable) {
+                openUrlDirectly(url, entryId, originBounds)
+                return@launch
+            }
+            val note = try {
+                store.criticalNoteForUrl(url)
+            } catch (_: Exception) {
+                null
+            }
+            if (note == null) {
+                openUrlDirectly(url, entryId, originBounds)
+                return@launch
+            }
+            val hidden = try {
+                userStore?.hiddenCriticalWarnings().orEmpty()
+            } catch (_: Exception) {
+                emptyMap()
+            }
+            if (CriticalWarningPolicy.shouldWarn(criticalWarning, note, hidden)) {
+                pendingCriticalWarning = PendingCriticalWarning(
+                    note = note,
+                    url = url,
+                    entryId = entryId,
+                    originBounds = originBounds,
+                )
+            } else {
+                openUrlDirectly(url, entryId, originBounds)
+            }
+        }
+    }
+
+    fun confirmCriticalWarning(dontShowAgain: Boolean) {
+        val pending = pendingCriticalWarning ?: return
+        pendingCriticalWarning = null
+        coroutineScope.launch {
+            if (dontShowAgain && userStore != null) {
+                try {
+                    userStore.hideCriticalWarning(pending.note.id, pending.note.hash)
+                } catch (_: Exception) {}
+            }
+            openUrlDirectly(pending.url, pending.entryId, pending.originBounds)
+        }
+    }
+
+    fun cancelCriticalWarning() {
+        pendingCriticalWarning = null
     }
 
     internal fun openUrlDirectly(
@@ -261,6 +334,73 @@ fun UnsafeWarningDialog(opener: LinkOpener) {
                 Text("Cancel")
             }
         }
+    )
+}
+
+@Composable
+fun CriticalNoteDialog(opener: LinkOpener) {
+    val pending = opener.pendingCriticalWarning ?: return
+    var dontShowAgain by rememberSaveable(pending.note.id) { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = { opener.cancelCriticalWarning() },
+        title = {
+            Text(
+                text = pending.note.title.ifBlank { "Warning" },
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+            )
+        },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f, fill = false)
+                        .heightIn(max = 360.dp)
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    Text(
+                        text = "Please read this before continuing.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 8.dp),
+                    )
+                    MarkdownBlocks(
+                        markdown = pending.note.textMd,
+                        onOpenUrl = { opener.openUrl(it) },
+                    )
+                }
+                Spacer(Modifier.height(12.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { dontShowAgain = !dontShowAgain },
+                ) {
+                    Checkbox(
+                        checked = dontShowAgain,
+                        onCheckedChange = { dontShowAgain = it },
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "Don't show again",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { opener.confirmCriticalWarning(dontShowAgain) }) {
+                Text("Continue")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = { opener.cancelCriticalWarning() }) {
+                Text("Cancel")
+            }
+        },
     )
 }
 

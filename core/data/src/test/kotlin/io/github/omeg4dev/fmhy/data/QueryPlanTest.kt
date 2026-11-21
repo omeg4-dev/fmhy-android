@@ -295,6 +295,7 @@ class QueryPlanTest {
         call("DatasetStore", "criticalNotesForEntry") { datasetStore.criticalNotesForEntry("acba399d4271") }
         call("DatasetStore", "criticalNoteForEntry") { datasetStore.criticalNoteForEntry("acba399d4271") }
         call("DatasetStore", "criticalNoteIdsForEntries") { datasetStore.criticalNoteIdsForEntries(listOf("acba399d4271")) }
+        call("DatasetStore", "criticalNoteForUrl") { datasetStore.criticalNoteForUrl("https://example.com") }
         call("DatasetStore", "closeSync") {
             datasetStore.closeSync()
             datasetStore.reopen()
@@ -386,6 +387,9 @@ class QueryPlanTest {
         call("UserStore", "get") { userStore.get("test_key") }
         call("UserStore", "put") { userStore.put("test_key", "test_val") }
         call("UserStore", "deleteKvPrefix") { userStore.deleteKvPrefix("test_") }
+        call("UserStore", "hideCriticalWarning") { userStore.hideCriticalWarning("test_note", "test_hash") }
+        call("UserStore", "hiddenCriticalWarnings") { userStore.hiddenCriticalWarnings() }
+        call("UserStore", "clearHiddenCriticalWarnings") { userStore.clearHiddenCriticalWarnings() }
         call("UserStore", "recordSectionOpen") { userStore.recordSectionOpen("ai") }
         call("UserStore", "topOpenedSections") { userStore.topOpenedSections(5) }
         call("UserStore", "exportJson") { userStore.exportJson(true) }

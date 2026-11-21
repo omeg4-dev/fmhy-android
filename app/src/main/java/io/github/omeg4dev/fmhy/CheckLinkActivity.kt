@@ -42,6 +42,7 @@ import io.github.omeg4dev.fmhy.theme.FMHYTheme
 import io.github.omeg4dev.fmhy.ui.check.VerdictCard
 import io.github.omeg4dev.fmhy.ui.check.extractFirstUrl
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
+import io.github.omeg4dev.fmhy.ui.common.CriticalNoteDialog
 import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
 
 const val EXTRA_CHECK_LINK_INITIAL = "io.github.omeg4dev.fmhy.CHECK_LINK_INITIAL"
@@ -198,4 +199,5 @@ private fun CheckLinkBottomSheet(
     }
 
     UnsafeWarningDialog(linkOpener)
+    CriticalNoteDialog(linkOpener)
 }

@@ -27,6 +27,7 @@ import io.github.omeg4dev.fmhy.data.SettingsKeys.KEY_PRIVACY_SEND_GPC
 import io.github.omeg4dev.fmhy.data.SettingsKeys.KEY_PROTECTION_ASK_BEFORE_DOWNLOAD
 import io.github.omeg4dev.fmhy.data.SettingsKeys.KEY_PROTECTION_BLOCK_APP_LINKS
 import io.github.omeg4dev.fmhy.data.SettingsKeys.KEY_PROTECTION_BLOCK_WITHOUT_VPN
+import io.github.omeg4dev.fmhy.data.SettingsKeys.KEY_PROTECTION_CRITICAL_NOTE_WARNING
 import io.github.omeg4dev.fmhy.data.SettingsKeys.KEY_PROTECTION_POPUP_BLOCKER
 import io.github.omeg4dev.fmhy.data.SettingsKeys.KEY_PROTECTION_POTENTIALLY_UNSAFE_WARNING
 import io.github.omeg4dev.fmhy.data.SettingsKeys.KEY_PROTECTION_REDIRECT_GUARD
@@ -66,6 +67,7 @@ internal fun DefaultSettingsRepository.readProtectionPrefs(prefs: Preferences): 
     val default = ProtectionPrefs()
     return ProtectionPrefs(
         unsafeWarning = prefs[KEY_PROTECTION_UNSAFE_WARNING] ?: default.unsafeWarning,
+        criticalNoteWarning = prefs[KEY_PROTECTION_CRITICAL_NOTE_WARNING] ?: default.criticalNoteWarning,
         potentiallyUnsafeWarning = prefs[KEY_PROTECTION_POTENTIALLY_UNSAFE_WARNING] ?: default.potentiallyUnsafeWarning,
         popupBlocker = prefs[KEY_PROTECTION_POPUP_BLOCKER] ?: default.popupBlocker,
         redirectGuard = prefs[KEY_PROTECTION_REDIRECT_GUARD] ?: default.redirectGuard,
@@ -81,6 +83,7 @@ internal fun DefaultSettingsRepository.readProtectionPrefs(prefs: Preferences): 
 }
 internal fun DefaultSettingsRepository.writeProtectionPrefs(prefs: MutablePreferences, p: ProtectionPrefs) {
     prefs[KEY_PROTECTION_UNSAFE_WARNING] = p.unsafeWarning
+    prefs[KEY_PROTECTION_CRITICAL_NOTE_WARNING] = p.criticalNoteWarning
     prefs[KEY_PROTECTION_POTENTIALLY_UNSAFE_WARNING] = p.potentiallyUnsafeWarning
     prefs[KEY_PROTECTION_POPUP_BLOCKER] = p.popupBlocker
     prefs[KEY_PROTECTION_REDIRECT_GUARD] = p.redirectGuard

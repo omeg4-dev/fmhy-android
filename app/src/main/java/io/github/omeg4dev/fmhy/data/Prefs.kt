@@ -149,6 +149,7 @@ data class BlockingPrefs(
 
 data class ProtectionPrefs(
     val unsafeWarning: Boolean = true,
+    val criticalNoteWarning: Boolean = true,
     val potentiallyUnsafeWarning: Boolean = true,
     val popupBlocker: Boolean = true,
     val redirectGuard: Boolean = true,

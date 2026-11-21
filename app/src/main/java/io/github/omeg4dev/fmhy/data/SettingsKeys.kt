@@ -80,6 +80,7 @@ internal object SettingsKeys {
 
     // Protection
     val KEY_PROTECTION_UNSAFE_WARNING = booleanPreferencesKey("protection_unsafe_warning")
+    val KEY_PROTECTION_CRITICAL_NOTE_WARNING = booleanPreferencesKey("protection_critical_note_warning")
     val KEY_PROTECTION_POTENTIALLY_UNSAFE_WARNING = booleanPreferencesKey("protection_potentially_unsafe_warning")
     val KEY_PROTECTION_POPUP_BLOCKER = booleanPreferencesKey("protection_popup_blocker")
     val KEY_PROTECTION_REDIRECT_GUARD = booleanPreferencesKey("protection_redirect_guard")

@@ -104,6 +104,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.net.toUri
 import io.github.omeg4dev.fmhy.FmhyApp
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
+import io.github.omeg4dev.fmhy.ui.common.CriticalNoteDialog
 import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener as rememberAppContainerLinkOpener
 
 @Composable
@@ -113,6 +114,7 @@ private fun rememberLinkOpener(): (String) -> Unit {
     if (container != null) {
         val opener = rememberAppContainerLinkOpener(container, onShowSnackbar = {})
         UnsafeWarningDialog(opener)
+        CriticalNoteDialog(opener)
         val lambda: (String) -> Unit = { url -> opener.openUrl(url) }
         return lambda
     } else {

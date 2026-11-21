@@ -44,6 +44,8 @@ fun ProtectionPage(
     }
 
     val eWarnUnsafeSites = SettingsCatalog.protectionWarnUnsafeSites
+    val eCriticalNoteWarning = SettingsCatalog.protectionCriticalNoteWarning
+    val eResetHiddenWarnings = SettingsCatalog.protectionResetHiddenWarnings
     val eWarnPotentiallyUnsafeSites = SettingsCatalog.protectionWarnPotentiallyUnsafeSites
     val eGoogleSafeBrowsing = SettingsCatalog.protectionGoogleSafeBrowsing
     val eShowVpnState = SettingsCatalog.protectionShowVpnState
@@ -64,6 +66,10 @@ fun ProtectionPage(
         eGoogleSafeBrowsing.id,
         eForgetVtChecks.id,
     )
+    val criticalIds = listOf(
+        eCriticalNoteWarning.id,
+        eResetHiddenWarnings.id,
+    )
     val popupIds = listOf(
         eBlockPopups.id,
         eBlockRedirects.id,
@@ -82,9 +88,9 @@ fun ProtectionPage(
     val dnsIds = if (privateDnsSupported()) listOf(ePrivateDns.id) else emptyList()
     val sectionSettingIds = remember {
         if (privateDnsSupported()) {
-            listOf(sitesIds, popupIds, downloadIds, vpnIds, dnsIds)
+            listOf(sitesIds, criticalIds, popupIds, downloadIds, vpnIds, dnsIds)
         } else {
-            listOf(sitesIds, popupIds, downloadIds, vpnIds)
+            listOf(sitesIds, criticalIds, popupIds, downloadIds, vpnIds)
         }
     }
     val listState = rememberFocusedListState(sectionSettingIds)
@@ -150,6 +156,33 @@ fun ProtectionPage(
                         settingId = eForgetVtChecks.id,
                         onClick = {
                             viewModel.clearVtChecks { onShowSnackbar("Checked sites forgotten") }
+                        },
+                    )
+                }
+            }
+
+            item {
+                SettingsSection(title = "Critical notes") {
+                    SwitchRow(
+                        title = eCriticalNoteWarning.title,
+                        summary = eCriticalNoteWarning.description,
+                        checked = protectionPrefs.criticalNoteWarning,
+                        settingId = eCriticalNoteWarning.id,
+                        onChange = { checked ->
+                            viewModel.updateProtection { it.copy(criticalNoteWarning = checked) }
+                        },
+                    )
+                    SettingsDivider()
+                    val hiddenWarningsCount by viewModel.hiddenWarningsCount.collectAsStateWithLifecycle()
+                    val hiddenSummary = if (hiddenWarningsCount == 0) "None hidden" else "$hiddenWarningsCount hidden"
+                    NavRow(
+                        title = eResetHiddenWarnings.title,
+                        summary = hiddenSummary,
+                        settingId = eResetHiddenWarnings.id,
+                        onClick = {
+                            viewModel.resetHiddenWarnings {
+                                onShowSnackbar("Hidden warnings reset")
+                            }
                         },
                     )
                 }

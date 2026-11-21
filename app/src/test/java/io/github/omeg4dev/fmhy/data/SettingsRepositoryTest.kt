@@ -191,8 +191,11 @@ class SettingsRepositoryTest {
     @Test
     fun testProtectionPrefsRoundTrip() = runTest {
         val (repo, _) = createRepository(this)
+        assertTrue(repo.protectionPrefs.first().criticalNoteWarning)
+
         val expected = ProtectionPrefs(
             unsafeWarning = false,
+            criticalNoteWarning = false,
             potentiallyUnsafeWarning = false,
             popupBlocker = false,
             redirectGuard = false,

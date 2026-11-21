@@ -79,6 +79,7 @@ import io.github.omeg4dev.fmhy.di.AppContainer
 import io.github.omeg4dev.fmhy.ui.common.EmptyState
 import io.github.omeg4dev.fmhy.ui.common.displayTitle
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
+import io.github.omeg4dev.fmhy.ui.common.CriticalNoteDialog
 import io.github.omeg4dev.fmhy.ui.common.enterStagger
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
@@ -496,4 +497,5 @@ fun CheckLinkScreen(
     }
 
     UnsafeWarningDialog(linkOpener)
+    CriticalNoteDialog(linkOpener)
 }

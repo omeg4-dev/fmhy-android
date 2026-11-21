@@ -37,6 +37,17 @@ class DatasetStoreCriticalTest {
             INSERT INTO entries (num, id, section_id, heading_id, ord, name, url, line, first_seen, last_changed)
             VALUES (3, 'multi_entry', 'audio', null, 3, 'Multi', 'https://multi.example', 5, 100, 100);
         """.trimIndent())
+        conn.execSQL("""
+            INSERT INTO entries (num, id, section_id, heading_id, ord, name, url, line, mirrors, extra_links, first_seen, last_changed)
+            VALUES (4, 'mirror_entry', 'audio', null, 4, 'Mirror', 'https://mirror-main.example', 6,
+                    '[{"label":"2","url":"https://mirror-alt.example"}]',
+                    '[{"label":"GitHub","url":"https://github.com/supporting"}]',
+                    100, 100);
+        """.trimIndent())
+        conn.execSQL("""
+            INSERT INTO entries (num, id, section_id, heading_id, ord, name, url, original_url, is_base64, line, first_seen, last_changed)
+            VALUES (5, 'b64_entry', 'audio', null, 5, 'B64', 'https://decoded.example', 'https://rentry.co/FMHYB64#secret', 1, 7, 100, 100);
+        """.trimIndent())
 
         for (i in 0 until 550) {
             conn.execSQL("""
@@ -54,6 +65,8 @@ class DatasetStoreCriticalTest {
         conn.execSQL("INSERT INTO note_links (entry_id, note_id, section_id, line, ord) VALUES ('multi_entry', 'other-critical', 'audio', 5, 1);")
         conn.execSQL("INSERT INTO note_links (entry_id, note_id, section_id, line, ord) VALUES ('multi_entry', 'bar-note', 'audio', 5, 0);")
         conn.execSQL("INSERT INTO note_links (entry_id, note_id, section_id, line, ord) VALUES ('multi_entry', 'noncritical-note', 'audio', 5, 2);")
+        conn.execSQL("INSERT INTO note_links (entry_id, note_id, section_id, line, ord) VALUES ('mirror_entry', 'foo-critical', 'audio', 6, 0);")
+        conn.execSQL("INSERT INTO note_links (entry_id, note_id, section_id, line, ord) VALUES ('b64_entry', 'bar-note', 'audio', 7, 0);")
 
         for (i in 0 until 550) {
             conn.execSQL("INSERT INTO note_links (entry_id, note_id, section_id, line, ord) VALUES ('entry_$i', 'bar-note', 'audio', 100, 0);")
@@ -144,6 +157,52 @@ class DatasetStoreCriticalTest {
         val stored = store.storedCriticalNotesImpl()
         assertEquals(3, stored.size)
         assertEquals("Foo Warning", stored["foo-critical"]?.title)
+
+        store.close()
+    }
+
+    @Test
+    fun testCriticalNoteForUrl() = runTest {
+        val dbFile = tempFolder.newFile("critical_url_test.db")
+        val store = createTestDb(dbFile)
+
+        // 1. First link (main url)
+        val noteFirst = store.criticalNoteForUrl("https://foo.example")
+        assertNotNull(noteFirst)
+        assertEquals("foo-critical", noteFirst!!.id)
+
+        // 2. Mirror url
+        val noteMirror = store.criticalNoteForUrl("https://mirror-alt.example")
+        assertNotNull(noteMirror)
+        assertEquals("foo-critical", noteMirror!!.id)
+
+        // Main link of mirror_entry also matches
+        val noteMirrorMain = store.criticalNoteForUrl("https://mirror-main.example")
+        assertNotNull(noteMirrorMain)
+        assertEquals("foo-critical", noteMirrorMain!!.id)
+
+        // 3. Original_url of base64 entry
+        val noteOriginal = store.criticalNoteForUrl("https://rentry.co/FMHYB64#secret")
+        assertNotNull(noteOriginal)
+        assertEquals("bar-note", noteOriginal!!.id)
+
+        // Decoded url of base64 entry also matches
+        val noteDecoded = store.criticalNoteForUrl("https://decoded.example")
+        assertNotNull(noteDecoded)
+        assertEquals("bar-note", noteDecoded!!.id)
+
+        // 4. Supporting extra_links url -> null
+        val noteExtra = store.criticalNoteForUrl("https://github.com/supporting")
+        assertNull(noteExtra)
+
+        // 5. Unknown url -> null
+        val noteUnknown = store.criticalNoteForUrl("https://nonexistent.example")
+        assertNull(noteUnknown)
+
+        // 6. Ord order: multi_entry links bar-note at ord 0 and other-critical at ord 1; lowest ord wins
+        val noteOrd = store.criticalNoteForUrl("https://multi.example")
+        assertNotNull(noteOrd)
+        assertEquals("bar-note", noteOrd!!.id)
 
         store.close()
     }

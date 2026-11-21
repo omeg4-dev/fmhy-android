@@ -495,6 +495,20 @@ object SettingsCatalog {
         description = "Show a warning before opening known scam or malware sites",
         keywords = listOf("unsafe", "malware", "phishing", "warning", "security"),
     )
+    val protectionCriticalNoteWarning = SettingEntry(
+        id = "protection.critical_note_warning",
+        page = SettingsPage.PROTECTION,
+        title = "Warn before opening sites with a critical note",
+        description = "Show a warning before opening sites that have a critical note",
+        keywords = listOf("critical", "warning", "note", "dialog"),
+    )
+    val protectionResetHiddenWarnings = SettingEntry(
+        id = "protection.reset_hidden_warnings",
+        page = SettingsPage.PROTECTION,
+        title = "Reset hidden warnings",
+        description = "Show critical note warnings again for all sites",
+        keywords = listOf("critical", "warning", "note", "reset", "hidden"),
+    )
     val protectionWarnPotentiallyUnsafeSites = SettingEntry(
         id = "protection.warn_potentially_unsafe_sites",
         page = SettingsPage.PROTECTION,
@@ -925,6 +939,8 @@ object SettingsCatalog {
         adBlockingAllowedSites,
         // Protection
         protectionWarnUnsafeSites,
+        protectionCriticalNoteWarning,
+        protectionResetHiddenWarnings,
         protectionWarnPotentiallyUnsafeSites,
         protectionGoogleSafeBrowsing,
         protectionShowVpnState,

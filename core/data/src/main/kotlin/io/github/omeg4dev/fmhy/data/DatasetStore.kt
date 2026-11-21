@@ -309,6 +309,8 @@ open class DatasetStore(
 
     open suspend fun criticalNoteIdsForEntries(entryIds: Collection<String>): Map<String, String> = criticalNoteIdsForEntriesImpl(entryIds)
 
+    open suspend fun criticalNoteForUrl(url: String): CriticalNote? = criticalNoteForUrlImpl(url)
+
     fun closeSync() {
         connection?.close()
         connection = null

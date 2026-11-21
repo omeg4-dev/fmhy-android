@@ -170,6 +170,7 @@ import io.github.omeg4dev.fmhy.ui.onboarding.OnboardingScreen
 import android.content.Intent
 import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
+import io.github.omeg4dev.fmhy.ui.common.CriticalNoteDialog
 import io.github.omeg4dev.fmhy.ui.common.NoteSheet
 import io.github.omeg4dev.fmhy.nav.resolveFmhyUri
 import io.github.omeg4dev.fmhy.nav.FmhyLinkDestination
@@ -964,6 +965,7 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
         }
         PasteDecodeUi(pasteDecoder)
         UnsafeWarningDialog(linkOpener)
+        CriticalNoteDialog(linkOpener)
 
         if (container.updateController.enabled) {
             io.github.omeg4dev.fmhy.update.ui.UpdateMobileDataDialog(controller = container.updateController)

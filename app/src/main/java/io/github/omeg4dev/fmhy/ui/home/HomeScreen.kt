@@ -114,6 +114,7 @@ import io.github.omeg4dev.fmhy.ui.common.PasteAction
 import io.github.omeg4dev.fmhy.ui.common.linkText
 import io.github.omeg4dev.fmhy.ui.common.LocalSnackbarHost
 import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
+import io.github.omeg4dev.fmhy.ui.common.CriticalNoteDialog
 import io.github.omeg4dev.fmhy.ui.common.enterStagger
 import io.github.omeg4dev.fmhy.ui.common.rememberListEntrance
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
@@ -574,6 +575,7 @@ fun HomeScreen(
     }
 
     UnsafeWarningDialog(linkOpener)
+    CriticalNoteDialog(linkOpener)
 }
 
 @Composable

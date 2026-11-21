@@ -1486,4 +1486,111 @@ class UserStoreTest {
 
         store.close()
     }
+
+    @Test
+    fun testHideGetClearHiddenCriticalWarnings() = runTest {
+        val store = createStore()
+
+        assertTrue(store.hiddenCriticalWarnings().isEmpty())
+
+        store.hideCriticalWarning("note-1", "hash-1")
+        store.hideCriticalWarning("note-2", "hash-2")
+
+        val hidden = store.hiddenCriticalWarnings()
+        assertEquals(2, hidden.size)
+        assertEquals("hash-1", hidden["note-1"])
+        assertEquals("hash-2", hidden["note-2"])
+
+        // Updating a note's hash
+        store.hideCriticalWarning("note-1", "hash-1-updated")
+        val updated = store.hiddenCriticalWarnings()
+        assertEquals(2, updated.size)
+        assertEquals("hash-1-updated", updated["note-1"])
+
+        // Clear
+        val cleared = store.clearHiddenCriticalWarnings()
+        assertEquals(2, cleared)
+        assertTrue(store.hiddenCriticalWarnings().isEmpty())
+
+        store.close()
+    }
+
+    @Test
+    fun testCriticalHiddenBackupExportImportRoundTrip() = runTest {
+        val store1 = createStore()
+        store1.hideCriticalWarning("note-a", "hash-a")
+        store1.hideCriticalWarning("note-b", "hash-b")
+
+        val json = store1.exportJson(includeHistory = false)
+        assertTrue(json.contains("\"note-a\":\"hash-a\"") || json.contains("\"note-a\": \"hash-a\""))
+
+        val store2 = createStore()
+        store2.importJson(json)
+
+        val imported = store2.hiddenCriticalWarnings()
+        assertEquals(2, imported.size)
+        assertEquals("hash-a", imported["note-a"])
+        assertEquals("hash-b", imported["note-b"])
+
+        store1.close()
+        store2.close()
+    }
+
+    @Test
+    fun testCriticalHiddenImportMergesIncoming() = runTest {
+        val store1 = createStore()
+        store1.hideCriticalWarning("note-existing", "hash-old")
+        store1.hideCriticalWarning("note-keep", "hash-keep")
+
+        // Incoming backup has updated hash for note-existing and new note-new
+        val backupJson = """
+        {
+            "format": "fmhy-backup",
+            "version": 1,
+            "exportedAt": 1000,
+            "criticalHidden": {
+                "note-existing": "hash-new",
+                "note-new": "hash-new-2"
+            }
+        }
+        """.trimIndent()
+
+        store1.importJson(backupJson)
+
+        val merged = store1.hiddenCriticalWarnings()
+        assertEquals(3, merged.size)
+        assertEquals("hash-new", merged["note-existing"])
+        assertEquals("hash-keep", merged["note-keep"])
+        assertEquals("hash-new-2", merged["note-new"])
+
+        store1.close()
+    }
+
+    @Test
+    fun testOldBackupWithoutCriticalHiddenImportsFine() = runTest {
+        val store = createStore()
+        store.hideCriticalWarning("pre-existing", "pre-hash")
+
+        // Old backup payload without criticalHidden
+        val oldBackup = """
+        {
+            "format": "fmhy-backup",
+            "version": 1,
+            "exportedAt": 1000,
+            "folders": [],
+            "bookmarks": [],
+            "follows": [],
+            "pins": [],
+            "hidden": []
+        }
+        """.trimIndent()
+
+        store.importJson(oldBackup)
+
+        val hidden = store.hiddenCriticalWarnings()
+        assertEquals(1, hidden.size)
+        assertEquals("pre-hash", hidden["pre-existing"])
+
+        store.close()
+    }
 }

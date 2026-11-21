@@ -87,6 +87,7 @@ internal data class BackupPayload(
     val pins: List<Pin> = emptyList(),
     val hidden: List<String> = emptyList(),
     val history: List<BackupHistoryItem>? = null,
+    val criticalHidden: Map<String, String> = emptyMap(),
 )
 
 @Serializable

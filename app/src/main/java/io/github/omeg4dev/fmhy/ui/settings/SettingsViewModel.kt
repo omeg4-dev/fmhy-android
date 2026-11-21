@@ -222,6 +222,12 @@ class SettingsViewModel(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
+    val hiddenWarningsCount: StateFlow<Int> = container.userStore.changes
+        .map {
+            try { container.userStore.hiddenCriticalWarnings().size } catch (_: Exception) { 0 }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
     val adblockStatus: StateFlow<AdblockStatus> = runCatching {
         container.adblockService.status
     }.getOrElse {
@@ -471,6 +477,15 @@ class SettingsViewModel(
     fun clearVtChecks(onDone: () -> Unit = {}) {
         viewModelScope.launch {
             container.vtChecks.forgetAll()
+            onDone()
+        }
+    }
+
+    fun resetHiddenWarnings(onDone: () -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                container.userStore.clearHiddenCriticalWarnings()
+            } catch (_: Exception) {}
             onDone()
         }
     }

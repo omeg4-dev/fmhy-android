@@ -810,6 +810,29 @@ open class UserStore(
         n
     }
 
+    // --- Critical Hidden Warnings ---
+
+    suspend fun hideCriticalWarning(noteId: String, hash: String) {
+        put("$CRITICAL_HIDDEN_PREFIX$noteId", hash)
+    }
+
+    suspend fun hiddenCriticalWarnings(): Map<String, String> = withConnection { conn ->
+        val result = mutableMapOf<String, String>()
+        val prefix = CRITICAL_HIDDEN_PREFIX
+        conn.prepare("SELECT key, value FROM kv WHERE substr(key, 1, ?) = ?").use { stmt ->
+            stmt.bindLong(1, prefix.length.toLong())
+            stmt.bindText(2, prefix)
+            while (stmt.step()) {
+                val key = stmt.getText(0)
+                val noteId = key.removePrefix(prefix)
+                result[noteId] = stmt.getText(1)
+            }
+        }
+        result
+    }
+
+    suspend fun clearHiddenCriticalWarnings(): Int = deleteKvPrefix(CRITICAL_HIDDEN_PREFIX)
+
     // --- Section Opens ---
 
     suspend fun recordSectionOpen(sectionId: String) {
@@ -879,6 +902,7 @@ open class UserStore(
         val followList = follows()
         val pinList = pins()
         val hiddenList = hiddenSections().sorted()
+        val criticalHiddenMap = hiddenCriticalWarnings()
         val historyList = if (includeHistory) {
             history().map { BackupHistoryItem(it.url, it.entryId, it.title, it.ts) }
         } else {
@@ -895,6 +919,7 @@ open class UserStore(
             pins = pinList,
             hidden = hiddenList,
             history = historyList,
+            criticalHidden = criticalHiddenMap,
         )
         return json.encodeToString(payload)
     }
@@ -1074,6 +1099,19 @@ open class UserStore(
                 conn.execSQL("DELETE FROM history WHERE id NOT IN (SELECT id FROM history ORDER BY ts DESC, id DESC LIMIT 500);")
             }
 
+            // 7. Critical hidden: incoming overwrites per note id
+            if (payload.criticalHidden.isNotEmpty()) {
+                val sql = "INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+                conn.prepare(sql).use { stmt ->
+                    for ((noteId, hash) in payload.criticalHidden) {
+                        stmt.bindText(1, "$CRITICAL_HIDDEN_PREFIX$noteId")
+                        stmt.bindText(2, hash)
+                        stmt.step()
+                        stmt.reset()
+                    }
+                }
+            }
+
             bumpChanges()
             ImportResult(
                 bookmarks = mergedBookmarksCount,
@@ -1245,6 +1283,7 @@ open class UserStore(
         const val BACKUP_FORMAT = "fmhy-backup"
         const val BACKUP_VERSION = 1
         const val KEY_SECTION_OPENS = "section_opens"
+        const val CRITICAL_HIDDEN_PREFIX = "crit_hidden."
         private const val MAX_SECTION_OPENS = 200
 
         fun loadSchemaSql(): String {
