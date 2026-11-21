@@ -40,6 +40,7 @@ import io.github.omeg4dev.fmhy.di.AppContainer
 import io.github.omeg4dev.fmhy.ui.common.FollowTree
 import io.github.omeg4dev.fmhy.ui.shell.JobRowUi
 import io.github.omeg4dev.fmhy.ui.shell.SYNC_CANCELLED
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -457,7 +458,7 @@ class SettingsViewModel(
         viewModelScope.launch {
             settingsRepository.updateHome { it.copy(newBadges = on) }
             if (on) {
-                val wifiOnly = dataUsagePrefs.value.appDataWifiOnly
+                val wifiOnly = settingsRepository.dataUsagePrefs.first().appDataWifiOnly
                 val kind = runCatching { container.networkMonitor.kind.value }.getOrElse { NetworkKind.NONE }
                 if (NetworkPolicy.allowed(switchOn = wifiOnly, kind = kind)) {
                     container.refreshNewBadges()
