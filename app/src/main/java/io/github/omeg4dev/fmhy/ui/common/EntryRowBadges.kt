@@ -37,32 +37,22 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.omeg4dev.fmhy.data.model.Entry
+import java.time.LocalDate
 
 /** Badges and secondary markers shown in the [EntryRow] title line. */
 @Composable
 internal fun RowScope.EntryTitleBadges(
     entry: Entry,
     alternatives: List<Entry>,
-    isNew: Boolean,
+    newAddedOn: LocalDate?,
     isCrossLink: Boolean,
     onOpenUrl: (String) -> Unit,
     onShowBottomSheet: () -> Unit,
     saveActions: SaveActions,
     trailingContent: (@Composable () -> Unit)? = null,
 ) {
-    if (isNew) {
-        Surface(
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.primaryContainer,
-        ) {
-            Text(
-                text = "NEW",
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
-            )
-        }
+    if (newAddedOn != null) {
+        NewBadgePill(addedOn = newAddedOn)
     }
 
     if (alternatives.isNotEmpty()) {

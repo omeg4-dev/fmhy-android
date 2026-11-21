@@ -20,11 +20,12 @@ import io.github.omeg4dev.fmhy.data.search.TokenKind
 import io.github.omeg4dev.fmhy.data.search.SearchEngine
 import io.github.omeg4dev.fmhy.data.search.SearchGroup
 import io.github.omeg4dev.fmhy.data.search.SearchResults
-import io.github.omeg4dev.fmhy.ui.common.NewBadgeLogic
+import io.github.omeg4dev.fmhy.data.newbadge.NewBadgeIndex
 import io.github.omeg4dev.fmhy.data.safety.SafeGuard
 import io.github.omeg4dev.fmhy.data.safety.Verdict
 import io.github.omeg4dev.fmhy.di.SyncStatus
 import io.github.omeg4dev.fmhy.ui.check.looksLikeUrl
+import java.time.LocalDate
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
@@ -65,7 +66,7 @@ data class SearchUiState(
     val hasSearched: Boolean = false,
     val verdict: Verdict? = null,
     val suggestion: String? = null,
-    val newEntryIds: Set<String> = emptySet(),
+    val newBadges: Map<String, LocalDate> = emptyMap(),
 )
 
 @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
@@ -76,6 +77,8 @@ class SearchViewModel(
     private val settingsRepository: SettingsRepository,
     private val safeGuard: SafeGuard = SafeGuard(store),
     syncStatus: StateFlow<SyncStatus> = MutableStateFlow(SyncStatus.Idle),
+    newBadgeIndex: StateFlow<NewBadgeIndex> = MutableStateFlow(NewBadgeIndex.EMPTY),
+    today: () -> LocalDate = { LocalDate.now() },
 ) : ViewModel() {
 
     /** Canonical raw query: the single source of truth for text, pills and filters. */
@@ -163,31 +166,38 @@ class SearchViewModel(
         }
     } }.flowOn(Dispatchers.IO)
 
-    private data class RecentsAndPrefs(
+    private data class RecentsPrefsAndBadges(
         val recents: List<String>,
         val homePrefs: io.github.omeg4dev.fmhy.data.HomePrefs,
+        val newBadgeIndex: NewBadgeIndex,
     )
 
     val uiState: StateFlow<SearchUiState> = combine(
         query,
         combine(searching, exactMode) { s, e -> Pair(s, e) },
         allSections,
-        combine(settingsRepository.recentSearches, settingsRepository.homePrefs) { r, h -> RecentsAndPrefs(r, h) },
+        combine(settingsRepository.recentSearches, settingsRepository.homePrefs, newBadgeIndex) { r, h, idx ->
+            RecentsPrefsAndBadges(r, h, idx)
+        },
         searchResults,
-    ) { q, (isSearching, exact), sections, recentsAndPrefs, engineAndVerdict ->
+    ) { q, (isSearching, exact), sections, recentsPrefsBadges, engineAndVerdict ->
         val results = engineAndVerdict.results
         val groups: ImmutableList<SearchGroup> = (results?.groups ?: emptyList()).toImmutableList()
-        val badgeDays = recentsAndPrefs.homePrefs.newBadgeDays
-        val allVisibleIds = groups.flatMap { g -> g.hits.map { it.entry.id } }
-        val newEntryIds = if (badgeDays > 0 && allVisibleIds.isNotEmpty()) {
-            val addedMap = try {
-                store.addedAt(allVisibleIds)
-            } catch (_: Exception) {
-                emptyMap()
+        val index = recentsPrefsBadges.newBadgeIndex
+        val newBadges = if (recentsPrefsBadges.homePrefs.newBadges) {
+            val todayDate = today()
+            val map = mutableMapOf<String, LocalDate>()
+            for (g in groups) {
+                for (hit in g.hits) {
+                    index.activeDate(hit.entry, todayDate)?.let { date ->
+                        map[hit.entry.id] = date
+                    }
+                }
             }
-            val nowSec = System.currentTimeMillis() / 1000
-            addedMap.filter { NewBadgeLogic.isNew(it.value, nowSec, badgeDays) }.keys
-        } else emptySet()
+            map
+        } else {
+            emptyMap()
+        }
         SearchUiState(
             query = q,
             starredOnly = QueryEdit.hasParam(q, "is", "starred"),
@@ -200,12 +210,12 @@ class SearchViewModel(
             categories = (results?.categories ?: emptyList()).toImmutableList(),
             total = results?.total ?: 0,
             tookMs = results?.tookMs ?: 0L,
-            recentSearches = recentsAndPrefs.recents.toImmutableList(),
+            recentSearches = recentsPrefsBadges.recents.toImmutableList(),
             isSearching = isSearching,
             hasSearched = results != null || engineAndVerdict.verdict != null,
             verdict = engineAndVerdict.verdict,
             suggestion = engineAndVerdict.suggestion,
-            newEntryIds = newEntryIds,
+            newBadges = newBadges,
         )
     }.flowOn(Dispatchers.IO).stateIn(
         viewModelScope,

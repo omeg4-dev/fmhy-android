@@ -516,8 +516,9 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
         }
 
         entry<SectionNavKey> { key ->
+            @Suppress("ViewModelInjection")
             val sectionViewModel: SectionViewModel = viewModel(key = key.sectionId) {
-                SectionViewModel(key.sectionId, key.anchor, container.datasetStore, container.settingsRepository, container.userStore)
+                SectionViewModel(key.sectionId, key.anchor, container.datasetStore, container.settingsRepository, container.userStore, container.newBadgeIndex)
             }
             SectionScreen(
                 viewModel = sectionViewModel,
@@ -531,8 +532,9 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
         }
 
         entry<CategoryNavKey> { key ->
+            @Suppress("ViewModelInjection")
             val sectionViewModel: SectionViewModel = viewModel(key = key.sectionId) {
-                SectionViewModel(key.sectionId, null, container.datasetStore, container.settingsRepository, container.userStore)
+                SectionViewModel(key.sectionId, null, container.datasetStore, container.settingsRepository, container.userStore, container.newBadgeIndex)
             }
             CategoryScreen(
                 key = key,
@@ -546,6 +548,7 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
         }
 
         entry<SearchNavKey> { key ->
+            @Suppress("ViewModelInjection")
             val searchViewModel: SearchViewModel = viewModel {
                 SearchViewModel(
                     key.initialQuery,
@@ -554,6 +557,7 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                     container.settingsRepository,
                     container.safeGuard,
                     container.syncStatus,
+                    container.newBadgeIndex,
                 )
             }
             SearchScreen(

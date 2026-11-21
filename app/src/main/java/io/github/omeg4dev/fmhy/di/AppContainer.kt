@@ -17,6 +17,9 @@ import io.github.omeg4dev.fmhy.data.tracker.TrackerSync
 import io.github.omeg4dev.fmhy.data.BookmarksRepository
 import io.github.omeg4dev.fmhy.data.bookmarksDataStore
 import io.github.omeg4dev.fmhy.data.link.CrossLinks
+import io.github.omeg4dev.fmhy.data.newbadge.NewBadgeIndex
+import io.github.omeg4dev.fmhy.data.newbadge.NewBadgeStore
+import io.github.omeg4dev.fmhy.data.newbadge.NewBadgeSync
 import io.github.omeg4dev.fmhy.data.safety.SafeGuard
 import io.github.omeg4dev.fmhy.data.user.UserStore
 import androidx.navigation3.runtime.NavKey
@@ -46,6 +49,7 @@ import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineScope
@@ -78,6 +82,8 @@ interface OnboardingActions {
     fun startFilterDownload() {}
 }
 
+private val DEFAULT_NEW_BADGE_INDEX = MutableStateFlow(NewBadgeIndex.EMPTY)
+
 interface AppContainer : OnboardingActions {
     val context: Context
     val appScope: CoroutineScope
@@ -89,6 +95,9 @@ interface AppContainer : OnboardingActions {
         get() = error("trackerSync not provided")
     val historySync: HistorySync
         get() = error("historySync not provided")
+    val newBadgeIndex: StateFlow<NewBadgeIndex>
+        get() = DEFAULT_NEW_BADGE_INDEX
+    suspend fun refreshNewBadges(force: Boolean = false) {}
     var debugTrackerUrl: String?
         get() = null
         set(_) {}
@@ -275,6 +284,38 @@ class DefaultAppContainer(
             clock = { System.currentTimeMillis() / 1000 },
             log = { msg -> Log.d("HistorySync", msg) },
         )
+    }
+
+    val newBadgeStore: NewBadgeStore by lazy {
+        NewBadgeStore(
+            dir = datasetDir,
+            log = { msg -> Log.d("NewBadgeStore", msg) },
+        )
+    }
+
+    override val newBadgeIndex: StateFlow<NewBadgeIndex>
+        get() = newBadgeStore.index
+
+    val newBadgeSync: NewBadgeSync by lazy {
+        NewBadgeSync(
+            store = datasetStore,
+            dir = datasetDir,
+            badgeStore = newBadgeStore,
+            client = okHttpClient,
+            log = { msg -> Log.d("NewBadgeSync", msg) },
+        )
+    }
+
+    override suspend fun refreshNewBadges(force: Boolean) {
+        withContext(Dispatchers.IO) {
+            try {
+                newBadgeSync.sync(force)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w("AppContainer", "refreshNewBadges failed: ${e.message}", e)
+            }
+        }
     }
 
     override val trackerSync: TrackerSync
@@ -473,6 +514,15 @@ class DefaultAppContainer(
                     }
                 }
                 historySync.sync(force = force)
+                try {
+                    if (settingsRepository.homePrefs.first().newBadges) {
+                        newBadgeSync.sync(force = force)
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.w("AppContainer", "NewBadgeSync failed: ${e.message}", e)
+                }
             } catch (e: Exception) {
                 Log.w("AppContainer", "TrackerSync failed: ${e.message}", e)
             } finally {
@@ -520,6 +570,7 @@ class DefaultAppContainer(
             try {
                 downloads.start()
                 vtChecks.load()
+                newBadgeStore.load()
                 bookmarks.migrateLegacyIfNeeded()
                 // An existing but empty dataset (a wiped store from a bad sync) is repaired from the
                 // bundled snapshot too; the next sync then catches up.

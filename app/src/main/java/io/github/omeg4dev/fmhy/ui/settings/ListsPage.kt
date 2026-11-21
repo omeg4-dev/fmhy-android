@@ -147,19 +147,12 @@ fun ListsPage(
                         onChange = { viewModel.setShowIndexes(it) },
                     )
                     SettingsDivider()
-                    ChoiceRow(
+                    SwitchRow(
                         title = eNewBadges.title,
-                        options = listOf(
-                            0 to "Off",
-                            3 to "3 days",
-                            7 to "7 days",
-                            14 to "14 days",
-                        ),
-                        selected = homePrefs.newBadgeDays,
+                        summary = eNewBadges.description,
+                        checked = homePrefs.newBadges,
                         settingId = eNewBadges.id,
-                        onSelect = { days ->
-                            viewModel.updateHome { it.copy(newBadgeDays = days) }
-                        },
+                        onChange = { on -> viewModel.setNewBadges(on) },
                     )
                 }
             }

@@ -18,6 +18,8 @@ import io.github.omeg4dev.fmhy.data.ThemeMode
 import io.github.omeg4dev.fmhy.data.model.Entry
 import io.github.omeg4dev.fmhy.data.model.Section
 import io.github.omeg4dev.fmhy.data.model.Tier
+import io.github.omeg4dev.fmhy.data.newbadge.NewBadgeIndex
+import io.github.omeg4dev.fmhy.data.newbadge.NewBadgeKeys
 import io.github.omeg4dev.fmhy.data.search.CategoryHit
 import io.github.omeg4dev.fmhy.data.search.MatchMode
 import io.github.omeg4dev.fmhy.data.search.Query
@@ -27,6 +29,7 @@ import io.github.omeg4dev.fmhy.data.search.SearchGroup
 import io.github.omeg4dev.fmhy.data.search.SearchHit
 import io.github.omeg4dev.fmhy.data.search.SearchResults
 import java.io.File
+import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -391,6 +394,49 @@ class SearchViewModelTest {
         assertTrue(vm.uiState.value.hasSearched)
         assertTrue(vm.uiState.value.categories.isNotEmpty())
         assertEquals(vpnCategories, vm.uiState.value.categories)
+
+        job.cancel()
+    }
+
+    @Test
+    fun newBadgesFollowSwitchAndIndex() = runTest {
+        val today = LocalDate.of(2026, 11, 21)
+        val store = FakeDatasetStore()
+        val fakeSettings = FakeSettingsRepository()
+        val searchEngine = FakeSearchEngine(store)
+        val badgeIndexFlow = MutableStateFlow(NewBadgeIndex.EMPTY)
+
+        val vm = SearchViewModel(
+            initialQuery = "stremio",
+            store = store,
+            searchEngine = searchEngine,
+            settingsRepository = fakeSettings,
+            newBadgeIndex = badgeIndexFlow,
+            today = { today },
+        )
+
+        val job = launch {
+            vm.uiState.collect { }
+        }
+
+        // Initially index is empty, search results arrive
+        val stateInitial = vm.uiState.filter { it.hasSearched && it.groups.isNotEmpty() }.first()
+        assertTrue(stateInitial.newBadges.isEmpty())
+
+        // Index updates with active mark for stremio (entry id "e1", url "https://stremio.com", section "video")
+        val activeDate = LocalDate.of(2026, 11, 19)
+        badgeIndexFlow.value = NewBadgeIndex(
+            mapOf(NewBadgeKeys.pageKey("video", "https://stremio.com") to activeDate)
+        )
+
+        val stateWithBadge = vm.uiState.filter { it.newBadges.isNotEmpty() }.first()
+        assertEquals(activeDate, stateWithBadge.newBadges["e1"])
+
+        // Turning switch Off clears newBadges
+        fakeSettings.updateHome { it.copy(newBadges = false) }
+
+        val stateOff = vm.uiState.filter { it.newBadges.isEmpty() }.first()
+        assertTrue(stateOff.newBadges.isEmpty())
 
         job.cancel()
     }

@@ -46,6 +46,7 @@ import io.github.omeg4dev.fmhy.R
 import io.github.omeg4dev.fmhy.data.model.Entry
 import io.github.omeg4dev.fmhy.data.model.EntryKind
 import io.github.omeg4dev.fmhy.data.model.Tier
+import java.time.LocalDate
 
 @Composable
 internal fun WebsiteEntryContent(
@@ -53,7 +54,7 @@ internal fun WebsiteEntryContent(
     displayName: AnnotatedString,
     descriptionText: String,
     alternatives: List<Entry>,
-    isNew: Boolean,
+    newAddedOn: LocalDate?,
     isCrossLink: Boolean,
     updateLine: String?,
     folderLabel: String?,
@@ -85,7 +86,7 @@ internal fun WebsiteEntryContent(
         displayName,
         descriptionText,
         alternatives,
-        isNew,
+        newAddedOn,
         isCrossLink,
         isSaved,
         primaryColor,
@@ -116,24 +117,13 @@ internal fun WebsiteEntryContent(
         }
 
         // Pre-build badges inline contents
-        if (isNew) {
+        if (newAddedOn != null) {
             inlineMap["badge:new"] = InlineTextContent(
                 Placeholder(2.6.em, 1.3.em, PlaceholderVerticalAlign.TextCenter)
             ) {
-                Surface(
-                    shape = CircleShape,
-                    color = primaryContainer,
-                    modifier = Modifier.fillMaxSize(),
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(
-                            text = "NEW",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = onSurface,
-                        )
-                    }
-                }
+                NewBadgePill(
+                    addedOn = newAddedOn,
+                )
             }
         }
 
@@ -250,7 +240,7 @@ internal fun WebsiteEntryContent(
 
             fun emitMarkers() {
                 for (m in websiteBadgeMarkers(
-                    isNew = isNew,
+                    isNew = newAddedOn != null,
                     alternativesCount = alternatives.size,
                     isBase64 = entry.isBase64,
                     isSaved = isSaved,

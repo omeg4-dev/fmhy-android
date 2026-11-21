@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><title>Synthetic Test Page</title></head>
+<body>
+<div id="content">
+<ul>
+  <!-- Valid Mark 1: Standard format -->
+  <li class="new"><a href="https://example.com/item1" target="_blank">Item 1</a><button type="button" class="new-badge" aria-label="New, added 2026-11-20"><span class="new-badge-text">New</span></button> - Description 1</li>
+
+  <!-- Valid Mark 2: Extra class tokens, single quotes, attribute order variation -->
+  <li id="sec2" class='starred new special'><a class='link' href='https://example.com/item2' target='_blank'>Item 2</a><button class='new-badge' type='button' aria-label='New, added 2026-11-19'>New</button> - Description 2</li>
+
+  <!-- Valid Mark 3: Button before <a>, HTML entities in href -->
+  <li class="new"><button type="button" class="new-badge" aria-label="New, added 2026-11-18">New</button><a href="https://example.com/item3?foo=1&amp;bar=2&quot;test&quot;">Item 3</a> - Description 3</li>
+
+  <!-- Valid Mark 4: Relative href resolved against baseUrl -->
+  <li class="new"><a href="/relative/item4">Item 4</a><button type="button" class="new-badge" aria-label="New, added 2026-11-17">New</button> - Description 4</li>
+
+  <!-- Valid Mark 5: Fragment kept in URL -->
+  <li class="new"><a href="https://rentry.co/FMHYB64#wavernrs">Rentry</a><button type="button" class="new-badge" aria-label="New, added 2026-11-16">New</button> - Description 5</li>
+
+  <!-- Trap 1: class="new-item" must NOT match -->
+  <li class="new-item"><a href="https://trap.example.com/item-new">Trap 1</a><button type="button" class="new-badge" aria-label="New, added 2026-11-20">New</button></li>
+
+  <!-- Trap 2: class="brand-new" must NOT match -->
+  <li class="brand-new"><a href="https://trap.example.com/brand-new">Trap 2</a><button type="button" class="new-badge" aria-label="New, added 2026-11-20">New</button></li>
+
+  <!-- Trap 3: No class attribute must NOT match -->
+  <li><a href="https://trap.example.com/no-class">Trap 3</a><button type="button" class="new-badge" aria-label="New, added 2026-11-20">New</button></li>
+
+  <!-- Trap 4: Non-http/https javascript: href must be skipped -->
+  <li class="new"><a href="javascript:alert(1)">Trap 4</a><button type="button" class="new-badge" aria-label="New, added 2026-11-20">New</button></li>
+
+  <!-- Trap 5: Non-http/https mailto: href must be skipped -->
+  <li class="new"><a href="mailto:test@example.com">Trap 5</a><button type="button" class="new-badge" aria-label="New, added 2026-11-20">New</button></li>
+
+  <!-- Trap 6: Invalid date format must be skipped -->
+  <li class="new"><a href="https://trap.example.com/bad-date">Trap 6</a><button type="button" class="new-badge" aria-label="New, added 2026-99-99">New</button></li>
+
+  <!-- Trap 7: Missing aria-label must be skipped -->
+  <li class="new"><a href="https://trap.example.com/no-aria">Trap 7</a><button type="button" class="new-badge">New</button></li>
+
+  <!-- Trap 8: Missing <a> tag must be skipped -->
+  <li class="new"><span>Trap 8</span><button type="button" class="new-badge" aria-label="New, added 2026-11-20">New</button></li>
+
+  <!-- Valid Mark 6 with Trap 9: Multiple <a> tags, only first taken -->
+  <li class="new"><a href="https://example.com/first">First</a> or <a href="https://example.com/second">Second</a><button type="button" class="new-badge" aria-label="New, added 2026-11-15">New</button></li>
+
+  <!-- Valid Mark 7 with Trap 10: Unclosed <li> segment ending at next <li -->
+  <li class="new"><a href="https://example.com/unclosed">Unclosed</a><button type="button" class="new-badge" aria-label="New, added 2026-11-14">New</button>
+  <li class="other"><a href="https://trap.example.com/other">Other</a></li>
+</ul>
+</div>
+</body>
+</html>

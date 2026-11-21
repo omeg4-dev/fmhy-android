@@ -15,15 +15,23 @@ import io.github.omeg4dev.fmhy.data.SectionLayout
 import io.github.omeg4dev.fmhy.data.SectionOrder
 import io.github.omeg4dev.fmhy.data.SettingsRepository
 import io.github.omeg4dev.fmhy.data.ThemeMode
+import io.github.omeg4dev.fmhy.data.model.Entry
+import io.github.omeg4dev.fmhy.data.model.Heading
 import io.github.omeg4dev.fmhy.data.model.Section
+import io.github.omeg4dev.fmhy.data.model.SectionItem
+import io.github.omeg4dev.fmhy.data.model.Tier
+import io.github.omeg4dev.fmhy.data.newbadge.NewBadgeIndex
+import io.github.omeg4dev.fmhy.data.newbadge.NewBadgeKeys
 import io.github.omeg4dev.fmhy.data.user.UserStore
 import io.github.omeg4dev.fmhy.nav.BottomBarStyle
 import java.io.File
+import java.time.LocalDate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -57,10 +65,13 @@ class SectionViewModelTest {
 
     private class FakeDatasetStore(
         private val sectionsList: List<Section> = emptyList(),
+        private val itemsList: List<SectionItem> = emptyList(),
     ) : DatasetStore(File("fake_nonexistent.db")) {
         override val isAvailable = true
         override val changes = MutableStateFlow(1L)
         override suspend fun sections(order: SectionOrder): List<Section> = sectionsList
+        override suspend fun sectionItems(sectionId: String): List<SectionItem> = itemsList
+        override suspend fun headings(sectionId: String): List<Heading> = emptyList()
     }
 
     private class FakeSettingsRepository(
@@ -134,6 +145,101 @@ class SectionViewModelTest {
         ord = 1,
         entryCount = 5,
     )
+
+    private fun sampleEntry(
+        id: String,
+        sectionId: String,
+        url: String,
+    ) = Entry(
+        num = 1,
+        id = id,
+        sectionId = sectionId,
+        headingId = null,
+        ord = 1,
+        name = "Site $id",
+        url = url,
+        originalUrl = null,
+        description = "Desc $id",
+        tags = emptyList(),
+        headingPath = "Heading",
+        tier = Tier.NORMAL,
+        isInlineMore = false,
+        isBase64 = false,
+        mirrors = emptyList(),
+        extraLinks = emptyList(),
+        firstSeen = 1000,
+        lastChanged = 1000,
+        starredAt = null,
+    )
+
+    @Test
+    fun newBadgesMatchPageAndWindow() = runTest(testDispatcher) {
+        val today = LocalDate.of(2026, 11, 21)
+        val sec = sampleSection("audio")
+        val eActive = sampleEntry("eActive", "audio", "https://audio-active.example/stream")
+        val eExpired = sampleEntry("eExpired", "audio", "https://audio-expired.example/stream")
+        val eOtherSec = sampleEntry("eOtherSec", "audio", "https://other-sec.example/site")
+
+        val items = listOf(
+            SectionItem.EntryItem(eActive),
+            SectionItem.EntryItem(eExpired),
+            SectionItem.EntryItem(eOtherSec),
+        )
+        val store = FakeDatasetStore(listOf(sec), items)
+        val settingsRepo = FakeSettingsRepository()
+
+        val index = NewBadgeIndex(
+            mapOf(
+                NewBadgeKeys.pageKey("audio", eActive.url) to LocalDate.of(2026, 11, 19),
+                NewBadgeKeys.pageKey("audio", eExpired.url) to LocalDate.of(2026, 11, 10),
+                NewBadgeKeys.pageKey("video", eOtherSec.url) to LocalDate.of(2026, 11, 19),
+            )
+        )
+
+        val vm = SectionViewModel(
+            sectionId = "audio",
+            anchor = null,
+            store = store,
+            settingsRepository = settingsRepo,
+            newBadgeIndex = MutableStateFlow(index),
+            today = { today },
+        )
+
+        val state = vm.uiState.first { !it.isLoading }
+        assertEquals(LocalDate.of(2026, 11, 19), state.newBadges["eActive"])
+        assertEquals(null, state.newBadges["eExpired"])
+        assertEquals(null, state.newBadges["eOtherSec"])
+    }
+
+    @Test
+    fun newBadgesEmptyWhenSwitchOff() = runTest(testDispatcher) {
+        val today = LocalDate.of(2026, 11, 21)
+        val sec = sampleSection("audio")
+        val eActive = sampleEntry("eActive", "audio", "https://audio-active.example/stream")
+
+        val items = listOf(SectionItem.EntryItem(eActive))
+        val store = FakeDatasetStore(listOf(sec), items)
+        val settingsRepo = FakeSettingsRepository()
+        settingsRepo.updateHome { it.copy(newBadges = false) }
+
+        val index = NewBadgeIndex(
+            mapOf(
+                NewBadgeKeys.pageKey("audio", eActive.url) to LocalDate.of(2026, 11, 19),
+            )
+        )
+
+        val vm = SectionViewModel(
+            sectionId = "audio",
+            anchor = null,
+            store = store,
+            settingsRepository = settingsRepo,
+            newBadgeIndex = MutableStateFlow(index),
+            today = { today },
+        )
+
+        val state = vm.uiState.first { !it.isLoading }
+        assertTrue(state.newBadges.isEmpty())
+    }
 
     @Test
     fun testRecordSectionOpenOnCreationForRealSection() = runTest(testDispatcher) {

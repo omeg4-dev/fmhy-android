@@ -11,7 +11,8 @@ import io.github.omeg4dev.fmhy.data.user.UserStore
 import io.github.omeg4dev.fmhy.data.model.Heading
 import io.github.omeg4dev.fmhy.data.model.Section
 import io.github.omeg4dev.fmhy.data.model.SectionItem
-import io.github.omeg4dev.fmhy.ui.common.NewBadgeLogic
+import io.github.omeg4dev.fmhy.data.newbadge.NewBadgeIndex
+import java.time.LocalDate
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
@@ -34,7 +35,7 @@ data class SectionUiState(
     val layout: SectionLayout = SectionLayout.CONTINUOUS,
     val starredOnly: Boolean = false,
     val showIndexes: Boolean = true,
-    val newEntryIds: Set<String> = emptySet(),
+    val newBadges: Map<String, LocalDate> = emptyMap(),
 )
 
 class SectionViewModel(
@@ -43,6 +44,8 @@ class SectionViewModel(
     private val store: DatasetStore,
     private val settingsRepository: SettingsRepository,
     private val userStore: UserStore? = null,
+    newBadgeIndex: StateFlow<NewBadgeIndex> = MutableStateFlow(NewBadgeIndex.EMPTY),
+    today: () -> LocalDate = { LocalDate.now() },
 ) : ViewModel() {
 
     init {
@@ -62,7 +65,8 @@ class SectionViewModel(
         _refreshTrigger,
         settingsRepository.appearance,
         settingsRepository.homePrefs,
-    ) { _, _, appearance, homePrefs ->
+        newBadgeIndex,
+    ) { _, _, appearance, homePrefs, index ->
         if (!store.isAvailable) {
             return@combine SectionUiState(
                 isLoading = false,
@@ -85,22 +89,20 @@ class SectionViewModel(
             val sectionHeadings = allHeadings.filter { it.id in keptHeadingIds }.toImmutableList()
             val structure = buildSectionStructure(filteredItems)
 
-            val allEntryIds = mutableListOf<String>()
-            for (item in filteredItems) {
-                when (item) {
-                    is SectionItem.EntryItem -> {
-                        allEntryIds.add(item.entry.id)
-                        item.alternatives.forEach { allEntryIds.add(it.id) }
+            val newBadges = if (homePrefs.newBadges) {
+                val todayDate = today()
+                val map = mutableMapOf<String, LocalDate>()
+                for (item in filteredItems) {
+                    if (item is SectionItem.EntryItem) {
+                        index.activeDate(item.entry, todayDate)?.let { date ->
+                            map[item.entry.id] = date
+                        }
                     }
-                    is SectionItem.MoreGroup -> item.entries.forEach { allEntryIds.add(it.id) }
-                    else -> {}
                 }
+                map
+            } else {
+                emptyMap()
             }
-            val newEntryIds = if (homePrefs.newBadgeDays > 0 && allEntryIds.isNotEmpty()) {
-                val addedMap = store.addedAt(allEntryIds)
-                val nowSec = System.currentTimeMillis() / 1000
-                addedMap.filter { NewBadgeLogic.isNew(it.value, nowSec, homePrefs.newBadgeDays) }.keys
-            } else emptySet()
 
             SectionUiState(
                 isLoading = false,
@@ -111,7 +113,7 @@ class SectionViewModel(
                 layout = appearance.sectionLayout,
                 starredOnly = appearance.starredOnly,
                 showIndexes = appearance.showIndexes,
-                newEntryIds = newEntryIds,
+                newBadges = newBadges,
             )
         }
     }.stateIn(

@@ -594,7 +594,7 @@ fun SearchScreen(
                                                     entry = hit.entry,
                                                     nameHl = hit.nameHl,
                                                     descHl = hit.descriptionHl,
-                                                    isNew = hit.entry.id in state.newEntryIds,
+                                                    newAddedOn = state.newBadges[hit.entry.id],
                                                     onShowInSection = {
                                                         hideKeyboard()
                                                         scope.launch {

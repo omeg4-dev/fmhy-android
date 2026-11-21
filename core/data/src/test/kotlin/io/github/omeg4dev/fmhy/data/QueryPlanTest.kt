@@ -81,8 +81,6 @@ class QueryPlanTest {
     private val knownFindings: Map<String, String> = mapOf(
         "WHERE tier >= 1 AND kind = 0 AND is_base64 = 0 ORDER BY RANDOM()" to
             "hunt finding: randomTopPick ORDER BY RANDOM full scan",
-        "SELECT entry_id, MIN(ts) FROM changes WHERE kind = 'added' AND entry_id IN" to
-            "hunt finding: changes lacks index on entry_id",
         "mirrors LIKE ? ESCAPE '\\'" to
             "hunt finding: entryMatchesForHost leading-wildcard LIKE scan",
         "WHERE url LIKE ? ESCAPE '\\' OR name LIKE ? ESCAPE '\\' LIMIT 100" to
@@ -283,7 +281,6 @@ class QueryPlanTest {
             )
         }
         call("DatasetStore", "entryHistory") { datasetStore.entryHistory("acba399d4271") }
-        call("DatasetStore", "addedAt") { datasetStore.addedAt(listOf("acba399d4271")) }
         call("DatasetStore", "linkCount") { datasetStore.linkCount() }
         call("DatasetStore", "siteListEntries") { datasetStore.siteListEntries(listOf("1377x.to")) }
         call("DatasetStore", "entryMatchesForHost") { datasetStore.entryMatchesForHost("reddit.com") }

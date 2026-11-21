@@ -278,16 +278,6 @@ open class DatasetStore(
     open suspend fun entryHistory(entryId: String): List<ChangeItem> = entryHistoryImpl(entryId)
 
     /**
-     * Map of entryId to timestamp (unix epoch seconds) when it was added: the earliest 'added' ts in the
-     * changes table. Entries without an 'added' change are absent from the map.
-     *
-     * `entries.first_seen` is deliberately not used: a bundled snapshot stamps every entry with its build
-     * time, which made the whole catalogue look new for a week after each release. Real additions always
-     * get an 'added' change row (device sync and tracker both write one).
-     */
-    open suspend fun addedAt(entryIds: Collection<String>): Map<String, Long> = addedAtImpl(entryIds)
-
-    /**
      * Link count: entries (kind = 0) + all mirrors + all extra_links (JSON arrays).
      */
     open suspend fun linkCount(): Int = linkCountImpl()

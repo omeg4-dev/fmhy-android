@@ -81,8 +81,7 @@ enum class SearchTapTarget { SITE, SECTION }
 
 data class HomePrefs(
     val blocks: HomeLayout = HomeLayout.default(),
-    /** 0 = NEW badges off. */
-    val newBadgeDays: Int = 7,
+    val newBadges: Boolean = true,
     /** Search: whole words only. Off = fuzzy (prefix + typo-tolerant trigram matches). */
     val searchExact: Boolean = false,
     val swipeToBookmark: Boolean = false,

@@ -246,20 +246,3 @@ internal suspend fun DatasetStore.entryHistoryImpl(entryId: String): List<Change
     result
 }
 
-internal suspend fun DatasetStore.addedAtImpl(entryIds: Collection<String>): Map<String, Long> = withConnection { conn ->
-    if (entryIds.isEmpty()) return@withConnection emptyMap()
-    val result = mutableMapOf<String, Long>()
-
-    for (chunk in entryIds.chunked(500)) {
-        val placeholders = chunk.joinToString(",") { "?" }
-        val sql = "SELECT entry_id, MIN(ts) FROM changes WHERE kind = 'added' AND entry_id IN ($placeholders) GROUP BY entry_id"
-        conn.prepare(sql).use { stmt ->
-            chunk.forEachIndexed { i, id -> stmt.bindText(i + 1, id) }
-            while (stmt.step()) {
-                result[stmt.getText(0)] = stmt.getLong(1)
-            }
-        }
-    }
-
-    result
-}

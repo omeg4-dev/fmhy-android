@@ -550,7 +550,7 @@ fun CategoryScreen(
                                                 EntryRow(
                                                     entry = item.entry,
                                                     alternatives = item.alternatives,
-                                                    isNew = item.entry.id in state.newEntryIds,
+                                                    newAddedOn = state.newBadges[item.entry.id],
                                                     onOpenUrl = { linkOpener.openUrl(it, item.entry.id, boundsHolder.bounds) },
                                                     onShowSnackbar = onShowSnackbar,
                                                 )

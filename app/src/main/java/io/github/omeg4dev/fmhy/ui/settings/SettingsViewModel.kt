@@ -447,6 +447,19 @@ class SettingsViewModel(
         }
     }
 
+    fun setNewBadges(on: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.updateHome { it.copy(newBadges = on) }
+            if (on) {
+                val wifiOnly = dataUsagePrefs.value.appDataWifiOnly
+                val kind = runCatching { container.networkMonitor.kind.value }.getOrElse { NetworkKind.NONE }
+                if (NetworkPolicy.allowed(switchOn = wifiOnly, kind = kind)) {
+                    container.refreshNewBadges()
+                }
+            }
+        }
+    }
+
     /** Forgets every per-site playback speed. Calls [done] with the number removed. */
     fun clearSiteSpeeds(done: (Int) -> Unit = {}) {
         viewModelScope.launch {

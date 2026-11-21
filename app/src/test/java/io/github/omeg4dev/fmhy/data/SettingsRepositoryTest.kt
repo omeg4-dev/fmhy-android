@@ -3,6 +3,7 @@ package io.github.omeg4dev.fmhy.data
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import io.github.omeg4dev.fmhy.data.adblock.FilterListCatalog
 import io.github.omeg4dev.fmhy.data.model.ChangeKind
@@ -48,9 +49,42 @@ class SettingsRepositoryTest {
             .withEnabled(HomeBlock.PINNED, true)
             .withEnabled(HomeBlock.RANDOM_PICK, false)
             .move(0, 3)
-        val expected = HomePrefs(blocks = customBlocks, newBadgeDays = 14)
+        val expected = HomePrefs(blocks = customBlocks, newBadges = false)
         repo.updateHome { expected }
         assertEquals(expected, repo.homePrefs.first())
+    }
+
+    @Test
+    fun testNewBadgesLegacyDaysMapping() = runTest {
+        val (repo, rawStore) = createRepository(this)
+        val key = intPreferencesKey("home_new_badge_days")
+
+        // absent -> On
+        assertTrue(repo.homePrefs.first().newBadges)
+
+        // raw 0 -> Off
+        rawStore.edit { it[key] = 0 }
+        assertFalse(repo.homePrefs.first().newBadges)
+
+        // raw 3 -> On
+        rawStore.edit { it[key] = 3 }
+        assertTrue(repo.homePrefs.first().newBadges)
+
+        // raw 7 -> On
+        rawStore.edit { it[key] = 7 }
+        assertTrue(repo.homePrefs.first().newBadges)
+
+        // raw 14 -> On
+        rawStore.edit { it[key] = 14 }
+        assertTrue(repo.homePrefs.first().newBadges)
+
+        // writing Off stores 0
+        repo.updateHome { it.copy(newBadges = false) }
+        assertEquals(0, rawStore.data.first()[key])
+
+        // writing On stores 7
+        repo.updateHome { it.copy(newBadges = true) }
+        assertEquals(7, rawStore.data.first()[key])
     }
 
     @Test

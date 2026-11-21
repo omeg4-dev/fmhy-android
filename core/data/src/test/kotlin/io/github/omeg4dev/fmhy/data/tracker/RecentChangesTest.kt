@@ -112,28 +112,6 @@ class RecentChangesTest {
     }
 
     @Test
-    fun testAddedAt() = runTest {
-        val dbFile = tempFolder.newFile("test_added_at.db")
-        val store = DatasetStoreTest.createSampleDb(dbFile)
-        populateTestData(store)
-
-        store.withConnection { conn ->
-            // e-root has an added change at 400 (earlier than first_seen 500)
-            conn.execSQL("INSERT INTO changes (id, ts, kind, entry_id, section_id, name, url, detail, commit_sha) VALUES (1, 400, 'added', 'e-root', 'video', 'Entry Root', 'https://root.com', '', 'sha1')")
-            // e-root also has a later change at 450
-            conn.execSQL("INSERT INTO changes (id, ts, kind, entry_id, section_id, name, url, detail, commit_sha) VALUES (2, 450, 'added', 'e-root', 'video', 'Entry Root', 'https://root.com', '', 'sha2')")
-        }
-
-        val addedMap = store.addedAt(listOf("e-root", "e-sub", "e-audio", "unknown"))
-        // e-root gets earliest added ts = 400
-        assertEquals(400L, addedMap["e-root"])
-        // Entries without an 'added' change are not new, whatever their first_seen (snapshot build time)
-        assertEquals(null, addedMap["e-sub"])
-        assertEquals(null, addedMap["e-audio"])
-        assertEquals(null, addedMap["unknown"])
-    }
-
-    @Test
     fun testLinkCount() = runTest {
         val dbFile = tempFolder.newFile("test_link_count.db")
         val store = DatasetStoreTest.createSampleDb(dbFile)

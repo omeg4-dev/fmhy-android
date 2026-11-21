@@ -133,8 +133,8 @@ object SettingsCatalog {
         id = "lists.new_badges",
         page = SettingsPage.LISTS,
         title = "NEW badges",
-        description = "Show NEW badges on recently added sites for a set number of days",
-        keywords = listOf("new", "badges", "recent", "added", "days"),
+        description = "Mark sites that fmhy.net shows as new (added in the last 7 days)",
+        keywords = listOf("new", "badges", "recent", "added"),
     )
     val listsSearchTapTarget = SettingEntry(
         id = "lists.search_tap_target",

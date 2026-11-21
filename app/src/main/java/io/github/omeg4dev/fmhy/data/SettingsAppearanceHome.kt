@@ -92,7 +92,7 @@ internal fun DefaultSettingsRepository.readHomePrefs(prefs: Preferences): HomePr
         )
     return HomePrefs(
         blocks = blocks,
-        newBadgeDays = prefs[KEY_HOME_NEW_BADGE_DAYS] ?: default.newBadgeDays,
+        newBadges = (prefs[KEY_HOME_NEW_BADGE_DAYS] ?: 7) > 0,
         searchExact = prefs[KEY_HOME_SEARCH_EXACT] ?: default.searchExact,
         swipeToBookmark = prefs[KEY_HOME_SWIPE_TO_BOOKMARK] ?: default.swipeToBookmark,
         swapTapHold = prefs[KEY_HOME_SWAP_TAP_HOLD] ?: default.swapTapHold,
@@ -104,7 +104,7 @@ internal fun DefaultSettingsRepository.readHomePrefs(prefs: Preferences): HomePr
 internal fun DefaultSettingsRepository.writeHomePrefs(prefs: MutablePreferences, p: HomePrefs) {
     prefs[KEY_HOME_BLOCKS] = p.blocks.encode()
     prefs[KEY_HOME_SEARCH_EXACT] = p.searchExact
-    prefs[KEY_HOME_NEW_BADGE_DAYS] = p.newBadgeDays
+    prefs[KEY_HOME_NEW_BADGE_DAYS] = if (p.newBadges) 7 else 0
     prefs[KEY_HOME_SWIPE_TO_BOOKMARK] = p.swipeToBookmark
     prefs[KEY_HOME_SWAP_TAP_HOLD] = p.swapTapHold
     prefs[KEY_HOME_SEARCH_TAP_TARGET] = p.searchTapTarget.name

@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import java.time.LocalDate
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -96,7 +97,7 @@ fun EntryRow(
     alternatives: List<Entry> = emptyList(),
     nameHl: String? = null,
     descHl: String? = null,
-    isNew: Boolean = false,
+    newAddedOn: LocalDate? = null,
     updateLine: String? = null,
     history: List<ChangeItem>? = null,
     onShowInSection: (() -> Unit)? = null,
@@ -415,7 +416,7 @@ fun EntryRow(
                 displayName = displayName,
                 descriptionText = if (!descHl.isNullOrEmpty() && descHl.contains('\u0002')) descHl else entry.description,
                 alternatives = alternatives,
-                isNew = isNew,
+                newAddedOn = newAddedOn,
                 isCrossLink = isCrossLink,
                 updateLine = updateLine,
                 folderLabel = folderLabel,
@@ -452,7 +453,7 @@ fun EntryRow(
                     EntryTitleBadges(
                         entry = entry,
                         alternatives = alternatives,
-                        isNew = isNew,
+                        newAddedOn = newAddedOn,
                         isCrossLink = isCrossLink,
                         onOpenUrl = onOpenUrl,
                         onShowBottomSheet = { showBottomSheet = true },
