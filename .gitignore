@@ -13,6 +13,7 @@ __pycache__/
 dist/
 out/
 docs/
+!/schema/fixtures/**/docs/
 
 # bundled snapshot, copied from pipeline output at build time
 app/src/main/assets/dataset/

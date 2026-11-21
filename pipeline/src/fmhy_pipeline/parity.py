@@ -12,6 +12,7 @@ import json
 import os
 
 from .base64links import Base64Resolver
+from .critical import note_links, parse_note, read_note_bytes
 from .ids import IdAssigner, normalize_url
 from .parse import parse_section
 from .sections import get_file_content, load_sections
@@ -34,6 +35,7 @@ def dump(repo: str, rev: str, rentry_html: str, out: str) -> dict:
     sections = load_sections(repo, rev)
     totals = {"sections": 0, "entries": 0}
     index = []
+    all_referenced_note_ids: set[str] = set()
     for section in sections:
         content = get_file_content(repo, rev, f"docs/{section['file']}")
         if content is None:
@@ -53,12 +55,25 @@ def dump(repo: str, rev: str, rentry_html: str, out: str) -> dict:
                 "tags": e.tags, "heading_id": e.heading_id, "heading_path": e.heading_path,
                 "ord": e.ord,
             })
+        sec_note_links = note_links(section["id"], content, out_entries)
+        for nl in sec_note_links:
+            all_referenced_note_ids.add(nl[1])
         doc = {
             "section": {k: section[k] for k in ("id", "title", "description", "file", "ord")},
             "headings": [{"id": h.id, "parent_id": h.parent_id, "level": h.level, "title": h.title,
                           "anchor": h.anchor, "ord": h.ord} for h in headings],
             "entries": out_entries,
             "notes": [{"heading_id": n.heading_id, "ord": n.ord, "text_md": n.text_md} for n in notes],
+            "note_links": [
+                {
+                    "entry_id": nl[0],
+                    "note_id": nl[1],
+                    "section_id": nl[2],
+                    "line": nl[3],
+                    "ord": nl[4],
+                }
+                for nl in sec_note_links
+            ],
             "unparsed": len(unparsed),
         }
         with open(os.path.join(out, f"{section['id']}.json"), "w") as f:
@@ -68,6 +83,26 @@ def dump(repo: str, rev: str, rentry_html: str, out: str) -> dict:
         totals["entries"] += len(out_entries)
     with open(os.path.join(out, "index.json"), "w") as f:
         json.dump(index, f)
+
+    # Write inputs/notes/<id>.md as bytes, and write critical_notes.json
+    notes_dir = os.path.join(out, "inputs", "notes")
+    os.makedirs(notes_dir, exist_ok=True)
+    critical_rows = []
+    for nid in sorted(all_referenced_note_ids):
+        note_bytes = read_note_bytes(repo, rev, nid)
+        if note_bytes is None:
+            continue
+        with open(os.path.join(notes_dir, f"{nid}.md"), "wb") as f:
+            f.write(note_bytes)
+        raw = note_bytes.decode("utf-8", errors="replace")
+        parsed = parse_note(nid, raw)
+        if parsed is not None:
+            critical_rows.append(parsed)
+
+    critical_rows.sort(key=lambda r: r["id"])
+    with open(os.path.join(out, "critical_notes.json"), "w") as f:
+        json.dump(critical_rows, f, ensure_ascii=False, indent=1)
+
     return totals
 
 

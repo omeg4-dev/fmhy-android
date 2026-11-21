@@ -1,0 +1,34 @@
+{
+  "critical_notes": [
+    {
+      "id": "bar-note",
+      "title": "Bar Danger",
+      "text_md": "## Bar Danger\nBar steals data.",
+      "hash": "0d09fd9ff28b"
+    },
+    {
+      "id": "crlf-critical",
+      "title": "Crlf Warning",
+      "text_md": "# Crlf Warning\r\nline two",
+      "hash": "4ce4dfa2880c"
+    },
+    {
+      "id": "foo-critical",
+      "title": "Foo Warning",
+      "text_md": "#### Foo Warning\nDo not use Foo.",
+      "hash": "73ec7e5dfce0"
+    }
+  ],
+  "crlf_note_file": {
+    "id": "crlf-critical",
+    "bytes_utf8": "# Crlf Warning\r\nline two\r\n"
+  },
+  "note_links_note_ids_by_entry_url": {
+    "https://foo.example": "foo-critical",
+    "https://bar.example": "bar-note",
+    "https://baz.example": "baz-critical",
+    "https://plain.example": "plain-note",
+    "https://crlf.example": "crlf-critical"
+  },
+  "note": "note_links has 5 rows, one per entry, ord 0; entry ids/lines come from the parser (lines 3..7 of docs/audio.md, 1-based)"
+}

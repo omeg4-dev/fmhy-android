@@ -36,9 +36,10 @@ internal fun FmhySync.fetchFile(
     customUserAgent: String? = null,
     primaryCount: AtomicInteger,
     fallbackCount: AtomicInteger,
+    keepRaw: Boolean = true,
 ): FetchResult {
     val rawFile = File(rawDir, sanitizePath(path))
-    val sendEtag = etag != null && rawFile.exists()
+    val sendEtag = if (keepRaw) (etag != null && rawFile.exists()) else (etag != null)
 
     var response: Response? = null
     var usedHost = "primary"
@@ -46,7 +47,7 @@ internal fun FmhySync.fetchFile(
 
     try {
         val req = Request.Builder().url(urlPrimary).apply {
-            if (sendEtag) header("If-None-Match", etag)
+            if (sendEtag && etag != null) header("If-None-Match", etag)
             if (customUserAgent != null) header("User-Agent", customUserAgent)
         }.build()
         val resp = client.newCall(req).execute()
@@ -63,7 +64,7 @@ internal fun FmhySync.fetchFile(
     if (tryFallback && urlFallback != null) {
         try {
             val req = Request.Builder().url(urlFallback).apply {
-                if (sendEtag) header("If-None-Match", etag)
+                if (sendEtag && etag != null) header("If-None-Match", etag)
                 if (customUserAgent != null) header("User-Agent", customUserAgent)
             }.build()
             response = client.newCall(req).execute()
@@ -86,8 +87,10 @@ internal fun FmhySync.fetchFile(
             val body = r.body.string()
             val newEtag = r.header("ETag") ?: etag
             val bodySha = sha256(body)
-            rawDir.mkdirs()
-            rawFile.writeText(body)
+            if (keepRaw) {
+                rawDir.mkdirs()
+                rawFile.writeText(body)
+            }
             FetchResult.Content(path, body, newEtag, bodySha, usedHost)
         } else {
             FetchResult.Error(path, "HTTP ${r.code}")

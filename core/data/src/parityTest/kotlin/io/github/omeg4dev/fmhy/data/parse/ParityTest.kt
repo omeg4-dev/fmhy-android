@@ -13,6 +13,7 @@ data class JsonSectionDoc(
     val headings: List<JsonHeading>,
     val entries: List<JsonEntry>,
     val notes: List<JsonNote>,
+    val note_links: List<JsonNoteLink> = emptyList(),
     val unparsed: Int
 )
 
@@ -68,6 +69,23 @@ data class JsonNote(
     val text_md: String
 )
 
+@Serializable
+data class JsonNoteLink(
+    val entry_id: String,
+    val note_id: String,
+    val section_id: String,
+    val line: Int,
+    val ord: Int
+)
+
+@Serializable
+data class JsonCriticalNote(
+    val id: String,
+    val title: String,
+    val text_md: String,
+    val hash: String
+)
+
 class ParityTest {
 
     private val json = Json {
@@ -86,10 +104,14 @@ class ParityTest {
         val constantsFile = File(inputsDir, "constants.ts")
         val rentryFile = File(inputsDir, "rentry-FMHYB64.html")
         val indexFile = File(cacheDir, "index.json")
+        val criticalNotesFile = File(cacheDir, "critical_notes.json")
+        val notesDir = File(inputsDir, "notes")
 
         assertTrue("inputs/constants.ts must exist", constantsFile.exists())
         assertTrue("inputs/rentry-FMHYB64.html must exist", rentryFile.exists())
         assertTrue("index.json must exist", indexFile.exists())
+        assertTrue("critical_notes.json must exist", criticalNotesFile.exists())
+        assertTrue("inputs/notes must exist", notesDir.exists() && notesDir.isDirectory)
 
         val indexJson = indexFile.readText(Charsets.UTF_8)
         val expectedSectionIds = json.decodeFromString<List<String>>(indexJson)
@@ -135,6 +157,7 @@ class ParityTest {
         var totalEntries = 0
         var totalHeadings = 0
         var totalNotes = 0
+        var totalNoteLinks = 0
 
         println("\n=== PARITY TEST SUMMARY ===")
         for (i in sections.indices) {
@@ -273,20 +296,96 @@ class ParityTest {
                 }
             }
 
+            // Compare note_links
+            val actNoteLinks = parsed.noteLinks.toSet()
+            val expNoteLinks = refDoc.note_links.map {
+                NoteLinkRow(
+                    entryId = it.entry_id,
+                    noteId = it.note_id,
+                    sectionId = it.section_id,
+                    line = it.line,
+                    ord = it.ord
+                )
+            }.toSet()
+
+            if (actNoteLinks != expNoteLinks) {
+                val missing = (expNoteLinks - actNoteLinks).sortedWith(
+                    compareBy<NoteLinkRow> { it.line }.thenBy { it.ord }.thenBy { it.entryId }.thenBy { it.noteId }
+                )
+                val extra = (actNoteLinks - expNoteLinks).sortedWith(
+                    compareBy<NoteLinkRow> { it.line }.thenBy { it.ord }.thenBy { it.entryId }.thenBy { it.noteId }
+                )
+                for (link in missing) {
+                    secMismatches.add("${sec.id} / ${link.ord} / note_link: expected (entry_id=${link.entryId}, note_id=${link.noteId}, section_id=${link.sectionId}, line=${link.line}, ord=${link.ord}) but was missing")
+                }
+                for (link in extra) {
+                    secMismatches.add("${sec.id} / ${link.ord} / note_link: unexpected (entry_id=${link.entryId}, note_id=${link.noteId}, section_id=${link.sectionId}, line=${link.line}, ord=${link.ord})")
+                }
+            } else if (parsed.noteLinks.size != refDoc.note_links.size) {
+                secMismatches.add("${sec.id} / -1 / note_links.size: expected ${refDoc.note_links.size} got ${parsed.noteLinks.size}")
+            }
+
             totalEntries += parsed.entries.size
             totalHeadings += parsed.headings.size
             totalNotes += parsed.notes.size
+            totalNoteLinks += parsed.noteLinks.size
             mismatches.addAll(secMismatches)
 
             val status = if (secMismatches.isEmpty()) "OK" else "MISMATCH (${secMismatches.size})"
-            println("Section ${sec.id.padEnd(20)}: ${parsed.entries.size.toString().padStart(5)} entries, ${parsed.headings.size.toString().padStart(4)} headings, ${parsed.notes.size.toString().padStart(2)} notes, unparsed=${parsed.unparsedLines} -> $status")
+            println("Section ${sec.id.padEnd(20)}: ${parsed.entries.size.toString().padStart(5)} entries, ${parsed.headings.size.toString().padStart(4)} headings, ${parsed.notes.size.toString().padStart(2)} notes, ${parsed.noteLinks.size.toString().padStart(2)} noteLinks, unparsed=${parsed.unparsedLines} -> $status")
         }
+
+        // Compare critical notes
+        val distinctNoteIds = parsedSections.flatMap { it.noteLinks }.map { it.noteId }.distinct().sorted()
+        val actCriticalNotes = mutableMapOf<String, CriticalNoteRow>()
+        for (noteId in distinctNoteIds) {
+            val noteFile = File(notesDir, "$noteId.md")
+            if (noteFile.exists()) {
+                val bytes = noteFile.readBytes()
+                val raw = String(bytes, Charsets.UTF_8)
+                val parsed = CriticalNotes.parseNote(noteId, raw)
+                if (parsed != null) {
+                    actCriticalNotes[noteId] = parsed
+                }
+            }
+        }
+
+        val expCriticalNotesList = json.decodeFromString<List<JsonCriticalNote>>(criticalNotesFile.readText(Charsets.UTF_8))
+        val expCriticalNotes = expCriticalNotesList.associateBy { it.id }
+
+        val allCriticalIds = (actCriticalNotes.keys + expCriticalNotes.keys).distinct().sorted()
+        val critMismatches = mutableListOf<String>()
+        for (cid in allCriticalIds) {
+            val act = actCriticalNotes[cid]
+            val exp = expCriticalNotes[cid]
+            if (act == null && exp != null) {
+                critMismatches.add("critical_notes / $cid / missing: expected critical note present in Python")
+            } else if (act != null && exp == null) {
+                critMismatches.add("critical_notes / $cid / extra: unexpected critical note in Kotlin")
+            } else if (act != null && exp != null) {
+                if (act.title != exp.title) {
+                    critMismatches.add("critical_notes / $cid / note.title: expected '${exp.title}' got '${act.title}'")
+                }
+                if (act.textMd != exp.text_md) {
+                    critMismatches.add("critical_notes / $cid / note.textMd: expected '${exp.text_md}' got '${act.textMd}'")
+                }
+                if (act.hash != exp.hash) {
+                    critMismatches.add("critical_notes / $cid / note.hash: expected ${exp.hash} got ${act.hash}")
+                }
+            }
+        }
+        mismatches.addAll(critMismatches)
+
+        val critStatus = if (critMismatches.isEmpty()) "OK" else "MISMATCH (${critMismatches.size})"
+        println("Critical notes      : ${actCriticalNotes.size.toString().padStart(5)} notes -> $critStatus")
 
         println("\n=== SUMMARY TOTALS ===")
         println("Sections:     ${sections.size}")
         println("Entries:      $totalEntries")
         println("Headings:     $totalHeadings")
         println("Notes:        $totalNotes")
+        println("Note links:   $totalNoteLinks")
+        println("note_links sections compared: ${sections.size}, critical notes compared: ${expCriticalNotes.size}")
         println("Mismatches:   ${mismatches.size}")
         println("Parse time:   $elapsedMs ms")
 

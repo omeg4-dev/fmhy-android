@@ -6,6 +6,8 @@ import kotlinx.serialization.Serializable
 data class FileState(
     val etag: String? = null,
     val sha256: String,
+    val checkedAt: Long = 0L,
+    val critical: Boolean? = null,
 )
 
 @Serializable

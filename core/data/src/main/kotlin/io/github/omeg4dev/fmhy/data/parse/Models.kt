@@ -58,10 +58,28 @@ data class NoteRow(
     val textMd: String
 )
 
+@Serializable
+data class CriticalNoteRow(
+    val id: String,
+    val title: String,
+    val textMd: String,
+    val hash: String,
+)
+
+@Serializable
+data class NoteLinkRow(
+    val entryId: String,
+    val noteId: String,
+    val sectionId: String,
+    val line: Int,
+    val ord: Int,
+)
+
 data class ParsedSection(
     val section: SectionInfo,
     val headings: List<HeadingRow>,
     val entries: List<EntryRow>,
     val notes: List<NoteRow>,
-    val unparsedLines: Int
+    val unparsedLines: Int,
+    val noteLinks: List<NoteLinkRow> = emptyList(),
 )

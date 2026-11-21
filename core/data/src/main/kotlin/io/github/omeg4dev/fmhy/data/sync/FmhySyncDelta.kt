@@ -6,6 +6,7 @@ import io.github.omeg4dev.fmhy.data.model.ChangeKind
 import io.github.omeg4dev.fmhy.data.model.Entry
 import io.github.omeg4dev.fmhy.data.model.Section
 import io.github.omeg4dev.fmhy.data.parse.EntryRow
+import io.github.omeg4dev.fmhy.data.parse.NoteLinkRow
 import io.github.omeg4dev.fmhy.data.parse.ParsedSection
 import io.github.omeg4dev.fmhy.data.tracker.ChangeClassifier
 import kotlinx.serialization.encodeToString
@@ -109,6 +110,10 @@ internal fun applyAbsentSections(conn: SQLiteConnection, absentSections: List<Se
             stmt.bindText(1, absent.id)
             stmt.step()
         }
+        conn.prepare("DELETE FROM note_links WHERE section_id = ?").use { stmt ->
+            stmt.bindText(1, absent.id)
+            stmt.step()
+        }
         conn.prepare("DELETE FROM sections WHERE id = ?").use { stmt ->
             stmt.bindText(1, absent.id)
             stmt.step()
@@ -163,6 +168,24 @@ internal fun FmhySync.applySectionDiffs(
                 if (n.headingId != null) stmt.bindText(3, n.headingId) else stmt.bindNull(3)
                 stmt.bindLong(4, n.ord.toLong())
                 stmt.bindText(5, n.textMd)
+                stmt.step()
+                stmt.reset()
+            }
+        }
+
+        // Replace note_links
+        conn.prepare("DELETE FROM note_links WHERE section_id = ?").use { stmt ->
+            stmt.bindText(1, secId)
+            stmt.step()
+        }
+        val sqlNoteLinks = "INSERT INTO note_links (entry_id, note_id, section_id, line, ord) VALUES (?, ?, ?, ?, ?)"
+        conn.prepare(sqlNoteLinks).use { stmt ->
+            for (nl in parsedSec.noteLinks) {
+                stmt.bindText(1, nl.entryId)
+                stmt.bindText(2, nl.noteId)
+                stmt.bindText(3, nl.sectionId)
+                stmt.bindLong(4, nl.line.toLong())
+                stmt.bindLong(5, nl.ord.toLong())
                 stmt.step()
                 stmt.reset()
             }

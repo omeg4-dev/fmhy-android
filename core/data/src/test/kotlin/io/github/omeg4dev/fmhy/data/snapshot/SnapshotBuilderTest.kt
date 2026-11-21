@@ -17,7 +17,7 @@ class SnapshotBuilderTest {
     val tempFolder = TemporaryFolder()
 
     @Test
-    fun testBuildSnapshotYieldsSchema4AndNonEmptySiteLists() {
+    fun testBuildSnapshotYieldsSchema5AndNonEmptySiteLists() {
         val docsDir = tempFolder.newFolder("docs")
         val vpDir = File(docsDir, ".vitepress/transformer").apply { mkdirs() }
         File(vpDir, "constants.ts").writeText(
@@ -86,11 +86,11 @@ class SnapshotBuilderTest {
 
         val conn = BundledSQLiteDriver().open(decompressedDb.absolutePath)
         try {
-            // Check PRAGMA user_version = 4
+            // Check PRAGMA user_version = 5
             conn.prepare("PRAGMA user_version").use { stmt ->
                 assertTrue(stmt.step())
                 val userVersion = stmt.getLong(0)
-                assertEquals(4L, userVersion)
+                assertEquals(5L, userVersion)
             }
 
             // Check site_lists has entries

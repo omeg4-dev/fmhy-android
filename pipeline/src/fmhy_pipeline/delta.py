@@ -18,6 +18,8 @@ _DATA_TABLES = [
     "headings",
     "entries",
     "notes",
+    "critical_notes",
+    "note_links",
     "posts",
     "unsafe_domains",
     "site_lists",
@@ -29,6 +31,8 @@ _PKS: dict[str, Any] = {
     "headings": "id",
     "entries": "id",
     "notes": "id",
+    "critical_notes": "id",
+    "note_links": ("entry_id", "note_id"),
     "posts": "id",
     "unsafe_domains": "domain",
     "site_lists": ("key", "list"),
@@ -130,9 +134,11 @@ def apply_delta(db_path: str, delta: dict) -> None:
         con.execute("PRAGMA foreign_keys = OFF")
 
         with con:
-            # 1. Deletes in order: notes, entries, headings, sections, posts, unsafe_domains, site_lists
+            # 1. Deletes in order: notes, critical_notes, note_links, entries, headings, sections, posts, unsafe_domains, site_lists
             delete_order = [
                 "notes",
+                "critical_notes",
+                "note_links",
                 "entries",
                 "headings",
                 "sections",
@@ -154,12 +160,14 @@ def apply_delta(db_path: str, delta: dict) -> None:
                     placeholders = ",".join("?" * len(keys))
                     con.execute(f"DELETE FROM {table} WHERE {pk} IN ({placeholders})", keys)
 
-            # 2. Upserts in order: sections, headings, entries, notes, posts, unsafe_domains, site_lists
+            # 2. Upserts in order: sections, headings, entries, notes, critical_notes, note_links, posts, unsafe_domains, site_lists
             upsert_order = [
                 "sections",
                 "headings",
                 "entries",
                 "notes",
+                "critical_notes",
+                "note_links",
                 "posts",
                 "unsafe_domains",
                 "site_lists",

@@ -5,6 +5,8 @@ import androidx.sqlite.execSQL
 import io.github.omeg4dev.fmhy.data.DATASET_SCHEMA
 import io.github.omeg4dev.fmhy.data.DatasetStore
 import io.github.omeg4dev.fmhy.data.parse.Base64Map
+import io.github.omeg4dev.fmhy.data.parse.CriticalNoteRow
+import io.github.omeg4dev.fmhy.data.parse.CriticalNotes
 import io.github.omeg4dev.fmhy.data.parse.FmhyParser
 import io.github.omeg4dev.fmhy.data.parse.Sections
 import io.github.omeg4dev.fmhy.data.parse.SiteLists
@@ -114,6 +116,21 @@ object SnapshotBuilder {
             FmhyParser.parseSection(sec, markdown, b64Map)
         }
 
+        val allNoteLinks = parsedSections.flatMap { it.noteLinks }
+        val referencedNoteIds = allNoteLinks.map { it.noteId }.distinct()
+        val notesDir = File(docsDir, ".vitepress/notes")
+        val criticalNotes = mutableListOf<CriticalNoteRow>()
+        for (noteId in referencedNoteIds) {
+            val noteFile = File(notesDir, "$noteId.md")
+            if (noteFile.exists()) {
+                val raw = String(noteFile.readBytes(), Charsets.UTF_8)
+                val parsed = CriticalNotes.parseNote(noteId, raw)
+                if (parsed != null) {
+                    criticalNotes.add(parsed)
+                }
+            }
+        }
+
         outDir.mkdirs()
         val tempDb = File(outDir, "temp-snapshot.db")
         if (tempDb.exists()) tempDb.delete()
@@ -174,6 +191,33 @@ object SnapshotBuilder {
                         stmt.step()
                         stmt.reset()
                     }
+                }
+            }
+
+            // 3b. Insert critical_notes
+            val sqlCritical = "INSERT INTO critical_notes (id, title, text_md, hash) VALUES (?, ?, ?, ?)"
+            conn.prepare(sqlCritical).use { stmt ->
+                for (cn in criticalNotes) {
+                    stmt.bindText(1, cn.id)
+                    stmt.bindText(2, cn.title)
+                    stmt.bindText(3, cn.textMd)
+                    stmt.bindText(4, cn.hash)
+                    stmt.step()
+                    stmt.reset()
+                }
+            }
+
+            // 3c. Insert note_links
+            val sqlNoteLinks = "INSERT INTO note_links (entry_id, note_id, section_id, line, ord) VALUES (?, ?, ?, ?, ?)"
+            conn.prepare(sqlNoteLinks).use { stmt ->
+                for (nl in allNoteLinks) {
+                    stmt.bindText(1, nl.entryId)
+                    stmt.bindText(2, nl.noteId)
+                    stmt.bindText(3, nl.sectionId)
+                    stmt.bindLong(4, nl.line.toLong())
+                    stmt.bindLong(5, nl.ord.toLong())
+                    stmt.step()
+                    stmt.reset()
                 }
             }
 
@@ -363,6 +407,19 @@ object SnapshotBuilder {
             fileStates["docs/${s.file}"] = FileState(etag = null, sha256 = sha256(f))
         }
 
+        val criticalNoteIds = criticalNotes.map { it.id }.toSet()
+        for (noteId in referencedNoteIds) {
+            val noteFile = File(notesDir, "$noteId.md")
+            if (noteFile.exists()) {
+                fileStates["docs/.vitepress/notes/$noteId.md"] = FileState(
+                    etag = null,
+                    sha256 = sha256(noteFile),
+                    checkedAt = nowSec,
+                    critical = criticalNoteIds.contains(noteId),
+                )
+            }
+        }
+
         val now = nowSec
         val syncState = SyncState(
             // Never checked: the first launch must sync, however recently the APK was built.
@@ -378,7 +435,7 @@ object SnapshotBuilder {
 
         tempDb.delete()
 
-        println("SnapshotBuilder: $totalEntries entries, ${sections.size} sections, raw size: $rawSize bytes, gz size: $gzSize bytes")
+        println("SnapshotBuilder: $totalEntries entries, ${sections.size} sections, ${criticalNotes.size} critical notes, ${allNoteLinks.size} note links, raw size: $rawSize bytes, gz size: $gzSize bytes")
     }
 
     /** How far back the bundled What's New history reaches (the screen shows at most 30 days). */

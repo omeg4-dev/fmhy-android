@@ -7,6 +7,7 @@ import androidx.sqlite.execSQL
 import io.github.omeg4dev.fmhy.data.model.Change
 import io.github.omeg4dev.fmhy.data.model.ChangeItem
 import io.github.omeg4dev.fmhy.data.model.ChangeKind
+import io.github.omeg4dev.fmhy.data.model.CriticalNote
 import io.github.omeg4dev.fmhy.data.model.Entry
 import io.github.omeg4dev.fmhy.data.model.Heading
 import io.github.omeg4dev.fmhy.data.model.Post
@@ -295,6 +296,18 @@ open class DatasetStore(
     open suspend fun posts(): List<Post> = postsImpl()
 
     open suspend fun sectionItems(sectionId: String): List<SectionItem> = sectionItemsImpl(sectionId)
+
+    open suspend fun criticalNotes(): List<CriticalNote> = criticalNotesImpl()
+
+    open suspend fun criticalNote(id: String): CriticalNote? = criticalNoteImpl(id)
+
+    open suspend fun isCriticalNote(id: String): Boolean = isCriticalNoteImpl(id)
+
+    open suspend fun criticalNotesForEntry(entryId: String): List<CriticalNote> = criticalNotesForEntryImpl(entryId)
+
+    open suspend fun criticalNoteForEntry(entryId: String): CriticalNote? = criticalNoteForEntryImpl(entryId)
+
+    open suspend fun criticalNoteIdsForEntries(entryIds: Collection<String>): Map<String, String> = criticalNoteIdsForEntriesImpl(entryIds)
 
     fun closeSync() {
         connection?.close()

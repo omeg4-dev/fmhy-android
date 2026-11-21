@@ -1,4 +1,4 @@
-# Dataset contract (schema 1)
+# Dataset contract (schema 5)
 
 The pipeline publishes these files to the `data` branch (served by GitHub Pages under
 `https://<owner>.github.io/fmhy-android/data/`). The app only ever reads them. Changing anything here
@@ -35,11 +35,13 @@ means bumping `schema` and handling both versions.
   "schema": 1, "from": 41, "to": 42,
   "upsert": {
     "sections": [ {row}, … ], "headings": [ … ], "entries": [ … ], "notes": [ … ],
-    "posts": [ … ], "unsafe_domains": [ … ]
+    "critical_notes": [ … ], "note_links": [ … ],
+    "posts": [ … ], "unsafe_domains": [ … ], "site_lists": [ … ]
   },
   "delete": {
     "sections": ["id", …], "headings": ["id", …], "entries": ["id", …], "notes": ["id", …],
-    "posts": ["id", …], "unsafe_domains": ["domain", …]
+    "critical_notes": ["id", …], "note_links": [["entry_id", "note_id"], …],
+    "posts": ["id", …], "unsafe_domains": ["domain", …], "site_lists": [["key", "list"], …]
   },
   "changes_append": [ {row}, … ],
   "changes_prune_before": 1758000000,
@@ -49,11 +51,17 @@ means bumping `schema` and handling both versions.
 
 - A `{row}` is an object with **every** column of that table from `dataset.sql`, keyed by column name
   (`entries` rows include `num`). Upsert = `INSERT … ON CONFLICT(<primary key>) DO UPDATE SET <all
-  columns>` (`entries` conflict target is `id`; `num` never changes for an id).
-- Deletes are by primary key (`entries` by `id`). Empty lists may be omitted.
+  columns>` (`entries` conflict target is `id`; `num` never changes for an id; composite keys like
+  `note_links` conflict target is `entry_id, note_id`; `site_lists` is `key, list`).
+- Deletes are by primary key (`entries` by `id`; `critical_notes` by `id`; composite keys like `note_links`
+  by `["entry_id", "note_id"]`). Empty lists may be omitted.
+- The `critical_notes` table stores warnings treated as critical by the website (columns: `id`, `title`,
+  `text_md`, `hash`). The `note_links` table maps entries to referenced note IDs on their line
+  (columns: `entry_id`, `note_id`, `section_id`, `line`, `ord`).
 - Apply order inside ONE transaction, with `PRAGMA foreign_keys = OFF`: deletes in the order
-  notes, entries, headings, sections, posts, unsafe_domains; then upserts in the order sections,
-  headings, entries, notes, posts, unsafe_domains; then `changes_append` (plain INSERT); then
+  notes, critical_notes, note_links, entries, headings, sections, posts, unsafe_domains, site_lists;
+  then upserts in the order sections, headings, entries, notes, critical_notes, note_links, posts,
+  unsafe_domains, site_lists; then `changes_append` (plain INSERT); then
   `DELETE FROM changes WHERE ts < changes_prune_before`; then every `meta` key with
   `INSERT OR REPLACE`. FTS tables update through the triggers.
 - Correctness contract (tested in the pipeline): applying `delta-A-B` to `full-A` gives a database whose

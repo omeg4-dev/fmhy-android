@@ -1,11 +1,11 @@
--- FMHY dataset, schema 4. Single source of truth for pipeline/ (writes it) and app/ (reads it).
+-- FMHY dataset, schema 5. Single source of truth for pipeline/ (writes it) and app/ (reads it).
 -- The pipeline creates a fresh SQLite file with exactly this DDL, fills it, then VACUUMs it.
 -- The app opens it with androidx.sqlite BundledSQLiteDriver (not Room) and applies deltas to it.
 -- Timestamps are unix seconds (UTC). Booleans are 0/1. JSON columns hold compact JSON arrays.
 
-PRAGMA user_version = 4;
+PRAGMA user_version = 5;
 
--- key/value: schema ('3'), version (monotonic int as text), created (unix), source_commit (fmhy/edit sha),
+-- key/value: schema ('5'), version (monotonic int as text), created (unix), source_commit (fmhy/edit sha),
 -- history_start (unix ts of the oldest fmhy/edit commit; entries older than that have first_seen = it)
 CREATE TABLE meta (
     key   TEXT PRIMARY KEY,
@@ -70,6 +70,30 @@ CREATE TABLE notes (
     ord        INTEGER NOT NULL,           -- shares the ord space with entries of the same section
     text_md    TEXT NOT NULL               -- inline markdown (links allowed)
 ) WITHOUT ROWID;
+
+-- notes the website treats as critical (file name ends in -critical unless front matter says critical: true|false),
+-- only for note ids linked from a docs/*.md section file. text_md = file text without front matter, trimmed
+-- (exactly what hash covers); hash = first 12 hex chars of SHA-256 of text_md as UTF-8, like the website.
+CREATE TABLE critical_notes (
+    id      TEXT PRIMARY KEY,
+    title   TEXT NOT NULL DEFAULT '',
+    text_md TEXT NOT NULL,
+    hash    TEXT NOT NULL
+) WITHOUT ROWID;
+
+-- every note link (critical or not, ids only) found on the source line of an entry. One row per
+-- (entry, note). ord = 0-based order of the note links on that line. A line with several entries links
+-- all of them (batch 05 decides which link of a line is guarded).
+CREATE TABLE note_links (
+    entry_id   TEXT NOT NULL,
+    note_id    TEXT NOT NULL,
+    section_id TEXT NOT NULL,
+    line       INTEGER NOT NULL,
+    ord        INTEGER NOT NULL,
+    PRIMARY KEY (entry_id, note_id)
+) WITHOUT ROWID;
+CREATE INDEX note_links_note ON note_links(note_id);
+CREATE INDEX note_links_section ON note_links(section_id);
 
 -- history log for the "Recently added" view; ids are assigned in commit order and never change.
 -- Only the last 400 days are shipped; entries.first_seen covers anything older.

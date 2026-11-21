@@ -54,8 +54,8 @@ open class FmhySync(
     private val dir: File,
     internal val client: OkHttpClient,
     internal val sources: Sources = Sources(),
-    private val clock: () -> Long,
-    private val log: (String) -> Unit,
+    internal val clock: () -> Long = { System.currentTimeMillis() / 1000L },
+    internal val log: (String) -> Unit = {},
     private val minIntervalSec: Long = 600L,
     private val parser: (SectionInfo, String, Base64Map) -> ParsedSection = FmhyParser::parseSection,
 ) {
@@ -387,6 +387,16 @@ open class FmhySync(
                 }
             }
 
+            // 6b. Critical notes phase
+            val notesResult = syncNotesPhase(
+                state = state,
+                parsedSections = parsedSections,
+                now = now,
+                primarySuccessCount = primarySuccessCount,
+                fallbackSuccessCount = fallbackSuccessCount,
+            )
+            updatedFileStates.putAll(notesResult.fileStates)
+
             // 7. Apply all changes in ONE DatasetStore transaction
             // Before taking transaction lock: diff entries per section
             val diffResult = computeSectionDiffs(parsedSections)
@@ -408,7 +418,8 @@ open class FmhySync(
                 siteListsChanged ||
                 totalAdded > 0 ||
                 totalRemoved > 0 ||
-                totalUpdated > 0
+                totalUpdated > 0 ||
+                notesResult.hasChanges
 
             val baseline = firstDownload || state.source == "bundled"
             // Safety net: an upstream restructure we cannot read must never silently empty the dataset.
@@ -448,6 +459,10 @@ open class FmhySync(
 
                     // B. Per changed section
                     nextNum = applySectionDiffs(conn, parsedSections, sectionDiffs, nextNum, now)
+
+                    // Critical notes apply & GC
+                    applyCriticalNotes(conn, notesResult.upserts, notesResult.deletes)
+                    conn.execSQL("DELETE FROM critical_notes WHERE id NOT IN (SELECT DISTINCT note_id FROM note_links);")
 
                     // C. Record changes into `changes` table per §3 & §4.3
                     val allChanges = classifyChanges(absentSections, absentSectionEntries, sectionDiffs)

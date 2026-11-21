@@ -12,6 +12,7 @@ import time
 from pathlib import Path
 
 from .base64links import Base64Resolver
+from .critical import note_links, parse_note, read_note_bytes
 from .ids import IdAssigner, normalize_url
 from .parse import parse_section
 from .posts import load_posts_from_repo
@@ -140,12 +141,14 @@ def build_full(
     all_notes = []
     all_unparsed = []
     total_bullets = 0
+    section_contents: dict[str, str] = {}
 
     for section in sections:
         sid = section["id"]
         content = get_file_content(repo, rev, f"docs/{section['file']}")
         if content is None:
             continue
+        section_contents[sid] = content
 
         headings, entries, notes, unparsed = parse_section(
             section_id=sid,
@@ -240,6 +243,30 @@ def build_full(
             "starred_at": starred_at,
         })
 
+    # Compute note_links per section from entry records of that section
+    entries_by_section: dict[str, list[dict]] = {}
+    for rec in entry_records:
+        entries_by_section.setdefault(rec["section_id"], []).append(rec)
+
+    all_note_links = []
+    for sid, sec_content in section_contents.items():
+        sec_entries = entries_by_section.get(sid, [])
+        links = note_links(sid, sec_content, sec_entries)
+        all_note_links.extend(links)
+    all_note_links.sort(key=lambda t: (t[2], t[0], t[1]))
+
+    # Read each linked note id once
+    linked_note_ids = sorted({nl[1] for nl in all_note_links})
+    critical_note_rows = []
+    for nid in linked_note_ids:
+        note_bytes = read_note_bytes(repo, rev, nid)
+        if note_bytes is None:
+            continue
+        raw = note_bytes.decode("utf-8", errors="replace")
+        parsed = parse_note(nid, raw)
+        if parsed is not None:
+            critical_note_rows.append(parsed)
+
     # Build SQLite file
     out = Path(out_path)
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -318,6 +345,20 @@ def build_full(
             (rec["id"], rec["section_id"], rec["heading_id"], rec["ord"], rec["text_md"]),
         )
 
+    # Insert critical_notes (only critical ones)
+    for cn in critical_note_rows:
+        con.execute(
+            "INSERT OR REPLACE INTO critical_notes(id, title, text_md, hash) VALUES (?,?,?,?)",
+            (cn["id"], cn["title"], cn["text_md"], cn["hash"]),
+        )
+
+    # Insert note_links
+    for nl in all_note_links:
+        con.execute(
+            "INSERT OR REPLACE INTO note_links(entry_id, note_id, section_id, line, ord) VALUES (?,?,?,?,?)",
+            nl,
+        )
+
     # Insert posts
     for p in posts:
         con.execute(
@@ -366,6 +407,7 @@ def build_full(
         "sections": len(sections),
         "headings": len(all_headings),
         "notes": len(all_notes),
+        "critical_notes": len(critical_note_rows),
         "posts": len(posts),
         "unsafe_domains": len(unsafe_domains),
         "base64_resolved": b64_resolver.resolved_count,

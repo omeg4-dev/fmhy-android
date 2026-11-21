@@ -289,6 +289,12 @@ class QueryPlanTest {
         call("DatasetStore", "unsafeReason") { datasetStore.unsafeReason("https://1377x.to/torrent") }
         call("DatasetStore", "posts") { datasetStore.posts() }
         call("DatasetStore", "sectionItems") { datasetStore.sectionItems("ai") }
+        call("DatasetStore", "criticalNotes") { datasetStore.criticalNotes() }
+        call("DatasetStore", "criticalNote") { datasetStore.criticalNote("foo-critical") }
+        call("DatasetStore", "isCriticalNote") { datasetStore.isCriticalNote("foo-critical") }
+        call("DatasetStore", "criticalNotesForEntry") { datasetStore.criticalNotesForEntry("acba399d4271") }
+        call("DatasetStore", "criticalNoteForEntry") { datasetStore.criticalNoteForEntry("acba399d4271") }
+        call("DatasetStore", "criticalNoteIdsForEntries") { datasetStore.criticalNoteIdsForEntries(listOf("acba399d4271")) }
         call("DatasetStore", "closeSync") {
             datasetStore.closeSync()
             datasetStore.reopen()

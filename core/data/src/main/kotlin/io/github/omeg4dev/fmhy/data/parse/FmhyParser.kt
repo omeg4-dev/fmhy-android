@@ -239,7 +239,14 @@ object FmhyParser {
             }
         }
 
-        return ParsedSection(section, headings, entries, notes, unparsedLines)
+        return ParsedSection(
+            section,
+            headings,
+            entries,
+            notes,
+            unparsedLines,
+            noteLinks = CriticalNotes.noteLinks(section.id, markdown, entries)
+        )
     }
 
     fun stripInvisibleChars(text: String): String {
