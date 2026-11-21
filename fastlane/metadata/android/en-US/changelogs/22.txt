@@ -1,0 +1,4 @@
+- NEW badges now follow fmhy.net: they show where the website shows NEW, tap one for the date
+- Warning before opening a site FMHY flags with a critical note, with "Don't show again"
+- Settings > Protection: Private DNS shortcut that shows the system state
+- The NEW badges setting is now a simple On / Off switch
