@@ -15,7 +15,8 @@ class PrivateDnsTest {
         assertEquals(PrivateDnsState.Provider("dns.google"), privateDnsStateOf("hostname", " dns.google "))
         assertEquals(PrivateDnsState.Unknown, privateDnsStateOf("hostname", ""))
         assertEquals(PrivateDnsState.Unknown, privateDnsStateOf("hostname", null))
-        assertEquals(PrivateDnsState.Unknown, privateDnsStateOf(null, null))
+        assertEquals(PrivateDnsState.Automatic, privateDnsStateOf(null, null))
+        assertEquals(PrivateDnsState.Automatic, privateDnsStateOf("", null))
         assertEquals(PrivateDnsState.Unknown, privateDnsStateOf("weird", null))
     }
 

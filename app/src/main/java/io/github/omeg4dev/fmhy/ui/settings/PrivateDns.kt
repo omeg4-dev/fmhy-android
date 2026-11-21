@@ -14,7 +14,9 @@ sealed interface PrivateDnsState {
 }
 
 fun privateDnsStateOf(mode: String?, specifier: String?): PrivateDnsState {
-    return when (mode?.lowercase()) {
+    // Android never writes private_dns_mode until the user opens the screen once; the system default is then
+    // "opportunistic" (Automatic), so a missing or empty value means Automatic.
+    return when (mode?.lowercase()?.ifEmpty { "opportunistic" } ?: "opportunistic") {
         "off" -> PrivateDnsState.Off
         "opportunistic" -> PrivateDnsState.Automatic
         "hostname" -> {
@@ -48,19 +50,12 @@ fun readPrivateDnsState(context: Context): PrivateDnsState {
         if (mode != null) {
             privateDnsStateOf(mode, specifier)
         } else {
+            // Setting never written: the system default applies (Automatic); a strict provider shows on the link.
             val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
             val activeNetwork = cm?.activeNetwork
             val lp = activeNetwork?.let { cm.getLinkProperties(it) }
-            if (lp != null && lp.isPrivateDnsActive) {
-                val serverName = lp.privateDnsServerName
-                if (serverName != null) {
-                    PrivateDnsState.Provider(serverName)
-                } else {
-                    PrivateDnsState.Automatic
-                }
-            } else {
-                PrivateDnsState.Unknown
-            }
+            val serverName = if (lp != null && lp.isPrivateDnsActive) lp.privateDnsServerName else null
+            if (serverName != null) PrivateDnsState.Provider(serverName) else PrivateDnsState.Automatic
         }
     }.getOrDefault(PrivateDnsState.Unknown)
 }
