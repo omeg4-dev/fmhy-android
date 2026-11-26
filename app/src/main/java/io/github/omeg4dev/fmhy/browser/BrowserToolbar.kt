@@ -146,6 +146,7 @@ fun BrowserToolbar(
     showBlockedCount: Boolean = true,
     isSaved: Boolean = false,
     connectionVpn: VpnState? = null,
+    orbotProxy: Boolean = false,
     onConnectionClick: () -> Unit = {},
     onShieldClick: () -> Unit = {},
     onAddressClick: () -> Unit = {},
@@ -291,6 +292,7 @@ fun BrowserToolbar(
                     onNewTabSwipe = { onNewTabClick(tab?.isPrivate == true) },
                     statusIcon = statusIcon,
                     connectionVpn = connectionVpn,
+                    orbotProxy = orbotProxy,
                     onConnectionClick = onConnectionClick,
                     modifier = Modifier.weight(1f),
                 )
@@ -468,6 +470,7 @@ private fun AddressPill(
     onNewTabSwipe: () -> Unit = {},
     statusIcon: @Composable () -> Unit,
     connectionVpn: VpnState? = null,
+    orbotProxy: Boolean = false,
     onConnectionClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -478,7 +481,8 @@ private fun AddressPill(
     val isHttp = url.startsWith("http://", ignoreCase = true)
     // Ring around the site icon: colour = connection level; null (no ring) when the setting is off or the page is not a web page
     val connection = if (!isBlank && tab?.interstitialState == null && tab?.showsBlockPage != true) {
-        connectionVpn?.let { ConnectionSafety.levelOf(url, it) }
+        val proxyFailed = tab.rescueState?.kind == LoadFailureKind.PROXY
+        connectionVpn?.let { ConnectionSafety.levelOf(url, it, orbotProxy, proxyFailed) }
     } else {
         null
     }

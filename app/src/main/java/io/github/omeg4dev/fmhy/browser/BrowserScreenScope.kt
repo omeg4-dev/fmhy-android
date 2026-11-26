@@ -108,6 +108,7 @@ internal data class BrowserScreenScope(
     val container: AppContainer,
     val vpnStateRef: State<VpnState>,
     val connectionVpn: VpnState?,
+    val orbotProxy: Boolean,
     val downloadController: DownloadController,
     val downloadSummaryRef: State<ActiveSummary?>,
     val updatePrefsRef: State<UpdatePrefs>,

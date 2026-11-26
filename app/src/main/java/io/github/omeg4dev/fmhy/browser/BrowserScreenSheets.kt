@@ -82,7 +82,8 @@ internal fun BrowserScreenScope.BrowserScreenSheets() {
     // Site menu behind the site icon: connection details (when VPN state is shown) and the VirusTotal check
     if (showConnectionSheet && currentTab != null) {
         val sheetTab = currentTab
-        val level = connectionVpn?.let { ConnectionSafety.levelOf(sheetTab.url, it) }
+        val proxyFailed = sheetTab.rescueState?.kind == LoadFailureKind.PROXY
+        val level = connectionVpn?.let { ConnectionSafety.levelOf(sheetTab.url, it, orbotProxy, proxyFailed) }
         val vtHost = DownloadRequest.hostOf(sheetTab.url).ifBlank { null }
             ?.takeIf { DownloadRequest.isHttpUrl(sheetTab.url) }
         val kind = sheetTab.siteBarState?.kind
@@ -125,6 +126,7 @@ internal fun BrowserScreenScope.BrowserScreenSheets() {
                 url = sheetTab.url,
                 level = level,
                 vpnState = connectionVpn,
+                orbotProxy = orbotProxy,
                 ipLine = if (connectionVpn != null) {
                     rememberIpLine(container.ipInfoRepository, protectionPrefs.showIpCountry, connectionVpn, active = true)
                 } else {

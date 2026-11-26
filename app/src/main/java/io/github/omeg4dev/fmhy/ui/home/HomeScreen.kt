@@ -63,6 +63,7 @@ import androidx.compose.ui.text.withStyle
 import io.github.omeg4dev.fmhy.SectionNavKey
 import io.github.omeg4dev.fmhy.WhatsNewNavKey
 import io.github.omeg4dev.fmhy.data.ProtectionPrefs
+import io.github.omeg4dev.fmhy.data.ProxyMode
 import io.github.omeg4dev.fmhy.data.link.CrossLinks
 import io.github.omeg4dev.fmhy.data.user.Pin
 import io.github.omeg4dev.fmhy.ui.common.CheckLinkIcon
@@ -605,6 +606,7 @@ private fun VpnStatusAction(
 ) {
     val context = LocalContext.current
     val vpnState by container.vpnMonitor.state.collectAsStateWithLifecycle()
+    val orbot = protectionPrefs.proxyMode == ProxyMode.ORBOT
     var expanded by remember { mutableStateOf(false) }
     val ipLine = rememberIpLine(
         repo = container.ipInfoRepository,
@@ -616,9 +618,9 @@ private fun VpnStatusAction(
     Box {
         IconButton(onClick = { expanded = true }) {
             Icon(
-                imageVector = vpnIcon(vpnState),
-                contentDescription = vpnStateText(vpnState),
-                tint = vpnColor(vpnState),
+                imageVector = vpnIcon(vpnState, orbot),
+                contentDescription = vpnStateText(vpnState, orbot),
+                tint = vpnColor(vpnState, orbot = orbot),
             )
         }
         DropdownMenu(
@@ -629,14 +631,14 @@ private fun VpnStatusAction(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             ) {
                 Text(
-                    text = vpnStateText(vpnState),
+                    text = vpnStateText(vpnState, orbot),
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium,
-                    color = vpnColor(vpnState),
+                    color = vpnColor(vpnState, orbot = orbot),
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = vpnStateHint(vpnState),
+                    text = vpnStateHint(vpnState, orbot),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

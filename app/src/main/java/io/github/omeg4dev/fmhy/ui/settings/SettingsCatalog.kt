@@ -535,14 +535,14 @@ object SettingsCatalog {
         id = "protection.show_vpn_state",
         page = SettingsPage.PROTECTION,
         title = "Show VPN and HTTPS ring",
-        description = "Coloured ring around the site icon: green = HTTPS and VPN, amber = HTTPS only, red = not secure. Tap it for details",
+        description = "Coloured ring around the site icon: green = HTTPS and VPN, purple = Orbot, amber = HTTPS only, red = not secure. Tap it for details",
         keywords = listOf("vpn", "ring", "https", "secure", "lock", "protected", "favicon"),
     )
     val protectionShowVpnHomeIcon = SettingEntry(
         id = "protection.show_vpn_home_icon",
         page = SettingsPage.PROTECTION,
         title = "Show VPN icon on Home",
-        description = "Lock icon on Home: green with a VPN, amber without. Off by default",
+        description = "Lock icon on Home: green with a VPN, purple with Orbot, else amber. Off by default",
         keywords = listOf("vpn", "lock", "home", "icon", "protected"),
     )
     val protectionShowIpCountry = SettingEntry(

@@ -33,6 +33,7 @@ import io.github.omeg4dev.fmhy.browser.adblock.AdblockService
 import io.github.omeg4dev.fmhy.data.BookmarksRepository
 import io.github.omeg4dev.fmhy.data.CheckPrefs
 import io.github.omeg4dev.fmhy.data.DatasetStore
+import io.github.omeg4dev.fmhy.data.ProxyMode
 import io.github.omeg4dev.fmhy.data.SettingsRepository
 import io.github.omeg4dev.fmhy.data.ToolbarPosition
 import io.github.omeg4dev.fmhy.data.UpdatePrefs
@@ -244,6 +245,7 @@ internal fun rememberBrowserScreenScope(
     val vpnStateRef = container.vpnMonitor.state.collectAsStateWithLifecycle()
     val vpnState by vpnStateRef
     val connectionVpn = VpnPolicy.markFor(vpnState, protectionPrefs.showVpnState)
+    val orbotProxy = protectionPrefs.proxyMode == ProxyMode.ORBOT
     val downloadController = container.downloads
     val downloadSummaryRef = downloadController.activeSummary.collectAsStateWithLifecycle()
     val downloadSummary by downloadSummaryRef
@@ -424,6 +426,7 @@ internal fun rememberBrowserScreenScope(
         container = container,
         vpnStateRef = vpnStateRef,
         connectionVpn = connectionVpn,
+        orbotProxy = orbotProxy,
         downloadController = downloadController,
         downloadSummaryRef = downloadSummaryRef,
         updatePrefsRef = updatePrefsRef,

@@ -30,28 +30,37 @@ import io.github.omeg4dev.fmhy.work.IpInfoRepository
 import io.github.omeg4dev.fmhy.work.IpResult
 import io.github.omeg4dev.fmhy.work.VpnState
 
+/** Tor's purple: the indicator colour while the Orbot proxy is selected. */
+fun orbotColor(isDark: Boolean): Color = if (isDark) Color(0xFFCFA8FF) else Color(0xFF7D4698)
+
+// In the functions below, orbot = the Orbot proxy is selected. It overrides the VPN state.
+
 @Composable
 fun vpnColor(
     state: VpnState,
     isDark: Boolean = MaterialTheme.colorScheme.surface.luminance() < 0.5f,
-): Color = when (state) {
-    VpnState.ACTIVE -> if (isDark) Color(0xFF9BE0AC) else Color(0xFF1E8E3E)
-    VpnState.INACTIVE -> if (isDark) Color(0xFFFFD27A) else Color(0xFFB26A00)
+    orbot: Boolean = false,
+): Color = when {
+    orbot -> orbotColor(isDark)
+    state == VpnState.ACTIVE -> if (isDark) Color(0xFF9BE0AC) else Color(0xFF1E8E3E)
+    else -> if (isDark) Color(0xFFFFD27A) else Color(0xFFB26A00)
 }
 
-fun vpnIcon(state: VpnState): ImageVector = when (state) {
-    VpnState.ACTIVE -> Icons.Filled.Lock
-    VpnState.INACTIVE -> Icons.Filled.LockOpen
+fun vpnIcon(state: VpnState, orbot: Boolean = false): ImageVector = when {
+    orbot || state == VpnState.ACTIVE -> Icons.Filled.Lock
+    else -> Icons.Filled.LockOpen
 }
 
-fun vpnStateText(state: VpnState): String = when (state) {
-    VpnState.ACTIVE -> "VPN active"
-    VpnState.INACTIVE -> "No VPN detected"
+fun vpnStateText(state: VpnState, orbot: Boolean = false): String = when {
+    orbot -> "Orbot proxy on"
+    state == VpnState.ACTIVE -> "VPN active"
+    else -> "No VPN detected"
 }
 
-fun vpnStateHint(state: VpnState): String = when (state) {
-    VpnState.ACTIVE -> "Your traffic goes through a VPN. This cannot prove your real IP is hidden."
-    VpnState.INACTIVE -> "Sites see your own IP address."
+fun vpnStateHint(state: VpnState, orbot: Boolean = false): String = when {
+    orbot -> "Your traffic goes through Orbot (Tor). This cannot prove your real IP is hidden."
+    state == VpnState.ACTIVE -> "Your traffic goes through a VPN. This cannot prove your real IP is hidden."
+    else -> "Sites see your own IP address."
 }
 
 @Composable
@@ -60,6 +69,7 @@ fun connectionColor(
     isDark: Boolean = MaterialTheme.colorScheme.surface.luminance() < 0.5f,
 ): Color = when (level) {
     ConnectionLevel.PROTECTED -> vpnColor(VpnState.ACTIVE, isDark)
+    ConnectionLevel.ORBOT -> orbotColor(isDark)
     ConnectionLevel.ENCRYPTED -> vpnColor(VpnState.INACTIVE, isDark)
     ConnectionLevel.INSECURE -> MaterialTheme.colorScheme.error
 }

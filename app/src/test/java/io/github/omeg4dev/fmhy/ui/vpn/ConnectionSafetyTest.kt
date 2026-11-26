@@ -22,6 +22,34 @@ class ConnectionSafetyTest {
         assertEquals(ConnectionLevel.INSECURE, ConnectionSafety.levelOf("http://example.com", VpnState.INACTIVE))
     }
 
+    @Test fun https_withOrbot_isOrbot_withOrWithoutVpn() {
+        VpnState.entries.forEach {
+            assertEquals(ConnectionLevel.ORBOT, ConnectionSafety.levelOf("https://example.com", it, orbot = true))
+        }
+        assertEquals("Protected by Orbot", ConnectionSafety.title(ConnectionLevel.ORBOT))
+    }
+
+    @Test fun http_isInsecure_withOrbot() {
+        assertEquals(
+            ConnectionLevel.INSECURE,
+            ConnectionSafety.levelOf("http://example.com", VpnState.INACTIVE, orbot = true),
+        )
+    }
+
+    @Test fun nonWebPages_haveNoLevel_withOrbot() {
+        assertNull(ConnectionSafety.levelOf("about:blank", VpnState.ACTIVE, orbot = true))
+    }
+
+    @Test fun orbotFailure_hasNoLevel() {
+        assertNull(
+            ConnectionSafety.levelOf("https://example.com", VpnState.INACTIVE, orbot = true, proxyFailed = true),
+        )
+        assertEquals(
+            ConnectionLevel.ENCRYPTED,
+            ConnectionSafety.levelOf("https://example.com", VpnState.INACTIVE, proxyFailed = true),
+        )
+    }
+
     @Test fun nonWebPages_haveNoLevel() {
         listOf("", "about:blank", "file:///sdcard/a.html", "content://x/y", "chrome-error://chromewebdata/")
             .forEach { assertNull(it, ConnectionSafety.levelOf(it, VpnState.ACTIVE)) }

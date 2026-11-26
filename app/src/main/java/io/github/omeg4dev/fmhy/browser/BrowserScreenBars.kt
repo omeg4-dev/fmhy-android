@@ -78,6 +78,7 @@ internal fun BrowserScreenScope.BrowserScreenBars(boxScope: BoxScope) {
                                 showBlockedCount = blockingPrefs.showBlockedCount,
                                 isSaved = isSaved,
                                 connectionVpn = connectionVpn,
+                                orbotProxy = orbotProxy,
                                 onConnectionClick = { showConnectionSheet = true },
                                 onShieldClick = { showShieldSheet = true },
                                 onAddressClick = { isEditMode = true },

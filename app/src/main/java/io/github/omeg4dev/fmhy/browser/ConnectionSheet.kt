@@ -66,6 +66,7 @@ fun ConnectionSheet(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
     vt: VtSheetState? = null,
+    orbotProxy: Boolean = false,
 ) {
     val host = try { Uri.parse(url).host.orEmpty() } catch (_: Exception) { "" }
     val https = ConnectionSafety.isHttps(url)
@@ -123,11 +124,11 @@ fun ConnectionSheet(
                 )
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                 DetailRow(
-                    icon = vpnIcon(vpnState),
-                    tint = vpnColor(vpnState),
-                    title = "VPN",
-                    value = vpnStateText(vpnState),
-                    hint = vpnStateHint(vpnState),
+                    icon = vpnIcon(vpnState, orbotProxy),
+                    tint = vpnColor(vpnState, orbot = orbotProxy),
+                    title = if (orbotProxy) "Proxy" else "VPN",
+                    value = vpnStateText(vpnState, orbotProxy),
+                    hint = vpnStateHint(vpnState, orbotProxy),
                 )
                 when (ipLine) {
                     IpLine.Hidden -> Unit

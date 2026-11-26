@@ -5,6 +5,7 @@ import io.github.omeg4dev.fmhy.work.IpResult
 import io.github.omeg4dev.fmhy.work.VpnState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class VpnUiTest {
@@ -33,6 +34,27 @@ class VpnUiTest {
             vpnStateHint(VpnState.ACTIVE)
         )
         assertEquals("Sites see your own IP address.", vpnStateHint(VpnState.INACTIVE))
+    }
+
+    @Test
+    fun orbotOverridesVpnStateTexts() {
+        VpnState.entries.forEach {
+            assertEquals("Orbot proxy on", vpnStateText(it, orbot = true))
+            assertEquals(
+                "Your traffic goes through Orbot (Tor). This cannot prove your real IP is hidden.",
+                vpnStateHint(it, orbot = true),
+            )
+            assertEquals(vpnIcon(VpnState.ACTIVE), vpnIcon(it, orbot = true))
+        }
+    }
+
+    @Test
+    fun orbotColourIsPurpleInBothThemes() {
+        listOf(false, true).forEach { dark ->
+            val c = orbotColor(dark)
+            assertTrue("blue above red", c.blue > c.red)
+            assertTrue("red above green", c.red > c.green)
+        }
     }
 
     @Test
