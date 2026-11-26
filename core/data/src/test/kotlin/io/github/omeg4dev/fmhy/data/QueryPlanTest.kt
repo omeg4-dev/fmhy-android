@@ -397,6 +397,7 @@ class QueryPlanTest {
             val json = userStore.exportJson(false)
             userStore.importJson(json)
         }
+        call("UserStore", "extractBackupSettings") { userStore.extractBackupSettings(userStore.exportJson(false)) }
         call("UserStore", "insertDownload") {
             val id = userStore.insertDownload(
                 DownloadRecord(url = "https://example.com/dl.zip", fileName = "dl.zip", status = "pending", createdAt = 1000L)
