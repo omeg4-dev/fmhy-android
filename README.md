@@ -46,6 +46,7 @@ Android 8.0+ · Free & Open Source · No ads · No tracking
 - **Link checker:** share or paste any URL to see whether it is listed on FMHY, starred, or a known fake clone, using the [FMHY SafeGuard](https://github.com/fmhy/FMHY-SafeGuard) list.
 - Warnings before unsafe sites and before APK or EXE downloads.
 - Optional **VPN-only mode** blocks browsing while no VPN is active.
+- **Tor through Orbot** (from 1.4.0): send all tabs and app requests through Tor. [Setup guide](guides/orbot.md).
 
 ### 🌐 Browser
 - uBlock Origin / EasyList filter lists, cookie-banner hiding and optional third-party cookie blocking.
