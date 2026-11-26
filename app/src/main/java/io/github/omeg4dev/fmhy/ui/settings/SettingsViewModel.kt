@@ -657,12 +657,45 @@ class SettingsViewModel(
     private fun ago(n: Long, unit: String) = if (n == 1L) "1 $unit ago" else "$n ${unit}s ago"
 
     suspend fun exportBackup(includeHistory: Boolean): String {
-        return container.userStore.exportJson(includeHistory)
+        val settings = settingsRepository.exportSettings()
+        return container.userStore.exportJson(includeHistory, settings = settings)
     }
 
-    suspend fun importBackup(json: String): ImportResult {
-        return container.userStore.importJson(json)
+    suspend fun importBackup(json: String, restoreSettings: Boolean = false): ImportResult {
+        val result = container.userStore.importJson(json, restoreSiteSettings = restoreSettings)
+        if (restoreSettings) {
+            container.userStore.extractBackupSettings(json)?.let { settings ->
+                settingsRepository.restoreSettings(settings)
+            }
+        }
+        return result
     }
+
+    fun hasSettingsBackup(json: String): Boolean =
+        container.userStore.extractBackupSettings(json) != null
+
+    data class PendingBackupImport(
+        val json: String,
+        val restoreSettings: Boolean = true,
+    )
+
+    private val _pendingBackupImport = MutableStateFlow<PendingBackupImport?>(null)
+    val pendingBackupImport: StateFlow<PendingBackupImport?> = _pendingBackupImport.asStateFlow()
+
+    fun stageBackupImport(json: String) {
+        _pendingBackupImport.value = PendingBackupImport(json, restoreSettings = true)
+    }
+
+    fun setPendingRestoreSettings(restore: Boolean) {
+        _pendingBackupImport.value = _pendingBackupImport.value?.copy(restoreSettings = restore)
+    }
+
+    fun dismissPendingBackupImport() {
+        _pendingBackupImport.value = null
+    }
+
+    suspend fun notificationsEnabled(): Boolean =
+        settingsRepository.notificationPrefs.first().enabled
 
     suspend fun clearHistory() {
         container.userStore.clearHistory()

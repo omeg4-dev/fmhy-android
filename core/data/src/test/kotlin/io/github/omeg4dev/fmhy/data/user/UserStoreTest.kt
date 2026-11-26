@@ -1593,4 +1593,89 @@ class UserStoreTest {
 
         store.close()
     }
+
+    @Test
+    fun testSiteSettingsExportedAndRestoredOnlyWhenFlagSet() = runTest {
+        val store1 = createStore()
+        store1.setSitePrefs(
+            SitePrefs(
+                host = "example.com",
+                adblock = false,
+                popups = true,
+                javascript = false,
+                desktop = true,
+                dark = true,
+                fixSite = true,
+                blockRedirects = false,
+                updatedAt = 5000L,
+            )
+        )
+        store1.setSitePrefs(SitePrefs(host = "other.org", dark = false, updatedAt = 6000L))
+
+        val exported = store1.exportJson(includeHistory = false)
+        assertTrue(exported.contains("siteSettings"))
+        assertTrue(exported.contains("example.com"))
+        assertTrue(exported.contains("other.org"))
+
+        // Import without flag leaves target site settings untouched
+        val store2 = createStore()
+        store2.setSitePrefs(SitePrefs(host = "example.com", adblock = true, updatedAt = 1000L))
+        store2.setSitePrefs(SitePrefs(host = "local-only.net", javascript = false, updatedAt = 1000L))
+
+        store2.importJson(exported)
+        assertEquals(true, store2.sitePrefs("example.com")?.adblock)
+        assertNull(store2.sitePrefs("example.com")?.fixSite)
+        assertNull(store2.sitePrefs("other.org"))
+        assertEquals(false, store2.sitePrefs("local-only.net")?.javascript)
+
+        // Import with flag upserts file rows, keeps hosts not in file, and notifies observers
+        val changesBefore = store2.changes.value
+        store2.importJson(exported, restoreSiteSettings = true)
+        assertTrue(store2.changes.value > changesBefore)
+
+        val exampleAfter = store2.sitePrefs("example.com")
+        assertNotNull(exampleAfter)
+        assertEquals(false, exampleAfter?.adblock)
+        assertEquals(true, exampleAfter?.popups)
+        assertEquals(false, exampleAfter?.javascript)
+        assertEquals(true, exampleAfter?.desktop)
+        assertEquals(true, exampleAfter?.dark)
+        assertEquals(true, exampleAfter?.fixSite)
+        assertEquals(false, exampleAfter?.blockRedirects)
+
+        val otherAfter = store2.sitePrefs("other.org")
+        assertNotNull(otherAfter)
+        assertEquals(false, otherAfter?.dark)
+
+        // Host not in file stays
+        assertEquals(false, store2.sitePrefs("local-only.net")?.javascript)
+
+        store1.close()
+        store2.close()
+    }
+
+    @Test
+    fun testOldBackupWithoutSettingsOrSiteSettingsStillImportsWithFlag() = runTest {
+        val store = createStore()
+        store.setSitePrefs(SitePrefs(host = "keep.me", adblock = false, updatedAt = 1000L))
+
+        val oldBackup = """
+        {
+            "format": "fmhy-backup",
+            "version": 1,
+            "exportedAt": 1000,
+            "folders": [{"name": "Favs", "ord": 0, "createdAt": 100}],
+            "bookmarks": [],
+            "follows": [],
+            "pins": [],
+            "hidden": []
+        }
+        """.trimIndent()
+
+        val result = store.importJson(oldBackup, restoreSiteSettings = true)
+        assertEquals(1, result.folders)
+        assertEquals(false, store.sitePrefs("keep.me")?.adblock)
+
+        store.close()
+    }
 }

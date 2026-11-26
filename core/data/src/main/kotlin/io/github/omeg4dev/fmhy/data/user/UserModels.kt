@@ -1,6 +1,7 @@
 package io.github.omeg4dev.fmhy.data.user
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
 
 @Serializable
 data class UserBookmark(
@@ -88,6 +89,8 @@ internal data class BackupPayload(
     val hidden: List<String> = emptyList(),
     val history: List<BackupHistoryItem>? = null,
     val criticalHidden: Map<String, String> = emptyMap(),
+    val settings: JsonObject? = null,
+    val siteSettings: List<SitePrefs> = emptyList(),
 )
 
 @Serializable

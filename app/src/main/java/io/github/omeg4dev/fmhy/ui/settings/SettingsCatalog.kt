@@ -773,15 +773,15 @@ object SettingsCatalog {
         id = "backup.export_backup",
         page = SettingsPage.BACKUP,
         title = "Export backup",
-        description = "Save your bookmarks, folders, and followed sections to a JSON file",
-        keywords = listOf("export", "backup", "save", "json", "exporting"),
+        description = "Save bookmarks, followed sections and settings to a JSON file",
+        keywords = listOf("export", "backup", "save", "json", "exporting", "settings"),
     )
     val backupImportBackup = SettingEntry(
         id = "backup.import_backup",
         page = SettingsPage.BACKUP,
         title = "Import backup",
-        description = "Restore bookmarks, folders, and preferences from a previously saved JSON backup",
-        keywords = listOf("import", "backup", "restore", "json", "recover"),
+        description = "Restore bookmarks, folders and settings from a JSON backup",
+        keywords = listOf("import", "backup", "restore", "json", "recover", "settings"),
     )
 
     // Report a problem

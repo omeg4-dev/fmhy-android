@@ -563,4 +563,72 @@ class SettingsViewModelTest {
         assertEquals(initialSecond, updatedEntries[0].block)
         assertEquals(initialFirst, updatedEntries[1].block)
     }
+
+    @Test
+    fun testBackupImportValidationAndRestoreSettingsFlag() = runTest {
+        var restoreCalls = 0
+        var lastRestored: kotlinx.serialization.json.JsonObject? = null
+        val settings = object : SettingsRepository by FakeSettingsRepository() {
+            override suspend fun exportSettings(): kotlinx.serialization.json.JsonObject {
+                return kotlinx.serialization.json.buildJsonObject {
+                    put("pure_black", kotlinx.serialization.json.JsonPrimitive(true))
+                }
+            }
+
+            override suspend fun restoreSettings(settings: kotlinx.serialization.json.JsonObject) {
+                restoreCalls++
+                lastRestored = settings
+            }
+        }
+        val store = FakeDatasetStore()
+        val container = FakeContainer(store, settings)
+        container.userStore.setSitePrefs(
+            io.github.omeg4dev.fmhy.data.user.SitePrefs(host = "local.test", adblock = true)
+        )
+        val viewModel = SettingsViewModel(store, settings, container)
+
+        // Bad file throws and leaves settings and site settings untouched
+        var threw = false
+        try {
+            viewModel.importBackup("{not valid json", restoreSettings = true)
+        } catch (_: IllegalArgumentException) {
+            threw = true
+        }
+        assertTrue(threw)
+        assertEquals(0, restoreCalls)
+        assertEquals(true, container.userStore.sitePrefs("local.test")?.adblock)
+
+        assertFalse(viewModel.hasSettingsBackup("{not valid json"))
+        assertFalse(viewModel.hasSettingsBackup("""{"format":"fmhy-backup","version":1,"exportedAt":1}"""))
+
+        // Export includes settings object
+        val exported = viewModel.exportBackup(includeHistory = false)
+        assertTrue(viewModel.hasSettingsBackup(exported))
+
+        // Build a backup with changed site settings and settings object
+        val sourceStore = io.github.omeg4dev.fmhy.data.user.UserStore(
+            File.createTempFile("source_backup", ".db").apply { deleteOnExit() }
+        )
+        sourceStore.setSitePrefs(
+            io.github.omeg4dev.fmhy.data.user.SitePrefs(host = "local.test", adblock = false)
+        )
+        val backupWithSettings = sourceStore.exportJson(
+            includeHistory = false,
+            settings = kotlinx.serialization.json.buildJsonObject {
+                put("pure_black", kotlinx.serialization.json.JsonPrimitive(true))
+            },
+        )
+        sourceStore.close()
+
+        // restoreSettings = false leaves both app settings and site settings untouched
+        viewModel.importBackup(backupWithSettings, restoreSettings = false)
+        assertEquals(0, restoreCalls)
+        assertEquals(true, container.userStore.sitePrefs("local.test")?.adblock)
+
+        // restoreSettings = true restores both
+        viewModel.importBackup(backupWithSettings, restoreSettings = true)
+        assertEquals(1, restoreCalls)
+        assertEquals(kotlinx.serialization.json.JsonPrimitive(true), lastRestored?.get("pure_black"))
+        assertEquals(false, container.userStore.sitePrefs("local.test")?.adblock)
+    }
 }

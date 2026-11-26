@@ -19,6 +19,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -723,6 +724,11 @@ open class UserStore(
     }
 
     suspend fun setSitePrefs(p: SitePrefs) = withConnection { conn ->
+        writeSitePrefsInternal(conn, p)
+        bumpChanges()
+    }
+
+    private fun writeSitePrefsInternal(conn: SQLiteConnection, p: SitePrefs) {
         if (p.adblock == null && p.popups == null && p.javascript == null && p.desktop == null && p.dark == null && p.fixSite == null && p.blockRedirects == null) {
             conn.prepare("DELETE FROM site_prefs WHERE host = ?").use { stmt ->
                 stmt.bindText(1, p.host)
@@ -755,7 +761,6 @@ open class UserStore(
                 stmt.step()
             }
         }
-        bumpChanges()
     }
 
     suspend fun clearSitePrefs(host: String) = withConnection { conn ->
@@ -883,7 +888,7 @@ open class UserStore(
 
     // --- Backup & Restore ---
 
-    suspend fun exportJson(includeHistory: Boolean): String {
+    suspend fun exportJson(includeHistory: Boolean, settings: JsonObject? = null): String {
         val folderList = folders()
         val folderIdToName = folderList.associate { it.id to it.name }
         val bookmarkList = bookmarks().map { b ->
@@ -903,6 +908,7 @@ open class UserStore(
         val pinList = pins()
         val hiddenList = hiddenSections().sorted()
         val criticalHiddenMap = hiddenCriticalWarnings()
+        val siteSettingsList = allSitePrefs()
         val historyList = if (includeHistory) {
             history().map { BackupHistoryItem(it.url, it.entryId, it.title, it.ts) }
         } else {
@@ -920,11 +926,23 @@ open class UserStore(
             hidden = hiddenList,
             history = historyList,
             criticalHidden = criticalHiddenMap,
+            settings = settings,
+            siteSettings = siteSettingsList,
         )
         return json.encodeToString(payload)
     }
 
-    suspend fun importJson(text: String): ImportResult {
+    /** Returns the `settings` object from a valid backup JSON string, or null otherwise. Never throws. */
+    fun extractBackupSettings(text: String): JsonObject? = runCatching {
+        val root = json.parseToJsonElement(text).jsonObject
+        val format = root["format"]?.jsonPrimitive?.takeIf { it.isString }?.content ?: return@runCatching null
+        if (format != BACKUP_FORMAT) return@runCatching null
+        val version = root["version"]?.jsonPrimitive?.takeIf { !it.isString }?.intOrNull ?: 1
+        if (version > BACKUP_VERSION) return@runCatching null
+        root["settings"] as? JsonObject
+    }.getOrNull()
+
+    suspend fun importJson(text: String, restoreSiteSettings: Boolean = false): ImportResult {
         val root = try {
             json.parseToJsonElement(text).jsonObject
         } catch (_: Exception) {
@@ -1108,6 +1126,15 @@ open class UserStore(
                         stmt.bindText(2, hash)
                         stmt.step()
                         stmt.reset()
+                    }
+                }
+            }
+
+            // 8. Site settings: when requested, incoming row replaces local row per host
+            if (restoreSiteSettings && payload.siteSettings.isNotEmpty()) {
+                for (sp in payload.siteSettings) {
+                    if (sp.host.isNotBlank()) {
+                        writeSitePrefsInternal(conn, sp)
                     }
                 }
             }

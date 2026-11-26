@@ -37,9 +37,11 @@ import io.github.omeg4dev.fmhy.ui.whatsnew.WhatsNewFilterCodec
 import io.github.omeg4dev.fmhy.ui.whatsnew.WhatsNewFilterPrefs
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 
 class DefaultSettingsRepository(
     private val dataStore: DataStore<Preferences>,
@@ -408,5 +410,12 @@ class DefaultSettingsRepository(
         dataStore.edit { prefs ->
             prefs[KEY_ONBOARDING_VERSION] = v
         }
+    }
+
+    override suspend fun exportSettings(): JsonObject =
+        SettingsBackup.export(dataStore.data.first())
+
+    override suspend fun restoreSettings(settings: JsonObject) {
+        SettingsBackup.restore(dataStore, settings)
     }
 }

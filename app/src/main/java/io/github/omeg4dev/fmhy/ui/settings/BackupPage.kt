@@ -1,6 +1,9 @@
 package io.github.omeg4dev.fmhy.ui.settings
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -14,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
@@ -39,6 +43,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -65,6 +71,16 @@ fun BackupPage(
 
     var showExportConfirmDialog by remember { mutableStateOf(false) }
     var exportIncludeHistory by remember { mutableStateOf(false) }
+    val pendingBackupImport by viewModel.pendingBackupImport.collectAsStateWithLifecycle()
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (!isGranted) {
+            viewModel.updateNotifications { it.copy(enabled = false) }
+            onShowSnackbar("Notification permission was denied")
+        }
+    }
 
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
@@ -93,8 +109,12 @@ fun BackupPage(
                     val json = context.contentResolver.openInputStream(uri)?.use { inputStream ->
                         inputStream.bufferedReader(Charsets.UTF_8).readText()
                     } ?: ""
-                    val result = viewModel.importBackup(json)
-                    onShowSnackbar("Imported ${result.bookmarks} bookmarks, ${result.folders} folders")
+                    if (viewModel.hasSettingsBackup(json)) {
+                        viewModel.stageBackupImport(json)
+                    } else {
+                        val result = viewModel.importBackup(json, restoreSettings = false)
+                        onShowSnackbar("Imported ${result.bookmarks} bookmarks, ${result.folders} folders")
+                    }
                 } catch (e: Exception) {
                     onShowSnackbar(e.message ?: "Failed to import backup")
                 }
@@ -155,7 +175,7 @@ fun BackupPage(
             title = { Text("Export backup") },
             text = {
                 Column {
-                    Text("Export bookmarks, folders, and followed sections to a JSON file.")
+                    Text("Export bookmarks, folders, followed sections and settings to a JSON file. API keys are not included.")
                     Spacer(Modifier.height(16.dp))
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -188,6 +208,76 @@ fun BackupPage(
                     Text("Cancel")
                 }
             }
+        )
+    }
+
+    pendingBackupImport?.let { pending ->
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissPendingBackupImport() },
+            title = { Text("Import backup") },
+            text = {
+                Column {
+                    Text("Bookmarks, folders and followed sections are merged with yours.")
+                    Spacer(Modifier.height(16.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { viewModel.setPendingRestoreSettings(!pending.restoreSettings) }
+                            .padding(vertical = 4.dp),
+                    ) {
+                        Checkbox(
+                            checked = pending.restoreSettings,
+                            onCheckedChange = { viewModel.setPendingRestoreSettings(it) },
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Column {
+                            Text("Restore settings", style = MaterialTheme.typography.bodyLarge)
+                            Text(
+                                "Replaces your current settings with the ones in this file.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.dismissPendingBackupImport()
+                        scope.launch {
+                            try {
+                                val result = viewModel.importBackup(
+                                    pending.json,
+                                    restoreSettings = pending.restoreSettings,
+                                )
+                                val suffix = if (pending.restoreSettings) " and settings" else ""
+                                onShowSnackbar("Imported ${result.bookmarks} bookmarks, ${result.folders} folders$suffix")
+                                if (pending.restoreSettings &&
+                                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                                    viewModel.notificationsEnabled() &&
+                                    ContextCompat.checkSelfPermission(
+                                        context,
+                                        Manifest.permission.POST_NOTIFICATIONS,
+                                    ) != PackageManager.PERMISSION_GRANTED
+                                ) {
+                                    permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                }
+                            } catch (e: Exception) {
+                                onShowSnackbar(e.message ?: "Failed to import backup")
+                            }
+                        }
+                    }
+                ) {
+                    Text("Import")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.dismissPendingBackupImport() }) {
+                    Text("Cancel")
+                }
+            },
         )
     }
 }

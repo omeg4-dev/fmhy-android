@@ -7,6 +7,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import io.github.omeg4dev.fmhy.nav.BottomBarStyle
 import io.github.omeg4dev.fmhy.ui.whatsnew.WhatsNewFilterPrefs
 import kotlinx.coroutines.flow.Flow
+import kotlinx.serialization.json.JsonObject
 
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "fmhy_settings")
 
@@ -94,4 +95,7 @@ interface SettingsRepository {
 
     val onboardingVersion: Flow<Int>
     suspend fun setOnboardingVersion(v: Int)
+
+    suspend fun exportSettings(): JsonObject = JsonObject(emptyMap())
+    suspend fun restoreSettings(settings: JsonObject) {}
 }
