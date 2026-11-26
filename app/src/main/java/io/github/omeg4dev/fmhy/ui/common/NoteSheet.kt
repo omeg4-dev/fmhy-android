@@ -75,7 +75,7 @@ fun NoteSheet(
                 Icon(
                     painter = painterResource(R.drawable.ic_link_note),
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
+                    tint = linkIconTint(note.originalUrl),
                     modifier = Modifier.size(24.dp),
                 )
                 Spacer(Modifier.width(10.dp))

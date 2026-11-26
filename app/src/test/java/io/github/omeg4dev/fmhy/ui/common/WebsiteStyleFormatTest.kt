@@ -6,7 +6,7 @@ import org.junit.Test
 
 class WebsiteStyleFormatTest {
 
-    private val isSocial: (String) -> Boolean = { it == "GitHub" || it == "Discord" }
+    private val isSocial: (Link) -> Boolean = { it.label == "GitHub" || it.label == "Discord" }
 
     @Test
     fun caseA_nameOnly() {
@@ -163,6 +163,33 @@ class WebsiteStyleFormatTest {
                 WebSegment.Social(0, "GitHub", "https://github.com/test"),
                 WebSegment.Separator(" "),
                 WebSegment.Social(2, "Discord", "https://discord.gg/test"),
+            ),
+            segments
+        )
+    }
+
+    @Test
+    fun caseH_defaultIsSocialTreatsNoteUrlAsSocialAndNonNoteWarningAsLink() {
+        val noteUrl = "https://github.com/fmhy/edit/blob/main/docs/.vitepress/notes/limits.md"
+        val warningUrl = "https://example.com/warning"
+        val segments = websiteSegments(
+            name = "Test Site",
+            description = "A great site",
+            mirrors = emptyList(),
+            extraLinks = listOf(
+                Link("Limits", noteUrl),
+                Link("Warning", warningUrl),
+            ),
+        )
+        assertEquals(
+            listOf(
+                WebSegment.Name("Test Site"),
+                WebSegment.Separator(" - "),
+                WebSegment.Description("A great site"),
+                WebSegment.Separator(" / "),
+                WebSegment.Link("Warning", warningUrl),
+                WebSegment.Separator(" "),
+                WebSegment.Social(0, "Limits", noteUrl),
             ),
             segments
         )

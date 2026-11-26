@@ -297,7 +297,7 @@ fun EntryRow(
             }
 
             val (socialLinks, otherLinks) = entry.extraLinks.withIndex().partition {
-                socialIconFor(it.value.label) != null
+                linkIconFor(it.value) != null
             }
 
             for ((_, link) in otherLinks) {
@@ -343,7 +343,7 @@ fun EntryRow(
         }
 
         for ((index, link) in entry.extraLinks.withIndex()) {
-            val iconRes = socialIconFor(link.label) ?: continue
+            val iconRes = linkIconFor(link) ?: continue
             inlineMap["link:$index"] = InlineTextContent(
                 Placeholder(1.5.em, 1.5.em, PlaceholderVerticalAlign.TextCenter)
             ) {
@@ -357,7 +357,7 @@ fun EntryRow(
                     Icon(
                         painter = painterResource(iconRes),
                         contentDescription = link.label,
-                        tint = primaryColor,
+                        tint = linkIconTint(link.url),
                         modifier = Modifier.fillMaxSize(0.8f),
                     )
                 }

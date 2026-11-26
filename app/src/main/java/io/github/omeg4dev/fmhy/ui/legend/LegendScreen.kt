@@ -39,10 +39,12 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import io.github.omeg4dev.fmhy.R
+import io.github.omeg4dev.fmhy.theme.LocalCalloutColors
 import io.github.omeg4dev.fmhy.ui.common.Platform
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -188,7 +190,15 @@ fun LegendScreen(
                 LinkLegendRow(R.drawable.ic_link_source, "Source", "Opens the source code repository")
             }
             item {
-                LinkLegendRow(R.drawable.ic_link_note, "Note", "Shows extra notes or instructions for the site")
+                LinkLegendRow(R.drawable.ic_link_note, "Note", "Extra notes or instructions for the site")
+            }
+            item {
+                LinkLegendRow(
+                    iconRes = R.drawable.ic_link_note,
+                    name = "Critical note",
+                    explanation = "A warning you should read before opening the site",
+                    tint = LocalCalloutColors.current.danger.accent,
+                )
             }
 
             // Group 4: Rows
@@ -388,7 +398,12 @@ private fun PlatformLegendRow(platform: Platform, explanation: String) {
 }
 
 @Composable
-private fun LinkLegendRow(iconRes: Int, name: String, explanation: String) {
+private fun LinkLegendRow(
+    iconRes: Int,
+    name: String,
+    explanation: String,
+    tint: Color = MaterialTheme.colorScheme.primary,
+) {
     LegendRowItem(
         name = name,
         explanation = explanation,
@@ -396,7 +411,7 @@ private fun LinkLegendRow(iconRes: Int, name: String, explanation: String) {
         Icon(
             painter = painterResource(iconRes),
             contentDescription = name,
-            tint = MaterialTheme.colorScheme.primary,
+            tint = tint,
             modifier = Modifier.size(18.dp),
         )
     }

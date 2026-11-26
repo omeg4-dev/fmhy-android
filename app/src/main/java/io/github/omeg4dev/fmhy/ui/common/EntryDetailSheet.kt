@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -38,8 +39,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import io.github.omeg4dev.fmhy.R
 import io.github.omeg4dev.fmhy.data.model.ChangeItem
 import io.github.omeg4dev.fmhy.data.model.ChangeKind
 import io.github.omeg4dev.fmhy.data.model.Entry
@@ -168,11 +171,10 @@ fun EntryDetailBottomSheet(
                         modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
                     )
                     entry.extraLinks.forEach { extra ->
-                        ListItem(
-                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                            headlineContent = { Text(extra.label) },
-                            supportingContent = { Text(extra.url, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                            modifier = Modifier.clickable { onOpenUrl(extra.url) }
+                        ExtraLinkItem(
+                            headline = extra.label,
+                            url = extra.url,
+                            onOpenUrl = onOpenUrl,
                         )
                     }
                 }
@@ -310,11 +312,10 @@ fun EntryDetailBottomSheet(
                         modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
                     )
                     sharedExtras.forEach { (site, extra) ->
-                        ListItem(
-                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                            headlineContent = { Text(if (site === entry) extra.label else "${extra.label} · ${site.name}") },
-                            supportingContent = { Text(extra.url, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                            modifier = Modifier.clickable { onOpenUrl(extra.url) }
+                        ExtraLinkItem(
+                            headline = if (site === entry) extra.label else "${extra.label} · ${site.name}",
+                            url = extra.url,
+                            onOpenUrl = onOpenUrl,
                         )
                     }
                 }
@@ -531,4 +532,31 @@ fun EntryDetailBottomSheet(
             onSave = { editNoteAction(noteInput.trim()); showNoteDialog = false },
         )
     }
+}
+
+@Composable
+private fun ExtraLinkItem(
+    headline: String,
+    url: String,
+    onOpenUrl: (String) -> Unit,
+) {
+    val isNote = noteIdOf(url) != null
+    ListItem(
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        headlineContent = { Text(headline) },
+        supportingContent = { Text(url, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        leadingContent = if (isNote) {
+            {
+                Icon(
+                    painter = painterResource(R.drawable.ic_link_note),
+                    contentDescription = null,
+                    tint = linkIconTint(url),
+                    modifier = Modifier.size(24.dp),
+                )
+            }
+        } else {
+            null
+        },
+        modifier = Modifier.clickable { onOpenUrl(url) },
+    )
 }

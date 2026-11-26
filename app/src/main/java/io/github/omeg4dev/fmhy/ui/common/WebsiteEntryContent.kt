@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.em
 import io.github.omeg4dev.fmhy.R
 import io.github.omeg4dev.fmhy.data.model.Entry
 import io.github.omeg4dev.fmhy.data.model.EntryKind
+import io.github.omeg4dev.fmhy.data.model.Link
 import io.github.omeg4dev.fmhy.data.model.Tier
 import java.time.LocalDate
 
@@ -330,7 +331,7 @@ internal fun WebsiteEntryContent(
                         }
                     }
                     is WebSegment.Social -> {
-                        val iconRes = socialIconFor(seg.label)
+                        val iconRes = linkIconFor(Link(seg.label, seg.url))
                         if (iconRes != null) {
                             val key = "link:${seg.index}"
                             inlineMap[key] = InlineTextContent(
@@ -346,7 +347,7 @@ internal fun WebsiteEntryContent(
                                     Icon(
                                         painter = painterResource(iconRes),
                                         contentDescription = seg.label,
-                                        tint = primaryColor,
+                                        tint = linkIconTint(seg.url),
                                         modifier = Modifier.fillMaxSize(0.8f),
                                     )
                                 }

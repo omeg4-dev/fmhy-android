@@ -80,4 +80,40 @@ class ContrastTest {
             }
         }
     }
+
+    @Test
+    fun testDangerAccentContrastAgainstSurfaces() {
+        for (seed in testSeeds) {
+            val palette = paletteFor(seed)
+            val paletteName = palette?.name ?: "Seed_${seed.toUInt().toString(16)}"
+            for (dark in listOf(false, true)) {
+                val baseScheme = paletteColorScheme(seed, dark = dark)
+                val schemes = if (dark) {
+                    listOf("dark" to baseScheme, "pureBlack" to baseScheme.toPureBlack())
+                } else {
+                    listOf("light" to baseScheme)
+                }
+                for ((modeName, scheme) in schemes) {
+                    val surfaces = listOf(
+                        "surface" to scheme.surface,
+                        "surfaceContainerLowest" to scheme.surfaceContainerLowest,
+                        "surfaceContainerLow" to scheme.surfaceContainerLow,
+                        "surfaceContainer" to scheme.surfaceContainer,
+                        "surfaceContainerHigh" to scheme.surfaceContainerHigh,
+                        "surfaceContainerHighest" to scheme.surfaceContainerHighest,
+                    )
+                    for (set in CalloutSet.entries) {
+                        val dangerAccent = calloutColors(set, dark = dark).danger.accent
+                        for ((surfaceName, surfaceColor) in surfaces) {
+                            val ratio = contrastRatio(dangerAccent, surfaceColor)
+                            assertTrue(
+                                "Palette $paletteName ($modeName), CalloutSet $set, danger.accent vs $surfaceName: contrast was $ratio, expected >= 3.0",
+                                ratio >= 3.0,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

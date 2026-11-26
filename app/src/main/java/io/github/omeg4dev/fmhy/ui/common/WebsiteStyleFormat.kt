@@ -17,7 +17,7 @@ fun websiteSegments(
     description: String,
     mirrors: List<Link>,
     extraLinks: List<Link>,
-    isSocial: (String) -> Boolean = { socialIconFor(it) != null },
+    isSocial: (Link) -> Boolean = { linkIconFor(it) != null },
 ): List<WebSegment> = buildList {
     add(WebSegment.Name(name))
 
@@ -27,8 +27,8 @@ fun websiteSegments(
     }
 
     val indexedExtra = extraLinks.withIndex().toList()
-    val socialLinks = indexedExtra.filter { isSocial(it.value.label) }
-    val otherLinks = indexedExtra.filter { !isSocial(it.value.label) }
+    val socialLinks = indexedExtra.filter { isSocial(it.value) }
+    val otherLinks = indexedExtra.filter { !isSocial(it.value) }
 
     val hasDesc = description.isNotBlank()
     val hasOther = otherLinks.isNotEmpty()

@@ -84,6 +84,7 @@ interface OnboardingActions {
 }
 
 private val DEFAULT_NEW_BADGE_INDEX = MutableStateFlow(NewBadgeIndex.EMPTY)
+private val EMPTY_CRITICAL_NOTE_IDS: StateFlow<Set<String>> = MutableStateFlow(emptySet())
 
 interface AppContainer : OnboardingActions {
     val context: Context
@@ -98,6 +99,8 @@ interface AppContainer : OnboardingActions {
         get() = error("historySync not provided")
     val newBadgeIndex: StateFlow<NewBadgeIndex>
         get() = DEFAULT_NEW_BADGE_INDEX
+    val criticalNoteIds: StateFlow<Set<String>>
+        get() = EMPTY_CRITICAL_NOTE_IDS
     suspend fun refreshNewBadges(force: Boolean = false) {}
     var debugTrackerUrl: String?
         get() = null
@@ -252,6 +255,25 @@ class DefaultAppContainer(
             .map { if (datasetStore.isAvailable) CrossLinks(datasetStore.allHeadings()) else null }
             .flowOn(Dispatchers.IO)
             .stateIn(appScope, SharingStarted.Eagerly, null)
+    }
+
+    override val criticalNoteIds: StateFlow<Set<String>> by lazy {
+        datasetStore.changes
+            .map {
+                if (!datasetStore.isAvailable) {
+                    emptySet()
+                } else {
+                    try {
+                        datasetStore.criticalNotes().map { it.id }.toSet()
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (_: Exception) {
+                        emptySet()
+                    }
+                }
+            }
+            .flowOn(Dispatchers.IO)
+            .stateIn(appScope, SharingStarted.Eagerly, emptySet())
     }
 
     override val okHttpClient: OkHttpClient by lazy {
