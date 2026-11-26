@@ -293,17 +293,28 @@ class JobTracker {
     }
 }
 
+private fun extractProxySummary(raw: String?): String? {
+    if (raw.isNullOrBlank()) return null
+    val idx = raw.indexOf("Proxy ")
+    if (idx < 0) return null
+    val afterPrefix = raw.substring(idx)
+    val sep = afterPrefix.indexOf(": ")
+    return if (sep > 0) afterPrefix.substring(0, sep) else afterPrefix
+}
+
 fun failedListDetail(
     list: FailedList,
     nowMs: Long = System.currentTimeMillis(),
     zone: ZoneId = ZoneId.systemDefault(),
     locale: Locale = Locale.getDefault()
 ): String {
-    return if (list.lastFetchedAt != null && list.lastFetchedAt > 0) {
+    val base = if (list.lastFetchedAt != null && list.lastFetchedAt > 0) {
         "Not updated: ${list.title} — still using the copy from ${formatDataDate(list.lastFetchedAt, nowMs, zone, locale)}"
     } else {
         "Not updated: ${list.title}"
     }
+    val proxy = extractProxySummary(list.error)
+    return if (proxy != null) "$base ($proxy)" else base
 }
 
 fun adblockSuccessResult(): ProgressLineUiState.Done = ProgressLineUiState.Done("Updated")
@@ -320,7 +331,9 @@ fun adblockPartialResult(
 ): ProgressLineUiState.Problem {
     val n = if (total > 0) total else failedLists.size
     val k = failedLists.size
-    val text = "${n - k} of $n ad-block lists updated"
+    val baseText = "${n - k} of $n ad-block lists updated"
+    val proxy = failedLists.firstNotNullOfOrNull { extractProxySummary(it.error) }
+    val text = if (proxy != null) "$baseText ($proxy)" else baseText
     val details = failedLists.map { failedListDetail(it, nowMs, zone, locale) }
     return ProgressLineUiState.Problem(
         text = text,
@@ -336,9 +349,10 @@ fun adblockFailedResult(
     userStarted: Boolean = false,
     nowMs: Long = System.currentTimeMillis(),
     zone: ZoneId = ZoneId.systemDefault(),
-    locale: Locale = Locale.getDefault()
+    locale: Locale = Locale.getDefault(),
+    error: String? = null,
 ): ProgressLineUiState.Problem {
-    val text = if (ready) {
+    val baseText = if (ready) {
         if (lastUpdated != null && lastUpdated > 0) {
             "Couldn't update the ad-block lists. Still using the lists from ${formatDataDate(lastUpdated, nowMs, zone, locale)}."
         } else {
@@ -347,6 +361,8 @@ fun adblockFailedResult(
     } else {
         "Couldn't download the ad-block lists."
     }
+    val proxy = extractProxySummary(error)
+    val text = if (proxy != null) "$baseText ($proxy)" else baseText
     return ProgressLineUiState.Problem(
         text = text,
         details = emptyList(),
@@ -372,11 +388,13 @@ fun wikiFailedResult(
     if (reason == SYNC_CANCELLED) {
         return wikiCancelledResult()
     }
-    val text = if (lastSuccess != null && lastSuccess > 0) {
+    val baseText = if (lastSuccess != null && lastSuccess > 0) {
         "Couldn't update the wiki. Still using the data from ${formatDataDate(lastSuccess, nowMs, zone, locale)}."
     } else {
         "Couldn't download the wiki."
     }
+    val proxy = extractProxySummary(reason)
+    val text = if (proxy != null) "$baseText ($proxy)" else baseText
     return ProgressLineUiState.Problem(
         text = text,
         details = emptyList(),

@@ -29,6 +29,7 @@ import io.github.omeg4dev.fmhy.report.ReportRequest
 import io.github.omeg4dev.fmhy.browser.BrowserHooks
 import io.github.omeg4dev.fmhy.browser.DefaultBrowserHooks
 import io.github.omeg4dev.fmhy.browser.TabManager
+import io.github.omeg4dev.fmhy.browser.recreateAllWebViews
 import io.github.omeg4dev.fmhy.browser.download.DownloadChecks
 import io.github.omeg4dev.fmhy.browser.download.DownloadController
 import io.github.omeg4dev.fmhy.browser.download.HopChecker
@@ -39,6 +40,12 @@ import io.github.omeg4dev.fmhy.browser.adblock.ScriptletLibrary
 import io.github.omeg4dev.fmhy.data.adblock.FilterListUpdater
 import io.github.omeg4dev.fmhy.data.adblock.OkHttpListFetcher
 import io.github.omeg4dev.fmhy.data.OpenLinksWith
+import io.github.omeg4dev.fmhy.net.AndroidWebProxyController
+import io.github.omeg4dev.fmhy.net.ProxyEndpoint
+import io.github.omeg4dev.fmhy.net.ProxyManager
+import io.github.omeg4dev.fmhy.net.buildProxyAppInterceptor
+import io.github.omeg4dev.fmhy.net.buildProxyNetworkInterceptor
+import io.github.omeg4dev.fmhy.net.buildProxySelector
 import io.github.omeg4dev.fmhy.work.NetworkMonitor
 import io.github.omeg4dev.fmhy.work.VpnMonitor
 import io.github.omeg4dev.fmhy.work.IpLookup
@@ -63,6 +70,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
@@ -126,6 +134,7 @@ interface AppContainer : OnboardingActions {
     val networkMonitor: NetworkMonitor get() = error("Not supported")
     val vpnMonitor: VpnMonitor get() = error("Not supported")
     val ipInfoRepository: IpInfoRepository get() = error("Not supported")
+    val proxyManager: ProxyManager get() = error("Not supported")
     val updateController: io.github.omeg4dev.fmhy.update.UpdateController get() = io.github.omeg4dev.fmhy.update.NoOpUpdateController
     val downloads: DownloadController get() = error("Not supported")
     val checks: DownloadChecks get() = error("Not supported")
@@ -227,6 +236,7 @@ class DefaultAppContainer(
             appScope = appScope,
             networkMonitor = networkMonitor,
             vpnMonitor = vpnMonitor,
+            proxyManager = proxyManager,
         )
     }
 
@@ -276,12 +286,35 @@ class DefaultAppContainer(
             .stateIn(appScope, SharingStarted.Eagerly, emptySet())
     }
 
+    override val proxyManager: ProxyManager by lazy {
+        ProxyManager(
+            states = settingsRepository.protectionPrefs
+                .map { io.github.omeg4dev.fmhy.net.ProxyState.fromPrefs(it) }
+                .distinctUntilChanged(),
+            webProxyController = AndroidWebProxyController,
+            onNetworkReset = {
+                okHttpClient.dispatcher.cancelAll()
+                okHttpClient.connectionPool.evictAll()
+                ipInfoRepository.invalidate()
+            },
+            onApplyJavaScript = {
+                tabManager.applyEffectiveJavaScriptToWebViews()
+            },
+            onRecreateWebViews = {
+                tabManager.recreateAllWebViews()
+            },
+        )
+    }
+
     override val okHttpClient: OkHttpClient by lazy {
         val cacheDir = File(context.cacheDir, "http")
         OkHttpClient.Builder()
             .connectTimeout(10, TimeUnit.SECONDS)
             .readTimeout(10, TimeUnit.SECONDS)
             .writeTimeout(10, TimeUnit.SECONDS)
+            .proxySelector(buildProxySelector(proxyManager))
+            .addInterceptor(buildProxyAppInterceptor(proxyManager))
+            .addNetworkInterceptor(buildProxyNetworkInterceptor(proxyManager))
             .cache(Cache(cacheDir, 5L * 1024 * 1024))
             .build()
     }
@@ -601,6 +634,7 @@ class DefaultAppContainer(
     }
 
     override fun initialize() {
+        proxyManager.start()
         appScope.launch(Dispatchers.IO) {
             try {
                 downloads.start()

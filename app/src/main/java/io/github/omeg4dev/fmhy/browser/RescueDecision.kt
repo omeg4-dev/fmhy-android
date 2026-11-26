@@ -11,7 +11,7 @@ data class FailedLoad(
     val errorCode: Int = 0,
 ) {
     fun isLookupFailure(): Boolean =
-        !isHttp && (
+        !isHttp && kind != LoadFailureKind.PROXY && (
             errorCode in setOf(
                 RescueReason.ERROR_HOST_LOOKUP,
                 RescueReason.ERROR_CONNECT,

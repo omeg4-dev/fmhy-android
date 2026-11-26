@@ -254,6 +254,7 @@ class StatusNotices(
                 lastUpdated = lastUp,
                 userStarted = job.userStarted,
                 nowMs = clock(),
+                error = status.error,
             )
         }
         if (status.failedLists.isNotEmpty()) {

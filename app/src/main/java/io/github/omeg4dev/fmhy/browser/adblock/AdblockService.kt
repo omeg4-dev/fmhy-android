@@ -196,7 +196,7 @@ class AdblockService(
                 if (state?.error != null) {
                     val title = FilterListCatalog.byId(id)?.title ?: id
                     val lastFetchedAt = state.fetchedAt.takeIf { state.expiresAt > 0 }
-                    FailedList(title = title, lastFetchedAt = lastFetchedAt)
+                    FailedList(title = title, lastFetchedAt = lastFetchedAt, error = state.error)
                 } else {
                     null
                 }
@@ -257,7 +257,7 @@ class AdblockService(
                 if (state?.error != null) {
                     val title = FilterListCatalog.byId(id)?.title ?: id
                     val lastFetchedAt = state.fetchedAt.takeIf { state.expiresAt > 0 }
-                    FailedList(title = title, lastFetchedAt = lastFetchedAt)
+                    FailedList(title = title, lastFetchedAt = lastFetchedAt, error = state.error)
                 } else {
                     null
                 }
@@ -508,7 +508,7 @@ class AdblockService(
               summary { font-size: 13px; color: #aaa; cursor: pointer; }
               .rule { font-family: monospace; background: #2a2a2a; color: #ffb74d; padding: 8px 12px; border-radius: 6px; font-size: 13px; display: inline-block; margin: 8px 0; word-break: break-all; }
               .buttons { display: flex; gap: 12px; margin-top: 24px; }
-              button { flex: 1; padding: 12px; border: none; border-radius: 8px; font-weight: bold; font-size: 14px; cursor: pointer; }
+              .buttons a { flex: 1; display: block; padding: 12px; border: none; border-radius: 8px; font-weight: bold; font-size: 14px; cursor: pointer; text-decoration: none; text-align: center; }
               .btn-back { background: #ff5252; color: #fff; }
               .btn-continue { background: #333; color: #fff; }
             </style>
@@ -519,8 +519,8 @@ class AdblockService(
               <p>An ad-blocking filter blocks this site.<br><strong>$escapedHost</strong></p>
               <details><summary>Details</summary><div class="rule">$escapedRule</div></details>
               <div class="buttons">
-                <button class="btn-back" onclick="history.back()">Go back</button>
-                <button class="btn-continue" onclick="openAnyway()">Continue anyway</button>
+                <a class="btn-back" href="fmhy-action://goBack">Go back</a>
+                <a class="btn-continue" href="fmhy-action://openAnyway">Continue anyway</a>
               </div>
             </div>
             <script>

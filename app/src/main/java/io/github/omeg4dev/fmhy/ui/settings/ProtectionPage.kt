@@ -39,8 +39,13 @@ fun ProtectionPage(
     val protectionPrefs by viewModel.protectionPrefs.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var state by remember { mutableStateOf(readPrivateDnsState(context)) }
+    var orbotInstalled by remember { mutableStateOf(isOrbotInstalled(context)) }
+    val webViewProxySupported = remember { isWebViewProxySupported() }
+    var showProxyDialog by remember { mutableStateOf(false) }
+    var showOrbotMissingDialog by remember { mutableStateOf(false) }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         state = readPrivateDnsState(context)
+        orbotInstalled = isOrbotInstalled(context)
     }
 
     val eWarnUnsafeSites = SettingsCatalog.protectionWarnUnsafeSites
@@ -52,6 +57,7 @@ fun ProtectionPage(
     val eShowVpnHomeIcon = SettingsCatalog.protectionShowVpnHomeIcon
     val eShowIpCountry = SettingsCatalog.protectionShowIpCountry
     val eBlockWithoutVpn = SettingsCatalog.protectionBlockWithoutVpn
+    val eProxy = SettingsCatalog.protectionProxy
     val ePrivateDns = SettingsCatalog.protectionPrivateDns
     val eBlockPopups = SettingsCatalog.protectionBlockPopups
     val eBlockRedirects = SettingsCatalog.protectionBlockRedirects
@@ -85,12 +91,13 @@ fun ProtectionPage(
         eShowIpCountry.id,
         eBlockWithoutVpn.id,
     )
+    val proxyIds = listOf(eProxy.id)
     val dnsIds = if (privateDnsSupported()) listOf(ePrivateDns.id) else emptyList()
     val sectionSettingIds = remember {
         if (privateDnsSupported()) {
-            listOf(sitesIds, criticalIds, popupIds, downloadIds, vpnIds, dnsIds)
+            listOf(sitesIds, criticalIds, popupIds, downloadIds, vpnIds, proxyIds, dnsIds)
         } else {
-            listOf(sitesIds, criticalIds, popupIds, downloadIds, vpnIds)
+            listOf(sitesIds, criticalIds, popupIds, downloadIds, vpnIds, proxyIds)
         }
     }
     val listState = rememberFocusedListState(sectionSettingIds)
@@ -291,6 +298,25 @@ fun ProtectionPage(
                 }
             }
 
+            item {
+                SettingsSection(title = "Proxy") {
+                    NavRow(
+                        title = eProxy.title,
+                        summary = proxyRowSummary(
+                            prefs = protectionPrefs,
+                            webViewSupported = webViewProxySupported,
+                            orbotInstalled = orbotInstalled,
+                        ),
+                        enabled = proxyRowEnabled(
+                            prefs = protectionPrefs,
+                            webViewSupported = webViewProxySupported,
+                        ),
+                        settingId = eProxy.id,
+                        onClick = { showProxyDialog = true },
+                    )
+                }
+            }
+
             if (privateDnsSupported()) {
                 item {
                     SettingsSection(title = "DNS") {
@@ -306,5 +332,47 @@ fun ProtectionPage(
 
             extraRows()
         }
+    }
+
+    if (showProxyDialog) {
+        ProxySettingsDialog(
+            initialPrefs = protectionPrefs,
+            webViewSupported = webViewProxySupported,
+            onDismiss = { showProxyDialog = false },
+            onConfirm = { mode, type, host, port, allowJavaScript ->
+                showProxyDialog = false
+                if (mode == io.github.omeg4dev.fmhy.data.ProxyMode.ORBOT && !isOrbotInstalled(context)) {
+                    orbotInstalled = false
+                    showOrbotMissingDialog = true
+                } else {
+                    viewModel.updateProtection {
+                        when (mode) {
+                            io.github.omeg4dev.fmhy.data.ProxyMode.OFF -> it.copy(proxyMode = mode)
+                            io.github.omeg4dev.fmhy.data.ProxyMode.ORBOT -> it.copy(
+                                proxyMode = mode,
+                                proxyAllowJavaScript = allowJavaScript,
+                            )
+                            io.github.omeg4dev.fmhy.data.ProxyMode.CUSTOM -> it.copy(
+                                proxyMode = mode,
+                                proxyType = type,
+                                proxyHost = host,
+                                proxyPort = port,
+                                proxyAllowJavaScript = allowJavaScript,
+                            )
+                        }
+                    }
+                }
+            },
+        )
+    }
+
+    if (showOrbotMissingDialog) {
+        OrbotNotInstalledDialog(
+            onGetOrbot = {
+                showOrbotMissingDialog = false
+                openGetOrbot(context)
+            },
+            onDismiss = { showOrbotMissingDialog = false },
+        )
     }
 }

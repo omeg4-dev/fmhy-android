@@ -75,7 +75,10 @@ object NoVpnPage {
                   flex-direction: column;
                   gap: 12px;
                 }
-                button {
+                button, a.btn {
+                  display: block;
+                  text-decoration: none;
+                  text-align: center;
                   padding: 13px 16px;
                   border-radius: 10px;
                   font-size: 14px;
@@ -86,7 +89,7 @@ object NoVpnPage {
                   border: none;
                   transition: opacity 0.2s ease;
                 }
-                button:active {
+                button:active, a.btn:active {
                   opacity: 0.8;
                 }
                 .btn-primary {
@@ -105,8 +108,8 @@ object NoVpnPage {
                 <h1>No VPN active</h1>
                 <p>Browsing is set to need a VPN. Turn on your VPN and reload, or load this page once without it.</p>
                 <div class="buttons">
-                  <button class="btn-primary" onclick="openVpnSettings()">Open VPN settings</button>
-                  <button class="btn-secondary" onclick="loadWithoutVpnOnce()">Load anyway once</button>
+                  <a class="btn btn-primary" href="fmhy-action://openVpnSettings">Open VPN settings</a>
+                  <a class="btn btn-secondary" href="fmhy-action://loadWithoutVpnOnce">Load anyway once</a>
                 </div>
               </div>
               <script>

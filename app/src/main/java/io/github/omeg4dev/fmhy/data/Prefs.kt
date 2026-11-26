@@ -79,6 +79,9 @@ enum class SearchEngine(val label: String, val queryUrl: String) {
 
 enum class SearchTapTarget { SITE, SECTION }
 
+enum class ProxyMode { OFF, ORBOT, CUSTOM }
+enum class ProxyType { SOCKS5, HTTP }
+
 data class HomePrefs(
     val blocks: HomeLayout = HomeLayout.default(),
     val newBadges: Boolean = true,
@@ -164,6 +167,11 @@ data class ProtectionPrefs(
     val showVpnHomeIcon: Boolean = false,
     val showIpCountry: Boolean = false,
     val blockWithoutVpn: Boolean = false,
+    val proxyMode: ProxyMode = ProxyMode.OFF,
+    val proxyType: ProxyType = ProxyType.SOCKS5,
+    val proxyHost: String = "",
+    val proxyPort: Int = 0,
+    val proxyAllowJavaScript: Boolean = false,
 )
 
 data class PrivacyPrefs(

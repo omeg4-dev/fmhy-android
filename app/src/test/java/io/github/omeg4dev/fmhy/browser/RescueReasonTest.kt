@@ -107,6 +107,54 @@ class RescueReasonTest {
 
         assertEquals("This site isn't loading", RescueReason.title(LoadFailureKind.UNKNOWN))
         assertEquals("Retry, or try a mirror.", RescueReason.advice(LoadFailureKind.UNKNOWN))
+
+        assertEquals("Cannot connect through the proxy", RescueReason.title(LoadFailureKind.PROXY))
+        assertEquals(
+            "Check that the proxy is running, or change it in Settings > Protection.",
+            RescueReason.advice(LoadFailureKind.PROXY),
+        )
+    }
+
+    @Test
+    fun testProxyErrorDetectionAndReason() {
+        assertTrue(RescueReason.isProxyError("net::ERR_PROXY_CONNECTION_FAILED"))
+        assertTrue(RescueReason.isProxyError("net::ERR_SOCKS_CONNECTION_FAILED"))
+        assertTrue(RescueReason.isProxyError("net::ERR_TUNNEL_CONNECTION_FAILED"))
+        assertFalse(RescueReason.isProxyError("net::ERR_CONNECTION_REFUSED"))
+
+        assertTrue(
+            RescueReason.shouldTrigger(
+                RescueReason.ERROR_CONNECT,
+                description = "net::ERR_PROXY_CONNECTION_FAILED",
+                proxied = true,
+            )
+        )
+        assertEquals(
+            LoadFailureKind.PROXY,
+            RescueReason.kindForError(
+                RescueReason.ERROR_UNKNOWN,
+                online = false,
+                description = "net::ERR_SOCKS_CONNECTION_FAILED",
+                proxied = true,
+            ),
+        )
+        assertEquals(
+            LoadFailureKind.OFFLINE,
+            RescueReason.kindForError(
+                RescueReason.ERROR_HOST_LOOKUP,
+                online = false,
+                description = "net::ERR_PROXY_CONNECTION_FAILED",
+                proxied = false,
+            ),
+        )
+        assertEquals(
+            "Cannot connect through Orbot (127.0.0.1:9050)",
+            RescueReason.fromErrorCode(
+                RescueReason.ERROR_CONNECT,
+                description = "net::ERR_SOCKS_CONNECTION_FAILED",
+                proxyLabel = "Orbot (127.0.0.1:9050)",
+            ),
+        )
     }
 
     @Test

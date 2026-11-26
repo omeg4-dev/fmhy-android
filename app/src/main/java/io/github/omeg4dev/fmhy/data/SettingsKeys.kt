@@ -93,6 +93,11 @@ internal object SettingsKeys {
     val KEY_PROTECTION_SHOW_VPN_HOME_ICON = booleanPreferencesKey("protection_show_vpn_home_icon")
     val KEY_PROTECTION_SHOW_IP_COUNTRY = booleanPreferencesKey("protection_show_ip_country")
     val KEY_PROTECTION_BLOCK_WITHOUT_VPN = booleanPreferencesKey("protection_block_without_vpn")
+    val KEY_PROTECTION_PROXY_MODE = stringPreferencesKey("protection_proxy_mode")
+    val KEY_PROTECTION_PROXY_TYPE = stringPreferencesKey("protection_proxy_type")
+    val KEY_PROTECTION_PROXY_HOST = stringPreferencesKey("protection_proxy_host")
+    val KEY_PROTECTION_PROXY_PORT = intPreferencesKey("protection_proxy_port")
+    val KEY_PROTECTION_PROXY_ALLOW_JS = booleanPreferencesKey("protection_proxy_allow_js")
 
     // Privacy
     val KEY_PRIVACY_BLOCK_THIRD_PARTY_COOKIES = booleanPreferencesKey("privacy_block_third_party_cookies")

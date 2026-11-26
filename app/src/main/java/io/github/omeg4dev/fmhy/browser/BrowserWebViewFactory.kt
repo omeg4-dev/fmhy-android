@@ -24,7 +24,10 @@ import io.github.omeg4dev.fmhy.data.Appearance
 import io.github.omeg4dev.fmhy.data.AutoplayMode
 import io.github.omeg4dev.fmhy.data.BrowserPrefs
 import io.github.omeg4dev.fmhy.data.ProtectionPrefs
+import io.github.omeg4dev.fmhy.data.ProxyMode
 import io.github.omeg4dev.fmhy.data.user.SitePrefs
+import io.github.omeg4dev.fmhy.net.ProxyEndpoint
+import io.github.omeg4dev.fmhy.net.ProxyManager
 
 /** Dark mode for a tab: the global force-dark setting, a dark app, and no per-site opt-out. */
 internal fun shouldDarken(browserPrefs: BrowserPrefs, isAppDark: Boolean, record: TabRecord): Boolean =
@@ -35,6 +38,7 @@ class BrowserWebViewFactory(
     private val scriptletLibrary: ScriptletLibrary,
     private val browserHooks: BrowserHooks,
     private val bridgeName: String,
+    private val proxyManager: ProxyManager? = null,
 ) {
     private val forceZoomHandlers = java.util.Collections.synchronizedMap(java.util.WeakHashMap<WebView, androidx.webkit.ScriptHandler>())
     @Suppress("DEPRECATION")
@@ -57,8 +61,7 @@ class BrowserWebViewFactory(
         val defaultUa = WebSettings.getDefaultUserAgent(context)
 
         // JavaScript
-        val jsAllowed = record.sitePrefs?.javascript ?: browserPrefs.javascript
-        settings.javaScriptEnabled = jsAllowed
+        settings.javaScriptEnabled = effectiveJavaScript(browserPrefs, protectionPrefs, record.sitePrefs)
 
         // Storage
         settings.domStorageEnabled = true
@@ -101,13 +104,8 @@ class BrowserWebViewFactory(
             settings.loadWithOverviewMode = false
         }
 
-        // Safe browsing
-        val safeBrowsing = protectionPrefs.safeBrowsing
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            settings.safeBrowsingEnabled = safeBrowsing
-        } else if (WebViewFeature.isFeatureSupported(WebViewFeature.SAFE_BROWSING_ENABLE)) {
-            WebSettingsCompat.setSafeBrowsingEnabled(settings, safeBrowsing)
-        }
+        // Safe browsing (forced off while a proxy is set)
+        applySafeBrowsing(settings, protectionPrefs)
 
         // Multi-profile private tabs. Without MULTI_PROFILE support private tabs share the default
         // profile (cookies/storage); TabManager then wipes cookies and WebStorage when the last
@@ -138,7 +136,13 @@ class BrowserWebViewFactory(
         val cosmeticsJs = BrowserJsBridge.buildCosmeticsScript(bridgeName, sendGpc = tabManager.currentPrivacyPrefs.sendGpc)
         val videoJs = VideoJs.script(bridgeName)
         val hasDocumentStartScript = WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)
-        if (hasDocumentStartScript) {
+        val isProxied = protectionPrefs.proxyMode != ProxyMode.OFF || proxyManager?.currentEndpoint() != null
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+            if (isProxied) {
+                try {
+                    WebViewCompat.addDocumentStartJavaScript(webView, PROXY_PRIVACY_SCRIPT, setOf("*"))
+                } catch (_: Exception) {}
+            }
             WebViewCompat.addDocumentStartJavaScript(webView, cosmeticsJs, setOf("*"))
             WebViewCompat.addDocumentStartJavaScript(webView, videoJs, setOf("*"))
             if (browserPrefs.forceZoom) {
@@ -153,6 +157,11 @@ class BrowserWebViewFactory(
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val url = request.url.toString()
+                if (request.isForMainFrame && url.startsWith(ACTION_PREFIX)) {
+                    // Only a real tap counts: a script must not press these buttons.
+                    if (request.hasGesture()) handleGeneratedPageAction(view, record, tabManager, url)
+                    return true
+                }
                 if (request.isForMainFrame) {
                     record.sourceUrl = url
                     if (!request.isRedirect && request.hasGesture()) {
@@ -202,7 +211,7 @@ class BrowserWebViewFactory(
                 tabManager.updateTabUrlAndTitle(record.id, record.url, record.title)
                 (browserHooks as? DefaultBrowserHooks)?.onPageStarted(record, url)
 
-                if (!hasDocumentStartScript) {
+                if (!hasDocumentStartScript && view.settings.javaScriptEnabled) {
                     view.evaluateJavascript(cosmeticsJs, null)
                     view.evaluateJavascript(videoJs, null)
                 }
@@ -322,6 +331,9 @@ class BrowserWebViewFactory(
             }
 
             override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
+                if (proxyManager != null && !proxyManager.awaitWebAllowed()) {
+                    return proxyBlockedResponse()
+                }
                 if (request.isForMainFrame) {
                     record.blockedMainFrameRule = null
                     tabManager.resetBlocked(record.id)
@@ -520,8 +532,7 @@ class BrowserWebViewFactory(
         val defaultUa = WebSettings.getDefaultUserAgent(webView.context)
         settings.mediaPlaybackRequiresUserGesture = browserPrefs.autoplay == AutoplayMode.BLOCK
 
-        val jsAllowed = record.sitePrefs?.javascript ?: browserPrefs.javascript
-        settings.javaScriptEnabled = jsAllowed
+        settings.javaScriptEnabled = effectiveJavaScript(browserPrefs, protectionPrefs, record.sitePrefs)
 
         if (browserPrefs.textZoomFollowsApp) {
             settings.textZoom = Math.round(appearance.textScale * 100)
@@ -550,6 +561,8 @@ class BrowserWebViewFactory(
         settings.displayZoomControls = false
         settings.layoutAlgorithm = WebSettings.LayoutAlgorithm.NORMAL
 
+        applySafeBrowsing(settings, protectionPrefs)
+
         if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
             if (browserPrefs.forceZoom) {
                 if (!forceZoomHandlers.containsKey(webView)) {
@@ -564,7 +577,122 @@ class BrowserWebViewFactory(
         }
     }
 
+    @Suppress("DEPRECATION")
+    private fun applySafeBrowsing(settings: WebSettings, protectionPrefs: ProtectionPrefs) {
+        val safeBrowsing = effectiveSafeBrowsing(protectionPrefs)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            settings.safeBrowsingEnabled = safeBrowsing
+        } else if (WebViewFeature.isFeatureSupported(WebViewFeature.SAFE_BROWSING_ENABLE)) {
+            WebSettingsCompat.setSafeBrowsingEnabled(settings, safeBrowsing)
+        }
+    }
+
+    internal fun effectiveJavaScript(
+        browserPrefs: BrowserPrefs,
+        protectionPrefs: ProtectionPrefs,
+        sitePrefs: SitePrefs? = null,
+    ): Boolean {
+        val loaded = proxyManager?.isLoaded() ?: true
+        val endpoint = if (proxyManager != null) proxyManager.currentEndpoint() else ProxyEndpoint.resolve(protectionPrefs)
+        val allowJs = if (proxyManager != null) proxyManager.currentAllowJavaScript() else protectionPrefs.proxyAllowJavaScript
+        return effectivePageJavaScript(
+            proxyLoaded = loaded,
+            proxyEndpoint = endpoint,
+            proxyAllowJavaScript = allowJs,
+            browserPrefs = browserPrefs,
+            sitePrefs = sitePrefs,
+        )
+    }
+
+    private fun handleGeneratedPageAction(
+        view: WebView,
+        record: TabRecord,
+        tabManager: TabManager,
+        url: String,
+    ) {
+        val action = url.removePrefix(ACTION_PREFIX)
+        val onGeneratedPage = BlockPagePolicy.isGeneratedPage(view.url)
+        when (action) {
+            "openVpnSettings" -> if (onGeneratedPage && record.showsNoVpnPage) {
+                tabManager.openVpnSettings()
+            }
+            "loadWithoutVpnOnce" -> if (onGeneratedPage && record.showsNoVpnPage) {
+                tabManager.allowWithoutVpnOnce(record.id)
+                tabManager.loadUrl(record.id, record.url)
+            }
+            "openDataUsageSettings" -> if (onGeneratedPage && record.showsWifiOnlyPage) {
+                tabManager.openDataUsageSettings()
+            }
+            "useMobileDataThisTime" -> if (onGeneratedPage && record.showsWifiOnlyPage) {
+                tabManager.allowMobileOnce(record.id)
+                tabManager.loadUrl(record.id, record.url)
+            }
+            "goBack" -> if (onBlockPage(view, record) && view.canGoBack()) {
+                view.goBack()
+            }
+            "openAnyway" -> if (onBlockPage(view, record)) {
+                val blockedUrl = record.blockedMainFrameUrl ?: return
+                tabManager.allowUrlOnce(record.id, blockedUrl)
+                android.net.Uri.parse(blockedUrl).host?.let { record.allowedHosts.add(it) }
+                record.interstitialState = null
+                view.reload()
+            }
+        }
+    }
+
+    /** The ad blocker's block page is what the WebView shows right now. */
+    private fun onBlockPage(view: WebView, record: TabRecord): Boolean =
+        record.showsBlockPage && RescueDecision.sameAddress(record.blockedMainFrameUrl, view.url)
+
     companion object {
+        private const val ACTION_PREFIX = "fmhy-action://"
+
+        fun effectivePageJavaScript(
+            proxyLoaded: Boolean,
+            proxyEndpoint: io.github.omeg4dev.fmhy.net.ProxyEndpoint?,
+            proxyAllowJavaScript: Boolean,
+            browserPrefs: BrowserPrefs,
+            sitePrefs: SitePrefs? = null,
+        ): Boolean {
+            if (!proxyLoaded) return false
+            val siteOrApp = sitePrefs?.javascript ?: browserPrefs.javascript
+            return if (proxyEndpoint == null) {
+                siteOrApp
+            } else {
+                proxyAllowJavaScript && siteOrApp
+            }
+        }
+
+        fun effectiveSafeBrowsing(protectionPrefs: ProtectionPrefs): Boolean =
+            protectionPrefs.safeBrowsing && protectionPrefs.proxyMode == ProxyMode.OFF
+
+        fun proxyBlockedResponse(): WebResourceResponse = WebResourceResponse(
+            "text/plain",
+            "UTF-8",
+            503,
+            "Service Unavailable",
+            emptyMap(),
+            java.io.ByteArrayInputStream(ByteArray(0)),
+        )
+
+        const val PROXY_PRIVACY_SCRIPT: String = """
+            (function() {
+                var names = ['RTCPeerConnection', 'webkitRTCPeerConnection', 'WebTransport'];
+                for (var i = 0; i < names.length; i++) {
+                    try {
+                        Object.defineProperty(window, names[i], {
+                            value: undefined,
+                            writable: false,
+                            configurable: false,
+                            enumerable: false
+                        });
+                    } catch (e) {
+                        try { window[names[i]] = undefined; } catch (_) {}
+                    }
+                }
+            })();
+        """
+
         internal fun hitKindFor(hitTestResultType: Int): HitKind = when (hitTestResultType) {
             WebView.HitTestResult.SRC_ANCHOR_TYPE -> HitKind.LINK
             WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE -> HitKind.IMAGE_LINK

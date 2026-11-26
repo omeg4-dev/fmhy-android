@@ -119,6 +119,13 @@ internal object SettingsBackup {
         SettingsKeys.KEY_UPDATE_NOTIFIED_VERSION,
         SettingsKeys.KEY_DOWNLOAD_FOLDER_URI,
         SettingsKeys.KEY_DOWNLOAD_FOLDER_FALLBACK_NOTIFIED,
+        // The proxy is set by hand only: a backup file must never switch one on (it could point at
+        // someone else's server), switch one off or change one, which would expose the real IP.
+        SettingsKeys.KEY_PROTECTION_PROXY_MODE,
+        SettingsKeys.KEY_PROTECTION_PROXY_TYPE,
+        SettingsKeys.KEY_PROTECTION_PROXY_HOST,
+        SettingsKeys.KEY_PROTECTION_PROXY_PORT,
+        SettingsKeys.KEY_PROTECTION_PROXY_ALLOW_JS,
     )
 
     private val specs: List<KeySpec<*>> = listOf(

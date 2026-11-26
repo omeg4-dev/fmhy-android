@@ -43,6 +43,12 @@ fun TabManager.openFileCheckSettings(focusSetting: String? = null) {
     bringFmhyToFront(appContext)
 }
 
+fun TabManager.openProxySettings() {
+    val container = (appContext as? FmhyApp)?.container
+    container?.pushNavigation(SettingsPageNavKey(SettingsPage.PROTECTION, "protection.proxy"))
+    bringFmhyToFront(appContext)
+}
+
 private data class HtmlThemeColors(
     val accentHex: String,
     val surfaceHex: String,

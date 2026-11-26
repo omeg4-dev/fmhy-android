@@ -5,7 +5,7 @@ import io.github.omeg4dev.fmhy.data.adblock.FilterListProgress
 import io.github.omeg4dev.fmhy.data.adblock.FilterListUpdater
 import io.github.omeg4dev.fmhy.data.adblock.ListState
 
-data class FailedList(val title: String, val lastFetchedAt: Long?)
+data class FailedList(val title: String, val lastFetchedAt: Long?, val error: String? = null)
 
 data class AdblockStatus(
     val ready: Boolean = false,

@@ -8,6 +8,7 @@ import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Message
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import io.github.omeg4dev.fmhy.data.ProtectionPrefs
@@ -46,7 +47,9 @@ internal fun DefaultBrowserHooks.handleCreateWindowImpl(
     }
 
     livePopupCount.incrementAndGet()
-    val tempWebView = WebView(context)
+    val tempWebView = WebView(context).apply {
+        settings.javaScriptEnabled = tabManager?.effectiveJavaScript(tab.sitePrefs) ?: false
+    }
     var cleanedUp = false
     fun cleanup() {
         if (!cleanedUp) {
@@ -61,6 +64,14 @@ internal fun DefaultBrowserHooks.handleCreateWindowImpl(
 
     tempWebView.webViewClient = object : WebViewClient() {
         private var handled = false
+
+        override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
+            val pm = tabManager?.proxyManager
+            if (pm != null && !pm.awaitWebAllowed()) {
+                return BrowserWebViewFactory.proxyBlockedResponse()
+            }
+            return super.shouldInterceptRequest(view, request)
+        }
 
         private fun processUrl(targetUrl: String) {
             if (handled || targetUrl.isBlank() || targetUrl == "about:blank") return

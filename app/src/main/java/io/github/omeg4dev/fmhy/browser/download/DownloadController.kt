@@ -7,6 +7,7 @@ import android.provider.Settings
 import io.github.omeg4dev.fmhy.data.SettingsRepository
 import io.github.omeg4dev.fmhy.data.user.DownloadRecord
 import io.github.omeg4dev.fmhy.data.user.UserStore
+import io.github.omeg4dev.fmhy.net.ProxyIOException
 import io.github.omeg4dev.fmhy.work.NetworkKind
 import io.github.omeg4dev.fmhy.work.NetworkMonitor
 import kotlin.coroutines.coroutineContext
@@ -1033,7 +1034,8 @@ class DownloadController(
                     jobs.remove(id)
                     return
                 } else {
-                    lastHttpError = "Connection lost"
+                    val proxyMsg = (e as? ProxyIOException ?: e.cause as? ProxyIOException)?.message
+                    lastHttpError = proxyMsg ?: "Connection lost"
                     shouldRetry = true
                 }
             } finally {

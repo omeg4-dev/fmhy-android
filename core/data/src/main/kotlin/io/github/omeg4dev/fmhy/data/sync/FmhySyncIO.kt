@@ -44,6 +44,7 @@ internal fun FmhySync.fetchFile(
     var response: Response? = null
     var usedHost = "primary"
     var tryFallback = false
+    var primaryError: IOException? = null
 
     try {
         val req = Request.Builder().url(urlPrimary).apply {
@@ -57,7 +58,8 @@ internal fun FmhySync.fetchFile(
         } else {
             response = resp
         }
-    } catch (_: IOException) {
+    } catch (e: IOException) {
+        primaryError = e
         tryFallback = true
     }
 
@@ -74,7 +76,10 @@ internal fun FmhySync.fetchFile(
         }
     }
 
-    val resp = response ?: return FetchResult.Error(path, "Primary request failed without fallback")
+    val resp = response ?: return FetchResult.Error(
+        path,
+        primaryError?.message ?: "Primary request failed without fallback",
+    )
 
     return resp.use { r ->
         if (r.code == 404) {

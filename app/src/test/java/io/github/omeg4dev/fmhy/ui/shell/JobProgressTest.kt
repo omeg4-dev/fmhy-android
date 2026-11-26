@@ -319,5 +319,27 @@ class JobProgressTest {
         val probNoHistory = failNoHistory as ProgressLineUiState.Problem
         assertEquals("Couldn't download the wiki.", probNoHistory.text)
         assertTrue(probNoHistory.sticky)
+
+        // Failed with proxy error includes proxy label
+        val failProxy = wikiFailedResult(
+            "Fallback request failed: Proxy Orbot (127.0.0.1:9050): Connection refused",
+            lastSuccess = lastSuccess,
+            userStarted = true,
+            nowMs = nowMs,
+            zone = zone,
+            locale = locale,
+        ) as ProgressLineUiState.Problem
+        assertTrue(failProxy.text.contains("Proxy Orbot (127.0.0.1:9050)"))
+    }
+
+    @Test
+    fun adblockResultTextsWithProxyErrorIncludeLabel() {
+        val fail = adblockFailedResult(
+            ready = false,
+            lastUpdated = null,
+            userStarted = true,
+            error = "Proxy SOCKS5 proxy 127.0.0.1:1080: Connection refused",
+        )
+        assertTrue(fail.text.contains("Proxy SOCKS5 proxy 127.0.0.1:1080"))
     }
 }

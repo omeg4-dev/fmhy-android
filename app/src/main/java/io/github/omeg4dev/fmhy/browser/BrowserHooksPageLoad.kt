@@ -72,14 +72,14 @@ fun DefaultBrowserHooks.onPageCommitVisible(record: TabRecord, url: String) {
 }
 
 private suspend fun DefaultBrowserHooks.evaluate(view: WebView?, js: String): String? {
-    if (view == null) return null
+    if (view == null || !view.settings.javaScriptEnabled) return null
     return suspendCancellableCoroutine { continuation ->
         view.evaluateJavascript(js) { raw -> if (continuation.isActive) continuation.resume(raw) }
     }
 }
 
 private suspend fun DefaultBrowserHooks.evaluateProbe(view: WebView?): RescueDecision.PageProbe? {
-    if (view == null) return null
+    if (view == null || !view.settings.javaScriptEnabled) return null
     return suspendCancellableCoroutine { continuation ->
         view.evaluateJavascript(RescueDecision.PROBE_JS) { raw ->
             if (continuation.isActive) {
@@ -98,7 +98,7 @@ fun DefaultBrowserHooks.onMainFramePageFinished(record: TabRecord, view: WebView
     if (failed == null) {
         if (RescueDecision.sameAddress(url, record.url)) onContentShown(record, url)
         val browserPrefs = tabManager?.currentBrowserPrefs ?: BrowserPrefs()
-        if (RescueDecision.isWebPage(url) && !record.showsBlockPage && browserPrefs.deadSiteRescue) {
+        if (RescueDecision.isWebPage(url) && !record.showsBlockPage && browserPrefs.deadSiteRescue && view.settings.javaScriptEnabled) {
             record.blankJob?.cancel()
             val appScope = tabManager?.appScope
             if (appScope != null) {
@@ -153,6 +153,11 @@ fun DefaultBrowserHooks.onMainFramePageFinished(record: TabRecord, view: WebView
     record.rescueJob = scope.launch(Dispatchers.Main) {
         delay(RescueDecision.HTTP_SETTLE_MS)
         if (!RescueDecision.sameAddress(record.url, failed.url)) return@launch
+
+        if (!view.settings.javaScriptEnabled) {
+            decideRescue(record, failed)
+            return@launch
+        }
 
         val runProbe = {
             view.evaluateJavascript(RescueDecision.PROBE_JS) { raw ->

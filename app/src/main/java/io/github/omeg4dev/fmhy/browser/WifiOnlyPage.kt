@@ -75,7 +75,10 @@ object WifiOnlyPage {
                   flex-direction: column;
                   gap: 12px;
                 }
-                button {
+                button, a.btn {
+                  display: block;
+                  text-decoration: none;
+                  text-align: center;
                   padding: 13px 16px;
                   border-radius: 10px;
                   font-size: 14px;
@@ -86,7 +89,7 @@ object WifiOnlyPage {
                   border: none;
                   transition: opacity 0.2s ease;
                 }
-                button:active {
+                button:active, a.btn:active {
                   opacity: 0.8;
                 }
                 .btn-primary {
@@ -105,8 +108,8 @@ object WifiOnlyPage {
                 <h1>Browsing is set to Wi-Fi only.</h1>
                 <p>Connect to an unmetered Wi-Fi network, or choose an option below to proceed.</p>
                 <div class="buttons">
-                  <button class="btn-primary" onclick="useMobileDataThisTime()">Use mobile data this time</button>
-                  <button class="btn-secondary" onclick="openDataUsageSettings()">Open settings</button>
+                  <a class="btn btn-primary" href="fmhy-action://useMobileDataThisTime">Use mobile data this time</a>
+                  <a class="btn btn-secondary" href="fmhy-action://openDataUsageSettings">Open settings</a>
                 </div>
               </div>
               <script>

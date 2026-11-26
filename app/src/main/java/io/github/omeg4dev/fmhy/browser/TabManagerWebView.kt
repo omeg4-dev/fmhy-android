@@ -210,7 +210,7 @@ internal fun TabManager.ensureWebView(record: TabRecord) {
 
         if (record.savedState != null) {
             val restored = webView.restoreState(record.savedState!!)
-            if (restored == null && record.url.isNotEmpty() && record.url != "about:blank") {
+            if ((restored == null || restored.size == 0) && record.url.isNotEmpty() && record.url != "about:blank") {
                 if (BrowsePolicy.shouldBlock(record.url, currentDataUsagePrefs.browseWifiOnly, currentNetworkKind, record.id in mobileOkTabs)) {
                     loadWifiOnlyPage(record)
                 } else if (blocksWithoutVpn(record.url, record.id)) {
@@ -241,5 +241,36 @@ internal fun TabManager.ensureWebView(record: TabRecord) {
         record.mutableContext = null
         bumpWebViewVersion()
     }
+}
+
+/**
+ * Destroys every live tab WebView (normal and private) through the eviction path, keeping tab
+ * URL/state, then recreates and reattaches the current tab's WebView so the screen stays active.
+ */
+fun TabManager.recreateAllWebViews() {
+    val currentId = _currentTabId.value
+    val toEvict = synchronized(records) {
+        for (r in records) {
+            if (r.rescueState?.kind == LoadFailureKind.PROXY) {
+                r.rescueState = null
+            }
+        }
+        records.filter { it.webView != null }
+    }
+    var currentWasLive = false
+    for (r in toEvict) {
+        if (r.id == currentId) {
+            currentWasLive = true
+        }
+        evictWebView(r)
+    }
+    if (currentWasLive && currentId != null) {
+        val current = getTabRecord(currentId)
+        if (current != null) {
+            current.crashed = false
+            ensureWebView(current)
+        }
+    }
+    updateTabsFlow(immediate = true)
 }
 

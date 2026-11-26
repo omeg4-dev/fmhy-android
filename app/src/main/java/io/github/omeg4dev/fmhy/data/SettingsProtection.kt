@@ -30,6 +30,11 @@ import io.github.omeg4dev.fmhy.data.SettingsKeys.KEY_PROTECTION_BLOCK_WITHOUT_VP
 import io.github.omeg4dev.fmhy.data.SettingsKeys.KEY_PROTECTION_CRITICAL_NOTE_WARNING
 import io.github.omeg4dev.fmhy.data.SettingsKeys.KEY_PROTECTION_POPUP_BLOCKER
 import io.github.omeg4dev.fmhy.data.SettingsKeys.KEY_PROTECTION_POTENTIALLY_UNSAFE_WARNING
+import io.github.omeg4dev.fmhy.data.SettingsKeys.KEY_PROTECTION_PROXY_ALLOW_JS
+import io.github.omeg4dev.fmhy.data.SettingsKeys.KEY_PROTECTION_PROXY_HOST
+import io.github.omeg4dev.fmhy.data.SettingsKeys.KEY_PROTECTION_PROXY_MODE
+import io.github.omeg4dev.fmhy.data.SettingsKeys.KEY_PROTECTION_PROXY_PORT
+import io.github.omeg4dev.fmhy.data.SettingsKeys.KEY_PROTECTION_PROXY_TYPE
 import io.github.omeg4dev.fmhy.data.SettingsKeys.KEY_PROTECTION_REDIRECT_GUARD
 import io.github.omeg4dev.fmhy.data.SettingsKeys.KEY_PROTECTION_SAFE_BROWSING
 import io.github.omeg4dev.fmhy.data.SettingsKeys.KEY_PROTECTION_SHOW_IP_COUNTRY
@@ -65,6 +70,17 @@ internal fun DefaultSettingsRepository.writeBlockingPrefs(prefs: MutablePreferen
 }
 internal fun DefaultSettingsRepository.readProtectionPrefs(prefs: Preferences): ProtectionPrefs {
     val default = ProtectionPrefs()
+    val rawMode = prefs[KEY_PROTECTION_PROXY_MODE]
+    val (proxyMode, invalidMode) = if (rawMode == null) {
+        default.proxyMode to false
+    } else {
+        val parsed = ProxyMode.entries.firstOrNull { it.name == rawMode }
+        if (parsed != null) parsed to false else ProxyMode.CUSTOM to true
+    }
+    val rawType = prefs[KEY_PROTECTION_PROXY_TYPE]
+    val proxyType = rawType?.let { name -> ProxyType.entries.firstOrNull { it.name == name } } ?: default.proxyType
+    val proxyHost = if (invalidMode) "" else (prefs[KEY_PROTECTION_PROXY_HOST] ?: default.proxyHost)
+    val proxyPort = if (invalidMode) 0 else (prefs[KEY_PROTECTION_PROXY_PORT] ?: default.proxyPort)
     return ProtectionPrefs(
         unsafeWarning = prefs[KEY_PROTECTION_UNSAFE_WARNING] ?: default.unsafeWarning,
         criticalNoteWarning = prefs[KEY_PROTECTION_CRITICAL_NOTE_WARNING] ?: default.criticalNoteWarning,
@@ -79,6 +95,11 @@ internal fun DefaultSettingsRepository.readProtectionPrefs(prefs: Preferences): 
         showVpnHomeIcon = prefs[KEY_PROTECTION_SHOW_VPN_HOME_ICON] ?: default.showVpnHomeIcon,
         showIpCountry = prefs[KEY_PROTECTION_SHOW_IP_COUNTRY] ?: default.showIpCountry,
         blockWithoutVpn = prefs[KEY_PROTECTION_BLOCK_WITHOUT_VPN] ?: default.blockWithoutVpn,
+        proxyMode = proxyMode,
+        proxyType = proxyType,
+        proxyHost = proxyHost,
+        proxyPort = proxyPort,
+        proxyAllowJavaScript = prefs[KEY_PROTECTION_PROXY_ALLOW_JS] ?: default.proxyAllowJavaScript,
     )
 }
 internal fun DefaultSettingsRepository.writeProtectionPrefs(prefs: MutablePreferences, p: ProtectionPrefs) {
@@ -95,6 +116,11 @@ internal fun DefaultSettingsRepository.writeProtectionPrefs(prefs: MutablePrefer
     prefs[KEY_PROTECTION_SHOW_VPN_HOME_ICON] = p.showVpnHomeIcon
     prefs[KEY_PROTECTION_SHOW_IP_COUNTRY] = p.showIpCountry
     prefs[KEY_PROTECTION_BLOCK_WITHOUT_VPN] = p.blockWithoutVpn
+    prefs[KEY_PROTECTION_PROXY_MODE] = p.proxyMode.name
+    prefs[KEY_PROTECTION_PROXY_TYPE] = p.proxyType.name
+    prefs[KEY_PROTECTION_PROXY_HOST] = p.proxyHost
+    prefs[KEY_PROTECTION_PROXY_PORT] = p.proxyPort
+    prefs[KEY_PROTECTION_PROXY_ALLOW_JS] = p.proxyAllowJavaScript
 }
 internal fun DefaultSettingsRepository.readPrivacyPrefs(prefs: Preferences): PrivacyPrefs {
     val default = PrivacyPrefs()

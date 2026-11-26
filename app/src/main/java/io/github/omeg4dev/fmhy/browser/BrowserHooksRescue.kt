@@ -17,7 +17,7 @@ internal fun DefaultBrowserHooks.decideRescue(record: TabRecord, failed: FailedL
     val networkReady = tm?.isOnline() ?: true
     val isLookup = failed.isLookupFailure()
 
-    val action = RescueDecision.decideWithNetworkGrace(
+    val decision = RescueDecision.decideWithNetworkGrace(
         isForMainFrame = true,
         failingUrl = failed.url,
         currentUrls = listOf(record.url, record.sourceUrl),
@@ -28,6 +28,11 @@ internal fun DefaultBrowserHooks.decideRescue(record: TabRecord, failed: FailedL
         graceElapsedMs = elapsed,
         isLookupFailure = isLookup,
     )
+    val action = if (failed.kind == LoadFailureKind.PROXY && decision != RescueDecision.Action.IGNORE) {
+        RescueDecision.Action.SHOW
+    } else {
+        decision
+    }
     rescueLog("decide $action url=${failed.url} tab=${record.url} shown=${record.contentShown} retries=${record.silentRetries} grace=$inGrace ($failed)")
     when (action) {
         RescueDecision.Action.IGNORE -> {
@@ -83,7 +88,7 @@ internal fun DefaultBrowserHooks.buildRescueState(
     kind: LoadFailureKind = LoadFailureKind.UNKNOWN,
     ignoreContentShown: Boolean = false,
 ) {
-    val canSkipBlocking = kind != LoadFailureKind.OFFLINE && adblockActive(record)
+    val canSkipBlocking = kind != LoadFailureKind.OFFLINE && kind != LoadFailureKind.PROXY && adblockActive(record)
     // Same address already rescued (e.g. the user pressed Retry): update it in place, no flash.
     val current = record.rescueState
     if (current != null && RescueDecision.sameAddress(current.failingUrl, failingUrl)) {
@@ -99,6 +104,21 @@ internal fun DefaultBrowserHooks.buildRescueState(
         return
     }
     val host = try { Uri.parse(failingUrl).host ?: failingUrl } catch (_: Exception) { failingUrl }
+    if (kind == LoadFailureKind.PROXY) {
+        tabManager?.setRescueState(
+            record.id,
+            RescueState(
+                failingUrl = failingUrl,
+                host = host,
+                reason = reason,
+                mirrors = emptyList(),
+                alternatives = emptyList(),
+                kind = LoadFailureKind.PROXY,
+                canSkipBlocking = false,
+            )
+        )
+        return
+    }
     val entryId = record.entryId
     record.rescueJob = tabManager?.appScope?.launch(Dispatchers.IO) {
         val store = datasetStore
@@ -160,5 +180,9 @@ fun DefaultBrowserHooks.reloadWithoutBlocking(record: TabRecord) {
 }
 
 internal fun rescueLog(msg: String) {
-    if (io.github.omeg4dev.fmhy.BuildConfig.DEBUG) android.util.Log.d("FmhyRescue", msg)
+    if (io.github.omeg4dev.fmhy.BuildConfig.DEBUG) {
+        try {
+            android.util.Log.d("FmhyRescue", msg)
+        } catch (_: Throwable) {}
+    }
 }

@@ -207,15 +207,22 @@ class DefaultBrowserHooks(
 
     override fun onMainFrameError(tab: TabState, errorCode: Int, description: String, failingUrl: String) {
         val browserPrefs = tabManager?.currentBrowserPrefs ?: BrowserPrefs()
+        val endpoint = tabManager?.activeProxyEndpoint()
+        val isProxyErr = endpoint != null && RescueReason.isProxyError(description)
         rescueLog("error $errorCode '$description' url=$failingUrl tab=${tab.url}")
-        if (!browserPrefs.deadSiteRescue) return
-        if (!RescueReason.shouldTrigger(errorCode, description)) return
+        if (!browserPrefs.deadSiteRescue && !isProxyErr) return
+        if (!RescueReason.shouldTrigger(errorCode, description, proxied = endpoint != null)) return
         val record = tabManager?.getTabRecord(tab.id) ?: return
         record.failedLoad = FailedLoad(
             url = failingUrl,
-            reason = RescueReason.fromErrorCode(errorCode, description),
+            reason = RescueReason.fromErrorCode(errorCode, description, proxyLabel = endpoint?.label),
             isHttp = false,
-            kind = RescueReason.kindForError(errorCode, tabManager?.isOnline() ?: true),
+            kind = RescueReason.kindForError(
+                errorCode = errorCode,
+                online = tabManager?.isOnline() ?: true,
+                description = description,
+                proxied = endpoint != null,
+            ),
             errorCode = errorCode,
         )
     }

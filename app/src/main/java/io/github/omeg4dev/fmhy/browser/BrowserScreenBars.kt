@@ -282,6 +282,9 @@ internal fun BrowserScreenScope.BrowserScreenBars(boxScope: BoxScope) {
                                 tabManager.loadUrl(tabId, url)
                             }
                         },
+                        onProxySettings = {
+                            tabManager.openProxySettings()
+                        },
                         onReport = {
                             val app = context.applicationContext as? io.github.omeg4dev.fmhy.FmhyApp
                             app?.container?.openReport(

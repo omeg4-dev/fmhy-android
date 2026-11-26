@@ -77,6 +77,7 @@ fun RescueOverlay(
     onReloadWithoutBlocking: () -> Unit,
     onOpenUrl: (String) -> Unit,
     onReport: () -> Unit = {},
+    onProxySettings: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Surface(
@@ -129,7 +130,7 @@ fun RescueOverlay(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
             )
-            if (state.canSkipBlocking) {
+            if (state.canSkipBlocking && state.kind != LoadFailureKind.PROXY) {
                 FilledTonalButton(
                     onClick = onReloadWithoutBlocking,
                     enabled = !state.retrying,
@@ -145,42 +146,53 @@ fun RescueOverlay(
             ) {
                 Text(if (state.retrying) "Retrying…" else "Retry")
             }
-            state.mirrors.forEachIndexed { index, link ->
-                val host = try { Uri.parse(link.url).host ?: link.url } catch (_: Exception) { link.url }
+            if (state.kind == LoadFailureKind.PROXY) {
                 OutlinedButton(
-                    onClick = { onOpenUrl(link.url) },
+                    onClick = onProxySettings,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text("Try mirror ${index + 2} · $host")
+                    Text("Proxy settings")
                 }
-            }
-            OutlinedButton(
-                onClick = { onOpenUrl("https://web.archive.org/web/2/${state.failingUrl}") },
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("Wayback Machine")
-            }
+            } else {
+                state.mirrors.forEachIndexed { index, link ->
+                    val host = try { Uri.parse(link.url).host ?: link.url } catch (_: Exception) { link.url }
+                    OutlinedButton(
+                        onClick = { onOpenUrl(link.url) },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text("Try mirror ${index + 2} · $host")
+                    }
+                }
+                OutlinedButton(
+                    onClick = { onOpenUrl("https://web.archive.org/web/2/${state.failingUrl}") },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Wayback Machine")
+                }
 
-            if (state.alternatives.isNotEmpty()) {
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    "Alternatives on FMHY",
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.align(Alignment.Start),
-                )
-                state.alternatives.forEach { entry ->
-                    io.github.omeg4dev.fmhy.ui.common.EntryRow(
-                        entry = entry,
-                        onOpenUrl = onOpenUrl,
+                if (state.alternatives.isNotEmpty()) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Alternatives on FMHY",
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.align(Alignment.Start),
                     )
+                    state.alternatives.forEach { entry ->
+                        io.github.omeg4dev.fmhy.ui.common.EntryRow(
+                            entry = entry,
+                            onOpenUrl = onOpenUrl,
+                        )
+                    }
                 }
             }
 
-            TextButton(
-                onClick = onReport,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("Report this")
+            if (state.kind != LoadFailureKind.PROXY) {
+                TextButton(
+                    onClick = onReport,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Report this")
+                }
             }
         }
     }

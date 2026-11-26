@@ -20,6 +20,8 @@ import io.github.omeg4dev.fmhy.data.ProtectionPrefs
 import io.github.omeg4dev.fmhy.data.SettingsRepository
 import io.github.omeg4dev.fmhy.data.ThemeMode
 import io.github.omeg4dev.fmhy.data.user.UserStore
+import io.github.omeg4dev.fmhy.net.ProxyEndpoint
+import io.github.omeg4dev.fmhy.net.ProxyManager
 import io.github.omeg4dev.fmhy.work.NetworkKind
 import io.github.omeg4dev.fmhy.work.NetworkMonitor
 import io.github.omeg4dev.fmhy.work.VpnMonitor
@@ -48,6 +50,7 @@ class TabManager(
     val appScope: CoroutineScope,
     networkMonitor: NetworkMonitor? = null,
     vpnMonitor: VpnMonitor? = null,
+    val proxyManager: ProxyManager? = null,
 ) {
     fun isOnline(): Boolean {
         return try {
@@ -168,7 +171,22 @@ class TabManager(
         scriptletLibrary = scriptletLibrary,
         browserHooks = browserHooks,
         bridgeName = bridgeName,
+        proxyManager = proxyManager,
     )
+
+    fun activeProxyEndpoint(): ProxyEndpoint? =
+        proxyManager?.currentEndpoint() ?: ProxyEndpoint.resolve(currentProtectionPrefs)
+
+    fun effectiveJavaScript(sitePrefs: io.github.omeg4dev.fmhy.data.user.SitePrefs? = null): Boolean =
+        webViewFactory.effectiveJavaScript(currentBrowserPrefs, currentProtectionPrefs, sitePrefs)
+
+    fun applyEffectiveJavaScriptToWebViews() {
+        postToMain {
+            synchronized(records) { records.toList() }.forEach { r ->
+                r.webView?.settings?.javaScriptEnabled = effectiveJavaScript(r.sitePrefs)
+            }
+        }
+    }
 
     // Callbacks for UI events
     var onPickerResultCallback: ((tabId: Long, selector: String) -> Unit)? = null
@@ -208,10 +226,13 @@ class TabManager(
         (browserHooks as? DefaultBrowserHooks)?.attachTabManager(this)
         appScope.launch {
             var lastAutoplay: AutoplayMode? = null
+            var lastJavascript: Boolean? = null
             settingsRepository.browserPrefs.collect {
                 currentBrowserPrefs = it
                 if (lastAutoplay != null && lastAutoplay != it.autoplay) applyAutoplayToWebViews(it.autoplay)
+                if (lastJavascript != null && lastJavascript != it.javascript) applyEffectiveJavaScriptToWebViews()
                 lastAutoplay = it.autoplay
+                lastJavascript = it.javascript
             }
         }
         appScope.launch {
@@ -231,7 +252,30 @@ class TabManager(
             }
         }
         appScope.launch {
-            settingsRepository.protectionPrefs.collect { currentProtectionPrefs = it }
+            var lastSafeBrowsing: Boolean? = null
+            var lastAllowJs: Boolean? = null
+            settingsRepository.protectionPrefs.collect { p ->
+                currentProtectionPrefs = p
+                val effectiveSb = BrowserWebViewFactory.effectiveSafeBrowsing(p)
+                if (lastSafeBrowsing != null && (lastSafeBrowsing != effectiveSb || lastAllowJs != p.proxyAllowJavaScript)) {
+                    postToMain {
+                        synchronized(records) { records.toList() }.forEach { r ->
+                            r.webView?.let { wv ->
+                                webViewFactory.applySettings(
+                                    wv,
+                                    r,
+                                    currentBrowserPrefs,
+                                    p,
+                                    currentAppearance,
+                                    isAppDark,
+                                )
+                            }
+                        }
+                    }
+                }
+                lastSafeBrowsing = effectiveSb
+                lastAllowJs = p.proxyAllowJavaScript
+            }
         }
         appScope.launch {
             settingsRepository.privacyPrefs.collect { p ->

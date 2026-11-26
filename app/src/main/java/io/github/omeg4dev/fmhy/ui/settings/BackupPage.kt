@@ -175,7 +175,7 @@ fun BackupPage(
             title = { Text("Export backup") },
             text = {
                 Column {
-                    Text("Export bookmarks, folders, followed sections and settings to a JSON file. API keys are not included.")
+                    Text("Export bookmarks, folders, followed sections and settings to a JSON file. API keys and proxy settings are not included.")
                     Spacer(Modifier.height(16.dp))
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -234,7 +234,7 @@ fun BackupPage(
                         Column {
                             Text("Restore settings", style = MaterialTheme.typography.bodyLarge)
                             Text(
-                                "Replaces your current settings with the ones in this file.",
+                                "Replaces your current settings with the ones in this file. The proxy stays as it is.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )

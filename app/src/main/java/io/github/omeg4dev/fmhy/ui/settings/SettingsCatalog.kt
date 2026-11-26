@@ -559,6 +559,13 @@ object SettingsCatalog {
         description = "Shows a \"No VPN active\" page while no VPN is on. You can still load a site once. Needs \"Show VPN and HTTPS ring\"",
         keywords = listOf("vpn", "block", "disable", "browsing", "without", "kill", "switch"),
     )
+    val protectionProxy = SettingEntry(
+        id = "protection.proxy",
+        page = SettingsPage.PROTECTION,
+        title = "Proxy",
+        description = "Send all app and tab traffic through Orbot or a SOCKS5/HTTP proxy",
+        keywords = listOf("proxy", "tor", "orbot", "socks", "socks5", "http"),
+    )
     val protectionPrivateDns = SettingEntry(
         id = "protection.private_dns",
         page = SettingsPage.PROTECTION,
@@ -956,6 +963,7 @@ object SettingsCatalog {
         protectionShowVpnHomeIcon,
         protectionShowIpCountry,
         protectionBlockWithoutVpn,
+        protectionProxy,
         protectionPrivateDns,
         protectionBlockPopups,
         protectionBlockRedirects,

@@ -7,6 +7,7 @@ enum class LoadFailureKind {
     TIMEOUT,
     SERVER,
     BLANK,
+    PROXY,
     UNKNOWN,
 }
 
@@ -27,12 +28,20 @@ object RescueReason {
     const val ERROR_FILE_NOT_FOUND = -14
     const val ERROR_TOO_MANY_REQUESTS = -15
 
-    fun shouldTrigger(errorCode: Int, description: String = ""): Boolean {
+    fun isProxyError(description: String): Boolean =
+        description.contains("ERR_PROXY", ignoreCase = true) ||
+            description.contains("ERR_SOCKS", ignoreCase = true) ||
+            description.contains("ERR_TUNNEL", ignoreCase = true)
+
+    fun proxyReason(proxyLabel: String): String = "Cannot connect through $proxyLabel"
+
+    fun shouldTrigger(errorCode: Int, description: String = "", proxied: Boolean = false): Boolean {
         if (errorCode == ERROR_UNSUPPORTED_SCHEME) return false
         if (description.contains("net::ERR_ABORTED", ignoreCase = true) ||
             description.contains("cancel", ignoreCase = true)) {
             return false
         }
+        if (proxied && isProxyError(description)) return true
         return when (errorCode) {
             ERROR_HOST_LOOKUP,
             ERROR_CONNECT,
@@ -54,7 +63,8 @@ object RescueReason {
         return statusCode in setOf(403, 429, 451)
     }
 
-    fun fromErrorCode(errorCode: Int, description: String = ""): String {
+    fun fromErrorCode(errorCode: Int, description: String = "", proxyLabel: String? = null): String {
+        if (proxyLabel != null && isProxyError(description)) return proxyReason(proxyLabel)
         if (description.contains("CLEARTEXT", ignoreCase = true)) return "Insecure (http) connection blocked"
         return when (errorCode) {
             ERROR_HOST_LOOKUP -> "The site's address could not be found"
@@ -88,6 +98,7 @@ object RescueReason {
         LoadFailureKind.REFUSED -> "The site refused to show this page"
         LoadFailureKind.TIMEOUT -> "The site took too long to answer"
         LoadFailureKind.BLANK -> "The page stayed blank"
+        LoadFailureKind.PROXY -> "Cannot connect through the proxy"
         LoadFailureKind.SERVER,
         LoadFailureKind.UNKNOWN -> "This site isn't loading"
     }
@@ -99,10 +110,19 @@ object RescueReason {
         LoadFailureKind.TIMEOUT -> "Retry, or try a mirror."
         LoadFailureKind.SERVER -> "The site may be down. Retry later or try a mirror."
         LoadFailureKind.BLANK -> "Reload without blocking, or try desktop site."
+        LoadFailureKind.PROXY -> "Check that the proxy is running, or change it in Settings > Protection."
         LoadFailureKind.UNKNOWN -> "Retry, or try a mirror."
     }
 
-    fun kindForError(errorCode: Int, online: Boolean): LoadFailureKind {
+    fun kindForError(
+        errorCode: Int,
+        online: Boolean,
+        description: String = "",
+        proxied: Boolean = false,
+    ): LoadFailureKind {
+        if (proxied && isProxyError(description)) {
+            return LoadFailureKind.PROXY
+        }
         if (!online && errorCode in setOf(
                 ERROR_HOST_LOOKUP,
                 ERROR_CONNECT,

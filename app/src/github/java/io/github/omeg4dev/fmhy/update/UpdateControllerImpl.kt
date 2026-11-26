@@ -13,6 +13,7 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import io.github.omeg4dev.fmhy.BuildConfig
 import io.github.omeg4dev.fmhy.data.SettingsRepository
+import io.github.omeg4dev.fmhy.net.ProxyIOException
 import io.github.omeg4dev.fmhy.work.NetworkKind
 import io.github.omeg4dev.fmhy.work.NetworkMonitor
 import io.github.omeg4dev.fmhy.work.NetworkPolicy
@@ -267,14 +268,20 @@ class UpdateControllerImpl(
             } catch (e: Exception) {
                 settingsRepository.updateUpdatePrefs { it.copy(lastCheckMs = now) }
                 Log.e("UpdateController", "Update check failed: ${e.message}", e)
-                handleCheckFailure(manual)
+                handleCheckFailure(manual, e)
             }
         }
     }
 
-    private fun handleCheckFailure(manual: Boolean) {
+    private fun handleCheckFailure(manual: Boolean, cause: Throwable? = null) {
         if (manual) {
-            _state.value = UpdateState.CheckFailed("Couldn't check for updates. Try again later.")
+            val proxyEx = cause as? ProxyIOException ?: cause?.cause as? ProxyIOException
+            val msg = if (proxyEx?.message != null) {
+                "Couldn't check for updates (${proxyEx.message})."
+            } else {
+                "Couldn't check for updates. Try again later."
+            }
+            _state.value = UpdateState.CheckFailed(msg)
         } else {
             if (_state.value !is UpdateState.Available) {
                 _state.value = UpdateState.Idle
@@ -391,7 +398,13 @@ class UpdateControllerImpl(
                 throw e
             } catch (e: Exception) {
                 Log.e("UpdateController", "Download failed: ${e.message}", e)
-                _state.value = UpdateState.DownloadFailed(release, "Download failed. Check your connection and try again.")
+                val proxyEx = e as? ProxyIOException ?: e.cause as? ProxyIOException
+                val msg = if (proxyEx?.message != null) {
+                    "Download failed (${proxyEx.message})."
+                } else {
+                    "Download failed. Check your connection and try again."
+                }
+                _state.value = UpdateState.DownloadFailed(release, msg)
             }
         }
     }

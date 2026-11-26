@@ -203,9 +203,36 @@ class SettingsRepositoryTest {
             askBeforeDownload = false,
             warnRiskyDownloads = false,
             safeBrowsing = false,
+            proxyMode = ProxyMode.CUSTOM,
+            proxyType = ProxyType.HTTP,
+            proxyHost = "127.0.0.1",
+            proxyPort = 8080,
+            proxyAllowJavaScript = true,
         )
         repo.updateProtection { expected }
         assertEquals(expected, repo.protectionPrefs.first())
+    }
+
+    @Test
+    fun testProtectionProxyUnknownEnumFallbacks() = runTest {
+        val (repo, rawStore) = createRepository(this)
+        assertEquals(ProxyMode.OFF, repo.protectionPrefs.first().proxyMode)
+        assertEquals(ProxyType.SOCKS5, repo.protectionPrefs.first().proxyType)
+
+        // Present but unreadable mode must treat as CUSTOM with invalid values (fail closed)
+        rawStore.edit {
+            it[stringPreferencesKey("protection_proxy_mode")] = "FUTURE_MODE"
+            it[stringPreferencesKey("protection_proxy_type")] = "FUTURE_TYPE"
+            it[stringPreferencesKey("protection_proxy_host")] = "proxy.example"
+            it[intPreferencesKey("protection_proxy_port")] = 8080
+        }
+        val prefs = repo.protectionPrefs.first()
+        assertEquals(ProxyMode.CUSTOM, prefs.proxyMode)
+        assertEquals(ProxyType.SOCKS5, prefs.proxyType)
+        assertEquals("", prefs.proxyHost)
+        assertEquals(0, prefs.proxyPort)
+        val resolved = io.github.omeg4dev.fmhy.net.ProxyEndpoint.resolve(prefs)
+        assertTrue(resolved != null && resolved.invalid)
     }
 
     @Test

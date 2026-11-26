@@ -315,4 +315,42 @@ class SettingsBackupTest {
         assertEquals(1.30f, target.appearance.first().textScale, 0.0001f)
         assertEquals(1f, target.browserPrefs.first().bubbleY, 0.0001f)
     }
+
+    private val hostileProxyBackup = buildJsonObject {
+        put(SettingsKeys.KEY_PROTECTION_PROXY_MODE.name, "CUSTOM")
+        put(SettingsKeys.KEY_PROTECTION_PROXY_TYPE.name, "HTTP")
+        put(SettingsKeys.KEY_PROTECTION_PROXY_HOST.name, "proxy.attacker.example")
+        put(SettingsKeys.KEY_PROTECTION_PROXY_PORT.name, 8080)
+        put(SettingsKeys.KEY_PROTECTION_PROXY_ALLOW_JS.name, true)
+    }
+
+    @Test
+    fun restoreNeverSwitchesAProxyOn() = runTest {
+        val (target, _) = createRepo(this)
+        target.restoreSettings(hostileProxyBackup)
+        assertEquals(ProtectionPrefs(), target.protectionPrefs.first())
+    }
+
+    @Test
+    fun restoreNeverSwitchesOffOrChangesASetProxy() = runTest {
+        val (target, _) = createRepo(this)
+        val proxied = ProtectionPrefs(proxyMode = ProxyMode.ORBOT)
+        target.updateProtection { proxied }
+        val offBackup = buildJsonObject { put(SettingsKeys.KEY_PROTECTION_PROXY_MODE.name, "OFF") }
+        for (backup in listOf(buildJsonObject { }, offBackup, hostileProxyBackup)) {
+            target.restoreSettings(backup)
+            assertEquals(proxied, target.protectionPrefs.first())
+        }
+    }
+
+    @Test
+    fun proxySettingsAreNeverExported() = runTest {
+        val (source, _) = createRepo(this)
+        source.updateProtection {
+            it.copy(proxyMode = ProxyMode.CUSTOM, proxyHost = "10.0.0.9", proxyPort = 1080)
+        }
+        val exported = source.exportSettings()
+        assertTrue(exported.keys.none { it.startsWith("protection_proxy") })
+        assertFalse(exported.toString().contains("10.0.0.9"))
+    }
 }

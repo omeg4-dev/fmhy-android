@@ -12,6 +12,7 @@
 
     <!-- Package visibility (Android 11+): browser menu "Open in another browser" lists web browsers. -->
     <queries>
+        <package android:name="org.torproject.android" />
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <category android:name="android.intent.category.BROWSABLE" />
