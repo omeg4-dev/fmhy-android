@@ -86,6 +86,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -555,8 +556,9 @@ fun SubsectionLine(
     isFollowed: Boolean,
     onToggleFollow: () -> Unit,
     onSelectCategory: (Int) -> Unit,
-    onLongClickCategory: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    onLongClickCategory: ((Int) -> Unit)? = null,
+    showFollowBell: Boolean = true,
 ) {
     var expanded by remember { mutableStateOf(false) }
     val activeIndex = if (selectedIndex in categories.indices) selectedIndex else 0
@@ -608,11 +610,13 @@ fun SubsectionLine(
                 )
             }
 
-            SubsectionBell(
-                isFollowed = isFollowed,
-                subsectionTitle = currentCleanTitle,
-                onToggleFollow = onToggleFollow,
-            )
+            if (showFollowBell) {
+                SubsectionBell(
+                    isFollowed = isFollowed,
+                    subsectionTitle = currentCleanTitle,
+                    onToggleFollow = onToggleFollow,
+                )
+            }
         }
 
         DropdownMenu(
@@ -627,21 +631,29 @@ fun SubsectionLine(
                 val rawTitle = CrossLinks.splitLinkTitle(category.heading.title).first
                 val titleWithFlag = flagFor(sectionId, category.heading.title)?.let { "$it $rawTitle" } ?: rawTitle
                 val titleColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                val clickModifier = if (onLongClickCategory != null) {
+                    Modifier.combinedClickable(
+                        onClick = {
+                            expanded = false
+                            onSelectCategory(index)
+                        },
+                        onLongClick = {
+                            expanded = false
+                            onLongClickCategory(index)
+                        },
+                    )
+                } else {
+                    Modifier.clickable {
+                        expanded = false
+                        onSelectCategory(index)
+                    }
+                }
 
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(min = 48.dp)
-                        .combinedClickable(
-                            onClick = {
-                                expanded = false
-                                onSelectCategory(index)
-                            },
-                            onLongClick = {
-                                expanded = false
-                                onLongClickCategory(index)
-                            },
-                        )
+                        .then(clickModifier)
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -1122,5 +1134,99 @@ fun FilterEmptyState(
         onAction = onShowAll,
         modifier = modifier,
     )
+}
+
+@Composable
+fun NsfwStatusMessage(
+    status: NsfwScreenStatus,
+    onRetry: () -> Unit,
+    onOpenInBrowser: () -> Unit,
+    onUseMobileData: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            when (status) {
+                NsfwScreenStatus.DISABLED -> {
+                    Text(
+                        text = "Turn on \"Show NSFW link\" in Settings > Home",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+                NsfwScreenStatus.WAITING_FOR_WIFI -> {
+                    Text(
+                        text = "Waiting for Wi-Fi",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
+                    Button(onClick = onUseMobileData) {
+                        Text("Use mobile data this time")
+                    }
+                }
+                NsfwScreenStatus.FAILED -> {
+                    Text(
+                        text = "Couldn't load the NSFW list",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Button(onClick = onRetry) {
+                            Text("Retry")
+                        }
+                        TextButton(onClick = onOpenInBrowser) {
+                            Text("Open in browser")
+                        }
+                    }
+                }
+                NsfwScreenStatus.NONE -> Unit
+            }
+        }
+    }
+}
+
+@Composable
+fun NsfwQuittingFooter(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        HorizontalDivider(
+            modifier = Modifier.padding(horizontal = 16.dp),
+            thickness = 0.5.dp,
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
+        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 56.dp)
+                .clickable(role = Role.Button, onClick = onClick)
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+        ) {
+            Text(
+                text = "Need help quitting porn?",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
 }
 

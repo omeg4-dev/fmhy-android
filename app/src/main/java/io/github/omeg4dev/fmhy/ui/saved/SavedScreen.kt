@@ -124,7 +124,11 @@ fun SavedScreen(
         scope.launch {
             val anchor = try {
                 entry.headingId?.let { hid ->
-                    container.datasetStore.headings(entry.sectionId).firstOrNull { it.id == hid }?.anchor
+                    if (entry.sectionId == io.github.omeg4dev.fmhy.data.nsfw.NSFW_SECTION_ID) {
+                        container.nsfwSource?.readCached()?.headings?.firstOrNull { it.id == hid }?.anchor
+                    } else {
+                        container.datasetStore.headings(entry.sectionId).firstOrNull { it.id == hid }?.anchor
+                    }
                 }
             } catch (_: Exception) { null }
             nav.select(Tab.BROWSE)

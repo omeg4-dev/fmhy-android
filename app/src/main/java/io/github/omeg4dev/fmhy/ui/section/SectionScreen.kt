@@ -51,8 +51,15 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.material3.rememberDrawerState
 import io.github.omeg4dev.fmhy.data.HomePrefs
+import io.github.omeg4dev.fmhy.data.nsfw.NSFW_CHECKPOINT_URL
+import io.github.omeg4dev.fmhy.data.nsfw.NSFW_QUITTING_URL
+import io.github.omeg4dev.fmhy.data.nsfw.NSFW_SECTION_ID
+import io.github.omeg4dev.fmhy.data.nsfw.NSFW_SECTION_TITLE
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -154,14 +161,26 @@ fun SectionScreen(
 
     val userChanges by container.userStore.changes.collectAsStateWithLifecycle()
     var follows by remember { mutableStateOf<List<io.github.omeg4dev.fmhy.data.user.Follow>>(emptyList()) }
-    LaunchedEffect(userChanges) {
-        follows = container.userStore.follows()
+    val isNsfw = viewModel.sectionId == NSFW_SECTION_ID
+    LaunchedEffect(viewModel) {
+        viewModel.snackbarEvents.collect { msg ->
+            snackbarHostState.showSnackbar(msg)
+        }
+    }
+    LaunchedEffect(userChanges, isNsfw) {
+        if (!isNsfw) {
+            follows = container.userStore.follows()
+        }
     }
     val currentSectionId = state.section?.id ?: viewModel.sectionId
     val entrance = rememberListEntrance(currentSectionId)
-    val currentSectionTitle = state.section?.displayTitle ?: sectionDisplayTitle(viewModel.sectionId, "Section")
-    val isSectionFollowed = remember(follows, currentSectionId) {
-        FollowTree(follows).isSectionFollowed(currentSectionId)
+    val currentSectionTitle = if (isNsfw) {
+        NSFW_SECTION_TITLE
+    } else {
+        state.section?.displayTitle ?: sectionDisplayTitle(viewModel.sectionId, "Section")
+    }
+    val isSectionFollowed = remember(isNsfw, follows, currentSectionId) {
+        if (isNsfw) false else FollowTree(follows).isSectionFollowed(currentSectionId)
     }
 
     // Website-style Menu drawer: prepare the list before the first tap so opening only animates.
@@ -217,15 +236,18 @@ fun SectionScreen(
     val isFilterActive = state.starredOnly || !state.showIndexes
 
     val homePrefs by container.settingsRepository.homePrefs.collectAsStateWithLifecycle(initialValue = HomePrefs())
+    val showQuittingFooter = isNsfw && state.nsfwStatus != NsfwScreenStatus.DISABLED
     val secId = state.section?.id ?: viewModel.sectionId
-    val secTitle = state.section?.displayTitle ?: sectionDisplayTitle(secId, secId)
-    val isSectionPinned = rememberIsPinned(container, secId, "")
+    val secTitle = if (isNsfw) NSFW_SECTION_TITLE else (state.section?.displayTitle ?: sectionDisplayTitle(secId, secId))
+    val isSectionPinned = if (isNsfw) false else rememberIsPinned(container, secId, "")
     var isSectionHidden by remember { mutableStateOf(false) }
     var actionsMenuCategoryIndex by remember { mutableStateOf<Int?>(null) }
 
-    LaunchedEffect(userChanges, secId) {
-        val hidden = container.userStore.hiddenSections()
-        isSectionHidden = secId in hidden
+    LaunchedEffect(userChanges, secId, isNsfw) {
+        if (!isNsfw) {
+            val hidden = container.userStore.hiddenSections()
+            isSectionHidden = secId in hidden
+        }
     }
 
     // In CATEGORIES mode: handle anchor or focusEntryId navigation by opening CategoryNavKey
@@ -369,10 +391,10 @@ fun SectionScreen(
             val raw = CrossLinks.splitLinkTitle(cat.heading.title).first
             flagFor(currentSecId, cat.heading.title)?.let { flag -> "$flag $raw" } ?: raw
         }
-        val isCurrentFollowed = if (websiteStyle && currentCategory != null) {
+        val isCurrentFollowed = if (!isNsfw && websiteStyle && currentCategory != null) {
             FollowTree(follows).isSubsectionFollowed(currentSectionId, currentCategory.heading.id)
         } else false
-        val isCurrentCatPinned = rememberIsPinned(container, secId, currentCategory?.heading?.id ?: "")
+        val isCurrentCatPinned = if (isNsfw) false else rememberIsPinned(container, secId, currentCategory?.heading?.id ?: "")
 
         Scaffold(
             snackbarHost = {
@@ -391,7 +413,7 @@ fun SectionScreen(
                         title = {
                             Column {
                                 Text(
-                                    text = state.section?.displayTitle ?: sectionDisplayTitle(viewModel.sectionId, "Section"),
+                                    text = if (isNsfw) NSFW_SECTION_TITLE else (state.section?.displayTitle ?: sectionDisplayTitle(viewModel.sectionId, "Section")),
                                     style = MaterialTheme.typography.titleLarge,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
@@ -413,6 +435,7 @@ fun SectionScreen(
                             }
                         },
                         actions = {
+                            if (!isNsfw || state.nsfwStatus != NsfwScreenStatus.DISABLED) {
                             if (!websiteStyle) {
                                 IconButton(onClick = { showLegendBottomSheet = true }) {
                                     BadgedBox(
@@ -453,6 +476,15 @@ fun SectionScreen(
                                             )
                                         }
                                     }
+                                    if (isNsfw) {
+                                        DropdownMenuItem(
+                                            text = { Text("Refresh") },
+                                            onClick = {
+                                                showOverflowMenu = false
+                                                viewModel.refresh()
+                                            },
+                                        )
+                                    } else {
                                     DropdownMenuItem(
                                         text = { Text(if (isSectionFollowed) "Unfollow this section" else "Follow this section") },
                                         onClick = {
@@ -575,7 +607,9 @@ fun SectionScreen(
                                             },
                                         )
                                     }
+                                    }
                                 }
+                            }
                             }
                         },
                         colors = TopAppBarDefaults.topAppBarColors(
@@ -625,9 +659,12 @@ fun SectionScreen(
                                 toggleSubsectionFollow(cat.heading.id, catTitle)
                             },
                             onSelectCategory = selectCategory,
-                            onLongClickCategory = { index ->
-                                actionsMenuCategoryIndex = index
+                            onLongClickCategory = if (isNsfw) {
+                                null
+                            } else {
+                                { index -> actionsMenuCategoryIndex = index }
                             },
+                            showFollowBell = !isNsfw,
                         )
 
                         HorizontalDivider(
@@ -639,28 +676,99 @@ fun SectionScreen(
             }
         ) { innerPadding ->
             CompositionLocalProvider(LocalSnackbarHost provides snackbarHostState) {
-                CrossfadeContent(
-                    targetState = state.isLoading,
-                    modifier = Modifier.fillMaxSize(),
-                ) { loading ->
-                    if (loading) {
-                        SkeletonRows(
-                            count = 8,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(top = innerPadding.calculateTopPadding()),
-                        )
-                    } else if (state.items.isEmpty() && isFilterActive) {
-                        FilterEmptyState(
-                            onShowAll = {
-                                viewModel.setStarredOnly(false)
-                                viewModel.setShowIndexes(true)
-                            },
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(innerPadding),
-                        )
-                    } else if (state.layout == SectionLayout.CATEGORIES) {
+                val sectionContent: @Composable () -> Unit = {
+                    CrossfadeContent(
+                        targetState = state.isLoading to state.nsfwStatus,
+                        modifier = Modifier.fillMaxSize(),
+                    ) { (loading, nsfwStatus) ->
+                        if (loading) {
+                            if (showQuittingFooter) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(top = innerPadding.calculateTopPadding(), bottom = bottomBarPadding),
+                                ) {
+                                    SkeletonRows(
+                                        count = 8,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .fillMaxWidth(),
+                                    )
+                                    NsfwQuittingFooter(
+                                        onClick = { linkOpener.openUrl(NSFW_QUITTING_URL) },
+                                    )
+                                }
+                            } else {
+                                SkeletonRows(
+                                    count = 8,
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(top = innerPadding.calculateTopPadding()),
+                                )
+                            }
+                        } else if (isNsfw && nsfwStatus != NsfwScreenStatus.NONE) {
+                            if (nsfwStatus == NsfwScreenStatus.DISABLED) {
+                                NsfwStatusMessage(
+                                    status = NsfwScreenStatus.DISABLED,
+                                    onRetry = {},
+                                    onOpenInBrowser = {},
+                                    onUseMobileData = {},
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(innerPadding),
+                                )
+                            } else {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(top = innerPadding.calculateTopPadding(), bottom = bottomBarPadding),
+                                ) {
+                                    NsfwStatusMessage(
+                                        status = nsfwStatus,
+                                        onRetry = { viewModel.retry() },
+                                        onOpenInBrowser = { linkOpener.openUrl(NSFW_CHECKPOINT_URL) },
+                                        onUseMobileData = { viewModel.useMobileDataThisTime() },
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .fillMaxWidth(),
+                                    )
+                                    NsfwQuittingFooter(
+                                        onClick = { linkOpener.openUrl(NSFW_QUITTING_URL) },
+                                    )
+                                }
+                            }
+                        } else if (state.items.isEmpty() && isFilterActive) {
+                            if (showQuittingFooter) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(top = innerPadding.calculateTopPadding(), bottom = bottomBarPadding),
+                                ) {
+                                    FilterEmptyState(
+                                        onShowAll = {
+                                            viewModel.setStarredOnly(false)
+                                            viewModel.setShowIndexes(true)
+                                        },
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .fillMaxWidth(),
+                                    )
+                                    NsfwQuittingFooter(
+                                        onClick = { linkOpener.openUrl(NSFW_QUITTING_URL) },
+                                    )
+                                }
+                            } else {
+                                FilterEmptyState(
+                                    onShowAll = {
+                                        viewModel.setStarredOnly(false)
+                                        viewModel.setShowIndexes(true)
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(innerPadding),
+                                )
+                            }
+                        } else if (state.layout == SectionLayout.CATEGORIES) {
                         LazyColumn(
                             contentPadding = PaddingValues(
                                 top = innerPadding.calculateTopPadding(),
@@ -763,8 +871,10 @@ fun SectionScreen(
                                                     )
                                                 )
                                             },
-                                            onLongClick = {
-                                                actionsMenuCategoryIndex = index
+                                            onLongClick = if (isNsfw) {
+                                                null
+                                            } else {
+                                                { actionsMenuCategoryIndex = index }
                                             },
                                         ),
                                 )
@@ -774,6 +884,13 @@ fun SectionScreen(
                                         modifier = Modifier.padding(start = 16.dp),
                                         thickness = 0.5.dp,
                                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
+                                    )
+                                }
+                            }
+                            if (showQuittingFooter) {
+                                item(key = "nsfw_quitting_footer") {
+                                    NsfwQuittingFooter(
+                                        onClick = { linkOpener.openUrl(NSFW_QUITTING_URL) },
                                     )
                                 }
                             }
@@ -822,17 +939,17 @@ fun SectionScreen(
                                             val catIndex = remember(state.structure.categories, item.heading.id) {
                                                 state.structure.categories.indexOfFirst { it.heading.id == item.heading.id }.takeIf { it >= 0 }
                                             }
-                                            HeadingHeader(
-                                                heading = item.heading,
-                                                isHighlighted = item.heading.id == highlightedHeadingId,
-                                                isFirstItem = index == 0,
-                                                entryCount = entryCount,
+                                             HeadingHeader(
+                                                 heading = item.heading,
+                                                 isHighlighted = item.heading.id == highlightedHeadingId,
+                                                 isFirstItem = index == 0,
+                                                 entryCount = entryCount,
                                                 onOpenUrl = { linkOpener.openUrl(it) },
-                                                sectionId = state.section?.id ?: viewModel.sectionId,
-                                                onLongClick = if (catIndex != null) {
-                                                    { actionsMenuCategoryIndex = catIndex }
-                                                } else null,
-                                            )
+                                                 sectionId = state.section?.id ?: viewModel.sectionId,
+                                                onLongClick = if (!isNsfw && catIndex != null) {
+                                                     { actionsMenuCategoryIndex = catIndex }
+                                                 } else null,
+                                             )
                                         }
                                         is SectionItem.EntryItem -> {
                                             val isEntryHighlighted = item.entry.id == highlightedEntryId || item.alternatives.any { it.id == highlightedEntryId }
@@ -891,8 +1008,38 @@ fun SectionScreen(
                                     }
                                 }
                             }
+                            if (showQuittingFooter) {
+                                item(key = "nsfw_quitting_footer") {
+                                    NsfwQuittingFooter(
+                                        onClick = { linkOpener.openUrl(NSFW_QUITTING_URL) },
+                                    )
+                                }
+                            }
                         }
                     }
+                }
+                }
+                if (isNsfw && state.nsfwStatus != NsfwScreenStatus.DISABLED) {
+                    val pullRefreshState = rememberPullToRefreshState()
+                    PullToRefreshBox(
+                        isRefreshing = state.isRefreshing,
+                        onRefresh = { viewModel.refresh() },
+                        state = pullRefreshState,
+                        indicator = {
+                            PullToRefreshDefaults.Indicator(
+                                state = pullRefreshState,
+                                isRefreshing = state.isRefreshing,
+                                modifier = Modifier
+                                    .align(Alignment.TopCenter)
+                                    .padding(top = innerPadding.calculateTopPadding()),
+                            )
+                        },
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
+                        sectionContent()
+                    }
+                } else {
+                    sectionContent()
                 }
             }
         }
@@ -998,9 +1145,13 @@ fun SectionScreen(
             headings = state.headings,
             sectionId = state.section?.id ?: viewModel.sectionId,
             title = "On this page",
-            onLongClickCategory = { cat ->
-                showOnThisPage = false
-                actionsMenuCategoryIndex = state.structure.categories.indexOfFirst { it.heading.id == cat.heading.id }.takeIf { it >= 0 }
+            onLongClickCategory = if (isNsfw) {
+                null
+            } else {
+                { cat ->
+                    showOnThisPage = false
+                    actionsMenuCategoryIndex = state.structure.categories.indexOfFirst { it.heading.id == cat.heading.id }.takeIf { it >= 0 }
+                }
             },
         )
     }
@@ -1019,6 +1170,7 @@ fun SectionScreen(
         )
     }
 
+    if (!isNsfw) {
     actionsMenuCategoryIndex?.let { index ->
         val category = state.structure.categories.getOrNull(index)
         if (category != null) {
@@ -1060,6 +1212,7 @@ fun SectionScreen(
                 onDismiss = { actionsMenuCategoryIndex = null },
             )
         }
+    }
     }
 
     if (promptState.showPrompt) {

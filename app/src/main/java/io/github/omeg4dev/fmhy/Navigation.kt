@@ -52,6 +52,8 @@ import io.github.omeg4dev.fmhy.browser.formatRelativeTime
 import io.github.omeg4dev.fmhy.data.adblock.FilterListCatalog
 import io.github.omeg4dev.fmhy.data.DatasetStore
 import io.github.omeg4dev.fmhy.data.model.Entry
+import io.github.omeg4dev.fmhy.data.nsfw.NSFW_SECTION_ID
+import io.github.omeg4dev.fmhy.data.nsfw.NSFW_SECTION_TITLE
 import io.github.omeg4dev.fmhy.ui.settings.InfoRow
 import io.github.omeg4dev.fmhy.ui.settings.NavRow
 import io.github.omeg4dev.fmhy.ui.settings.SettingsGroupHeader
@@ -378,7 +380,8 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
             savedIds = savedIds,
             toggle = { entry ->
                 scope.launch {
-                    val title = sectionTitles[entry.sectionId] ?: entry.headingPath
+                    val title = sectionTitles[entry.sectionId]
+                        ?: if (entry.sectionId == NSFW_SECTION_ID) NSFW_SECTION_TITLE else entry.headingPath
                     container.bookmarks.toggle(entry, title)
                 }
             },
@@ -519,7 +522,16 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
         entry<SectionNavKey> { key ->
             @Suppress("ViewModelInjection")
             val sectionViewModel: SectionViewModel = viewModel(key = key.sectionId) {
-                SectionViewModel(key.sectionId, key.anchor, container.datasetStore, container.settingsRepository, container.userStore, container.newBadgeIndex)
+                SectionViewModel(
+                    sectionId = key.sectionId,
+                    anchor = key.anchor,
+                    store = container.datasetStore,
+                    settingsRepository = container.settingsRepository,
+                    userStore = container.userStore,
+                    newBadgeIndex = container.newBadgeIndex,
+                    nsfwSource = container.nsfwSource,
+                    networkMonitor = container.networkMonitor,
+                )
             }
             SectionScreen(
                 viewModel = sectionViewModel,
@@ -535,7 +547,16 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
         entry<CategoryNavKey> { key ->
             @Suppress("ViewModelInjection")
             val sectionViewModel: SectionViewModel = viewModel(key = key.sectionId) {
-                SectionViewModel(key.sectionId, null, container.datasetStore, container.settingsRepository, container.userStore, container.newBadgeIndex)
+                SectionViewModel(
+                    sectionId = key.sectionId,
+                    anchor = null,
+                    store = container.datasetStore,
+                    settingsRepository = container.settingsRepository,
+                    userStore = container.userStore,
+                    newBadgeIndex = container.newBadgeIndex,
+                    nsfwSource = container.nsfwSource,
+                    networkMonitor = container.networkMonitor,
+                )
             }
             CategoryScreen(
                 key = key,
@@ -606,6 +627,10 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                     )
                     SettingsPage.HOME -> HomePage(
                         viewModel = settingsViewModel,
+                        container = container,
+                        onShowSnackbar = { msg ->
+                            scope.launch { snackbarHostState.showSnackbar(msg) }
+                        },
                         onBack = { if (!nav.back()) activity?.finish() },
                     )
                     SettingsPage.LISTS -> ListsPage(
@@ -741,12 +766,14 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
         }
 
         entry<SavedNavKey> {
+            @Suppress("ViewModelInjection")
             val savedViewModel: SavedViewModel = viewModel {
                 SavedViewModel(
                     container.datasetStore,
                     container.bookmarks,
                     container.userStore,
                     container.settingsRepository,
+                    container.nsfwSource,
                 )
             }
             SavedScreen(

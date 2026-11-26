@@ -21,6 +21,7 @@ import io.github.omeg4dev.fmhy.data.newbadge.NewBadgeIndex
 import io.github.omeg4dev.fmhy.data.newbadge.NewBadgeStore
 import io.github.omeg4dev.fmhy.data.newbadge.NewBadgeSync
 import io.github.omeg4dev.fmhy.data.safety.SafeGuard
+import io.github.omeg4dev.fmhy.data.nsfw.NsfwSource
 import io.github.omeg4dev.fmhy.data.user.UserStore
 import androidx.navigation3.runtime.NavKey
 import io.github.omeg4dev.fmhy.report.CrashReportStore
@@ -106,6 +107,7 @@ interface AppContainer : OnboardingActions {
     val visitTracker: VisitTracker get() = error("visitTracker not provided")
     val bookmarks: BookmarksRepository
     val docFetcher: DocFetcher
+    val nsfwSource: NsfwSource? get() = null
     val crossLinks: StateFlow<CrossLinks?>
     val safeGuard: SafeGuard
     val isInitialized: StateFlow<Boolean>
@@ -232,6 +234,17 @@ class DefaultAppContainer(
             docsDir = docsDir,
             client = okHttpClient,
         )
+    }
+
+    override val nsfwSource: NsfwSource? by lazy {
+        if (BuildConfig.NSFW_LINK_ENABLED) {
+            NsfwSource(
+                client = okHttpClient,
+                cacheDir = context.cacheDir,
+            )
+        } else {
+            null
+        }
     }
 
     override val crossLinks: StateFlow<CrossLinks?> by lazy {

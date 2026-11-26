@@ -59,6 +59,7 @@ import io.github.omeg4dev.fmhy.data.link.CrossLinks
 import io.github.omeg4dev.fmhy.data.model.ChangeItem
 import io.github.omeg4dev.fmhy.data.model.Entry
 import io.github.omeg4dev.fmhy.data.model.Tier
+import io.github.omeg4dev.fmhy.data.nsfw.NSFW_SECTION_ID
 import kotlinx.coroutines.launch
 
 /** Turns FTS highlight markers (\u0002 ... \u0003) into styled spans: [highlightColor] text on a [background] tint. */
@@ -120,13 +121,14 @@ fun EntryRow(
     val snackbarHost = LocalSnackbarHost.current
     val saveActions = rememberSaveActions(onShowSnackbar = onShowSnackbar)
     val container = LocalAppContainer.current ?: (LocalContext.current.applicationContext as? FmhyApp)?.container
+    val isNsfw = entry.sectionId == NSFW_SECTION_ID
     val targetHeadingId = entry.headingId ?: ""
-    val rememberedIsPinned = rememberIsPinned(container, entry.sectionId, targetHeadingId)
-    val effectiveIsPinned = isPinned ?: rememberedIsPinned
+    val rememberedIsPinned = if (isNsfw) false else rememberIsPinned(container, entry.sectionId, targetHeadingId)
+    val effectiveIsPinned = if (isNsfw) false else (isPinned ?: rememberedIsPinned)
 
     var loadedHistory by remember(entry.id, history) { mutableStateOf<List<ChangeItem>?>(history) }
     LaunchedEffect(showBottomSheet, history, entry.id) {
-        if (showBottomSheet && history == null && datasetStore != null) {
+        if (!isNsfw && showBottomSheet && history == null && datasetStore != null) {
             loadedHistory = try {
                 datasetStore.entryHistory(entry.id)
             } catch (_: Exception) {
@@ -137,7 +139,7 @@ fun EntryRow(
 
     var followsList by remember { mutableStateOf<List<io.github.omeg4dev.fmhy.data.user.Follow>>(emptyList()) }
     LaunchedEffect(userStore, showBottomSheet) {
-        if (showBottomSheet && userStore != null && followState == null) {
+        if (!isNsfw && showBottomSheet && userStore != null && followState == null) {
             userStore.changes.collect {
                 followsList = userStore.follows()
             }
@@ -152,16 +154,23 @@ fun EntryRow(
         segments.drop(1).firstOrNull() ?: segments.firstOrNull().orEmpty()
     }
 
-    val effectiveFollowState = remember(followState, followsList, entry.sectionId, entry.headingId, categoryTitle) {
-        followState ?: if (categoryTitle.isNotEmpty()) {
-            val tree = FollowTree(followsList)
-            val isFollowing = tree.isSubsectionFollowed(entry.sectionId, targetHeadingId)
-            FollowState(categoryTitle = categoryTitle, isFollowing = isFollowing)
-        } else null
+    val effectiveFollowState = remember(isNsfw, followState, followsList, entry.sectionId, entry.headingId, categoryTitle) {
+        if (isNsfw) {
+            null
+        } else {
+            followState ?: if (categoryTitle.isNotEmpty()) {
+                val tree = FollowTree(followsList)
+                val isFollowing = tree.isSubsectionFollowed(entry.sectionId, targetHeadingId)
+                FollowState(categoryTitle = categoryTitle, isFollowing = isFollowing)
+            } else null
+        }
     }
 
-    val effectiveToggleFollow: (() -> Unit)? = remember(onToggleFollow, effectiveFollowState, userStore, container, entry.sectionId, targetHeadingId, entry.headingPath, snackbarHost, effectiveIsPinned) {
-        onToggleFollow ?: if (userStore != null && effectiveFollowState != null) {
+    val effectiveToggleFollow: (() -> Unit)? = remember(isNsfw, onToggleFollow, effectiveFollowState, userStore, container, entry.sectionId, targetHeadingId, entry.headingPath, snackbarHost, effectiveIsPinned) {
+        if (isNsfw) {
+            null
+        } else {
+            onToggleFollow ?: if (userStore != null && effectiveFollowState != null) {
             {
                 scope.launch {
                     val isCurrentlyFollowing = effectiveFollowState.isFollowing
@@ -210,10 +219,14 @@ fun EntryRow(
                 }
             }
         } else null
+        }
     }
 
-    val effectiveTogglePin: (() -> Unit)? = remember(onTogglePin, container, snackbarHost, haptics, entry.sectionId, targetHeadingId, categoryTitle, effectiveIsPinned) {
-        onTogglePin ?: if (container != null && categoryTitle.isNotEmpty() && snackbarHost != null) {
+    val effectiveTogglePin: (() -> Unit)? = remember(isNsfw, onTogglePin, container, snackbarHost, haptics, entry.sectionId, targetHeadingId, categoryTitle, effectiveIsPinned) {
+        if (isNsfw) {
+            null
+        } else {
+            onTogglePin ?: if (container != null && categoryTitle.isNotEmpty() && snackbarHost != null) {
             {
                 scope.launch {
                     if (effectiveIsPinned) {
@@ -237,6 +250,7 @@ fun EntryRow(
                 }
             }
         } else null
+        }
     }
 
     val primaryColor = MaterialTheme.colorScheme.primary

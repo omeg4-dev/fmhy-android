@@ -34,8 +34,6 @@ import io.github.omeg4dev.fmhy.ui.common.enterStaggerOrdered
 import io.github.omeg4dev.fmhy.ui.common.sectionIcon
 import io.github.omeg4dev.fmhy.ui.home.SectionGroup
 
-private const val NSFW_URL = "https://rentry.org/NSFW-Checkpoint"
-
 fun LazyListScope.sectionsBlock(
     sectionGroups: List<SectionGroup>,
     entrance: ListEntrance,
@@ -61,7 +59,7 @@ fun LazyListScope.sectionsBlock(
                     .padding(horizontal = 16.dp),
             ) {
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    NsfwSectionRow(onClick = { onOpenUrl(NSFW_URL) })
+                    NsfwSectionRow(onClick = { onNavigateToSection("nsfw") })
                 }
             }
         }
@@ -187,7 +185,7 @@ fun LazyListScope.sectionsBlock(
                                 thickness = 0.5.dp,
                             )
                         }
-                        NsfwSectionRow(onClick = { onOpenUrl(NSFW_URL) })
+                        NsfwSectionRow(onClick = { onNavigateToSection("nsfw") })
                     }
                 }
             }

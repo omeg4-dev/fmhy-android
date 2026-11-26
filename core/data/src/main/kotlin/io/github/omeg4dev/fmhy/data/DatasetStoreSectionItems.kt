@@ -82,6 +82,18 @@ internal suspend fun DatasetStore.sectionItemsImpl(sectionId: String): List<Sect
     // Headings and notes/entries are numbered by separate counters (headings: document order
     // among headings; notes + entries: one shared counter), so their ords must not be compared.
     // Place each heading's own notes/entries right after it; orphans go first.
+    buildSectionItems(headingList, noteList, entryList)
+}
+
+/**
+ * Assemble section headings, notes, inline-more groups, and grouped alternative entries
+ * into display order matching SQLite-backed sections.
+ */
+fun buildSectionItems(
+    headingList: List<Heading>,
+    noteList: List<Note>,
+    entryList: List<Entry>,
+): List<SectionItem> {
     val content = ArrayList<RawItem>(noteList.size + entryList.size)
     noteList.forEach { content.add(RawItem.N(it)) }
     entryList.forEach { content.add(RawItem.E(it)) }
@@ -97,7 +109,7 @@ internal suspend fun DatasetStore.sectionItemsImpl(sectionId: String): List<Sect
     }
 
     val finalItems = mutableListOf<SectionItem>()
-    var currentMoreEntries = mutableListOf<Entry>()
+    val currentMoreEntries = mutableListOf<Entry>()
     var currentHeadingId: String? = null
 
     fun flushMoreGroup() {
@@ -121,7 +133,6 @@ internal suspend fun DatasetStore.sectionItemsImpl(sectionId: String): List<Sect
             is RawItem.E -> {
                 val entry = item.entry
                 if (entry.isInlineMore) {
-                    // Check if heading changed
                     if (entry.headingId != null && entry.headingId != currentHeadingId) {
                         flushMoreGroup()
                         currentHeadingId = entry.headingId
@@ -150,5 +161,5 @@ internal suspend fun DatasetStore.sectionItemsImpl(sectionId: String): List<Sect
     }
     flushMoreGroup()
 
-    finalItems
+    return finalItems
 }

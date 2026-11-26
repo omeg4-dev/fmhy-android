@@ -65,7 +65,13 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.omeg4dev.fmhy.BuildConfig
 import io.github.omeg4dev.fmhy.data.SectionOrder
+import io.github.omeg4dev.fmhy.data.nsfw.NSFW_QUITTING_URL
+import io.github.omeg4dev.fmhy.di.AppContainer
+import io.github.omeg4dev.fmhy.ui.common.CriticalNoteDialog
+import io.github.omeg4dev.fmhy.ui.common.LocalAppContainer
+import io.github.omeg4dev.fmhy.ui.common.UnsafeWarningDialog
 import io.github.omeg4dev.fmhy.ui.common.displayTitle
+import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
 import io.github.omeg4dev.fmhy.ui.common.sectionDisplayTitle
 import io.github.omeg4dev.fmhy.ui.common.sectionIcon
 import io.github.omeg4dev.fmhy.ui.home.HomeBlock
@@ -80,8 +86,11 @@ fun HomePage(
     viewModel: SettingsViewModel,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    container: AppContainer? = LocalAppContainer.current,
+    onShowSnackbar: (String) -> Unit = {},
     extraRows: LazyListScope.() -> Unit = {},
 ) {
+    val linkOpener = container?.let { rememberLinkOpener(it, onShowSnackbar) }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val homePrefs by viewModel.homePrefs.collectAsStateWithLifecycle()
     val pins by viewModel.pins.collectAsStateWithLifecycle()
@@ -276,7 +285,7 @@ fun HomePage(
                                 if (checked) {
                                     showNsfwConfirmDialog = true
                                 } else {
-                                    viewModel.updateHome { it.copy(showNsfwLink = false) }
+                                    viewModel.setShowNsfwLink(false)
                                 }
                             },
                         )
@@ -406,12 +415,23 @@ fun HomePage(
             onDismissRequest = { showNsfwConfirmDialog = false },
             title = { Text("Adult content") },
             text = {
-                Text("This adds a link to FMHY's NSFW index, an external page with adult content. Are you 18 or older?")
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("This adds FMHY's NSFW section to Home. It lists external adult sites. Are you 18 or older?")
+                    TextButton(
+                        onClick = {
+                            showNsfwConfirmDialog = false
+                            linkOpener?.openUrl(NSFW_QUITTING_URL)
+                        },
+                        contentPadding = PaddingValues(horizontal = 0.dp),
+                    ) {
+                        Text("Need help quitting porn?")
+                    }
+                }
             },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        viewModel.updateHome { it.copy(showNsfwLink = true) }
+                        viewModel.setShowNsfwLink(true)
                         showNsfwConfirmDialog = false
                     },
                 ) {
@@ -424,5 +444,10 @@ fun HomePage(
                 }
             },
         )
+    }
+
+    if (linkOpener != null) {
+        UnsafeWarningDialog(linkOpener)
+        CriticalNoteDialog(linkOpener)
     }
 }

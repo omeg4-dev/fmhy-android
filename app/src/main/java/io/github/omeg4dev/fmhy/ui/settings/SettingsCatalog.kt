@@ -90,7 +90,7 @@ object SettingsCatalog {
         id = "home.nsfw_link",
         page = SettingsPage.HOME,
         title = "Show NSFW link",
-        description = "Add a link to FMHY's external NSFW page (18+)",
+        description = "Add FMHY's NSFW section to Home (18+)",
         keywords = listOf("nsfw", "adult", "18"),
     )
     val homePinnedSections = SettingEntry(

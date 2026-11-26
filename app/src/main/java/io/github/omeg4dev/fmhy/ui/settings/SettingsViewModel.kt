@@ -454,6 +454,15 @@ class SettingsViewModel(
         }
     }
 
+    fun setShowNsfwLink(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.updateHome { it.copy(showNsfwLink = enabled) }
+            if (!enabled) {
+                runCatching { container.nsfwSource?.clearCacheOnIo() }
+            }
+        }
+    }
+
     fun setNewBadges(on: Boolean) {
         viewModelScope.launch {
             settingsRepository.updateHome { it.copy(newBadges = on) }

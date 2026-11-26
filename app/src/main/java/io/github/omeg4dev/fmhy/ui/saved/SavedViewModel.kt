@@ -2,13 +2,19 @@ package io.github.omeg4dev.fmhy.ui.saved
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import io.github.omeg4dev.fmhy.BuildConfig
 import io.github.omeg4dev.fmhy.data.Bookmark
 import io.github.omeg4dev.fmhy.data.BookmarksRepository
 import io.github.omeg4dev.fmhy.data.DataPrefs
 import io.github.omeg4dev.fmhy.data.DatasetStore
+import io.github.omeg4dev.fmhy.data.HomePrefs
 import io.github.omeg4dev.fmhy.data.SettingsRepository
 import io.github.omeg4dev.fmhy.data.model.ChangeKind
 import io.github.omeg4dev.fmhy.data.model.Entry
+import io.github.omeg4dev.fmhy.data.model.EntryKind
+import io.github.omeg4dev.fmhy.data.model.Tier
+import io.github.omeg4dev.fmhy.data.nsfw.NSFW_SECTION_ID
+import io.github.omeg4dev.fmhy.data.nsfw.NsfwSource
 import io.github.omeg4dev.fmhy.data.user.Folder
 import io.github.omeg4dev.fmhy.data.user.HistoryItem
 import io.github.omeg4dev.fmhy.data.user.UserBookmark
@@ -50,9 +56,17 @@ class SavedViewModel(
     private val bookmarksRepository: BookmarksRepository,
     private val userStore: UserStore? = null,
     private val settingsRepository: SettingsRepository? = null,
+    nsfwSource: NsfwSource? = null,
+    nsfwEnabledInBuild: Boolean = BuildConfig.NSFW_LINK_ENABLED,
 ) : ViewModel() {
 
-    private val dataPrefsFlow: Flow<DataPrefs> = settingsRepository?.dataPrefs ?: flowOf(DataPrefs())
+    private val prefsFlow: Flow<Pair<DataPrefs, HomePrefs>> = if (settingsRepository != null) {
+        combine(settingsRepository.dataPrefs, settingsRepository.homePrefs) { dataPrefs, homePrefs ->
+            dataPrefs to homePrefs
+        }
+    } else {
+        flowOf(DataPrefs() to HomePrefs())
+    }
     private val userChangesFlow: Flow<Long> = userStore?.changes ?: flowOf(0L)
 
     val uiState: StateFlow<SavedUiState> = combine(
@@ -60,17 +74,17 @@ class SavedViewModel(
         bookmarksRepository.folders,
         store.changes,
         userChangesFlow,
-        dataPrefsFlow,
-    ) { bookmarks, folders, _, _, dataPrefs ->
+        prefsFlow,
+    ) { bookmarks, folders, _, _, (dataPrefs, homePrefs) ->
         val folderMap = folders.associate { it.id to it.name }
         val folderCounts = bookmarks.groupBy { it.folderId }
             .mapNotNull { (fid, list) -> fid?.let { it to list.size } }
             .toMap()
 
-        val ids = bookmarks.map { it.entryId }
-        val liveEntriesMap = if (store.isAvailable) {
+        val dbIds = bookmarks.filter { it.sectionId != NSFW_SECTION_ID }.map { it.entryId }
+        val dbLiveMap = if (store.isAvailable && dbIds.isNotEmpty()) {
             try {
-                store.entries(ids).associateBy { it.id }
+                store.entries(dbIds).associateBy { it.id }
             } catch (_: Exception) {
                 emptyMap()
             }
@@ -78,11 +92,27 @@ class SavedViewModel(
             emptyMap()
         }
 
+        val nsfwBookmarks = bookmarks.filter { it.sectionId == NSFW_SECTION_ID }
+        val liveEntriesMap = if (nsfwBookmarks.isEmpty()) {
+            dbLiveMap
+        } else {
+            val cachedById = if (nsfwEnabledInBuild && homePrefs.showNsfwLink) {
+                runCatching { nsfwSource?.readCached()?.entries?.associateBy { it.id } }.getOrNull().orEmpty()
+            } else {
+                emptyMap()
+            }
+            val merged = dbLiveMap.toMutableMap()
+            for (bm in nsfwBookmarks) {
+                merged[bm.entryId] = cachedById[bm.entryId] ?: fallbackNsfwEntry(bm)
+            }
+            merged
+        }
+
         // Query removed date for bookmarks with no live entry
         val removedDates = mutableMapOf<String, String>()
         if (store.isAvailable) {
             for (bm in bookmarks) {
-                if (liveEntriesMap[bm.entryId] == null) {
+                if (bm.sectionId != NSFW_SECTION_ID && liveEntriesMap[bm.entryId] == null) {
                     try {
                         val history = store.entryHistory(bm.entryId)
                         val removedChange = history.lastOrNull { it.kind == ChangeKind.REMOVED }
@@ -217,7 +247,7 @@ class SavedViewModel(
     }
 
     suspend fun getReplacements(bookmark: Bookmark): List<Entry> {
-        if (!store.isAvailable) return emptyList()
+        if (bookmark.sectionId == NSFW_SECTION_ID || !store.isAvailable) return emptyList()
         val sectionEntries = try {
             store.entriesForSection(bookmark.sectionId)
         } catch (_: Exception) {
@@ -230,4 +260,28 @@ class SavedViewModel(
         }
         return SavedGrouping.findReplacements(bookmark, sectionEntries, headings)
     }
+
+    private fun fallbackNsfwEntry(bm: Bookmark): Entry = Entry(
+        id = bm.entryId,
+        num = 0,
+        sectionId = bm.sectionId,
+        headingId = null,
+        ord = 0,
+        name = bm.name,
+        url = bm.url,
+        originalUrl = null,
+        description = "",
+        tags = emptyList(),
+        headingPath = bm.headingPath,
+        tier = Tier.NORMAL,
+        kind = EntryKind.NORMAL,
+        line = 0,
+        isInlineMore = false,
+        isBase64 = false,
+        mirrors = emptyList(),
+        extraLinks = emptyList(),
+        firstSeen = 0L,
+        lastChanged = 0L,
+        starredAt = null,
+    )
 }
