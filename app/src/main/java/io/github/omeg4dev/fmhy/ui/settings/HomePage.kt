@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.NewReleases
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -47,7 +48,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
@@ -59,6 +63,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.omeg4dev.fmhy.BuildConfig
 import io.github.omeg4dev.fmhy.data.SectionOrder
 import io.github.omeg4dev.fmhy.ui.common.displayTitle
 import io.github.omeg4dev.fmhy.ui.common.sectionDisplayTitle
@@ -86,13 +91,16 @@ fun HomePage(
 
     val eBlocks = SettingsCatalog.homeBlocks
     val eSectionOrder = SettingsCatalog.homeSectionOrder
+    val eNsfwLink = SettingsCatalog.homeNsfwLink
     val ePinned = SettingsCatalog.homePinnedSections
     val eHidden = SettingsCatalog.homeHiddenSections
+
+    var showNsfwConfirmDialog by rememberSaveable { mutableStateOf(false) }
 
     val sectionSettingIds = remember {
         listOf(
             listOf(eBlocks.id),
-            listOf(eSectionOrder.id),
+            listOf(eSectionOrder.id, eNsfwLink.id),
             listOf(ePinned.id),
             listOf(eHidden.id),
         )
@@ -257,6 +265,22 @@ fun HomePage(
                         settingId = eSectionOrder.id,
                         onSelect = { viewModel.setSectionOrder(it) },
                     )
+                    if (BuildConfig.NSFW_LINK_ENABLED) {
+                        SettingsDivider()
+                        SwitchRow(
+                            title = eNsfwLink.title,
+                            summary = eNsfwLink.description,
+                            checked = homePrefs.showNsfwLink,
+                            settingId = eNsfwLink.id,
+                            onChange = { checked ->
+                                if (checked) {
+                                    showNsfwConfirmDialog = true
+                                } else {
+                                    viewModel.updateHome { it.copy(showNsfwLink = false) }
+                                }
+                            },
+                        )
+                    }
                 }
             }
 
@@ -375,5 +399,30 @@ fun HomePage(
 
             extraRows()
         }
+    }
+
+    if (showNsfwConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showNsfwConfirmDialog = false },
+            title = { Text("Adult content") },
+            text = {
+                Text("This adds a link to FMHY's NSFW index, an external page with adult content. Are you 18 or older?")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.updateHome { it.copy(showNsfwLink = true) }
+                        showNsfwConfirmDialog = false
+                    },
+                ) {
+                    Text("I am 18 or older")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showNsfwConfirmDialog = false }) {
+                    Text("Cancel")
+                }
+            },
+        )
     }
 }

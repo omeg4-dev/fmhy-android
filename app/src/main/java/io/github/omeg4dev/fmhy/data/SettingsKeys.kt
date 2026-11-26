@@ -37,6 +37,7 @@ internal object SettingsKeys {
     val KEY_HOME_SEARCH_TAP_TARGET = stringPreferencesKey("home_search_tap_target")
     val KEY_HOME_SWIPE_BETWEEN_SCREENS = booleanPreferencesKey("home_swipe_between_screens")
     val KEY_HOME_WEBSITE_CATEGORY_NAMES = booleanPreferencesKey("home_website_category_names")
+    val KEY_HOME_SHOW_NSFW_LINK = booleanPreferencesKey("home_show_nsfw_link")
 
     // Browser
     val KEY_BROWSER_OPEN_LINKS_WITH = stringPreferencesKey("browser_open_links_with")

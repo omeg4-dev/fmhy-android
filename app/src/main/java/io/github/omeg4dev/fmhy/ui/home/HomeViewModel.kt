@@ -1,6 +1,7 @@
 package io.github.omeg4dev.fmhy.ui.home
 
 import androidx.compose.runtime.Immutable
+import io.github.omeg4dev.fmhy.BuildConfig
 import io.github.omeg4dev.fmhy.data.parse.Sections
 import io.github.omeg4dev.fmhy.data.SectionOrder
 import androidx.lifecycle.ViewModel
@@ -62,6 +63,7 @@ data class HomeUiState(
     val newInPinned: ImmutableList<ChangeItem> = persistentListOf(),
     val favourites: ImmutableList<Bookmark> = persistentListOf(),
     val suggestions: ImmutableList<Entry> = persistentListOf(),
+    val showNsfwLink: Boolean = false,
 )
 
 /** A titled block of sections on Home; [title] is null when the list is not grouped (A–Z). */
@@ -508,6 +510,7 @@ class HomeViewModel(
                 newInPinned = newInPinnedList.toImmutableList(),
                 favourites = favouritesList.toImmutableList(),
                 suggestions = suggestionsList.toImmutableList(),
+                showNsfwLink = BuildConfig.NSFW_LINK_ENABLED && homePrefs.showNsfwLink,
             )
         }
     }.stateIn(

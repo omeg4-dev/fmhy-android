@@ -90,6 +90,8 @@ data class HomePrefs(
     val swipeBetweenScreens: Boolean = true,
     /** Main category names from the FMHY website (Streaming, Listening…). Off = the wiki titles used before 1.1.0. */
     val websiteCategoryNames: Boolean = true,
+    /** Show an opt-in link to FMHY's external NSFW page on Home. */
+    val showNsfwLink: Boolean = false,
 ) {
     val personalHome: Boolean
         get() = blocks.isEnabled(HomeBlock.PINNED)

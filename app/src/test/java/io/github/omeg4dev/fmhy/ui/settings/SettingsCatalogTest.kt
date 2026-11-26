@@ -1,5 +1,6 @@
 package io.github.omeg4dev.fmhy.ui.settings
 
+import io.github.omeg4dev.fmhy.BuildConfig
 import io.github.omeg4dev.fmhy.SettingsPage
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -59,6 +60,14 @@ class SettingsCatalogTest {
                 entry.page in validPages
             )
         }
+    }
+
+    @Test
+    fun nsfwLinkOnlyInGithubBuild() {
+        assertEquals(
+            BuildConfig.FLAVOR == "github",
+            SettingsCatalog.all.any { it.id == SettingsCatalog.homeNsfwLink.id },
+        )
     }
 
     @Test

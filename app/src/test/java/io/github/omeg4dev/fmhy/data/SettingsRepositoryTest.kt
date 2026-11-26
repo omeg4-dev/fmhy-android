@@ -455,6 +455,21 @@ class SettingsRepositoryTest {
     }
 
     @Test
+    fun testShowNsfwLinkDefaultOffAndPersist() = runTest {
+        val (repo, _) = createRepository(this)
+        assertFalse(repo.homePrefs.first().showNsfwLink)
+
+        repo.updateHome { it.copy(showNsfwLink = true) }
+        assertTrue(repo.homePrefs.first().showNsfwLink)
+
+        repo.updateHome { it.copy(swipeToBookmark = true) }
+        assertTrue(repo.homePrefs.first().showNsfwLink)
+
+        repo.updateHome { it.copy(showNsfwLink = false) }
+        assertFalse(repo.homePrefs.first().showNsfwLink)
+    }
+
+    @Test
     fun testGestureHintShownRoundTrip() = runTest {
         val (repo, _) = createRepository(this)
         assertFalse(repo.gestureHintShown.first())

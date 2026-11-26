@@ -1,5 +1,6 @@
 package io.github.omeg4dev.fmhy.ui.settings
 
+import io.github.omeg4dev.fmhy.BuildConfig
 import io.github.omeg4dev.fmhy.SettingsPage
 
 data class SettingEntry(
@@ -84,6 +85,13 @@ object SettingsCatalog {
         title = "Section order",
         description = "Sort sections alphabetically or in website order",
         keywords = listOf("section", "order", "sort", "alphabetical", "layout"),
+    )
+    val homeNsfwLink = SettingEntry(
+        id = "home.nsfw_link",
+        page = SettingsPage.HOME,
+        title = "Show NSFW link",
+        description = "Add a link to FMHY's external NSFW page (18+)",
+        keywords = listOf("nsfw", "adult", "18"),
     )
     val homePinnedSections = SettingEntry(
         id = "home.pinned_sections",
@@ -877,6 +885,7 @@ object SettingsCatalog {
         // Home
         homeBlocks,
         homeSectionOrder,
+        homeNsfwLink,
         homePinnedSections,
         homeHiddenSections,
         // Lists & gestures
@@ -997,7 +1006,7 @@ object SettingsCatalog {
         appUpdatesInterval,
         appUpdatesCheckNow,
         appUpdatesSkippedVersion,
-    )
+    ).filter { BuildConfig.NSFW_LINK_ENABLED || it != homeNsfwLink }
 
     fun byId(id: String): SettingEntry? = all.firstOrNull { it.id == id }
 }

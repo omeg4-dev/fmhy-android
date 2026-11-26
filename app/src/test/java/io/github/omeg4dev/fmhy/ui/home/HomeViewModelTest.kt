@@ -1,6 +1,7 @@
 package io.github.omeg4dev.fmhy.ui.home
 
 import android.content.Context
+import io.github.omeg4dev.fmhy.BuildConfig
 import io.github.omeg4dev.fmhy.data.AppIcon
 import io.github.omeg4dev.fmhy.data.Appearance
 import io.github.omeg4dev.fmhy.data.BlockingPrefs
@@ -303,6 +304,20 @@ class HomeViewModelTest {
         testDispatcher.scheduler.runCurrent()
         assertEquals(2, store.randomTopPickCallCount)
         assertEquals("b", viewModel.uiState.first { it.randomPick?.id != first }.randomPick?.id)
+    }
+
+    @Test
+    fun testStoredNsfwLinkShowsOnlyInGithubBuild() = runTest(testDispatcher) {
+        val store = FakeDatasetStore()
+        val fakeSettings = FakeSettingsRepository()
+        // A stored "on" can reach the F-Droid build through a restored backup.
+        fakeSettings.updateHome { it.copy(showNsfwLink = true) }
+        val viewModel = HomeViewModel(store, fakeSettings, FakeContainer(store, fakeSettings))
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect() }
+        testDispatcher.scheduler.runCurrent()
+
+        val state = viewModel.uiState.filter { it.isReady && !it.isEmptyState }.first()
+        assertEquals(BuildConfig.FLAVOR == "github", state.showNsfwLink)
     }
 
     @Test

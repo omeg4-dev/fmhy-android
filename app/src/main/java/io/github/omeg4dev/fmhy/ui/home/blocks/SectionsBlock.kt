@@ -20,9 +20,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -32,19 +34,41 @@ import io.github.omeg4dev.fmhy.ui.common.enterStaggerOrdered
 import io.github.omeg4dev.fmhy.ui.common.sectionIcon
 import io.github.omeg4dev.fmhy.ui.home.SectionGroup
 
+private const val NSFW_URL = "https://rentry.org/NSFW-Checkpoint"
+
 fun LazyListScope.sectionsBlock(
     sectionGroups: List<SectionGroup>,
     entrance: ListEntrance,
     unreadPosts: Int,
     hiddenSectionsCount: Int,
     showingHiddenSections: Boolean,
+    showNsfwLink: Boolean,
     onToggleShowHidden: () -> Unit,
     onOpenUrl: (String) -> Unit,
     onNavigateToSection: (String) -> Unit,
     onNavigateToReader: (String, String) -> Unit,
     onNavigateToPosts: () -> Unit,
 ) {
-    sectionGroups.forEach { group ->
+    if (sectionGroups.isEmpty() && showNsfwLink) {
+        item(key = "sections-nsfw") {
+            Surface(
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                modifier = Modifier
+                    .animateItem()
+                    .enterStaggerOrdered(entrance)
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    NsfwSectionRow(onClick = { onOpenUrl(NSFW_URL) })
+                }
+            }
+        }
+    }
+
+    sectionGroups.forEachIndexed { groupIndex, group ->
+        val isLastGroup = groupIndex == sectionGroups.lastIndex
         item(key = "sections-header-${group.title}") {
             Text(
                 text = group.title ?: "Sections",
@@ -155,6 +179,16 @@ fun LazyListScope.sectionsBlock(
                             )
                         }
                     }
+                    if (isLastGroup && showNsfwLink) {
+                        if (group.sections.isNotEmpty()) {
+                            HorizontalDivider(
+                                modifier = Modifier.padding(start = 72.dp),
+                                color = MaterialTheme.colorScheme.outlineVariant,
+                                thickness = 0.5.dp,
+                            )
+                        }
+                        NsfwSectionRow(onClick = { onOpenUrl(NSFW_URL) })
+                    }
                 }
             }
         }
@@ -183,5 +217,45 @@ fun LazyListScope.sectionsBlock(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun NsfwSectionRow(onClick: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 64.dp)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+    ) {
+        Surface(
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.secondaryContainer,
+            modifier = Modifier.size(40.dp),
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Text(
+                    text = "🔞",
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.clearAndSetSemantics {},
+                )
+            }
+        }
+        Spacer(Modifier.width(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "NSFW",
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }

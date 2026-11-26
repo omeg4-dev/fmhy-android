@@ -12,6 +12,7 @@ import io.github.omeg4dev.fmhy.data.SettingsKeys.KEY_HOME_NEW_BADGE_DAYS
 import io.github.omeg4dev.fmhy.data.SettingsKeys.KEY_HOME_PERSONAL_HOME
 import io.github.omeg4dev.fmhy.data.SettingsKeys.KEY_HOME_SEARCH_EXACT
 import io.github.omeg4dev.fmhy.data.SettingsKeys.KEY_HOME_SEARCH_TAP_TARGET
+import io.github.omeg4dev.fmhy.data.SettingsKeys.KEY_HOME_SHOW_NSFW_LINK
 import io.github.omeg4dev.fmhy.data.SettingsKeys.KEY_HOME_SWAP_TAP_HOLD
 import io.github.omeg4dev.fmhy.data.SettingsKeys.KEY_HOME_SWIPE_BETWEEN_SCREENS
 import io.github.omeg4dev.fmhy.data.SettingsKeys.KEY_HOME_SWIPE_TO_BOOKMARK
@@ -99,6 +100,7 @@ internal fun DefaultSettingsRepository.readHomePrefs(prefs: Preferences): HomePr
         searchTapTarget = prefs[KEY_HOME_SEARCH_TAP_TARGET]?.let { runCatching { SearchTapTarget.valueOf(it) }.getOrNull() } ?: default.searchTapTarget,
         swipeBetweenScreens = prefs[KEY_HOME_SWIPE_BETWEEN_SCREENS] ?: default.swipeBetweenScreens,
         websiteCategoryNames = prefs[KEY_HOME_WEBSITE_CATEGORY_NAMES] ?: default.websiteCategoryNames,
+        showNsfwLink = prefs[KEY_HOME_SHOW_NSFW_LINK] ?: default.showNsfwLink,
     )
 }
 internal fun DefaultSettingsRepository.writeHomePrefs(prefs: MutablePreferences, p: HomePrefs) {
@@ -110,4 +112,5 @@ internal fun DefaultSettingsRepository.writeHomePrefs(prefs: MutablePreferences,
     prefs[KEY_HOME_SEARCH_TAP_TARGET] = p.searchTapTarget.name
     prefs[KEY_HOME_SWIPE_BETWEEN_SCREENS] = p.swipeBetweenScreens
     prefs[KEY_HOME_WEBSITE_CATEGORY_NAMES] = p.websiteCategoryNames
+    prefs[KEY_HOME_SHOW_NSFW_LINK] = p.showNsfwLink
 }

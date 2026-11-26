@@ -499,6 +499,7 @@ fun HomeScreen(
                                 unreadPosts = state.unreadPosts,
                                 hiddenSectionsCount = state.hiddenSectionsCount,
                                 showingHiddenSections = state.showingHiddenSections,
+                                showNsfwLink = state.showNsfwLink,
                                 onToggleShowHidden = { viewModel.toggleShowHiddenSections() },
                                 onOpenUrl = { linkOpener.openUrl(it) },
                                 onNavigateToSection = { sectionId -> onNavigateToSection(sectionId, null) },
