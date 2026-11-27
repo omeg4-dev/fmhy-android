@@ -124,6 +124,10 @@ internal object SettingsKeys {
     val KEY_WHATSNEW_FILTER_TYPES = stringPreferencesKey("whatsnew_filter_types")
     val KEY_WHATSNEW_FILTER_SCOPE = stringPreferencesKey("whatsnew_filter_scope")
 
+    // Saved view
+    val KEY_SAVED_SORT = stringPreferencesKey("saved_sort")
+    val KEY_SAVED_GROUP_BY_SECTION = booleanPreferencesKey("saved_group_by_section")
+
     // Data usage
     val KEY_DATA_USAGE_DOWNLOAD_WIFI_ONLY = booleanPreferencesKey("data_usage_download_wifi_only")
     val KEY_DATA_USAGE_BROWSE_WIFI_ONLY = booleanPreferencesKey("data_usage_browse_wifi_only")

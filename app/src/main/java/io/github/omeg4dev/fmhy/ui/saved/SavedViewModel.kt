@@ -8,6 +8,8 @@ import io.github.omeg4dev.fmhy.data.BookmarksRepository
 import io.github.omeg4dev.fmhy.data.DataPrefs
 import io.github.omeg4dev.fmhy.data.DatasetStore
 import io.github.omeg4dev.fmhy.data.HomePrefs
+import io.github.omeg4dev.fmhy.data.SavedSort
+import io.github.omeg4dev.fmhy.data.SavedViewPrefs
 import io.github.omeg4dev.fmhy.data.SettingsRepository
 import io.github.omeg4dev.fmhy.data.model.ChangeKind
 import io.github.omeg4dev.fmhy.data.model.Entry
@@ -42,13 +44,19 @@ data class SavedGroup(
 
 data class SavedUiState(
     val isLoading: Boolean = true,
-    val groups: List<SavedGroup> = emptyList(), // All groups
-    val bookmarks: List<Bookmark> = emptyList(),
+    val items: List<SavedEntryItem> = emptyList(),
     val folders: List<Folder> = emptyList(),
     val folderCounts: Map<Long, Int> = emptyMap(),
-    val folderGroups: Map<Long, List<SavedGroup>> = emptyMap(),
     val historyGroups: List<HistoryGroup> = emptyList(),
     val keepHistory: Boolean = true,
+    val sort: SavedSort = SavedSort.RECENT,
+    val groupBySection: Boolean = false,
+)
+
+private data class CombinedPrefs(
+    val data: DataPrefs = DataPrefs(),
+    val home: HomePrefs = HomePrefs(),
+    val savedView: SavedViewPrefs = SavedViewPrefs(),
 )
 
 class SavedViewModel(
@@ -60,12 +68,16 @@ class SavedViewModel(
     nsfwEnabledInBuild: Boolean = BuildConfig.NSFW_LINK_ENABLED,
 ) : ViewModel() {
 
-    private val prefsFlow: Flow<Pair<DataPrefs, HomePrefs>> = if (settingsRepository != null) {
-        combine(settingsRepository.dataPrefs, settingsRepository.homePrefs) { dataPrefs, homePrefs ->
-            dataPrefs to homePrefs
+    private val prefsFlow: Flow<CombinedPrefs> = if (settingsRepository != null) {
+        combine(
+            settingsRepository.dataPrefs,
+            settingsRepository.homePrefs,
+            settingsRepository.savedViewPrefs,
+        ) { dataPrefs, homePrefs, savedViewPrefs ->
+            CombinedPrefs(dataPrefs, homePrefs, savedViewPrefs)
         }
     } else {
-        flowOf(DataPrefs() to HomePrefs())
+        flowOf(CombinedPrefs())
     }
     private val userChangesFlow: Flow<Long> = userStore?.changes ?: flowOf(0L)
 
@@ -75,7 +87,7 @@ class SavedViewModel(
         store.changes,
         userChangesFlow,
         prefsFlow,
-    ) { bookmarks, folders, _, _, (dataPrefs, homePrefs) ->
+    ) { bookmarks, folders, _, _, prefs ->
         val folderMap = folders.associate { it.id to it.name }
         val folderCounts = bookmarks.groupBy { it.folderId }
             .mapNotNull { (fid, list) -> fid?.let { it to list.size } }
@@ -96,7 +108,7 @@ class SavedViewModel(
         val liveEntriesMap = if (nsfwBookmarks.isEmpty()) {
             dbLiveMap
         } else {
-            val cachedById = if (nsfwEnabledInBuild && homePrefs.showNsfwLink) {
+            val cachedById = if (nsfwEnabledInBuild && prefs.home.showNsfwLink) {
                 runCatching { nsfwSource?.readCached()?.entries?.associateBy { it.id } }.getOrNull().orEmpty()
             } else {
                 emptyMap()
@@ -124,21 +136,12 @@ class SavedViewModel(
             }
         }
 
-        val allGroups = SavedGrouping.groupBookmarks(
+        val items = SavedGrouping.buildItems(
             bookmarks = bookmarks,
             liveEntriesMap = liveEntriesMap,
             folderMap = folderMap,
             removedDates = removedDates,
         )
-
-        val folderGroups = folders.associate { folder ->
-            folder.id to SavedGrouping.groupBookmarks(
-                bookmarks = bookmarks.filter { it.folderId == folder.id },
-                liveEntriesMap = liveEntriesMap,
-                folderMap = folderMap,
-                removedDates = removedDates,
-            )
-        }
 
         val historyGroups = if (userStore != null) {
             try {
@@ -159,13 +162,13 @@ class SavedViewModel(
 
         SavedUiState(
             isLoading = false,
-            groups = allGroups,
-            bookmarks = bookmarks,
+            items = items,
             folders = folders,
             folderCounts = folderCounts,
-            folderGroups = folderGroups,
             historyGroups = historyGroups,
-            keepHistory = dataPrefs.keepHistory,
+            keepHistory = prefs.data.keepHistory,
+            sort = prefs.savedView.sort,
+            groupBySection = prefs.savedView.groupBySection,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -173,18 +176,26 @@ class SavedViewModel(
         initialValue = SavedUiState(isLoading = true),
     )
 
-    fun removeBookmark(entryId: String) {
+    fun setSort(sort: SavedSort) {
         viewModelScope.launch {
-            bookmarksRepository.remove(entryId)
+            settingsRepository?.updateSavedViewPrefs { it.copy(sort = sort) }
         }
     }
 
-    suspend fun removeBookmarkWithSnapshot(entryId: String): UserBookmark? {
-        return userStore?.removeBookmarkWithSnapshot(entryId)
+    fun setGroupBySection(on: Boolean) {
+        viewModelScope.launch {
+            settingsRepository?.updateSavedViewPrefs { it.copy(groupBySection = on) }
+        }
     }
 
-    suspend fun restoreBookmark(b: UserBookmark) {
-        userStore?.restoreBookmark(b)
+    suspend fun removeBookmarksWithSnapshot(ids: Collection<String>): List<UserBookmark> {
+        val store = userStore ?: return emptyList()
+        return ids.mapNotNull { store.removeBookmarkWithSnapshot(it) }
+    }
+
+    suspend fun restoreBookmarks(list: List<UserBookmark>) {
+        val store = userStore ?: return
+        list.forEach { store.restoreBookmark(it) }
     }
 
     suspend fun deleteFolderWithSnapshot(id: Long): UserStore.DeletedFolderSnapshot? {
@@ -209,9 +220,9 @@ class SavedViewModel(
         }
     }
 
-    fun moveToFolder(entryId: String, folderId: Long?) {
+    fun moveToFolder(entryIds: Collection<String>, folderId: Long?) {
         viewModelScope.launch {
-            bookmarksRepository.moveToFolder(entryId, folderId)
+            entryIds.forEach { bookmarksRepository.moveToFolder(it, folderId) }
         }
     }
 
@@ -225,18 +236,6 @@ class SavedViewModel(
     fun renameFolder(id: Long, name: String) {
         viewModelScope.launch {
             bookmarksRepository.renameFolder(id, name)
-        }
-    }
-
-    fun deleteFolder(id: Long) {
-        viewModelScope.launch {
-            bookmarksRepository.deleteFolder(id)
-        }
-    }
-
-    fun clearHistory() {
-        viewModelScope.launch {
-            userStore?.clearHistory()
         }
     }
 

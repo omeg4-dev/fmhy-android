@@ -691,4 +691,40 @@ class SettingsRepositoryTest {
         assertEquals(WhatsNewScope.Following, resolved.scope)
         assertEquals(custom, repo.whatsNewFilterPrefs.first())
     }
+
+    @Test
+    fun testSavedViewPrefsDefaults() = runTest {
+        val (repo, _) = createRepository(this)
+        assertEquals(SavedViewPrefs(sort = SavedSort.RECENT, groupBySection = false), repo.savedViewPrefs.first())
+    }
+
+    @Test
+    fun testSavedViewPrefsRoundTripRestart() = runTest {
+        val (repo, dataStore) = createRepository(this)
+        val custom = SavedViewPrefs(sort = SavedSort.SECTION, groupBySection = true)
+        repo.updateSavedViewPrefs { custom }
+
+        val restartedRepo = DefaultSettingsRepository(dataStore)
+        assertEquals(custom, restartedRepo.savedViewPrefs.first())
+
+        restartedRepo.updateSavedViewPrefs { it.copy(sort = SavedSort.A_Z, groupBySection = false) }
+        val restartedAgain = DefaultSettingsRepository(dataStore)
+        assertEquals(
+            SavedViewPrefs(sort = SavedSort.A_Z, groupBySection = false),
+            restartedAgain.savedViewPrefs.first(),
+        )
+    }
+
+    @Test
+    fun testSavedViewPrefsUnknownSortFallsBackToRecent() = runTest {
+        val (repo, rawStore) = createRepository(this)
+        rawStore.edit {
+            it[stringPreferencesKey("saved_sort")] = "FUTURE_SORT_ORDER"
+            it[booleanPreferencesKey("saved_group_by_section")] = true
+        }
+        assertEquals(
+            SavedViewPrefs(sort = SavedSort.RECENT, groupBySection = true),
+            repo.savedViewPrefs.first(),
+        )
+    }
 }

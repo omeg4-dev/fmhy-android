@@ -1,6 +1,7 @@
 package io.github.omeg4dev.fmhy.ui.saved
 
 import io.github.omeg4dev.fmhy.data.Bookmark
+import io.github.omeg4dev.fmhy.data.SavedSort
 import io.github.omeg4dev.fmhy.data.model.Entry
 import io.github.omeg4dev.fmhy.data.model.Heading
 import io.github.omeg4dev.fmhy.data.model.Tier
@@ -8,6 +9,7 @@ import io.github.omeg4dev.fmhy.data.user.HistoryItem
 import java.time.LocalDate
 import java.time.ZoneId
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -67,44 +69,136 @@ class SavedGroupingTest {
     )
 
     @Test
-    fun testAllGroupingBySection() {
-        val b1 = sampleBookmark("b1", "Site 1", sectionTitle = "Audio", savedAt = 100L)
-        val b2 = sampleBookmark("b2", "Site 2", sectionTitle = "Video", savedAt = 200L, folderId = 1L)
-        val b3 = sampleBookmark("b3", "Site 3", sectionTitle = "Video", savedAt = 300L)
+    fun testBuildItemsPopulatesLiveEntryFolderAndRemovedDate() {
+        val b1 = sampleBookmark("b1", "Live Site", folderId = 1L)
+        val b2 = sampleBookmark("b2", "Removed Site", folderId = null)
+        val e1 = sampleEntry("b1", "Live Site Updated")
 
-        val folderMap = mapOf(1L to "Favorites")
-        val groups = SavedGrouping.groupBookmarks(
-            bookmarks = listOf(b1, b2, b3),
-            liveEntriesMap = emptyMap(),
-            folderMap = folderMap,
+        val items = SavedGrouping.buildItems(
+            bookmarks = listOf(b1, b2),
+            liveEntriesMap = mapOf("b1" to e1),
+            folderMap = mapOf(1L to "Favorites"),
+            removedDates = mapOf("b2" to "Removed on 18 Oct"),
         )
 
-        // Video section had newest item at 300L, Audio at 100L -> Video first
-        assertEquals(2, groups.size)
-        assertEquals("Video", groups[0].sectionTitle)
-        assertEquals(2, groups[0].items.size)
-        assertEquals("Favorites", groups[0].items[0].folderName)
+        assertEquals(2, items.size)
+        assertEquals(e1, items[0].liveEntry)
+        assertEquals("Favorites", items[0].folderName)
+        assertNull(items[0].removedDateText)
 
-        assertEquals("Audio", groups[1].sectionTitle)
-        assertEquals(1, groups[1].items.size)
+        assertNull(items[1].liveEntry)
+        assertNull(items[1].folderName)
+        assertEquals("Removed on 18 Oct", items[1].removedDateText)
     }
 
     @Test
-    fun testFolderFilteringAndGrouping() {
-        val b1 = sampleBookmark("b1", "Site 1", sectionTitle = "Video", folderId = 1L)
-        val b2 = sampleBookmark("b2", "Site 2", sectionTitle = "Video", folderId = 2L)
-        val b3 = sampleBookmark("b3", "Site 3", sectionTitle = "Audio", folderId = 1L)
+    fun testFilterAndSortFolderScopeAndQueryFields() {
+        val titleOf: (Bookmark) -> String = { bm ->
+            if (bm.sectionId == "video") "Streaming" else bm.sectionTitle
+        }
 
-        val bookmarks = listOf(b1, b2, b3)
-        val folder1Bookmarks = bookmarks.filter { it.folderId == 1L }
-        val groups = SavedGrouping.groupBookmarks(
-            bookmarks = folder1Bookmarks,
-            liveEntriesMap = emptyMap(),
+        val liveRename = SavedEntryItem(
+            bookmark = sampleBookmark("e1", "Old Bookmark Name", sectionId = "audio", sectionTitle = "Audio", headingPath = "Audio > Music", folderId = 1L),
+            liveEntry = sampleEntry("e1", "Renamed Live Name", sectionId = "audio", headingPath = "Audio > Podcasts"),
+        )
+        val bmNameOnly = SavedEntryItem(
+            bookmark = sampleBookmark("e2", "UniqueBookmarkTitle", sectionId = "audio", sectionTitle = "Audio", headingPath = "Audio > Radio", folderId = 1L),
+            liveEntry = sampleEntry("e2", "Radio App", sectionId = "audio", headingPath = "Audio > Radio"),
+        )
+        val displayTitleMatch = SavedEntryItem(
+            bookmark = sampleBookmark("e3", "Movie Hub", sectionId = "video", sectionTitle = "Movies / TV", headingPath = "Video > Movies", folderId = 2L),
+            liveEntry = sampleEntry("e3", "Movie Hub", sectionId = "video", headingPath = "Video > Movies"),
+        )
+        val sectionTitleMatch = SavedEntryItem(
+            bookmark = sampleBookmark("e4", "Clip Site", sectionId = "video", sectionTitle = "SpecialWikiSection", headingPath = "Video > Clips", folderId = 1L),
+            liveEntry = sampleEntry("e4", "Clip Site", sectionId = "video", headingPath = "Video > Clips"),
+        )
+        val noteAndRemovedMatch = SavedEntryItem(
+            bookmark = sampleBookmark("e5", "Gone Site", sectionId = "misc", sectionTitle = "Misc", headingPath = "Misc > ArchivedPath", folderId = 1L, note = "PrivateWatchNote"),
+            liveEntry = null,
         )
 
-        assertEquals(2, groups.size)
-        val allIds = groups.flatMap { it.items }.map { it.bookmark.entryId }.toSet()
-        assertEquals(setOf("b1", "b3"), allIds)
+        val all = listOf(liveRename, bmNameOnly, displayTitleMatch, sectionTitleMatch, noteAndRemovedMatch)
+
+        // Blank / whitespace query matches all in All scope
+        assertEquals(5, SavedGrouping.filterAndSort(all, null, "   ", SavedSort.RECENT, titleOf).size)
+
+        // Folder scope
+        val folder1 = SavedGrouping.filterAndSort(all, 1L, "", SavedSort.RECENT, titleOf)
+        assertEquals(setOf("e1", "e2", "e4", "e5"), folder1.map { it.bookmark.entryId }.toSet())
+
+        // Each searched field (case-insensitive, trimmed)
+        assertEquals(listOf("e1"), SavedGrouping.filterAndSort(all, null, " renamed live ", SavedSort.RECENT, titleOf).map { it.bookmark.entryId })
+        assertEquals(listOf("e2"), SavedGrouping.filterAndSort(all, null, "uniquebookmarktitle", SavedSort.RECENT, titleOf).map { it.bookmark.entryId })
+        assertEquals(setOf("e3", "e4"), SavedGrouping.filterAndSort(all, null, "STREAMING", SavedSort.RECENT, titleOf).map { it.bookmark.entryId }.toSet())
+        assertEquals(listOf("e4"), SavedGrouping.filterAndSort(all, null, "specialwikisection", SavedSort.RECENT, titleOf).map { it.bookmark.entryId })
+        assertEquals(listOf("e1"), SavedGrouping.filterAndSort(all, null, "podcasts", SavedSort.RECENT, titleOf).map { it.bookmark.entryId })
+        assertEquals(listOf("e5"), SavedGrouping.filterAndSort(all, null, "archivedpath", SavedSort.RECENT, titleOf).map { it.bookmark.entryId })
+        assertEquals(listOf("e5"), SavedGrouping.filterAndSort(all, null, "privatewatchnote", SavedSort.RECENT, titleOf).map { it.bookmark.entryId })
+
+        // No match
+        assertEquals(emptyList<SavedEntryItem>(), SavedGrouping.filterAndSort(all, null, "nonexistent_xyz", SavedSort.RECENT, titleOf))
+    }
+
+    @Test
+    fun testFilterAndSortOrdersAndTieBreakersIncludingRemoved() {
+        val titleOf: (Bookmark) -> String = { it.sectionTitle }
+
+        val aOld = SavedEntryItem(
+            bookmark = sampleBookmark("id_b", "alpha", sectionTitle = "Video", savedAt = 100L),
+            liveEntry = sampleEntry("id_b", "alpha"),
+        )
+        val aSameTimeEarlierId = SavedEntryItem(
+            bookmark = sampleBookmark("id_a", "Alpha", sectionTitle = "Audio", savedAt = 100L),
+            liveEntry = null, // removed item uses bookmark.name
+        )
+        val bNewer = SavedEntryItem(
+            bookmark = sampleBookmark("id_c", "OldBeta", sectionTitle = "Audio", savedAt = 300L),
+            liveEntry = sampleEntry("id_c", "Beta"), // liveEntry name overrides bookmark.name
+        )
+        val cMid = SavedEntryItem(
+            bookmark = sampleBookmark("id_d", "Charlie", sectionTitle = "Games", savedAt = 200L),
+            liveEntry = null,
+        )
+
+        val items = listOf(aOld, aSameTimeEarlierId, bNewer, cMid)
+
+        // RECENT: savedAt desc, then name (case-insensitive), then entryId
+        val recent = SavedGrouping.filterAndSort(items, null, "", SavedSort.RECENT, titleOf)
+        assertEquals(listOf("id_c", "id_d", "id_a", "id_b"), recent.map { it.bookmark.entryId })
+
+        // A_Z: name (case-insensitive), then savedAt desc, then entryId
+        val az = SavedGrouping.filterAndSort(items, null, "", SavedSort.A_Z, titleOf)
+        assertEquals(listOf("id_a", "id_b", "id_c", "id_d"), az.map { it.bookmark.entryId })
+
+        // SECTION: titleOf (case-insensitive), then name, then entryId
+        val section = SavedGrouping.filterAndSort(items, null, "", SavedSort.SECTION, titleOf)
+        assertEquals(listOf("id_a", "id_c", "id_d", "id_b"), section.map { it.bookmark.entryId })
+    }
+
+    @Test
+    fun testGroupSortedOrderAndPreservedItemOrder() {
+        val titleOf: (Bookmark) -> String = { it.sectionTitle }
+
+        val audioOld = SavedEntryItem(sampleBookmark("a1", "Zeta", sectionTitle = "Audio", savedAt = 100L), null)
+        val audioNew = SavedEntryItem(sampleBookmark("a2", "Alpha", sectionTitle = "Audio", savedAt = 200L), null)
+        val videoNew = SavedEntryItem(sampleBookmark("v1", "Movie", sectionTitle = "Video", savedAt = 500L), null)
+        val gamesTie = SavedEntryItem(sampleBookmark("g1", "Game", sectionTitle = "Games", savedAt = 200L), null)
+
+        // Input order inside Audio: audioOld then audioNew (must be preserved by groupSorted)
+        val input = listOf(audioOld, audioNew, videoNew, gamesTie)
+
+        val recentGroups = SavedGrouping.groupSorted(input, SavedSort.RECENT, titleOf)
+        // Video (500) first; Audio (200) ties with Games (200) -> Audio before Games alphabetically
+        assertEquals(listOf("Video", "Audio", "Games"), recentGroups.map { it.sectionTitle })
+        assertEquals(listOf("a1", "a2"), recentGroups[1].items.map { it.bookmark.entryId })
+
+        val azGroups = SavedGrouping.groupSorted(input, SavedSort.A_Z, titleOf)
+        assertEquals(listOf("Audio", "Games", "Video"), azGroups.map { it.sectionTitle })
+        assertEquals(listOf("a1", "a2"), azGroups[0].items.map { it.bookmark.entryId })
+
+        val sectionGroups = SavedGrouping.groupSorted(input, SavedSort.SECTION, titleOf)
+        assertEquals(listOf("Audio", "Games", "Video"), sectionGroups.map { it.sectionTitle })
     }
 
     @Test

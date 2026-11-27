@@ -1,12 +1,12 @@
 package io.github.omeg4dev.fmhy.ui.saved
 
 import io.github.omeg4dev.fmhy.data.Bookmark
+import io.github.omeg4dev.fmhy.data.SavedSort
 import io.github.omeg4dev.fmhy.data.model.Entry
 import io.github.omeg4dev.fmhy.data.model.Heading
 import io.github.omeg4dev.fmhy.data.model.Tier
 import io.github.omeg4dev.fmhy.data.user.HistoryItem
 import java.time.Instant
-import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -94,31 +94,91 @@ object SavedGrouping {
         }
     }
 
-    fun groupBookmarks(
+    fun buildItems(
         bookmarks: List<Bookmark>,
         liveEntriesMap: Map<String, Entry>,
         folderMap: Map<Long, String> = emptyMap(),
         removedDates: Map<String, String> = emptyMap(),
+    ): List<SavedEntryItem> {
+        return bookmarks.map { bm ->
+            SavedEntryItem(
+                bookmark = bm,
+                liveEntry = liveEntriesMap[bm.entryId],
+                folderName = bm.folderId?.let { folderMap[it] },
+                removedDateText = removedDates[bm.entryId],
+            )
+        }
+    }
+
+    fun filterAndSort(
+        items: List<SavedEntryItem>,
+        folderId: Long?,
+        query: String,
+        sort: SavedSort,
+        titleOf: (Bookmark) -> String,
+    ): List<SavedEntryItem> {
+        val trimmedQuery = query.trim()
+        val filtered = items.filter { item ->
+            val inFolder = folderId == null || item.bookmark.folderId == folderId
+            if (!inFolder) return@filter false
+            if (trimmedQuery.isEmpty()) return@filter true
+            matchesQuery(item, trimmedQuery, titleOf)
+        }
+        val comparator: Comparator<SavedEntryItem> = when (sort) {
+            SavedSort.RECENT -> compareByDescending<SavedEntryItem> { it.bookmark.savedAt }
+                .thenBy(String.CASE_INSENSITIVE_ORDER) { displayNameOf(it) }
+                .thenBy { it.bookmark.entryId }
+            SavedSort.A_Z -> compareBy<SavedEntryItem, String>(String.CASE_INSENSITIVE_ORDER) { displayNameOf(it) }
+                .thenByDescending { it.bookmark.savedAt }
+                .thenBy { it.bookmark.entryId }
+            SavedSort.SECTION -> compareBy<SavedEntryItem, String>(String.CASE_INSENSITIVE_ORDER) { titleOf(it.bookmark) }
+                .thenBy(String.CASE_INSENSITIVE_ORDER) { displayNameOf(it) }
+                .thenBy { it.bookmark.entryId }
+        }
+        return filtered.sortedWith(comparator)
+    }
+
+    fun groupSorted(
+        items: List<SavedEntryItem>,
+        sort: SavedSort,
+        titleOf: (Bookmark) -> String,
     ): List<SavedGroup> {
-        return bookmarks
-            .groupBy { it.sectionTitle }
-            .map { (sectionTitle, bms) ->
-                val newest = bms.maxOfOrNull { it.savedAt } ?: 0L
-                val items = bms.map { bm ->
-                    SavedEntryItem(
-                        bookmark = bm,
-                        liveEntry = liveEntriesMap[bm.entryId],
-                        folderName = bm.folderId?.let { folderMap[it] },
-                        removedDateText = removedDates[bm.entryId],
-                    )
-                }
+        val groups = items
+            .groupBy { titleOf(it.bookmark) }
+            .map { (title, groupItems) ->
+                val newest = groupItems.maxOfOrNull { it.bookmark.savedAt } ?: 0L
                 SavedGroup(
-                    sectionTitle = sectionTitle,
+                    sectionTitle = title,
                     newestSavedAt = newest,
-                    items = items,
+                    items = groupItems,
                 )
             }
-            .sortedByDescending { it.newestSavedAt }
+        val groupComparator: Comparator<SavedGroup> = if (sort == SavedSort.RECENT) {
+            compareByDescending<SavedGroup> { it.newestSavedAt }
+                .thenBy(String.CASE_INSENSITIVE_ORDER) { it.sectionTitle }
+        } else {
+            compareBy(String.CASE_INSENSITIVE_ORDER) { it.sectionTitle }
+        }
+        return groups.sortedWith(groupComparator)
+    }
+
+    private fun displayNameOf(item: SavedEntryItem): String =
+        item.liveEntry?.name ?: item.bookmark.name
+
+    private fun matchesQuery(
+        item: SavedEntryItem,
+        trimmedQuery: String,
+        titleOf: (Bookmark) -> String,
+    ): Boolean {
+        val bm = item.bookmark
+        val live = item.liveEntry
+        return (live?.name?.contains(trimmedQuery, ignoreCase = true) == true) ||
+            bm.name.contains(trimmedQuery, ignoreCase = true) ||
+            titleOf(bm).contains(trimmedQuery, ignoreCase = true) ||
+            bm.sectionTitle.contains(trimmedQuery, ignoreCase = true) ||
+            (live?.headingPath?.contains(trimmedQuery, ignoreCase = true) == true) ||
+            bm.headingPath.contains(trimmedQuery, ignoreCase = true) ||
+            bm.note.contains(trimmedQuery, ignoreCase = true)
     }
 
     fun findReplacements(

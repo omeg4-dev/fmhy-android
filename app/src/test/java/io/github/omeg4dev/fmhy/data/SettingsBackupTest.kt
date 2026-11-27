@@ -133,6 +133,7 @@ class SettingsBackupTest {
         source.updateDataUsage { it.copy(downloadWifiOnly = true, appDataWifiOnly = true) }
         source.updateData { it.copy(syncOnLaunch = false, keepHistory = false) }
         source.setReportOfferCrashes(false)
+        source.updateSavedViewPrefs { it.copy(sort = SavedSort.A_Z, groupBySection = true) }
 
         val exported = source.exportSettings()
         target.restoreSettings(exported)
@@ -145,6 +146,7 @@ class SettingsBackupTest {
         assertEquals(source.dataUsagePrefs.first(), target.dataUsagePrefs.first())
         assertEquals(source.dataPrefs.first(), target.dataPrefs.first())
         assertEquals(source.reportOfferCrashes.first(), target.reportOfferCrashes.first())
+        assertEquals(source.savedViewPrefs.first(), target.savedViewPrefs.first())
     }
 
     @Test

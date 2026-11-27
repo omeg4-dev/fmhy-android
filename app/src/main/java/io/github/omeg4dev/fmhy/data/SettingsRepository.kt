@@ -78,6 +78,10 @@ interface SettingsRepository {
         get() = kotlinx.coroutines.flow.flowOf(WhatsNewFilterPrefs())
     suspend fun updateWhatsNewFilterPrefs(f: (WhatsNewFilterPrefs) -> WhatsNewFilterPrefs) {}
 
+    val savedViewPrefs: Flow<SavedViewPrefs>
+        get() = kotlinx.coroutines.flow.flowOf(SavedViewPrefs())
+    suspend fun updateSavedViewPrefs(f: (SavedViewPrefs) -> SavedViewPrefs) {}
+
     val gestureHintShown: Flow<Boolean>
         get() = kotlinx.coroutines.flow.flowOf(false)
     suspend fun setGestureHintShown(shown: Boolean) {}

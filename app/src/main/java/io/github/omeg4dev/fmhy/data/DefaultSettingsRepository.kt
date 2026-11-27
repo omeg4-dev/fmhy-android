@@ -18,6 +18,8 @@ import io.github.omeg4dev.fmhy.data.SettingsKeys.KEY_PRIVACY_HIDE_COOKIE_BANNERS
 import io.github.omeg4dev.fmhy.data.SettingsKeys.KEY_PURE_BLACK
 import io.github.omeg4dev.fmhy.data.SettingsKeys.KEY_RECENT_SEARCHES
 import io.github.omeg4dev.fmhy.data.SettingsKeys.KEY_REPORT_OFFER_CRASHES
+import io.github.omeg4dev.fmhy.data.SettingsKeys.KEY_SAVED_GROUP_BY_SECTION
+import io.github.omeg4dev.fmhy.data.SettingsKeys.KEY_SAVED_SORT
 import io.github.omeg4dev.fmhy.data.SettingsKeys.KEY_SCREEN_SWIPE_HINT_SHOWN
 import io.github.omeg4dev.fmhy.data.SettingsKeys.KEY_SECTION_LAYOUT
 import io.github.omeg4dev.fmhy.data.SettingsKeys.KEY_SECTION_ORDER
@@ -358,6 +360,25 @@ class DefaultSettingsRepository(
             prefs[KEY_WHATSNEW_FILTER_TYPES] = WhatsNewFilterCodec.encodeTypes(updated.types)
             prefs[KEY_WHATSNEW_FILTER_SCOPE] = WhatsNewFilterCodec.encodeScope(updated.scope)
         }
+    }
+
+    override val savedViewPrefs: Flow<SavedViewPrefs> = dataStore.data.map { prefs ->
+        readSavedViewPrefs(prefs)
+    }.distinctUntilChanged()
+
+    override suspend fun updateSavedViewPrefs(f: (SavedViewPrefs) -> SavedViewPrefs) {
+        dataStore.edit { prefs ->
+            val updated = f(readSavedViewPrefs(prefs))
+            prefs[KEY_SAVED_SORT] = updated.sort.name
+            prefs[KEY_SAVED_GROUP_BY_SECTION] = updated.groupBySection
+        }
+    }
+
+    private fun readSavedViewPrefs(prefs: Preferences): SavedViewPrefs {
+        val rawSort = prefs[KEY_SAVED_SORT]
+        val sort = SavedSort.entries.firstOrNull { it.name == rawSort } ?: SavedSort.RECENT
+        val groupBySection = prefs[KEY_SAVED_GROUP_BY_SECTION] ?: false
+        return SavedViewPrefs(sort = sort, groupBySection = groupBySection)
     }
 
     override val gestureHintShown: Flow<Boolean> = dataStore.data.map { prefs ->

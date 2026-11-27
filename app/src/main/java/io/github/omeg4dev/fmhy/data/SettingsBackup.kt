@@ -234,6 +234,10 @@ internal object SettingsBackup {
         KeySpec.Str(SettingsKeys.KEY_WHATSNEW_FILTER_TYPES),
         KeySpec.Str(SettingsKeys.KEY_WHATSNEW_FILTER_SCOPE),
 
+        // Saved view
+        KeySpec.Str(SettingsKeys.KEY_SAVED_SORT),
+        KeySpec.Bool(SettingsKeys.KEY_SAVED_GROUP_BY_SECTION),
+
         // Data usage
         KeySpec.Bool(SettingsKeys.KEY_DATA_USAGE_DOWNLOAD_WIFI_ONLY),
         KeySpec.Bool(SettingsKeys.KEY_DATA_USAGE_BROWSE_WIFI_ONLY),

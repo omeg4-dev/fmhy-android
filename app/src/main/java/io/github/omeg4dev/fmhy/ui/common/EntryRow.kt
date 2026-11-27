@@ -1,9 +1,5 @@
 package io.github.omeg4dev.fmhy.ui.common
 
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
-import android.content.Intent
 import java.time.LocalDate
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
@@ -26,17 +22,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
@@ -54,13 +47,9 @@ import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
-import io.github.omeg4dev.fmhy.FmhyApp
-import io.github.omeg4dev.fmhy.data.link.CrossLinks
 import io.github.omeg4dev.fmhy.data.model.ChangeItem
 import io.github.omeg4dev.fmhy.data.model.Entry
 import io.github.omeg4dev.fmhy.data.model.Tier
-import io.github.omeg4dev.fmhy.data.nsfw.NSFW_SECTION_ID
-import kotlinx.coroutines.launch
 
 /** Turns FTS highlight markers (\u0002 ... \u0003) into styled spans: [highlightColor] text on a [background] tint. */
 fun parseHighlight(text: String, highlightColor: Color, background: Color = Color.Unspecified): AnnotatedString {
@@ -115,143 +104,7 @@ fun EntryRow(
 ) {
     var showBottomSheet by remember { mutableStateOf(false) }
     val haptics = rememberHaptics()
-    val scope = rememberCoroutineScope()
-    val datasetStore = LocalDatasetStore.current
-    val userStore = LocalUserStore.current
-    val snackbarHost = LocalSnackbarHost.current
     val saveActions = rememberSaveActions(onShowSnackbar = onShowSnackbar)
-    val container = LocalAppContainer.current ?: (LocalContext.current.applicationContext as? FmhyApp)?.container
-    val isNsfw = entry.sectionId == NSFW_SECTION_ID
-    val targetHeadingId = entry.headingId ?: ""
-    val rememberedIsPinned = if (isNsfw) false else rememberIsPinned(container, entry.sectionId, targetHeadingId)
-    val effectiveIsPinned = if (isNsfw) false else (isPinned ?: rememberedIsPinned)
-
-    var loadedHistory by remember(entry.id, history) { mutableStateOf<List<ChangeItem>?>(history) }
-    LaunchedEffect(showBottomSheet, history, entry.id) {
-        if (!isNsfw && showBottomSheet && history == null && datasetStore != null) {
-            loadedHistory = try {
-                datasetStore.entryHistory(entry.id)
-            } catch (_: Exception) {
-                null
-            }
-        }
-    }
-
-    var followsList by remember { mutableStateOf<List<io.github.omeg4dev.fmhy.data.user.Follow>>(emptyList()) }
-    LaunchedEffect(userStore, showBottomSheet) {
-        if (!isNsfw && showBottomSheet && userStore != null && followState == null) {
-            userStore.changes.collect {
-                followsList = userStore.follows()
-            }
-        }
-    }
-
-    val categoryTitle = remember(entry.headingPath) {
-        val segments = entry.headingPath
-            .split(HEADING_PATH_SEPARATOR)
-            .filter { it.isNotBlank() }
-            .map { CrossLinks.splitLinkTitle(it).first }
-        segments.drop(1).firstOrNull() ?: segments.firstOrNull().orEmpty()
-    }
-
-    val effectiveFollowState = remember(isNsfw, followState, followsList, entry.sectionId, entry.headingId, categoryTitle) {
-        if (isNsfw) {
-            null
-        } else {
-            followState ?: if (categoryTitle.isNotEmpty()) {
-                val tree = FollowTree(followsList)
-                val isFollowing = tree.isSubsectionFollowed(entry.sectionId, targetHeadingId)
-                FollowState(categoryTitle = categoryTitle, isFollowing = isFollowing)
-            } else null
-        }
-    }
-
-    val effectiveToggleFollow: (() -> Unit)? = remember(isNsfw, onToggleFollow, effectiveFollowState, userStore, container, entry.sectionId, targetHeadingId, entry.headingPath, snackbarHost, effectiveIsPinned) {
-        if (isNsfw) {
-            null
-        } else {
-            onToggleFollow ?: if (userStore != null && effectiveFollowState != null) {
-            {
-                scope.launch {
-                    val isCurrentlyFollowing = effectiveFollowState.isFollowing
-                    val nextFollowing = !isCurrentlyFollowing
-                    val segments = entry.headingPath
-                        .split(HEADING_PATH_SEPARATOR)
-                        .filter { it.isNotBlank() }
-                        .map { CrossLinks.splitLinkTitle(it).first }
-                    val rawSec = segments.firstOrNull() ?: entry.sectionId
-                    val sectionTitle = sectionDisplayTitle(entry.sectionId, rawSec)
-                    val title = if (segments.size >= 2) "$sectionTitle › ${effectiveFollowState.categoryTitle}" else effectiveFollowState.categoryTitle
-
-                    userStore.setSubsectionFollowed(entry.sectionId, targetHeadingId, title, nextFollowing)
-                    if (!nextFollowing) {
-                        haptics.remove()
-                        val host = snackbarHost
-                        if (host != null) {
-                            if (host.showUndo("Unfollowed ${effectiveFollowState.categoryTitle}")) {
-                                userStore.setSubsectionFollowed(entry.sectionId, targetHeadingId, title, true)
-                            }
-                        } else {
-                            onShowSnackbar("Unfollowed ${effectiveFollowState.categoryTitle}")
-                        }
-                    } else {
-                        val host = snackbarHost
-                        if (host != null) {
-                            showFollowing(
-                                snackbarHostState = host,
-                                title = effectiveFollowState.categoryTitle,
-                                isPinned = effectiveIsPinned,
-                            ) {
-                                if (container != null) {
-                                    pinItem(
-                                        container = container,
-                                        snackbarHostState = host,
-                                        sectionId = entry.sectionId,
-                                        headingId = targetHeadingId,
-                                        title = effectiveFollowState.categoryTitle,
-                                    )
-                                }
-                            }
-                        } else {
-                            onShowSnackbar("Following ${effectiveFollowState.categoryTitle}")
-                        }
-                    }
-                }
-            }
-        } else null
-        }
-    }
-
-    val effectiveTogglePin: (() -> Unit)? = remember(isNsfw, onTogglePin, container, snackbarHost, haptics, entry.sectionId, targetHeadingId, categoryTitle, effectiveIsPinned) {
-        if (isNsfw) {
-            null
-        } else {
-            onTogglePin ?: if (container != null && categoryTitle.isNotEmpty() && snackbarHost != null) {
-            {
-                scope.launch {
-                    if (effectiveIsPinned) {
-                        unpinItem(
-                            container = container,
-                            snackbarHostState = snackbarHost,
-                            haptics = haptics,
-                            sectionId = entry.sectionId,
-                            headingId = targetHeadingId,
-                            title = categoryTitle,
-                        )
-                    } else {
-                        pinItem(
-                            container = container,
-                            snackbarHostState = snackbarHost,
-                            sectionId = entry.sectionId,
-                            headingId = targetHeadingId,
-                            title = categoryTitle,
-                        )
-                    }
-                }
-            }
-        } else null
-        }
-    }
 
     val primaryColor = MaterialTheme.colorScheme.primary
     val hlColor = MaterialTheme.colorScheme.onPrimaryContainer
@@ -518,42 +371,18 @@ fun EntryRow(
         }
     }
 
-    val pasteDecoder = LocalPasteDecoder.current
-    if (showBottomSheet) {
-        val context = LocalContext.current
-        EntryDetailBottomSheet(
-            entry = entry,
-            alternatives = alternatives,
-            history = loadedHistory,
-            onShowInSection = onShowInSection,
-            followState = effectiveFollowState,
-            onToggleFollow = effectiveToggleFollow,
-            isPinned = effectiveIsPinned,
-            onTogglePin = effectiveTogglePin,
-            onDismiss = { showBottomSheet = false },
-            onOpenUrl = { url ->
-                showBottomSheet = false
-                onOpenUrl(url)
-            },
-            onCopyLink = { url ->
-                showBottomSheet = false
-                pasteDecoder.linkText(url, PasteAction.COPY) { text ->
-                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                    clipboard.setPrimaryClip(ClipData.newPlainText("URL", text))
-                    onShowSnackbar(if ('\n' in text) "Links copied to clipboard" else "Link copied to clipboard")
-                }
-            },
-            onShareLink = { url ->
-                showBottomSheet = false
-                pasteDecoder.linkText(url, PasteAction.SHARE) { text ->
-                    val intent = Intent(Intent.ACTION_SEND).apply {
-                        type = "text/plain"
-                        putExtra(Intent.EXTRA_TEXT, text)
-                    }
-                    context.startActivity(Intent.createChooser(intent, "Share ${entry.name}"))
-                }
-            },
-            onShowSnackbar = onShowSnackbar,
-        )
-    }
+    EntryDetailSheetHost(
+        entry = entry,
+        visible = showBottomSheet,
+        onDismiss = { showBottomSheet = false },
+        onOpenUrl = onOpenUrl,
+        alternatives = alternatives,
+        history = history,
+        onShowInSection = onShowInSection,
+        followState = followState,
+        onToggleFollow = onToggleFollow,
+        isPinned = isPinned,
+        onTogglePin = onTogglePin,
+        onShowSnackbar = onShowSnackbar,
+    )
 }

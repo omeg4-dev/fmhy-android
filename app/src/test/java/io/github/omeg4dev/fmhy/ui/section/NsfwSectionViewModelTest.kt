@@ -421,7 +421,7 @@ class NsfwSectionViewModelTest {
         )
         val cachedState = savedVmWithCache.uiState.first { !it.isLoading }
         assertEquals(null, store.entriesQueryIds)
-        val cachedItem = cachedState.groups.single().items.single()
+        val cachedItem = cachedState.items.single()
         assertEquals(liveEntry.id, cachedItem.liveEntry?.id)
         assertEquals(liveEntry.headingId, cachedItem.liveEntry?.headingId)
 
@@ -429,9 +429,9 @@ class NsfwSectionViewModelTest {
         settings.updateHome { it.copy(showNsfwLink = false) }
         advanceUntilIdle()
         val fallbackState = savedVmWithCache.uiState.first { state ->
-            state.groups.firstOrNull()?.items?.firstOrNull()?.liveEntry?.headingId == null
+            state.items.firstOrNull()?.liveEntry?.headingId == null
         }
-        val fallbackItem = fallbackState.groups.single().items.single()
+        val fallbackItem = fallbackState.items.single()
         assertEquals(liveEntry.url, fallbackItem.liveEntry?.url)
         assertEquals(NSFW_SECTION_ID, fallbackItem.liveEntry?.sectionId)
 
