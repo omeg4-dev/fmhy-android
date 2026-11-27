@@ -27,10 +27,11 @@ DENSITIES = [
     ("xxxhdpi", 4.0, 192),
 ]
 
-# Geometry on 108x108 dp viewport (safe zone 21..87 dp)
-P_TOP_DP = (38.0, 34.0)
-P_BOT_DP = (38.0, 74.0)
-P_RIGHT_DP = (72.6, 54.0)
+# Geometry on 108x108 dp viewport (safe zone 21..87 dp); centroid (not bounding box) centred at x = 54 dp
+P_TOP_DP = (42.5, 34.0)
+P_BOT_DP = (42.5, 74.0)
+P_RIGHT_DP = (77.1, 54.0)
+TILE_X_OFFSET_DP = -4.5  # the tile is the widget/notification icon and keeps the box-centred triangle
 
 CYAN_HEX = "#00E5FF"
 MAGENTA_HEX = "#E040FB"
@@ -65,15 +66,16 @@ def render_logo(
     magenta_hex: str = MAGENTA_HEX,
     purple_hex: str = PURPLE_HEX,
     triangle_rgb: tuple[int, int, int] = (255, 255, 255),
+    x_offset_dp: float = 0.0,
 ) -> Image.Image:
     """Render the logo on a transparent canvas of 108*d px at supersample x supersample."""
     scale = d * supersample
     size_ss = int(round(108.0 * scale))
     target_size = int(round(108.0 * d))
 
-    p_top = (P_TOP_DP[0] * scale, P_TOP_DP[1] * scale)
-    p_bot = (P_BOT_DP[0] * scale, P_BOT_DP[1] * scale)
-    p_right = (P_RIGHT_DP[0] * scale, P_RIGHT_DP[1] * scale)
+    p_top = ((P_TOP_DP[0] + x_offset_dp) * scale, P_TOP_DP[1] * scale)
+    p_bot = ((P_BOT_DP[0] + x_offset_dp) * scale, P_BOT_DP[1] * scale)
+    p_right = ((P_RIGHT_DP[0] + x_offset_dp) * scale, P_RIGHT_DP[1] * scale)
 
     canvas = Image.new("RGBA", (size_ss, size_ss), (0, 0, 0, 0))
 
@@ -81,13 +83,13 @@ def render_logo(
     # polygon thickened ~3 dp to the left, Gaussian blur radius ~3 dp, peak alpha ~0.75
     cyan_mask = Image.new("L", (size_ss, size_ss), 0)
     d_cmask = ImageDraw.Draw(cyan_mask)
-    # Rectangle of left edge thickened 3dp to left (35..38 dp) plus 0.5dp under triangle,
+    # Rectangle of left edge thickened 3dp to left (39.5..42.5 dp) plus 0.5dp under triangle,
     # extending ~1dp past top/bottom vertices to round smoothly around corners
     d_cmask.rectangle(
         [
-            (P_TOP_DP[0] - 3.0) * scale,
+            (P_TOP_DP[0] + x_offset_dp - 3.0) * scale,
             (P_TOP_DP[1] - 1.0) * scale,
-            (P_TOP_DP[0] + 0.5) * scale,
+            (P_TOP_DP[0] + x_offset_dp + 0.5) * scale,
             (P_BOT_DP[1] + 1.0) * scale,
         ],
         fill=255,
@@ -187,13 +189,15 @@ def render_logo(
     return canvas.resize((target_size, target_size), Image.Resampling.LANCZOS)
 
 
-def make_legacy_icon(size: int, is_round: bool, supersample: int = 4) -> Image.Image:
+def make_legacy_icon(
+    size: int, is_round: bool, supersample: int = 4, x_offset_dp: float = 0.0
+) -> Image.Image:
     """Render legacy WebP icon with black rounded-square or circular background.
 
     The 108dp design is scaled so the 66dp safe zone fills ~70% of the icon width.
     """
     d_logo = (0.70 * size) / 66.0
-    logo = render_logo(d_logo, supersample=supersample)
+    logo = render_logo(d_logo, supersample=supersample, x_offset_dp=x_offset_dp)
 
     ss = supersample
     size_ss = size * ss
@@ -234,7 +238,7 @@ def write_variants(res_dir: Path) -> None:
 
 def main() -> None:
     res_dir = Path("app/src/main/res")
-    tile = make_legacy_icon(192, is_round=False)
+    tile =make_legacy_icon(192, is_round=False, x_offset_dp=TILE_X_OFFSET_DP)
     tile.save(res_dir / "drawable-nodpi" / "ic_launcher_tile.png", format="PNG")
     print("Wrote ic_launcher_tile.png (192x192 RGBA)")
     write_variants(res_dir)
