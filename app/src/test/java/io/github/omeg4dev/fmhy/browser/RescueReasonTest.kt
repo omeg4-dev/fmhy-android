@@ -110,7 +110,7 @@ class RescueReasonTest {
 
         assertEquals("Cannot connect through the proxy", RescueReason.title(LoadFailureKind.PROXY))
         assertEquals(
-            "Check that the proxy is running, or change it in Settings > Protection.",
+            "Check that the proxy is running, or change it in Settings > VPN & proxy.",
             RescueReason.advice(LoadFailureKind.PROXY),
         )
     }

@@ -21,7 +21,7 @@ This sends everything the app does (all browser tabs, wiki sync, downloads, upda
 ### 2. Turn on the proxy in FMHY
 
 1. Open FMHY and tap the gear icon.
-2. Go to **Protection** and scroll to **Proxy**.
+2. Go to **VPN & proxy** and scroll to **Proxy**.
 3. Choose **Orbot (Tor)** and tap **Apply**.
 
 Leave **Allow JavaScript** off. Read [JavaScript](#javascript) before you change it.
@@ -48,7 +48,7 @@ The ring around the site icon is **purple**. Tap it to see the details.
 | Amber | Encrypted page, but the site sees your own IP address |
 | Red | Page is not encrypted (HTTP), with or without Orbot |
 
-The ring is on by default (**Settings > Protection > Show VPN and HTTPS ring**). You can also show a lock icon on the Home screen with **Show VPN icon on Home**; it turns purple too.
+The ring is on by default (**Settings > VPN & proxy > Show VPN and HTTPS ring**). You can also show a lock icon on the Home screen with **Show VPN icon on Home**; it turns purple too.
 
 <img src="images/fmhy-home-icon.png" width="260" alt="Purple lock icon on the FMHY Home screen">
 
@@ -103,7 +103,7 @@ While the proxy is on, JavaScript is off, so some sites will not work. You can s
 
 ## Turn it off
 
-In FMHY go to **Settings > Protection > Proxy**, choose **Off** and tap **Apply**. Then switch Orbot off.
+In FMHY go to **Settings > VPN & proxy > Proxy**, choose **Off** and tap **Apply**. Then switch Orbot off.
 
 ---
 

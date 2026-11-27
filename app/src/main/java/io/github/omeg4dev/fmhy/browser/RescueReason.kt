@@ -110,7 +110,7 @@ object RescueReason {
         LoadFailureKind.TIMEOUT -> "Retry, or try a mirror."
         LoadFailureKind.SERVER -> "The site may be down. Retry later or try a mirror."
         LoadFailureKind.BLANK -> "Reload without blocking, or try desktop site."
-        LoadFailureKind.PROXY -> "Check that the proxy is running, or change it in Settings > Protection."
+        LoadFailureKind.PROXY -> "Check that the proxy is running, or change it in Settings > VPN & proxy."
         LoadFailureKind.UNKNOWN -> "Retry, or try a mirror."
     }
 
