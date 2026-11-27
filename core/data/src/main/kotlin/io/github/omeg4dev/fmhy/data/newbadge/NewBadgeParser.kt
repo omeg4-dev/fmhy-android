@@ -25,14 +25,17 @@ object NewBadgeParser {
         val sawBadgeInPage = html.contains("new-badge", ignoreCase = true) ||
             html.contains("New, added", ignoreCase = true)
 
-        for (m in LI_TAG_REGEX.findAll(html)) {
-            val attrs = m.groupValues[1]
+        // One Matcher for the whole page: findAll() makes a new one per match, and on Android
+        // each Matcher copies the full input into native memory (GBs per page).
+        val li = LI_TAG_REGEX.toPattern().matcher(html)
+        while (li.find()) {
+            val attrs = li.group(1).orEmpty()
             val classMatch = CLASS_ATTR_REGEX.find(attrs) ?: continue
             val classVal = classMatch.groupValues[2]
             val tokens = classVal.split(WHITESPACE_REGEX)
             if ("new" !in tokens) continue
 
-            val tagEnd = m.range.last + 1
+            val tagEnd = li.end()
             val nextClose = html.indexOf("</li>", startIndex = tagEnd, ignoreCase = true)
             val nextOpen = html.indexOf("<li", startIndex = tagEnd, ignoreCase = true)
             val segEnd = when {
