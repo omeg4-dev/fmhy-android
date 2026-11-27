@@ -1,0 +1,5 @@
+- New proxy setting: Orbot (Tor) or your own SOCKS5/HTTP server
+- Saved tab: compact rows, search, sort and multi-select
+- Settings regrouped, with shorter texts; backups now include them
+- Search: tap the path under a result to open its section
+- Fixed the app closing at first launch on Android 9 and low-memory phones
