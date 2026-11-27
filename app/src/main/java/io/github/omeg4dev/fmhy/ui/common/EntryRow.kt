@@ -101,6 +101,7 @@ fun EntryRow(
     folderLabel: String? = null,
     notePreview: String? = null,
     trailingContent: (@Composable () -> Unit)? = null,
+    footer: (@Composable () -> Unit)? = null,
 ) {
     var showBottomSheet by remember { mutableStateOf(false) }
     val haptics = rememberHaptics()
@@ -277,96 +278,107 @@ fun EntryRow(
             ),
         color = Color.Transparent,
     ) {
-        if (websiteStyle) {
-            WebsiteEntryContent(
-                entry = entry,
-                displayName = displayName,
-                descriptionText = if (!descHl.isNullOrEmpty() && descHl.contains('\u0002')) descHl else entry.description,
-                alternatives = alternatives,
-                newAddedOn = newAddedOn,
-                isCrossLink = isCrossLink,
-                updateLine = updateLine,
-                folderLabel = folderLabel,
-                notePreview = notePreview,
-                trailingContent = trailingContent,
-                onOpenUrl = onOpenUrl,
-                onShowBottomSheet = { showBottomSheet = true },
-                saveActions = saveActions,
-            )
-        } else {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
-            ) {
-                // Title row
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.fillMaxWidth()
+        val rowContent: @Composable () -> Unit = {
+            if (websiteStyle) {
+                WebsiteEntryContent(
+                    entry = entry,
+                    displayName = displayName,
+                    descriptionText = if (!descHl.isNullOrEmpty() && descHl.contains('\u0002')) descHl else entry.description,
+                    alternatives = alternatives,
+                    newAddedOn = newAddedOn,
+                    isCrossLink = isCrossLink,
+                    updateLine = updateLine,
+                    folderLabel = folderLabel,
+                    notePreview = notePreview,
+                    trailingContent = trailingContent,
+                    onOpenUrl = onOpenUrl,
+                    onShowBottomSheet = { showBottomSheet = true },
+                    saveActions = saveActions,
+                )
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
                 ) {
-                    EntryMarker(entry)
+                    // Title row
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        EntryMarker(entry)
 
-                    Text(
-                        text = displayName,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = if (isCrossLink) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                        fontWeight = if (entry.tier != Tier.NORMAL) FontWeight.Bold else FontWeight.Medium,
-                        modifier = Modifier.weight(1f, fill = false),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                        Text(
+                            text = displayName,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = if (isCrossLink) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                            fontWeight = if (entry.tier != Tier.NORMAL) FontWeight.Bold else FontWeight.Medium,
+                            modifier = Modifier.weight(1f, fill = false),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
 
-                    EntryTitleBadges(
-                        entry = entry,
-                        alternatives = alternatives,
-                        newAddedOn = newAddedOn,
-                        isCrossLink = isCrossLink,
-                        onOpenUrl = onOpenUrl,
-                        onShowBottomSheet = { showBottomSheet = true },
-                        saveActions = saveActions,
-                        trailingContent = trailingContent,
-                    )
+                        EntryTitleBadges(
+                            entry = entry,
+                            alternatives = alternatives,
+                            newAddedOn = newAddedOn,
+                            isCrossLink = isCrossLink,
+                            onOpenUrl = onOpenUrl,
+                            onShowBottomSheet = { showBottomSheet = true },
+                            saveActions = saveActions,
+                            trailingContent = trailingContent,
+                        )
+                    }
+
+                    if (!updateLine.isNullOrEmpty()) {
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            text = updateLine,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Medium,
+                        )
+                    }
+
+                    // Description
+                    if (displayDesc.isNotEmpty()) {
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            text = displayDesc,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            inlineContent = inlineContent,
+                            maxLines = if (entry.extraLinks.isNotEmpty()) 3 else 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    } else if (isCrossLink) {
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            text = "Opens in the app",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+
+                    if (folderLabel != null || !notePreview.isNullOrEmpty()) {
+                        EntryFolderNoteMetadata(
+                            folderLabel = folderLabel,
+                            notePreview = notePreview,
+                        )
+                    }
                 }
+            }
+        }
 
-                if (!updateLine.isNullOrEmpty()) {
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        text = updateLine,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Medium,
-                    )
-                }
-
-                // Description
-                if (displayDesc.isNotEmpty()) {
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        text = displayDesc,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        inlineContent = inlineContent,
-                        maxLines = if (entry.extraLinks.isNotEmpty()) 3 else 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                } else if (isCrossLink) {
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        text = "Opens in the app",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-
-                if (folderLabel != null || !notePreview.isNullOrEmpty()) {
-                    EntryFolderNoteMetadata(
-                        folderLabel = folderLabel,
-                        notePreview = notePreview,
-                    )
-                }
+        if (footer == null) {
+            rowContent()
+        } else {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                rowContent()
+                footer()
             }
         }
     }

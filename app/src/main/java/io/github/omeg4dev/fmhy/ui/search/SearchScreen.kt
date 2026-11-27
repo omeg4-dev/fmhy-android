@@ -102,6 +102,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.focus.FocusRequester
@@ -578,15 +579,23 @@ fun SearchScreen(
                                             val breadcrumb = remember(headingSegments) {
                                                 headingSegments.joinToString(" › ") { CrossLinks.splitLinkTitle(it).first }
                                             }
+                                            val showInSection: () -> Unit = {
+                                                hideKeyboard()
+                                                scope.launch {
+                                                    val anchor = try {
+                                                        hit.entry.headingId?.let { hid ->
+                                                            container.datasetStore.headings(hit.entry.sectionId).firstOrNull { it.id == hid }?.anchor
+                                                        }
+                                                    } catch (_: Exception) { null }
+                                                    nav.select(Tab.BROWSE)
+                                                    nav.push(SectionNavKey(hit.entry.sectionId, anchor = anchor, focusEntryId = hit.entry.id))
+                                                }
+                                            }
 
                                             if (breadcrumb.isNotEmpty()) {
-                                                Text(
-                                                    text = breadcrumb,
-                                                    style = MaterialTheme.typography.labelMedium,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis,
-                                                    modifier = Modifier.padding(start = 16.dp, top = 10.dp, bottom = 0.dp),
+                                                PathStrip(
+                                                    breadcrumb = breadcrumb,
+                                                    onClick = showInSection,
                                                 )
                                             }
 
@@ -596,25 +605,17 @@ fun SearchScreen(
                                                     nameHl = hit.nameHl,
                                                     descHl = hit.descriptionHl,
                                                     newAddedOn = state.newBadges[hit.entry.id],
-                                                    onShowInSection = {
-                                                        hideKeyboard()
-                                                        scope.launch {
-                                                            val anchor = try {
-                                                                hit.entry.headingId?.let { hid ->
-                                                                    container.datasetStore.headings(hit.entry.sectionId).firstOrNull { it.id == hid }?.anchor
-                                                                }
-                                                            } catch (_: Exception) { null }
-                                                            nav.select(Tab.BROWSE)
-                                                            nav.push(SectionNavKey(hit.entry.sectionId, anchor = anchor, focusEntryId = hit.entry.id))
-                                                        }
-                                                    },
+                                                    onShowInSection = showInSection,
                                                     siteAction = if (LocalGesturePrefs.current.searchTapOpensSection) RowAction.SHOW_IN_SECTION else RowAction.OPEN_SITE,
                                                     onOpenUrl = { linkOpener.openUrl(it) },
                                                     onShowSnackbar = onShowSnackbar,
+                                                    footer = if (hit.extraLabel != null && hit.extraHl != null) {
+                                                        { MatchLine(hit) }
+                                                    } else {
+                                                        null
+                                                    },
                                                 )
                                             }
-
-                                            MatchLine(hit)
 
                                             HorizontalDivider(
                                                 modifier = Modifier.padding(start = 16.dp),
@@ -910,6 +911,36 @@ private fun suggestionIcon(s: QuerySuggestion) = when (s.kind) {
         s.insert.endsWith("starred") -> Icons.Filled.Star
         s.insert.endsWith("top") -> Icons.Outlined.WorkspacePremium
         else -> Icons.Outlined.VisibilityOff
+    }
+}
+
+/** Clickable breadcrumb strip above a search result that jumps to its section. */
+@Composable
+private fun PathStrip(breadcrumb: String, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 36.dp)
+            .semantics { contentDescription = "Show in section" }
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(start = 16.dp, end = 16.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.Bottom,
+    ) {
+        Text(
+            text = breadcrumb,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false),
+        )
+        Text(
+            text = " ›",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            softWrap = false,
+        )
     }
 }
 
