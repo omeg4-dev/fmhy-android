@@ -71,6 +71,18 @@ class SettingsCatalogTest {
     }
 
     @Test
+    fun fmhyXAccountOnlyInGithubBuild() {
+        val fmhyXEntries = SettingsCatalog.all.filter { it.page == SettingsPage.FMHYX_ACCOUNT }
+        assertEquals(BuildConfig.FLAVOR == "github", fmhyXEntries.isNotEmpty())
+        fmhyXEntries.forEach { entry ->
+            assertTrue(
+                "Description exceeds 70 chars for ${entry.id}: ${entry.description.length}",
+                entry.description.length <= 70,
+            )
+        }
+    }
+
+    @Test
     fun byIdReturnsCorrectEntry() {
         SettingsCatalog.all.forEach { entry ->
             val found = SettingsCatalog.byId(entry.id)

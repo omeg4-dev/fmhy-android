@@ -1,5 +1,5 @@
-PRAGMA user_version = 7;
-CREATE TABLE folders (id INTEGER PRIMARY KEY, name TEXT NOT NULL, ord INTEGER NOT NULL, created_at INTEGER NOT NULL);
+PRAGMA user_version = 8;
+CREATE TABLE folders (id INTEGER PRIMARY KEY, name TEXT NOT NULL, ord INTEGER NOT NULL, created_at INTEGER NOT NULL, sync_id TEXT);
 CREATE TABLE bookmarks (
   entry_id TEXT PRIMARY KEY, name TEXT NOT NULL, url TEXT NOT NULL, section_id TEXT NOT NULL,
   section_title TEXT NOT NULL, heading_path TEXT NOT NULL, saved_at INTEGER NOT NULL,

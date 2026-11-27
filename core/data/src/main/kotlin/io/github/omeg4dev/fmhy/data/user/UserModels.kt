@@ -22,6 +22,49 @@ data class Folder(
     val name: String,
     val ord: Int,
     val createdAt: Long,
+    val syncId: String? = null,
+)
+
+data class BookmarksSnapshot(
+    val folders: List<Folder>,
+    val bookmarks: List<UserBookmark>,
+)
+
+data class SyncFolderCreate(
+    val syncId: String,
+    val name: String,
+)
+
+data class SyncFolderRename(
+    val folderId: Long,
+    val name: String,
+)
+
+data class SyncBookmarkUpdate(
+    val entryId: String,
+    val savedAt: Long,
+    val name: String? = null,
+)
+
+data class SyncBookmarkAdd(
+    val bookmark: UserBookmark,
+    val folderSyncId: String? = null,
+)
+
+data class SyncBookmarkMove(
+    val entryId: String,
+    val folderSyncId: String?,
+)
+
+data class SyncApplyResult(
+    val createFolders: List<SyncFolderCreate> = emptyList(),
+    val renameFolders: List<SyncFolderRename> = emptyList(),
+    val deleteFolderIds: List<Long> = emptyList(),
+    val deleteBookmarkEntryIds: List<String> = emptyList(),
+    val updateBookmarks: List<SyncBookmarkUpdate> = emptyList(),
+    val addBookmarks: List<SyncBookmarkAdd> = emptyList(),
+    val moveBookmarks: List<SyncBookmarkMove> = emptyList(),
+    val baseJson: String,
 )
 
 @Serializable

@@ -28,6 +28,7 @@ import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Bookmarks
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
@@ -78,12 +79,14 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.omeg4dev.fmhy.BuildConfig
 import io.github.omeg4dev.fmhy.SettingsPage
 import io.github.omeg4dev.fmhy.data.ColorSource
 import io.github.omeg4dev.fmhy.data.OpenLinksWith
 import io.github.omeg4dev.fmhy.data.SectionLayout
 import io.github.omeg4dev.fmhy.data.ThemeMode
 import io.github.omeg4dev.fmhy.data.adblock.FilterListCatalog
+import io.github.omeg4dev.fmhy.data.fmhyx.FmhyXAccountState
 import io.github.omeg4dev.fmhy.theme.ACCENT_PRESETS
 import io.github.omeg4dev.fmhy.ui.common.Motion
 
@@ -110,6 +113,7 @@ fun SettingsHub(
     val updatePrefs by viewModel.updatePrefs.collectAsStateWithLifecycle()
     val dataUsagePrefs by viewModel.dataUsagePrefs.collectAsStateWithLifecycle()
     val follows by viewModel.follows.collectAsStateWithLifecycle()
+    val fmhyXState by viewModel.fmhyXAccountState.collectAsStateWithLifecycle()
 
     var isRevealed by rememberSaveable { mutableStateOf(false) }
     var isFocused by remember { mutableStateOf(false) }
@@ -168,10 +172,9 @@ fun SettingsHub(
         if (query.isEmpty()) {
             emptyList()
         } else {
-            val exclude = if (viewModel.updateController.enabled) {
-                emptySet()
-            } else {
-                setOf(SettingsPage.APP_UPDATES)
+            val exclude = buildSet {
+                if (!viewModel.updateController.enabled) add(SettingsPage.APP_UPDATES)
+                if (!BuildConfig.FMHYX_ENABLED) add(SettingsPage.FMHYX_ACCOUNT)
             }
             SettingsSearchIndex.search(query = query, excludePages = exclude)
         }
@@ -473,6 +476,24 @@ fun SettingsHub(
                                 icon = Icons.Outlined.Backup,
                                 onClick = { onNavigateToPage(SettingsPage.BACKUP) },
                             )
+                            if (BuildConfig.FMHYX_ENABLED) {
+                                SettingsDivider(hasIcon = true)
+                                val fmhyXSummary = when (val fx = fmhyXState) {
+                                    FmhyXAccountState.SignedOut -> "Not signed in"
+                                    is FmhyXAccountState.SignedIn -> when {
+                                        fx.running -> "Syncing…"
+                                        fx.error != null -> formatFmhyXError(fx.error)
+                                        fx.lastSyncedAt != null -> "Synced ${formatFmhyXSyncTime(fx.lastSyncedAt)}"
+                                        else -> "Not synced yet"
+                                    }
+                                }
+                                NavRow(
+                                    title = "FMHY X account",
+                                    summary = fmhyXSummary,
+                                    icon = Icons.Default.CloudSync,
+                                    onClick = { onNavigateToPage(SettingsPage.FMHYX_ACCOUNT) },
+                                )
+                            }
                         }
                     }
 

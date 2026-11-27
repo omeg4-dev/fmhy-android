@@ -21,6 +21,9 @@ import androidx.compose.material.icons.automirrored.outlined.DriveFileMove
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
@@ -40,6 +43,7 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
@@ -66,7 +70,9 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import io.github.omeg4dev.fmhy.BuildConfig
 import io.github.omeg4dev.fmhy.data.SavedSort
+import io.github.omeg4dev.fmhy.data.fmhyx.FmhyXAccountState
 import io.github.omeg4dev.fmhy.data.user.Folder
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import io.github.omeg4dev.fmhy.ui.shell.StatusNotices
@@ -86,13 +92,47 @@ internal fun SavedTopBar(
     onSelectSort: (SavedSort) -> Unit,
     onToggleGroupBySection: (Boolean) -> Unit,
     onClearHistory: () -> Unit,
+    fmhyXState: FmhyXAccountState = FmhyXAccountState.SignedOut,
+    onOpenFmhyXAccount: () -> Unit = {},
 ) {
     var sortMenuExpanded by remember { mutableStateOf(false) }
 
     TopAppBar(
-        title = { Text("Saved") },
+        title = {
+            Text(
+                text = "Saved",
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        },
         actions = {
             SyncStatusIcon(statusNotices)
+            if (BuildConfig.FMHYX_ENABLED && fmhyXState is FmhyXAccountState.SignedIn) {
+                val (icon, description, tint) = when {
+                    fmhyXState.running -> Triple(
+                        Icons.Default.CloudSync,
+                        "FMHY X syncing",
+                        LocalContentColor.current,
+                    )
+                    fmhyXState.error != null -> Triple(
+                        Icons.Default.CloudOff,
+                        "FMHY X sync problem",
+                        MaterialTheme.colorScheme.error,
+                    )
+                    else -> Triple(
+                        Icons.Default.CloudDone,
+                        "FMHY X synced",
+                        LocalContentColor.current,
+                    )
+                }
+                IconButton(onClick = onOpenFmhyXAccount) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = description,
+                        tint = tint,
+                    )
+                }
+            }
             if (!showHistory) {
                 Box {
                     IconButton(onClick = { sortMenuExpanded = true }) {

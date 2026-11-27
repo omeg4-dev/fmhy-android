@@ -12,18 +12,31 @@ fun MobileDataConfirmationDialog(
     viewModel: SettingsViewModel,
 ) {
     val pendingAction by viewModel.pendingMobileAction.collectAsStateWithLifecycle()
-    if (pendingAction != null) {
+    MobileDataConfirmationDialog(
+        visible = pendingAction != null,
+        onConfirm = viewModel::confirmMobileAction,
+        onDismiss = viewModel::dismissMobileActionDialog,
+    )
+}
+
+@Composable
+fun MobileDataConfirmationDialog(
+    visible: Boolean,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    if (visible) {
         AlertDialog(
-            onDismissRequest = viewModel::dismissMobileActionDialog,
+            onDismissRequest = onDismiss,
             title = { Text("Use mobile data this time?") },
             text = { Text("Wi-Fi only is on and you are on mobile data. Run this once using mobile data?") },
             confirmButton = {
-                TextButton(onClick = viewModel::confirmMobileAction) {
+                TextButton(onClick = onConfirm) {
                     Text("Use mobile data")
                 }
             },
             dismissButton = {
-                TextButton(onClick = viewModel::dismissMobileActionDialog) {
+                TextButton(onClick = onDismiss) {
                     Text("Cancel")
                 }
             },

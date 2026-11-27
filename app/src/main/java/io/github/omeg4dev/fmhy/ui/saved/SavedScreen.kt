@@ -36,8 +36,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.omeg4dev.fmhy.SectionNavKey
+import io.github.omeg4dev.fmhy.SettingsPage
+import io.github.omeg4dev.fmhy.SettingsPageNavKey
 import io.github.omeg4dev.fmhy.data.Bookmark
 import io.github.omeg4dev.fmhy.data.SavedSort
+import io.github.omeg4dev.fmhy.data.fmhyx.FmhyXAccountState
 import io.github.omeg4dev.fmhy.data.model.Entry
 import io.github.omeg4dev.fmhy.data.nsfw.NSFW_SECTION_ID
 import io.github.omeg4dev.fmhy.data.user.Folder
@@ -59,6 +62,7 @@ import io.github.omeg4dev.fmhy.ui.common.rememberLinkOpener
 import io.github.omeg4dev.fmhy.ui.common.rememberListEntrance
 import io.github.omeg4dev.fmhy.ui.common.sectionDisplayTitle
 import io.github.omeg4dev.fmhy.ui.common.showUndo
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 
@@ -75,6 +79,12 @@ fun SavedScreen(
     onShowSnackbar: (String) -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val fmhyXState by remember(container.fmhyXSync) {
+        container.fmhyXSync?.state ?: MutableStateFlow(FmhyXAccountState.SignedOut)
+    }.collectAsStateWithLifecycle()
+    val sharedFolderIds by remember(container.fmhyXSync) {
+        container.fmhyXSync?.sharedFolderIds ?: MutableStateFlow(emptySet())
+    }.collectAsStateWithLifecycle()
     val linkOpener = rememberLinkOpener(container, onShowSnackbar)
     val savedListState = rememberLazyListState()
     val historyListState = rememberLazyListState()
@@ -232,6 +242,10 @@ fun SavedScreen(
             } else {
                 SavedTopBar(
                     statusNotices = container.statusNotices,
+                    fmhyXState = fmhyXState,
+                    onOpenFmhyXAccount = {
+                        nav.push(SettingsPageNavKey(SettingsPage.FMHYX_ACCOUNT))
+                    },
                     showHistory = showHistory,
                     hasHistory = state.historyGroups.isNotEmpty(),
                     sort = state.sort,
@@ -527,6 +541,7 @@ fun SavedScreen(
     folderToDelete?.let { folder ->
         DeleteFolderDialog(
             folder = folder,
+            isSharedOnFmhyX = folder.id in sharedFolderIds,
             onDismiss = { folderToDelete = null },
             onConfirm = {
                 folderToDelete = null

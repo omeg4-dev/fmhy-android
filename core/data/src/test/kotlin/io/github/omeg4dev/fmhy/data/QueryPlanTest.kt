@@ -11,6 +11,12 @@ import io.github.omeg4dev.fmhy.data.user.Follow
 import io.github.omeg4dev.fmhy.data.user.HistoryItem
 import io.github.omeg4dev.fmhy.data.user.Pin
 import io.github.omeg4dev.fmhy.data.user.SitePrefs
+import io.github.omeg4dev.fmhy.data.user.SyncApplyResult
+import io.github.omeg4dev.fmhy.data.user.SyncBookmarkAdd
+import io.github.omeg4dev.fmhy.data.user.SyncBookmarkMove
+import io.github.omeg4dev.fmhy.data.user.SyncBookmarkUpdate
+import io.github.omeg4dev.fmhy.data.user.SyncFolderCreate
+import io.github.omeg4dev.fmhy.data.user.SyncFolderRename
 import io.github.omeg4dev.fmhy.data.user.UserBookmark
 import io.github.omeg4dev.fmhy.data.user.UserStore
 import java.io.File
@@ -76,6 +82,8 @@ class QueryPlanTest {
             "whole-catalog aggregate by design; cache candidate",
         "SELECT host, adblock, popups, javascript, desktop, dark, fix_site, block_redirects, updated_at FROM site_prefs ORDER BY host ASC" to
             "full export ordered by PK",
+        "WHERE url IN (" to
+            "batch exact-URL lookup for FMHY X sync; entries has no url/original_url index (schema/dataset.sql unchanged)",
     )
 
     private val knownFindings: Map<String, String> = mapOf(
@@ -264,6 +272,7 @@ class QueryPlanTest {
         call("DatasetStore", "allHeadings") { datasetStore.allHeadings() }
         call("DatasetStore", "entry") { datasetStore.entry("acba399d4271") }
         call("DatasetStore", "entries") { datasetStore.entries(listOf("acba399d4271", "nonexistent")) }
+        call("DatasetStore", "entriesByUrls") { datasetStore.entriesByUrls(listOf("https://example.com", "https://nonexistent.example")) }
         call("DatasetStore", "randomTopPick") { datasetStore.randomTopPick() }
         call("DatasetStore", "randomTopEntries") { datasetStore.randomTopEntries("ai", 5) }
         call("DatasetStore", "changes") {
@@ -355,6 +364,31 @@ class QueryPlanTest {
             // Checked via deleteFolderWithSnapshot restore
         }
         call("UserStore", "reorderFolders") { userStore.reorderFolders(listOf(1L)) }
+        call("UserStore", "bookmarksSnapshot") { userStore.bookmarksSnapshot() }
+        call("UserStore", "setFolderSyncIds") { userStore.setFolderSyncIds(mapOf(1L to "sync-folder-1")) }
+        call("UserStore", "applyBookmarkSync") {
+            val tmpFolder = userStore.createFolder("Sync Temp Folder")
+            userStore.setFolderSyncIds(mapOf(tmpFolder.id to "sync-tmp"))
+            userStore.applyBookmarkSync {
+                SyncApplyResult(
+                    createFolders = listOf(SyncFolderCreate("sync-created", "Created By Sync")),
+                    renameFolders = listOf(SyncFolderRename(tmpFolder.id, "Renamed By Sync")),
+                    deleteFolderIds = listOf(tmpFolder.id),
+                    deleteBookmarkEntryIds = listOf("b_nonexistent"),
+                    updateBookmarks = listOf(SyncBookmarkUpdate("b1", 2000L, "Updated B1")),
+                    addBookmarks = listOf(
+                        SyncBookmarkAdd(
+                            UserBookmark("b_sync", "Synced", "https://example.com/sync", "sec1", "Sec 1", "Path", 2000L),
+                            folderSyncId = "sync-created",
+                        )
+                    ),
+                    moveBookmarks = listOf(SyncBookmarkMove("b1", "sync-created")),
+                    baseJson = """{"sites":{},"collections":{}}""",
+                ) to Unit
+            }
+        }
+        call("UserStore", "readFmhyXBase") { userStore.readFmhyXBase() }
+        call("UserStore", "clearFmhyXBase") { userStore.clearFmhyXBase() }
         call("UserStore", "addHistory") { userStore.addHistory("https://example.com/hist", "e_hist", "History Title") }
         call("UserStore", "history") { userStore.history(20) }
         call("UserStore", "deleteHistory") { userStore.deleteHistory(listOf(1L)) }

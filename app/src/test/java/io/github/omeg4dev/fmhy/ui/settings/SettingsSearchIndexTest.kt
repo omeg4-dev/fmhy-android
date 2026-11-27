@@ -1,5 +1,6 @@
 package io.github.omeg4dev.fmhy.ui.settings
 
+import io.github.omeg4dev.fmhy.BuildConfig
 import io.github.omeg4dev.fmhy.SettingsPage
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -254,5 +255,21 @@ class SettingsSearchIndexTest {
                 results.any { it.entry.id == "protection.private_dns" },
             )
         }
+    }
+
+    @Test
+    fun fmhyXAccountSearchMatchesFlavorAndExcludePages() {
+        val isGithub = BuildConfig.FLAVOR == "github"
+        listOf("fmhy x", "account", "sync", "token", "saved").forEach { query ->
+            val results = SettingsSearchIndex.search(query)
+            val hasFmhyX = results.any { it.entry.page == SettingsPage.FMHYX_ACCOUNT }
+            assertEquals("Query '$query' FMHY X visibility mismatch", isGithub, hasFmhyX)
+        }
+
+        val excluded = SettingsSearchIndex.search(
+            query = "fmhy x",
+            excludePages = setOf(SettingsPage.FMHYX_ACCOUNT),
+        )
+        assertFalse(excluded.any { it.entry.page == SettingsPage.FMHYX_ACCOUNT })
     }
 }

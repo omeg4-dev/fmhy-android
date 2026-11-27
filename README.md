@@ -73,6 +73,7 @@ Android 8.0+ · Free & Open Source · No ads · No tracking
 - Release APKs come bundled with the wiki so it works offline right away; later syncs only download the diff.
 - VirusTotal and Hybrid Analysis checks are opt-in and only run when you add your own API key.
 - App update checks look for new releases of this repository on GitHub; switch them off any time under Settings → App updates.
+- Optional FMHY X account sync (GitHub build only) sends saved sites and folder names to x.fmhy.bid (mirror d.fmhy.bid) after you sign in with a token; notes and adult-section saves stay on the phone.
 </details>
 
 <p align="center">

@@ -56,6 +56,10 @@ class BookmarksRepository(
         }
     }
 
+    suspend fun awaitMigration() {
+        migrationDeferred.await()
+    }
+
     suspend fun migrateLegacyIfNeeded() {
         try {
             if (userStore.get(KV_MIGRATED_V1) == "1") {

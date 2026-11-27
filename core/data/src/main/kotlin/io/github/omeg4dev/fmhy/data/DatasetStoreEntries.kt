@@ -130,6 +130,34 @@ internal suspend fun DatasetStore.entriesImpl(ids: List<String>): List<Entry> = 
     result
 }
 
+internal suspend fun DatasetStore.entriesByUrlsImpl(urls: Collection<String>): List<Entry> = withConnection { conn ->
+    if (urls.isEmpty()) return@withConnection emptyList()
+    val result = mutableListOf<Entry>()
+    val distinctUrls = urls.distinct()
+    for (chunk in distinctUrls.chunked(400)) {
+        val placeholders = chunk.joinToString(",") { "?" }
+        val sql = """
+            SELECT num, id, section_id, heading_id, ord, name, url, original_url,
+                   description, tags, heading_path, tier, kind, line, is_inline_more, is_base64,
+                   mirrors, extra_links, first_seen, last_changed, starred_at
+            FROM entries
+            WHERE url IN ($placeholders) OR original_url IN ($placeholders)
+        """.trimIndent()
+        conn.prepare(sql).use { stmt ->
+            val n = chunk.size
+            for (i in 0 until n) {
+                val u = chunk[i]
+                stmt.bindText(i + 1, u)
+                stmt.bindText(n + i + 1, u)
+            }
+            while (stmt.step()) {
+                result.add(readEntry(stmt))
+            }
+        }
+    }
+    result
+}
+
 internal suspend fun DatasetStore.randomTopPickImpl(): Entry? {
     val candidates = withConnection { conn ->
         val sql = """

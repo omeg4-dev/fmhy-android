@@ -27,12 +27,14 @@ android {
             dimension = "store"
             buildConfigField("boolean", "UPDATER_ENABLED", "true")
             buildConfigField("boolean", "NSFW_LINK_ENABLED", "true")
+            buildConfigField("boolean", "FMHYX_ENABLED", "true")
         }
         create("fdroid") {
             dimension = "store"
             buildConfigField("boolean", "UPDATER_ENABLED", "false")
             // F-Droid's inclusion policy requires apps to be suitable for all ages.
             buildConfigField("boolean", "NSFW_LINK_ENABLED", "false")
+            buildConfigField("boolean", "FMHYX_ENABLED", "false")
         }
     }
 

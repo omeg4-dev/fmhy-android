@@ -236,6 +236,8 @@ open class DatasetStore(
 
     open suspend fun entries(ids: List<String>): List<Entry> = entriesImpl(ids)
 
+    open suspend fun entriesByUrls(urls: Collection<String>): List<Entry> = entriesByUrlsImpl(urls)
+
     /** A random safe star: starred by FMHY, a real site (not an index or a link to another section),
      *  not a hidden base64 link, and not on FMHY's unsafe list. */
     open suspend fun randomTopPick(): Entry? = randomTopPickImpl()

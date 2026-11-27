@@ -791,6 +791,43 @@ object SettingsCatalog {
         keywords = listOf("import", "backup", "restore", "json", "recover", "settings"),
     )
 
+    // FMHY X account
+    val fmhyxAccountToken = SettingEntry(
+        id = "fmhyx_account.account_token",
+        page = SettingsPage.FMHYX_ACCOUNT,
+        title = "Account token",
+        description = "Sign in to sync saved sites and folders with FMHY X",
+        keywords = listOf("fmhy x", "fmhyx", "account", "sync", "token", "saved", "sign in"),
+    )
+    val fmhyxAccountSyncNow = SettingEntry(
+        id = "fmhyx_account.sync_now",
+        page = SettingsPage.FMHYX_ACCOUNT,
+        title = "Sync now",
+        description = "Sync your saved sites and folders with FMHY X now",
+        keywords = listOf("fmhy x", "fmhyx", "account", "sync", "saved", "now"),
+    )
+    val fmhyxAccountCopyToken = SettingEntry(
+        id = "fmhyx_account.copy_token",
+        page = SettingsPage.FMHYX_ACCOUNT,
+        title = "Copy token",
+        description = "Copy your FMHY X account token to the clipboard",
+        keywords = listOf("fmhy x", "fmhyx", "account", "token", "copy"),
+    )
+    val fmhyxAccountSignOut = SettingEntry(
+        id = "fmhyx_account.sign_out",
+        page = SettingsPage.FMHYX_ACCOUNT,
+        title = "Sign out",
+        description = "Stop syncing with FMHY X while keeping saved sites",
+        keywords = listOf("fmhy x", "fmhyx", "account", "sign out", "logout", "saved"),
+    )
+    val fmhyxAccountDeleteAccount = SettingEntry(
+        id = "fmhyx_account.delete_account",
+        page = SettingsPage.FMHYX_ACCOUNT,
+        title = "Delete account",
+        description = "Delete your synced data from x.fmhy.bid",
+        keywords = listOf("fmhy x", "fmhyx", "account", "delete", "remove"),
+    )
+
     // Report a problem
     val reportReportProblem = SettingEntry(
         id = "report.report_problem",
@@ -999,6 +1036,12 @@ object SettingsCatalog {
         // Backup & restore
         backupExportBackup,
         backupImportBackup,
+        // FMHY X account
+        fmhyxAccountToken,
+        fmhyxAccountSyncNow,
+        fmhyxAccountCopyToken,
+        fmhyxAccountSignOut,
+        fmhyxAccountDeleteAccount,
         // Report a problem
         reportReportProblem,
         reportOfferToReportCrashes,
@@ -1014,7 +1057,10 @@ object SettingsCatalog {
         appUpdatesInterval,
         appUpdatesCheckNow,
         appUpdatesSkippedVersion,
-    ).filter { BuildConfig.NSFW_LINK_ENABLED || it != homeNsfwLink }
+    ).filter { entry ->
+        (BuildConfig.NSFW_LINK_ENABLED || entry != homeNsfwLink) &&
+            (BuildConfig.FMHYX_ENABLED || entry.page != SettingsPage.FMHYX_ACCOUNT)
+    }
 
     fun byId(id: String): SettingEntry? = all.firstOrNull { it.id == id }
 }
@@ -1024,7 +1070,7 @@ fun SettingsPage.heading(): String = when (this) {
     SettingsPage.BROWSER, SettingsPage.VIDEO, SettingsPage.DOWNLOADS -> "Browsing"
     SettingsPage.AD_BLOCKING, SettingsPage.PROTECTION, SettingsPage.PRIVACY -> "Safety & privacy"
     SettingsPage.NOTIFICATIONS, SettingsPage.APP_UPDATES -> "Updates"
-    SettingsPage.SYNC, SettingsPage.DATA_USAGE, SettingsPage.BACKUP -> "Your data"
+    SettingsPage.SYNC, SettingsPage.DATA_USAGE, SettingsPage.BACKUP, SettingsPage.FMHYX_ACCOUNT -> "Your data"
     SettingsPage.REPORT, SettingsPage.ABOUT -> "Help & about"
 }
 
@@ -1043,6 +1089,7 @@ fun SettingsPage.label(): String = when (this) {
     SettingsPage.SYNC -> "Sync"
     SettingsPage.DATA_USAGE -> "Data usage"
     SettingsPage.BACKUP -> "Backup & restore"
+    SettingsPage.FMHYX_ACCOUNT -> "FMHY X account"
     SettingsPage.REPORT -> "Report a problem"
     SettingsPage.ABOUT -> "About"
 }

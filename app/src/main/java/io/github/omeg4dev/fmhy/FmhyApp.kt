@@ -155,6 +155,7 @@ class FmhyApp : Application() {
             override fun onStart(owner: LifecycleOwner) {
                 container.visitTracker.onStart()
                 DownloadService.clearFinished(this@FmhyApp)
+                container.fmhyXSync?.onForeground()
             }
 
             override fun onStop(owner: LifecycleOwner) {

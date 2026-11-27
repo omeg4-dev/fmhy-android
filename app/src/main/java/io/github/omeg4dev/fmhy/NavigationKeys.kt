@@ -39,6 +39,7 @@ enum class SettingsPage {
     SYNC,
     DATA_USAGE,
     BACKUP,
+    FMHYX_ACCOUNT,
     REPORT,
     ABOUT,
 }

@@ -256,7 +256,7 @@ open class UserStore(
     )
 
     suspend fun deleteFolderWithSnapshot(id: Long): DeletedFolderSnapshot? = withTransaction { conn ->
-        val folder = conn.prepare("SELECT id, name, ord, created_at FROM folders WHERE id = ?").use { stmt ->
+        val folder = conn.prepare("SELECT id, name, ord, created_at, sync_id FROM folders WHERE id = ?").use { stmt ->
             stmt.bindLong(1, id)
             if (stmt.step()) {
                 Folder(
@@ -264,6 +264,7 @@ open class UserStore(
                     name = stmt.getText(1),
                     ord = stmt.getLong(2).toInt(),
                     createdAt = stmt.getLong(3),
+                    syncId = if (stmt.isNull(4)) null else stmt.getText(4),
                 )
             } else null
         } ?: return@withTransaction null
@@ -286,15 +287,16 @@ open class UserStore(
 
     suspend fun restoreFolder(snapshot: DeletedFolderSnapshot) = withTransaction { conn ->
         val sql = """
-            INSERT INTO folders (id, name, ord, created_at)
-            VALUES (?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET name = excluded.name, ord = excluded.ord, created_at = excluded.created_at
+            INSERT INTO folders (id, name, ord, created_at, sync_id)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET name = excluded.name, ord = excluded.ord, created_at = excluded.created_at, sync_id = excluded.sync_id
         """.trimIndent()
         conn.prepare(sql).use { stmt ->
             stmt.bindLong(1, snapshot.folder.id)
             stmt.bindText(2, snapshot.folder.name)
             stmt.bindLong(3, snapshot.folder.ord.toLong())
             stmt.bindLong(4, snapshot.folder.createdAt)
+            if (snapshot.folder.syncId != null) stmt.bindText(5, snapshot.folder.syncId) else stmt.bindNull(5)
             stmt.step()
         }
         if (snapshot.bookmarkEntryIds.isNotEmpty()) {
@@ -320,6 +322,171 @@ open class UserStore(
             }
         }
         bumpChanges()
+    }
+
+    // --- FMHY X Sync ---
+
+    suspend fun bookmarksSnapshot(): BookmarksSnapshot = withConnection { conn ->
+        BookmarksSnapshot(
+            folders = readFoldersInternal(conn),
+            bookmarks = readBookmarksInternal(conn),
+        )
+    }
+
+    suspend fun setFolderSyncIds(syncIdsByFolderId: Map<Long, String?>) {
+        if (syncIdsByFolderId.isEmpty()) return
+        withTransaction { conn ->
+            conn.prepare("UPDATE folders SET sync_id = ? WHERE id = ?").use { stmt ->
+                for ((folderId, syncId) in syncIdsByFolderId) {
+                    if (syncId != null) stmt.bindText(1, syncId) else stmt.bindNull(1)
+                    stmt.bindLong(2, folderId)
+                    stmt.step()
+                    stmt.reset()
+                }
+            }
+        }
+    }
+
+    suspend fun <T> applyBookmarkSync(
+        plan: (BookmarksSnapshot) -> Pair<SyncApplyResult, T>,
+    ): T = withTransaction { conn ->
+        val current = BookmarksSnapshot(
+            folders = readFoldersInternal(conn),
+            bookmarks = readBookmarksInternal(conn),
+        )
+        val (ops, extra) = plan(current)
+        var changed = false
+        val folderIdBySyncId = current.folders
+            .mapNotNull { f -> f.syncId?.let { it to f.id } }
+            .toMap()
+            .toMutableMap()
+
+        if (ops.deleteFolderIds.isNotEmpty()) {
+            val deletedSyncIds = current.folders.filter { it.id in ops.deleteFolderIds }.mapNotNull { it.syncId }
+            conn.prepare("DELETE FROM folders WHERE id = ?").use { stmt ->
+                for (id in ops.deleteFolderIds) {
+                    stmt.bindLong(1, id)
+                    stmt.step()
+                    stmt.reset()
+                    if (sqliteChanges(conn) > 0) changed = true
+                }
+            }
+            for (sid in deletedSyncIds) folderIdBySyncId.remove(sid)
+        }
+
+        if (ops.renameFolders.isNotEmpty()) {
+            conn.prepare("UPDATE folders SET name = ? WHERE id = ?").use { stmt ->
+                for (r in ops.renameFolders) {
+                    stmt.bindText(1, r.name)
+                    stmt.bindLong(2, r.folderId)
+                    stmt.step()
+                    stmt.reset()
+                    if (sqliteChanges(conn) > 0) changed = true
+                }
+            }
+        }
+
+        if (ops.createFolders.isNotEmpty()) {
+            var nextOrd = conn.prepare("SELECT COALESCE(MAX(ord), -1) + 1 FROM folders").use { stmt ->
+                if (stmt.step()) stmt.getLong(0).toInt() else 0
+            }
+            val now = clock()
+            conn.prepare("INSERT INTO folders (name, ord, created_at, sync_id) VALUES (?, ?, ?, ?)").use { stmt ->
+                for (f in ops.createFolders) {
+                    stmt.bindText(1, f.name)
+                    stmt.bindLong(2, nextOrd.toLong())
+                    stmt.bindLong(3, now)
+                    stmt.bindText(4, f.syncId)
+                    stmt.step()
+                    stmt.reset()
+                    val newId = conn.prepare("SELECT last_insert_rowid()").use { idStmt ->
+                        if (idStmt.step()) idStmt.getLong(0) else 0L
+                    }
+                    folderIdBySyncId[f.syncId] = newId
+                    nextOrd++
+                    changed = true
+                }
+            }
+        }
+
+        if (ops.deleteBookmarkEntryIds.isNotEmpty()) {
+            conn.prepare("DELETE FROM bookmarks WHERE entry_id = ?").use { stmt ->
+                for (entryId in ops.deleteBookmarkEntryIds) {
+                    stmt.bindText(1, entryId)
+                    stmt.step()
+                    stmt.reset()
+                    if (sqliteChanges(conn) > 0) changed = true
+                }
+            }
+        }
+
+        if (ops.updateBookmarks.isNotEmpty()) {
+            conn.prepare("UPDATE bookmarks SET saved_at = ?, name = COALESCE(?, name) WHERE entry_id = ?").use { stmt ->
+                for (u in ops.updateBookmarks) {
+                    stmt.bindLong(1, u.savedAt)
+                    if (u.name != null) stmt.bindText(2, u.name) else stmt.bindNull(2)
+                    stmt.bindText(3, u.entryId)
+                    stmt.step()
+                    stmt.reset()
+                    if (sqliteChanges(conn) > 0) changed = true
+                }
+            }
+        }
+
+        if (ops.addBookmarks.isNotEmpty()) {
+            val sql = """
+                INSERT OR IGNORE INTO bookmarks (entry_id, name, url, section_id, section_title, heading_path, saved_at, note, folder_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """.trimIndent()
+            conn.prepare(sql).use { stmt ->
+                for (a in ops.addBookmarks) {
+                    val resolvedFolderId = a.folderSyncId?.let { folderIdBySyncId[it] }
+                    bindBookmark(stmt, a.bookmark.copy(folderId = resolvedFolderId))
+                    stmt.step()
+                    stmt.reset()
+                    if (sqliteChanges(conn) > 0) changed = true
+                }
+            }
+        }
+
+        if (ops.moveBookmarks.isNotEmpty()) {
+            conn.prepare("UPDATE bookmarks SET folder_id = ? WHERE entry_id = ?").use { stmt ->
+                for (m in ops.moveBookmarks) {
+                    val resolvedFolderId = m.folderSyncId?.let { folderIdBySyncId[it] }
+                    if (resolvedFolderId != null) stmt.bindLong(1, resolvedFolderId) else stmt.bindNull(1)
+                    stmt.bindText(2, m.entryId)
+                    stmt.step()
+                    stmt.reset()
+                    if (sqliteChanges(conn) > 0) changed = true
+                }
+            }
+        }
+
+        val kvSql = "INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+        conn.prepare(kvSql).use { stmt ->
+            stmt.bindText(1, KEY_FMHYX_BASE)
+            stmt.bindText(2, ops.baseJson)
+            stmt.step()
+        }
+
+        if (changed) {
+            bumpChanges()
+        }
+        extra
+    }
+
+    suspend fun readFmhyXBase(): String? = withConnection { conn ->
+        conn.prepare("SELECT value FROM kv WHERE key = ?").use { stmt ->
+            stmt.bindText(1, KEY_FMHYX_BASE)
+            if (stmt.step()) stmt.getText(0) else null
+        }
+    }
+
+    suspend fun clearFmhyXBase() = withConnection { conn ->
+        conn.prepare("DELETE FROM kv WHERE key = ?").use { stmt ->
+            stmt.bindText(1, KEY_FMHYX_BASE)
+            stmt.step()
+        }
     }
 
     // --- History ---
@@ -1306,10 +1473,11 @@ open class UserStore(
     }
 
     companion object {
-        const val USER_DB_VERSION = 7
+        const val USER_DB_VERSION = 8
         const val BACKUP_FORMAT = "fmhy-backup"
         const val BACKUP_VERSION = 1
         const val KEY_SECTION_OPENS = "section_opens"
+        const val KEY_FMHYX_BASE = "fmhyx_base"
         const val CRITICAL_HIDDEN_PREFIX = "crit_hidden."
         private const val MAX_SECTION_OPENS = 200
 

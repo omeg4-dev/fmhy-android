@@ -104,6 +104,11 @@ internal fun executeDefaultMigration(conn: SQLiteConnection, fromVersion: Int, t
             conn.execSQL("ALTER TABLE site_prefs ADD COLUMN block_redirects INTEGER;")
         }
     }
+    if (fromVersion == 7 && toVersion == 8) {
+        if (tableExists(conn, "folders") && !columnExists(conn, "folders", "sync_id")) {
+            conn.execSQL("ALTER TABLE folders ADD COLUMN sync_id TEXT;")
+        }
+    }
 }
 
 internal fun readBookmarksInternal(conn: SQLiteConnection): List<UserBookmark> {
@@ -135,7 +140,7 @@ internal fun readBookmarkInternal(conn: SQLiteConnection, entryId: String): User
 
 internal fun readFoldersInternal(conn: SQLiteConnection): List<Folder> {
     val result = mutableListOf<Folder>()
-    val sql = "SELECT id, name, ord, created_at FROM folders ORDER BY ord ASC, id ASC"
+    val sql = "SELECT id, name, ord, created_at, sync_id FROM folders ORDER BY ord ASC, id ASC"
     conn.prepare(sql).use { stmt ->
         while (stmt.step()) {
             result.add(
@@ -144,6 +149,7 @@ internal fun readFoldersInternal(conn: SQLiteConnection): List<Folder> {
                     name = stmt.getText(1),
                     ord = stmt.getLong(2).toInt(),
                     createdAt = stmt.getLong(3),
+                    syncId = if (stmt.isNull(4)) null else stmt.getText(4),
                 )
             )
         }
@@ -202,5 +208,11 @@ internal fun bindBooleanOrNull(stmt: SQLiteStatement, index: Int, value: Boolean
 internal fun countRows(conn: SQLiteConnection, table: String): Long {
     return conn.prepare("SELECT count(*) FROM $table").use { stmt ->
         if (stmt.step()) stmt.getLong(0) else 0L
+    }
+}
+
+internal fun sqliteChanges(conn: SQLiteConnection): Int {
+    return conn.prepare("SELECT changes()").use { stmt ->
+        if (stmt.step()) stmt.getLong(0).toInt() else 0
     }
 }

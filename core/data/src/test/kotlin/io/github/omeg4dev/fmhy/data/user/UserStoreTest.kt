@@ -943,7 +943,7 @@ class UserStoreTest {
         store.withConnection { conn ->
             conn.prepare("PRAGMA user_version;").use { stmt ->
                 assertTrue(stmt.step())
-                assertEquals(7L, stmt.getLong(0))
+                assertEquals(8L, stmt.getLong(0))
             }
         }
         store.close()
@@ -1203,7 +1203,7 @@ class UserStoreTest {
         store.withConnection { conn ->
             conn.prepare("PRAGMA user_version;").use { stmt ->
                 assertTrue(stmt.step())
-                assertEquals(7L, stmt.getLong(0))
+                assertEquals(8L, stmt.getLong(0))
             }
         }
         store.close()
@@ -1274,7 +1274,7 @@ class UserStoreTest {
         store.withConnection { conn ->
             conn.prepare("PRAGMA user_version;").use { stmt ->
                 assertTrue(stmt.step())
-                assertEquals(7L, stmt.getLong(0))
+                assertEquals(8L, stmt.getLong(0))
             }
         }
         store.close()
@@ -1336,7 +1336,7 @@ class UserStoreTest {
         store.withConnection { conn ->
             conn.prepare("PRAGMA user_version;").use { stmt ->
                 assertTrue(stmt.step())
-                assertEquals(7L, stmt.getLong(0))
+                assertEquals(8L, stmt.getLong(0))
             }
         }
         store.close()
@@ -1675,6 +1675,81 @@ class UserStoreTest {
         val result = store.importJson(oldBackup, restoreSiteSettings = true)
         assertEquals(1, result.folders)
         assertEquals(false, store.sitePrefs("keep.me")?.adblock)
+
+        store.close()
+    }
+
+    @Test
+    fun testMigrationV7ToV8AddsSyncIdKeepsFoldersAndBookmarks() = runTest {
+        val dbFile = tempFolder.newFile("legacy_v7.db")
+        val rawConn = BundledSQLiteDriver().open(dbFile.absolutePath)
+        rawConn.execSQL("PRAGMA user_version = 7;")
+        rawConn.execSQL("CREATE TABLE folders (id INTEGER PRIMARY KEY, name TEXT NOT NULL, ord INTEGER NOT NULL, created_at INTEGER NOT NULL);")
+        rawConn.execSQL(
+            "CREATE TABLE bookmarks (" +
+                "entry_id TEXT PRIMARY KEY, name TEXT NOT NULL, url TEXT NOT NULL, section_id TEXT NOT NULL, " +
+                "section_title TEXT NOT NULL, heading_path TEXT NOT NULL, saved_at INTEGER NOT NULL, " +
+                "note TEXT NOT NULL DEFAULT '', folder_id INTEGER REFERENCES folders(id) ON DELETE SET NULL);"
+        )
+        rawConn.execSQL("CREATE INDEX bookmarks_saved ON bookmarks(saved_at DESC);")
+        rawConn.execSQL("CREATE TABLE kv (key TEXT PRIMARY KEY, value TEXT NOT NULL) WITHOUT ROWID;")
+        rawConn.execSQL("INSERT INTO folders (id, name, ord, created_at) VALUES (1, 'Tools', 0, 1000);")
+        rawConn.execSQL(
+            "INSERT INTO bookmarks (entry_id, name, url, section_id, section_title, heading_path, saved_at, note, folder_id) " +
+                "VALUES ('e1', 'Site 1', 'https://site1.example/', 'tools', 'Tools', 'Tools > Util', 2000, 'keep note', 1);"
+        )
+        rawConn.close()
+
+        val store = UserStore(dbFile)
+        val folders = store.folders()
+        assertEquals(1, folders.size)
+        assertEquals("Tools", folders[0].name)
+        assertNull(folders[0].syncId)
+
+        val bookmarks = store.bookmarks()
+        assertEquals(1, bookmarks.size)
+        assertEquals("e1", bookmarks[0].entryId)
+        assertEquals("keep note", bookmarks[0].note)
+        assertEquals(1L, bookmarks[0].folderId)
+
+        store.withConnection { conn ->
+            conn.prepare("PRAGMA user_version;").use { stmt ->
+                assertTrue(stmt.step())
+                assertEquals(8L, stmt.getLong(0))
+            }
+        }
+        store.close()
+    }
+
+    @Test
+    fun testRestoreFolderPreservesSyncIdAndSyncHelpersRespectChangesFlow() = runTest {
+        val store = createStore()
+        val f = store.createFolder("Synced")
+        val initialChanges = store.changes.value
+
+        // setFolderSyncIds does not bump changes
+        store.setFolderSyncIds(mapOf(f.id to "uuid-sync-1"))
+        assertEquals(initialChanges, store.changes.value)
+        assertEquals("uuid-sync-1", store.folders().single().syncId)
+
+        // deleteFolderWithSnapshot + restoreFolder preserves syncId
+        val deleted = store.deleteFolderWithSnapshot(f.id)!!
+        assertEquals("uuid-sync-1", deleted.folder.syncId)
+        store.restoreFolder(deleted)
+        assertEquals("uuid-sync-1", store.folders().single().syncId)
+
+        // Writing base only via applyBookmarkSync does not bump changes
+        val beforeBaseWrite = store.changes.value
+        store.applyBookmarkSync {
+            SyncApplyResult(baseJson = """{"sites":{},"collections":{}}""") to Unit
+        }
+        assertEquals(beforeBaseWrite, store.changes.value)
+        assertEquals("""{"sites":{},"collections":{}}""", store.readFmhyXBase())
+
+        // clearFmhyXBase does not bump changes
+        store.clearFmhyXBase()
+        assertEquals(beforeBaseWrite, store.changes.value)
+        assertNull(store.readFmhyXBase())
 
         store.close()
     }

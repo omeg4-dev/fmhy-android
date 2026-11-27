@@ -22,6 +22,14 @@ import io.github.omeg4dev.fmhy.data.newbadge.NewBadgeStore
 import io.github.omeg4dev.fmhy.data.newbadge.NewBadgeSync
 import io.github.omeg4dev.fmhy.data.safety.SafeGuard
 import io.github.omeg4dev.fmhy.data.nsfw.NsfwSource
+import io.github.omeg4dev.fmhy.data.fmhyx.DatasetSyncEntryResolver
+import io.github.omeg4dev.fmhy.data.fmhyx.DefaultFmhyXSyncBackend
+import io.github.omeg4dev.fmhy.data.fmhyx.FmhyXClient
+import io.github.omeg4dev.fmhy.data.fmhyx.FmhyXSyncEngine
+import io.github.omeg4dev.fmhy.data.fmhyx.FmhyXSyncManager
+import io.github.omeg4dev.fmhy.data.fmhyx.FmhyXTokenStore
+import io.github.omeg4dev.fmhy.data.fmhyx.PrefsFmhyXStatusStore
+import io.github.omeg4dev.fmhy.data.fmhyx.SyncEntryResolver
 import io.github.omeg4dev.fmhy.data.user.UserStore
 import androidx.navigation3.runtime.NavKey
 import io.github.omeg4dev.fmhy.report.CrashReportStore
@@ -119,6 +127,7 @@ interface AppContainer : OnboardingActions {
     val bookmarks: BookmarksRepository
     val docFetcher: DocFetcher
     val nsfwSource: NsfwSource? get() = null
+    val fmhyXSync: FmhyXSyncManager? get() = null
     val crossLinks: StateFlow<CrossLinks?>
     val safeGuard: SafeGuard
     val isInitialized: StateFlow<Boolean>
@@ -254,6 +263,45 @@ class DefaultAppContainer(
             NsfwSource(
                 client = okHttpClient,
                 cacheDir = context.cacheDir,
+            )
+        } else {
+            null
+        }
+    }
+
+    override val fmhyXSync: FmhyXSyncManager? by lazy {
+        if (BuildConfig.FMHYX_ENABLED) {
+            // Nothing here may touch the disk: this is first read on the main thread at startup.
+            val tokenStore = FmhyXTokenStore({ File(context.noBackupFilesDir, "fmhyx_token.bin") })
+            val statusStore = PrefsFmhyXStatusStore {
+                context.getSharedPreferences(PrefsFmhyXStatusStore.PREFS_NAME, Context.MODE_PRIVATE)
+            }
+            val resolver = object : SyncEntryResolver {
+                private fun current(): DatasetSyncEntryResolver = DatasetSyncEntryResolver(datasetStore) {
+                    nsfwSource?.readCached()?.entries?.map { it.url }.orEmpty()
+                }
+
+                override suspend fun byIds(ids: Collection<String>) = current().byIds(ids)
+                override suspend fun byUrls(urls: Collection<String>) = current().byUrls(urls)
+                override suspend fun nsfwUrls() = current().nsfwUrls()
+            }
+            FmhyXSyncManager(
+                tokenStore = tokenStore,
+                statusStore = statusStore,
+                userStoreProvider = { userStore },
+                backend = DefaultFmhyXSyncBackend(
+                    clientProvider = { FmhyXClient(http = okHttpClient) },
+                    engineProvider = { FmhyXSyncEngine(store = userStore, client = it, resolver = resolver) },
+                ),
+                networkKind = networkMonitor.kind,
+                wifiOnlyFlow = settingsRepository.dataUsagePrefs
+                    .map { it.appDataWifiOnly }
+                    .distinctUntilChanged(),
+                scope = appScope,
+                awaitReady = {
+                    isInitialized.first { it }
+                    bookmarks.awaitMigration()
+                },
             )
         } else {
             null
@@ -635,6 +683,7 @@ class DefaultAppContainer(
 
     override fun initialize() {
         proxyManager.start()
+        fmhyXSync?.start()
         appScope.launch(Dispatchers.IO) {
             try {
                 downloads.start()

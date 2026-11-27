@@ -24,6 +24,8 @@ import io.github.omeg4dev.fmhy.data.SectionLayout
 import io.github.omeg4dev.fmhy.data.SectionOrder
 import io.github.omeg4dev.fmhy.data.SettingsRepository
 import io.github.omeg4dev.fmhy.data.ThemeMode
+import io.github.omeg4dev.fmhy.data.fmhyx.FmhyXAccountState
+import io.github.omeg4dev.fmhy.data.fmhyx.FmhyXSignInResult
 import io.github.omeg4dev.fmhy.data.sync.SyncResult
 import io.github.omeg4dev.fmhy.data.sync.SyncState
 import io.github.omeg4dev.fmhy.nav.BottomBarStyle
@@ -715,6 +717,84 @@ class SettingsViewModel(
             settingsRepository.setOnboardingVersion(v)
         }
     }
+
+    val fmhyXAccountState: StateFlow<FmhyXAccountState> =
+        container.fmhyXSync?.state ?: MutableStateFlow(FmhyXAccountState.SignedOut)
+
+    private val _fmhyXSignInBusy = MutableStateFlow(false)
+    val fmhyXSignInBusy: StateFlow<Boolean> = _fmhyXSignInBusy.asStateFlow()
+
+    private val _fmhyXSignInError = MutableStateFlow<String?>(null)
+    val fmhyXSignInError: StateFlow<String?> = _fmhyXSignInError.asStateFlow()
+
+    private val _fmhyXDeleteBusy = MutableStateFlow(false)
+    val fmhyXDeleteBusy: StateFlow<Boolean> = _fmhyXDeleteBusy.asStateFlow()
+
+    fun clearFmhyXSignInError() {
+        _fmhyXSignInError.value = null
+    }
+
+    fun signInFmhyX(
+        token: String,
+        overrideThisTime: Boolean = false,
+        onSuccess: () -> Unit = {},
+    ) {
+        if (_fmhyXSignInBusy.value) return
+        if (!overrideThisTime && needsMobilePermission()) {
+            _pendingMobileAction.value = { signInFmhyX(token, overrideThisTime = true, onSuccess = onSuccess) }
+            return
+        }
+        val manager = container.fmhyXSync ?: return
+        _fmhyXSignInError.value = null
+        _fmhyXSignInBusy.value = true
+        viewModelScope.launch {
+            try {
+                when (val result = manager.signIn(token, overrideWifiOnly = overrideThisTime)) {
+                    is FmhyXSignInResult.Success -> {
+                        _fmhyXSignInError.value = null
+                        onSuccess()
+                    }
+                    is FmhyXSignInResult.Error -> {
+                        _fmhyXSignInError.value = result.message
+                    }
+                }
+            } finally {
+                _fmhyXSignInBusy.value = false
+            }
+        }
+    }
+
+    fun syncFmhyXNow(overrideThisTime: Boolean = false) {
+        if (!overrideThisTime && needsMobilePermission()) {
+            _pendingMobileAction.value = { syncFmhyXNow(overrideThisTime = true) }
+            return
+        }
+        container.fmhyXSync?.syncNow(overrideWifiOnly = true)
+    }
+
+    fun signOutFmhyX() {
+        viewModelScope.launch {
+            container.fmhyXSync?.signOut()
+        }
+    }
+
+    fun deleteFmhyXAccount(onFailure: () -> Unit) {
+        if (_fmhyXDeleteBusy.value) return
+        val manager = container.fmhyXSync ?: return
+        _fmhyXDeleteBusy.value = true
+        viewModelScope.launch {
+            try {
+                val ok = manager.deleteAccount()
+                if (!ok) {
+                    onFailure()
+                }
+            } finally {
+                _fmhyXDeleteBusy.value = false
+            }
+        }
+    }
+
+    suspend fun readFmhyXToken(): String? = container.fmhyXSync?.readToken()
 }
 
 val DEFAULT_PREVIEW_ENTRY = Entry(

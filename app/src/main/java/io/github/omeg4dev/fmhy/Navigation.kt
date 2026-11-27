@@ -704,6 +704,15 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                             scope.launch { snackbarHostState.showSnackbar(msg) }
                         },
                     )
+                    SettingsPage.FMHYX_ACCOUNT -> if (BuildConfig.FMHYX_ENABLED) {
+                        io.github.omeg4dev.fmhy.ui.settings.FmhyXAccountPage(
+                            viewModel = settingsViewModel,
+                            onBack = { if (!nav.back()) activity?.finish() },
+                            onShowSnackbar = { msg ->
+                                scope.launch { snackbarHostState.showSnackbar(msg) }
+                            },
+                        )
+                    }
                     SettingsPage.REPORT -> ReportPage(
                         viewModel = settingsViewModel,
                         onBack = { if (!nav.back()) activity?.finish() },

@@ -121,11 +121,17 @@ internal fun DeleteFolderDialog(
     folder: Folder,
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
+    isSharedOnFmhyX: Boolean = false,
 ) {
+    val message = if (isSharedOnFmhyX) {
+        "Delete folder \"${folder.name}\"? Sites in this folder will remain in Saved.\n\nIts share link on FMHY X stops working."
+    } else {
+        "Delete folder \"${folder.name}\"? Sites in this folder will remain in Saved."
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Delete folder") },
-        text = { Text("Delete folder \"${folder.name}\"? Sites in this folder will remain in Saved.") },
+        text = { Text(message) },
         confirmButton = {
             TextButton(onClick = onConfirm) {
                 Text("Delete")
