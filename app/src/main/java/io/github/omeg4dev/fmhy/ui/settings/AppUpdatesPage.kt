@@ -66,7 +66,7 @@ fun AppUpdatesPage(
 
     val sectionSettingIds = remember(updateController.enabled) {
         if (updateController.enabled) {
-            listOf(listOf(eAutoCheck.id, eNotify.id, eInterval.id, eCheckNow.id, eSkippedVersion.id))
+            listOf(listOf(eCheckNow.id, eAutoCheck.id, eNotify.id, eInterval.id, eSkippedVersion.id))
         } else {
             emptyList()
         }
@@ -150,6 +150,25 @@ fun AppUpdatesPage(
             } else {
                 item {
                     SettingsSection(title = "Updates") {
+                        val checkSummary = when {
+                            updateState is UpdateState.Checking -> "Checking…"
+                            updateState is UpdateState.WaitingForWifi -> "Waiting for Wi-Fi"
+                            availableVersion != null -> "Version $availableVersion is available"
+                            updateState is UpdateState.UpToDate -> "You have the latest version"
+                            else -> null
+                        }
+                        val showMarker = UpdateCheckPolicy.showSettingsMarker(availableVersion, versionName)
+                        // Check for updates
+                        NavRow(
+                            title = eCheckNow.title,
+                            summary = checkSummary,
+                            badge = if (showMarker) { { Badge() } } else null,
+                            settingId = eCheckNow.id,
+                            onClick = {
+                                updateController.checkNow()
+                            },
+                        )
+                        SettingsDivider()
                         SwitchRow(
                             title = eAutoCheck.title,
                             summary = eAutoCheck.description,
@@ -203,25 +222,6 @@ fun AppUpdatesPage(
                             settingId = eInterval.id,
                             onSelect = { interval ->
                                 viewModel.updateUpdatePrefs { it.copy(interval = interval) }
-                            },
-                        )
-                        SettingsDivider()
-                        val checkSummary = when {
-                            updateState is UpdateState.Checking -> "Checking…"
-                            updateState is UpdateState.WaitingForWifi -> "Waiting for Wi-Fi"
-                            availableVersion != null -> "Version $availableVersion is available"
-                            updateState is UpdateState.UpToDate -> "You have the latest version"
-                            else -> null
-                        }
-                        val showMarker = UpdateCheckPolicy.showSettingsMarker(availableVersion, versionName)
-                        // Check for updates
-                        NavRow(
-                            title = eCheckNow.title,
-                            summary = checkSummary,
-                            badge = if (showMarker) { { Badge() } } else null,
-                            settingId = eCheckNow.id,
-                            onClick = {
-                                updateController.checkNow()
                             },
                         )
                         SettingsDivider()

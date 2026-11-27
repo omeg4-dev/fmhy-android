@@ -1,13 +1,10 @@
 package io.github.omeg4dev.fmhy.ui.settings
 
 import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
-import android.net.Uri
 import android.os.Build
-import android.provider.Settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
@@ -17,7 +14,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Restore
@@ -53,18 +49,16 @@ fun AboutPage(
 
     val eAboutFmhy = SettingsCatalog.aboutAboutFmhy
     val eVersion = SettingsCatalog.aboutVersion
-    val eRunSetupAgain = SettingsCatalog.aboutRunSetupAgain
-    val eOpenFmhyLinks = SettingsCatalog.aboutOpenFmhyLinks
     val eGithubRepo = SettingsCatalog.aboutGithubRepo
+    val eRunSetupAgain = SettingsCatalog.aboutRunSetupAgain
 
     val sectionSettingIds = remember {
         listOf(
             listOf(
                 eAboutFmhy.id,
                 eVersion.id,
-                eRunSetupAgain.id,
-                eOpenFmhyLinks.id,
                 eGithubRepo.id,
+                eRunSetupAgain.id,
             )
         )
     }
@@ -126,37 +120,6 @@ fun AboutPage(
                     )
                     SettingsDivider(hasIcon = true)
                     NavRow(
-                        title = eRunSetupAgain.title,
-                        summary = eRunSetupAgain.description,
-                        icon = Icons.Default.Restore,
-                        settingId = eRunSetupAgain.id,
-                        onClick = {
-                            viewModel.setOnboardingVersion(0)
-                        },
-                    )
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                        SettingsDivider(hasIcon = true)
-                        NavRow(
-                            title = eOpenFmhyLinks.title,
-                            summary = eOpenFmhyLinks.description,
-                            icon = Icons.AutoMirrored.Filled.OpenInNew,
-                            settingId = eOpenFmhyLinks.id,
-                            onClick = {
-                                try {
-                                    val intent = Intent(
-                                        Settings.ACTION_APP_OPEN_BY_DEFAULT_SETTINGS,
-                                        Uri.parse("package:${context.packageName}")
-                                    ).apply {
-                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                    }
-                                    context.startActivity(intent)
-                                } catch (_: Exception) {
-                                }
-                            },
-                        )
-                    }
-                    SettingsDivider(hasIcon = true)
-                    NavRow(
                         title = eGithubRepo.title,
                         summary = eGithubRepo.description,
                         icon = ImageVector.vectorResource(R.drawable.ic_github),
@@ -174,6 +137,16 @@ fun AboutPage(
                                     recordHistory = false,
                                 )
                             }
+                        },
+                    )
+                    SettingsDivider(hasIcon = true)
+                    NavRow(
+                        title = eRunSetupAgain.title,
+                        summary = eRunSetupAgain.description,
+                        icon = Icons.Default.Restore,
+                        settingId = eRunSetupAgain.id,
+                        onClick = {
+                            viewModel.setOnboardingVersion(0)
                         },
                     )
                 }

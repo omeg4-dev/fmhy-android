@@ -32,8 +32,8 @@ class SettingsSearchIndexTest {
 
     @Test
     fun descriptionMatchReturnsCorrectSetting() {
-        // "suppress" appears only in the description of privacyHideCookieBanners
-        val results = SettingsSearchIndex.search("suppress")
+        // "reject" appears only in the description of privacyHideCookieBanners
+        val results = SettingsSearchIndex.search("reject")
         assertFalse(results.isEmpty())
         assertEquals("privacy.hide_cookie_banners", results.first().entry.id)
     }
@@ -271,5 +271,44 @@ class SettingsSearchIndexTest {
             excludePages = setOf(SettingsPage.FMHYX_ACCOUNT),
         )
         assertFalse(excluded.any { it.entry.page == SettingsPage.FMHYX_ACCOUNT })
+    }
+
+    @Test
+    fun oldNamesStillFindMovedSettings() {
+        val expectedByOldName = mapOf(
+            "Protection" to listOf(
+                "protection.ask_before_downloads",
+                "protection.warn_risky_downloads",
+                "protection.forget_vt_checks",
+                "protection.show_vpn_state",
+                "protection.show_vpn_home_icon",
+                "protection.show_ip_country",
+                "protection.block_without_vpn",
+                "protection.proxy",
+                "protection.private_dns",
+            ),
+            "About" to listOf("about.open_fmhy_links"),
+            "Sync" to listOf(
+                "sync.sync_now",
+                "sync.sync_on_launch",
+                "sync.last_synced",
+            ),
+            "Data usage" to listOf(
+                "data_usage.download_wifi_only",
+                "data_usage.browse_wifi_only",
+                "data_usage.app_data_wifi_only",
+            ),
+            "Backup & restore" to listOf(
+                "backup.export_backup",
+                "backup.import_backup",
+            ),
+            "Start automatically" to listOf("video.auto_pip"),
+        )
+        expectedByOldName.forEach { (oldName, expectedIds) ->
+            val resultIds = SettingsSearchIndex.search(oldName).map { it.entry.id }.toSet()
+            expectedIds.forEach { id ->
+                assertTrue("Searching '$oldName' must find '$id'", id in resultIds)
+            }
+        }
     }
 }

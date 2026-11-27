@@ -32,7 +32,7 @@ class PrivateDnsTest {
     fun catalogEntryContainsExpectedKeywordsAndIsRegistered() {
         val entry = SettingsCatalog.protectionPrivateDns
         assertEquals("protection.private_dns", entry.id)
-        assertEquals(SettingsPage.PROTECTION, entry.page)
+        assertEquals(SettingsPage.CONNECTION, entry.page)
         assertTrue("protectionPrivateDns must be in SettingsCatalog.all", entry in SettingsCatalog.all)
         assertTrue("Keywords must contain 'dns'", "dns" in entry.keywords)
         assertTrue("Keywords must contain 'doh'", "doh" in entry.keywords)

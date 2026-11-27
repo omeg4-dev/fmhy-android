@@ -150,9 +150,9 @@ import io.github.omeg4dev.fmhy.ui.settings.AboutPage
 import io.github.omeg4dev.fmhy.ui.settings.AdBlockingPage
 import io.github.omeg4dev.fmhy.ui.settings.AppearancePage
 import io.github.omeg4dev.fmhy.ui.settings.AppUpdatesPage
-import io.github.omeg4dev.fmhy.ui.settings.BackupPage
 import io.github.omeg4dev.fmhy.ui.settings.BrowserPage
-import io.github.omeg4dev.fmhy.ui.settings.DataUsagePage
+import io.github.omeg4dev.fmhy.ui.settings.ConnectionPage
+import io.github.omeg4dev.fmhy.ui.settings.DataPage
 import io.github.omeg4dev.fmhy.ui.settings.DownloadsPage
 import io.github.omeg4dev.fmhy.ui.settings.FollowingScreen
 import io.github.omeg4dev.fmhy.ui.settings.HomePage
@@ -165,7 +165,6 @@ import io.github.omeg4dev.fmhy.ui.settings.ProvideSettingFocus
 import io.github.omeg4dev.fmhy.ui.settings.ReportPage
 import io.github.omeg4dev.fmhy.ui.settings.SettingsHub
 import io.github.omeg4dev.fmhy.ui.settings.SettingsViewModel
-import io.github.omeg4dev.fmhy.ui.settings.SyncPage
 import io.github.omeg4dev.fmhy.ui.settings.VideoPage
 import io.github.omeg4dev.fmhy.ui.onboarding.ONBOARDING_VERSION
 import io.github.omeg4dev.fmhy.ui.onboarding.OnboardingScreen
@@ -668,6 +667,10 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                             scope.launch { snackbarHostState.showSnackbar(msg) }
                         },
                     )
+                    SettingsPage.CONNECTION -> ConnectionPage(
+                        viewModel = settingsViewModel,
+                        onBack = { if (!nav.back()) activity?.finish() },
+                    )
                     SettingsPage.PRIVACY -> PrivacyPage(
                         viewModel = settingsViewModel,
                         onBack = { if (!nav.back()) activity?.finish() },
@@ -689,15 +692,7 @@ fun MainNavigation(intentFlow: SharedFlow<Intent>? = null) {
                             scope.launch { snackbarHostState.showSnackbar(msg) }
                         },
                     )
-                    SettingsPage.SYNC -> SyncPage(
-                        viewModel = settingsViewModel,
-                        onBack = { if (!nav.back()) activity?.finish() },
-                    )
-                    SettingsPage.DATA_USAGE -> DataUsagePage(
-                        viewModel = settingsViewModel,
-                        onBack = { if (!nav.back()) activity?.finish() },
-                    )
-                    SettingsPage.BACKUP -> BackupPage(
+                    SettingsPage.DATA -> DataPage(
                         viewModel = settingsViewModel,
                         onBack = { if (!nav.back()) activity?.finish() },
                         onShowSnackbar = { msg ->

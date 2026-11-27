@@ -221,7 +221,7 @@ fun HomePage(
                                 ) {
                                     Text(
                                         text = blockInfo.title,
-                                        style = MaterialTheme.typography.bodyLarge,
+                                        style = settingsRowTitleStyle(),
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
                                     )
@@ -231,6 +231,7 @@ fun HomePage(
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         maxLines = 2,
                                         overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.padding(top = SettingsDescriptionGap),
                                     )
                                 }
                                 Spacer(modifier = Modifier.width(8.dp))
@@ -319,7 +320,7 @@ fun HomePage(
                                     )
                                 },
                                 headlineContent = {
-                                    Text(
+                                    SettingsRowTitle(
                                         text = titleText,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
@@ -386,7 +387,7 @@ fun HomePage(
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             },
-                            headlineContent = { Text(section.displayTitle) },
+                            headlineContent = { SettingsRowTitle(section.displayTitle) },
                             trailingContent = {
                                 Checkbox(
                                     checked = isHidden,

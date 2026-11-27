@@ -67,7 +67,7 @@ fun ReportPage(
                 SettingsSection(title = "Problem reports") {
                     NavRow(
                         title = eReportProblem.title,
-                        summary = "Tell us what went wrong or what is missing",
+                        summary = eReportProblem.description,
                         settingId = eReportProblem.id,
                         onClick = onReportProblem,
                     )

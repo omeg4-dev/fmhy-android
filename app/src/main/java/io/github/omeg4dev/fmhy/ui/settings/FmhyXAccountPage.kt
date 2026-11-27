@@ -152,12 +152,11 @@ fun FmhyXAccountPage(
                     SettingsSection(title = "Account") {
                         ListItem(
                             headlineContent = {
-                                Text("Status", style = MaterialTheme.typography.bodyLarge)
+                                SettingsRowTitle("Status")
                             },
                             supportingContent = {
-                                Text(
+                                SettingsRowDescription(
                                     text = statusText,
-                                    style = MaterialTheme.typography.bodyMedium,
                                     color = if (isErrorStatus) {
                                         MaterialTheme.colorScheme.error
                                     } else {
@@ -182,7 +181,7 @@ fun FmhyXAccountPage(
                         SettingsDivider()
                         ListItem(
                             headlineContent = {
-                                Text(eCopyToken.title, style = MaterialTheme.typography.bodyLarge)
+                                SettingsRowTitle(eCopyToken.title)
                             },
                             colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                             modifier = Modifier
@@ -202,14 +201,10 @@ fun FmhyXAccountPage(
                         SettingsDivider()
                         ListItem(
                             headlineContent = {
-                                Text(eSignOut.title, style = MaterialTheme.typography.bodyLarge)
+                                SettingsRowTitle(eSignOut.title)
                             },
                             supportingContent = {
-                                Text(
-                                    text = "Saved sites stay on this phone",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
+                                SettingsRowDescription(eSignOut.description)
                             },
                             colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                             modifier = Modifier
@@ -223,9 +218,8 @@ fun FmhyXAccountPage(
                         SettingsDivider()
                         ListItem(
                             headlineContent = {
-                                Text(
+                                SettingsRowTitle(
                                     text = eDeleteAccount.title,
-                                    style = MaterialTheme.typography.bodyLarge,
                                     color = MaterialTheme.colorScheme.error,
                                 )
                             },

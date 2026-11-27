@@ -53,26 +53,36 @@ fun DownloadsPage(
     val downloadPrefs by viewModel.downloadPrefs.collectAsStateWithLifecycle()
     val checkPrefs by viewModel.checkPrefs.collectAsStateWithLifecycle()
     val browserPrefs by viewModel.browserPrefs.collectAsStateWithLifecycle()
+    val protectionPrefs by viewModel.protectionPrefs.collectAsStateWithLifecycle()
 
     val eDownloadFolder = SettingsCatalog.downloadsDownloadFolder
+    val eAskBeforeDownloads = SettingsCatalog.protectionAskBeforeDownloads
     val eVideoDownloadButton = SettingsCatalog.downloadsVideoDownloadButton
+    val eShowFmhyStatus = SettingsCatalog.downloadsShowFmhyStatus
     val eVirusTotal = SettingsCatalog.downloadsVirusTotal
     val eVirusTotalKey = SettingsCatalog.downloadsVirusTotalKey
     val eHybridAnalysis = SettingsCatalog.downloadsHybridAnalysis
     val eHybridAnalysisKey = SettingsCatalog.downloadsHybridAnalysisKey
-    val eHoldUntilChecked = SettingsCatalog.downloadsHoldUntilChecked
     val eCheckRiskyFiles = SettingsCatalog.downloadsCheckRiskyFiles
-    val eShowFmhyStatus = SettingsCatalog.downloadsShowFmhyStatus
+    val eHoldUntilChecked = SettingsCatalog.downloadsHoldUntilChecked
+    val eWarnRiskyDownloads = SettingsCatalog.protectionWarnRiskyDownloads
+    val eForgetVtChecks = SettingsCatalog.protectionForgetVtChecks
 
-    val generalIds = listOf(eDownloadFolder.id, eVideoDownloadButton.id)
+    val generalIds = listOf(
+        eDownloadFolder.id,
+        eAskBeforeDownloads.id,
+        eVideoDownloadButton.id,
+        eShowFmhyStatus.id,
+    )
     val checkIds = listOf(
         eVirusTotal.id,
         eVirusTotalKey.id,
         eHybridAnalysis.id,
         eHybridAnalysisKey.id,
-        eHoldUntilChecked.id,
         eCheckRiskyFiles.id,
-        eShowFmhyStatus.id,
+        eHoldUntilChecked.id,
+        eWarnRiskyDownloads.id,
+        eForgetVtChecks.id,
     )
     val sectionSettingIds = remember { listOf(generalIds, checkIds) }
     val listState = rememberFocusedListState(sectionSettingIds)
@@ -162,12 +172,32 @@ fun DownloadsPage(
                     )
                     SettingsDivider()
                     SwitchRow(
+                        title = eAskBeforeDownloads.title,
+                        summary = eAskBeforeDownloads.description,
+                        checked = protectionPrefs.askBeforeDownload,
+                        settingId = eAskBeforeDownloads.id,
+                        onChange = { checked ->
+                            viewModel.updateProtection { it.copy(askBeforeDownload = checked) }
+                        },
+                    )
+                    SettingsDivider()
+                    SwitchRow(
                         title = eVideoDownloadButton.title,
                         summary = eVideoDownloadButton.description,
                         checked = browserPrefs.videoDownloadButton,
                         settingId = eVideoDownloadButton.id,
                         onChange = { checked ->
                             viewModel.updateBrowser { it.copy(videoDownloadButton = checked) }
+                        },
+                    )
+                    SettingsDivider()
+                    SwitchRow(
+                        title = eShowFmhyStatus.title,
+                        summary = eShowFmhyStatus.description,
+                        checked = checkPrefs.fmhyDownloadStatus,
+                        settingId = eShowFmhyStatus.id,
+                        onChange = { checked ->
+                            viewModel.updateCheckPrefs { it.copy(fmhyDownloadStatus = checked) }
                         },
                     )
                 }
@@ -228,16 +258,6 @@ fun DownloadsPage(
                     )
                     SettingsDivider()
                     SwitchRow(
-                        title = eHoldUntilChecked.title,
-                        summary = eHoldUntilChecked.description,
-                        checked = checkPrefs.holdUntilChecked,
-                        settingId = eHoldUntilChecked.id,
-                        onChange = { checked ->
-                            viewModel.updateCheckPrefs { it.copy(holdUntilChecked = checked) }
-                        },
-                    )
-                    SettingsDivider()
-                    SwitchRow(
                         title = eCheckRiskyFiles.title,
                         summary = eCheckRiskyFiles.description,
                         checked = checkPrefs.autoCheckRisky,
@@ -248,12 +268,31 @@ fun DownloadsPage(
                     )
                     SettingsDivider()
                     SwitchRow(
-                        title = eShowFmhyStatus.title,
-                        summary = eShowFmhyStatus.description,
-                        checked = checkPrefs.fmhyDownloadStatus,
-                        settingId = eShowFmhyStatus.id,
+                        title = eHoldUntilChecked.title,
+                        summary = eHoldUntilChecked.description,
+                        checked = checkPrefs.holdUntilChecked,
+                        settingId = eHoldUntilChecked.id,
                         onChange = { checked ->
-                            viewModel.updateCheckPrefs { it.copy(fmhyDownloadStatus = checked) }
+                            viewModel.updateCheckPrefs { it.copy(holdUntilChecked = checked) }
+                        },
+                    )
+                    SettingsDivider()
+                    SwitchRow(
+                        title = eWarnRiskyDownloads.title,
+                        summary = eWarnRiskyDownloads.description,
+                        checked = protectionPrefs.warnRiskyDownloads,
+                        settingId = eWarnRiskyDownloads.id,
+                        onChange = { checked ->
+                            viewModel.updateProtection { it.copy(warnRiskyDownloads = checked) }
+                        },
+                    )
+                    SettingsDivider()
+                    NavRow(
+                        title = eForgetVtChecks.title,
+                        summary = eForgetVtChecks.description,
+                        settingId = eForgetVtChecks.id,
+                        onClick = {
+                            viewModel.clearVtChecks { onShowSnackbar("Checked sites forgotten") }
                         },
                     )
                 }

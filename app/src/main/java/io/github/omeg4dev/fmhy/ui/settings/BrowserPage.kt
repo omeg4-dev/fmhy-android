@@ -1,5 +1,9 @@
 package io.github.omeg4dev.fmhy.ui.settings
 
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
@@ -21,6 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.omeg4dev.fmhy.data.OpenLinksWith
@@ -36,17 +41,20 @@ fun BrowserPage(
     modifier: Modifier = Modifier,
     extraRows: LazyListScope.() -> Unit = {},
 ) {
+    val context = LocalContext.current
     val browserPrefs by viewModel.browserPrefs.collectAsStateWithLifecycle()
     val inApp = browserPrefs.openLinksWith == OpenLinksWith.IN_APP
+    val supportsOpenByDefault = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
 
     val eOpenLinksWith = SettingsCatalog.browserOpenLinksWith
+    val eOpenFmhyLinks = SettingsCatalog.aboutOpenFmhyLinks
     val eSearchEngine = SettingsCatalog.browserSearchEngine
     val eAddressBar = SettingsCatalog.browserAddressBar
     val eSiteBar = SettingsCatalog.browserSiteBar
     // Dead-site rescue
     val eDeadSiteRescue = SettingsCatalog.browserDeadSiteRescue
-    val eMaxTabs = SettingsCatalog.browserMaxTabs
     val eRestoreTabs = SettingsCatalog.browserRestoreTabs
+    val eMaxTabs = SettingsCatalog.browserMaxTabs
     val eForceDark = SettingsCatalog.browserForceDark
     val eTextZoomFollowsApp = SettingsCatalog.browserTextZoomFollowsApp
     // Allow zoom on every site
@@ -55,17 +63,20 @@ fun BrowserPage(
     val eJavascript = SettingsCatalog.browserJavascript
     val eDesktopDefault = SettingsCatalog.browserDesktopDefault
 
-    val generalIds = if (inApp) {
-        listOf(eOpenLinksWith.id, eSearchEngine.id, eAddressBar.id)
-    } else {
-        listOf(eOpenLinksWith.id)
+    val generalIds = buildList {
+        add(eOpenLinksWith.id)
+        if (supportsOpenByDefault) add(eOpenFmhyLinks.id)
+        if (inApp) {
+            add(eSearchEngine.id)
+            add(eAddressBar.id)
+        }
     }
     val helpersIds = listOf(eSiteBar.id, eDeadSiteRescue.id)
-    val tabsIds = listOf(eMaxTabs.id, eRestoreTabs.id)
+    val tabsIds = listOf(eRestoreTabs.id, eMaxTabs.id)
     val pagesIds = listOf(eForceDark.id, eTextZoomFollowsApp.id, eForceZoom.id, eSiteSettings.id)
     val advancedIds = listOf(eJavascript.id, eDesktopDefault.id)
 
-    val sectionSettingIds = remember(inApp) {
+    val sectionSettingIds = remember(inApp, supportsOpenByDefault) {
         if (inApp) {
             listOf(generalIds, helpersIds, tabsIds, pagesIds, advancedIds)
         } else {
@@ -126,6 +137,27 @@ fun BrowserPage(
                             viewModel.updateBrowser { it.copy(openLinksWith = option) }
                         },
                     )
+
+                    if (supportsOpenByDefault) {
+                        SettingsDivider()
+                        NavRow(
+                            title = eOpenFmhyLinks.title,
+                            summary = eOpenFmhyLinks.description,
+                            settingId = eOpenFmhyLinks.id,
+                            onClick = {
+                                try {
+                                    val intent = Intent(
+                                        Settings.ACTION_APP_OPEN_BY_DEFAULT_SETTINGS,
+                                        Uri.parse("package:${context.packageName}")
+                                    ).apply {
+                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    }
+                                    context.startActivity(intent)
+                                } catch (_: Exception) {
+                                }
+                            },
+                        )
+                    }
 
                     if (inApp) {
                         SettingsDivider()
@@ -193,6 +225,16 @@ fun BrowserPage(
                 // Tabs
                 item {
                     SettingsSection(title = "Tabs") {
+                        SwitchRow(
+                            title = eRestoreTabs.title,
+                            summary = eRestoreTabs.description,
+                            checked = browserPrefs.restoreTabs,
+                            settingId = eRestoreTabs.id,
+                            onChange = { checked ->
+                                viewModel.updateBrowser { it.copy(restoreTabs = checked) }
+                            },
+                        )
+                        SettingsDivider()
                         ChoiceRow(
                             title = eMaxTabs.title,
                             options = listOf(
@@ -204,16 +246,6 @@ fun BrowserPage(
                             settingId = eMaxTabs.id,
                             onSelect = { tabs ->
                                 viewModel.updateBrowser { it.copy(maxTabs = tabs) }
-                            },
-                        )
-                        SettingsDivider()
-                        SwitchRow(
-                            title = eRestoreTabs.title,
-                            summary = eRestoreTabs.description,
-                            checked = browserPrefs.restoreTabs,
-                            settingId = eRestoreTabs.id,
-                            onChange = { checked ->
-                                viewModel.updateBrowser { it.copy(restoreTabs = checked) }
                             },
                         )
                     }

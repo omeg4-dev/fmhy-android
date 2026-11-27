@@ -17,14 +17,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -37,40 +32,20 @@ fun ProtectionPage(
     extraRows: LazyListScope.() -> Unit = {},
 ) {
     val protectionPrefs by viewModel.protectionPrefs.collectAsStateWithLifecycle()
-    val context = LocalContext.current
-    var state by remember { mutableStateOf(readPrivateDnsState(context)) }
-    var orbotInstalled by remember { mutableStateOf(isOrbotInstalled(context)) }
-    val webViewProxySupported = remember { isWebViewProxySupported() }
-    var showProxyDialog by remember { mutableStateOf(false) }
-    var showOrbotMissingDialog by remember { mutableStateOf(false) }
-    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
-        state = readPrivateDnsState(context)
-        orbotInstalled = isOrbotInstalled(context)
-    }
 
     val eWarnUnsafeSites = SettingsCatalog.protectionWarnUnsafeSites
     val eCriticalNoteWarning = SettingsCatalog.protectionCriticalNoteWarning
     val eResetHiddenWarnings = SettingsCatalog.protectionResetHiddenWarnings
     val eWarnPotentiallyUnsafeSites = SettingsCatalog.protectionWarnPotentiallyUnsafeSites
     val eGoogleSafeBrowsing = SettingsCatalog.protectionGoogleSafeBrowsing
-    val eShowVpnState = SettingsCatalog.protectionShowVpnState
-    val eShowVpnHomeIcon = SettingsCatalog.protectionShowVpnHomeIcon
-    val eShowIpCountry = SettingsCatalog.protectionShowIpCountry
-    val eBlockWithoutVpn = SettingsCatalog.protectionBlockWithoutVpn
-    val eProxy = SettingsCatalog.protectionProxy
-    val ePrivateDns = SettingsCatalog.protectionPrivateDns
     val eBlockPopups = SettingsCatalog.protectionBlockPopups
     val eBlockRedirects = SettingsCatalog.protectionBlockRedirects
     val eBlockAppLinks = SettingsCatalog.protectionBlockAppLinks
-    val eAskBeforeDownloads = SettingsCatalog.protectionAskBeforeDownloads
-    val eWarnRiskyDownloads = SettingsCatalog.protectionWarnRiskyDownloads
-    val eForgetVtChecks = SettingsCatalog.protectionForgetVtChecks
 
     val sitesIds = listOf(
         eWarnUnsafeSites.id,
         eWarnPotentiallyUnsafeSites.id,
         eGoogleSafeBrowsing.id,
-        eForgetVtChecks.id,
     )
     val criticalIds = listOf(
         eCriticalNoteWarning.id,
@@ -81,24 +56,8 @@ fun ProtectionPage(
         eBlockRedirects.id,
         eBlockAppLinks.id,
     )
-    val downloadIds = listOf(
-        eAskBeforeDownloads.id,
-        eWarnRiskyDownloads.id,
-    )
-    val vpnIds = listOf(
-        eShowVpnState.id,
-        eShowVpnHomeIcon.id,
-        eShowIpCountry.id,
-        eBlockWithoutVpn.id,
-    )
-    val proxyIds = listOf(eProxy.id)
-    val dnsIds = if (privateDnsSupported()) listOf(ePrivateDns.id) else emptyList()
     val sectionSettingIds = remember {
-        if (privateDnsSupported()) {
-            listOf(sitesIds, criticalIds, popupIds, downloadIds, vpnIds, proxyIds, dnsIds)
-        } else {
-            listOf(sitesIds, criticalIds, popupIds, downloadIds, vpnIds, proxyIds)
-        }
+        listOf(sitesIds, criticalIds, popupIds)
     }
     val listState = rememberFocusedListState(sectionSettingIds)
 
@@ -154,15 +113,6 @@ fun ProtectionPage(
                         settingId = eGoogleSafeBrowsing.id,
                         onChange = { checked ->
                             viewModel.updateProtection { it.copy(safeBrowsing = checked) }
-                        },
-                    )
-                    SettingsDivider()
-                    NavRow(
-                        title = eForgetVtChecks.title,
-                        summary = eForgetVtChecks.description,
-                        settingId = eForgetVtChecks.id,
-                        onClick = {
-                            viewModel.clearVtChecks { onShowSnackbar("Checked sites forgotten") }
                         },
                     )
                 }
@@ -229,150 +179,7 @@ fun ProtectionPage(
                 }
             }
 
-            item {
-                SettingsSection(title = "Downloads") {
-                    SwitchRow(
-                        title = eAskBeforeDownloads.title,
-                        summary = eAskBeforeDownloads.description,
-                        checked = protectionPrefs.askBeforeDownload,
-                        settingId = eAskBeforeDownloads.id,
-                        onChange = { checked ->
-                            viewModel.updateProtection { it.copy(askBeforeDownload = checked) }
-                        },
-                    )
-                    SettingsDivider()
-                    SwitchRow(
-                        title = eWarnRiskyDownloads.title,
-                        summary = eWarnRiskyDownloads.description,
-                        checked = protectionPrefs.warnRiskyDownloads,
-                        settingId = eWarnRiskyDownloads.id,
-                        onChange = { checked ->
-                            viewModel.updateProtection { it.copy(warnRiskyDownloads = checked) }
-                        },
-                    )
-                }
-            }
-
-            item {
-                SettingsSection(title = "VPN") {
-                    SwitchRow(
-                        title = eShowVpnState.title,
-                        summary = eShowVpnState.description,
-                        checked = protectionPrefs.showVpnState,
-                        settingId = eShowVpnState.id,
-                        onChange = { checked ->
-                            viewModel.updateProtection { it.copy(showVpnState = checked) }
-                        },
-                    )
-                    SettingsDivider()
-                    SwitchRow(
-                        title = eShowVpnHomeIcon.title,
-                        summary = eShowVpnHomeIcon.description,
-                        checked = protectionPrefs.showVpnHomeIcon,
-                        settingId = eShowVpnHomeIcon.id,
-                        onChange = { checked ->
-                            viewModel.updateProtection { it.copy(showVpnHomeIcon = checked) }
-                        },
-                    )
-                    SettingsDivider()
-                    SwitchRow(
-                        title = eShowIpCountry.title,
-                        summary = eShowIpCountry.description,
-                        checked = protectionPrefs.showIpCountry,
-                        settingId = eShowIpCountry.id,
-                        onChange = { checked ->
-                            viewModel.updateProtection { it.copy(showIpCountry = checked) }
-                        },
-                    )
-                    SettingsDivider()
-                    SwitchRow(
-                        title = eBlockWithoutVpn.title,
-                        summary = eBlockWithoutVpn.description,
-                        checked = protectionPrefs.blockWithoutVpn,
-                        enabled = protectionPrefs.showVpnState,
-                        settingId = eBlockWithoutVpn.id,
-                        onChange = { checked ->
-                            viewModel.updateProtection { it.copy(blockWithoutVpn = checked) }
-                        },
-                    )
-                }
-            }
-
-            item {
-                SettingsSection(title = "Proxy") {
-                    NavRow(
-                        title = eProxy.title,
-                        summary = proxyRowSummary(
-                            prefs = protectionPrefs,
-                            webViewSupported = webViewProxySupported,
-                            orbotInstalled = orbotInstalled,
-                        ),
-                        enabled = proxyRowEnabled(
-                            prefs = protectionPrefs,
-                            webViewSupported = webViewProxySupported,
-                        ),
-                        settingId = eProxy.id,
-                        onClick = { showProxyDialog = true },
-                    )
-                }
-            }
-
-            if (privateDnsSupported()) {
-                item {
-                    SettingsSection(title = "DNS") {
-                        NavRow(
-                            title = ePrivateDns.title,
-                            summary = privateDnsSummary(state),
-                            settingId = ePrivateDns.id,
-                            onClick = { openPrivateDnsSettings(context) },
-                        )
-                    }
-                }
-            }
-
             extraRows()
         }
-    }
-
-    if (showProxyDialog) {
-        ProxySettingsDialog(
-            initialPrefs = protectionPrefs,
-            webViewSupported = webViewProxySupported,
-            onDismiss = { showProxyDialog = false },
-            onConfirm = { mode, type, host, port, allowJavaScript ->
-                showProxyDialog = false
-                if (mode == io.github.omeg4dev.fmhy.data.ProxyMode.ORBOT && !isOrbotInstalled(context)) {
-                    orbotInstalled = false
-                    showOrbotMissingDialog = true
-                } else {
-                    viewModel.updateProtection {
-                        when (mode) {
-                            io.github.omeg4dev.fmhy.data.ProxyMode.OFF -> it.copy(proxyMode = mode)
-                            io.github.omeg4dev.fmhy.data.ProxyMode.ORBOT -> it.copy(
-                                proxyMode = mode,
-                                proxyAllowJavaScript = allowJavaScript,
-                            )
-                            io.github.omeg4dev.fmhy.data.ProxyMode.CUSTOM -> it.copy(
-                                proxyMode = mode,
-                                proxyType = type,
-                                proxyHost = host,
-                                proxyPort = port,
-                                proxyAllowJavaScript = allowJavaScript,
-                            )
-                        }
-                    }
-                }
-            },
-        )
-    }
-
-    if (showOrbotMissingDialog) {
-        OrbotNotInstalledDialog(
-            onGetOrbot = {
-                showOrbotMissingDialog = false
-                openGetOrbot(context)
-            },
-            onDismiss = { showOrbotMissingDialog = false },
-        )
     }
 }

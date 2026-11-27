@@ -409,7 +409,7 @@ def _switch_row(label: str):
         ns = nodes()
         row = next((n for n in ns if n.summary.startswith("{" + label) and
                     ("checked" in n.flags or "unchecked" in n.flags)), None)
-        if row and 330 < row.y < 2150:
+        if row and 330 < row.y < 2250:  # 2250: last row of a short page cannot scroll higher
             return row
         if row and row.y <= 330:  # clipped under the top bar: scroll back
             sh("input swipe 540 800 540 1500 300")

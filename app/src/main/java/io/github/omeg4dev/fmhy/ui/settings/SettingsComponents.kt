@@ -50,6 +50,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -66,8 +67,10 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import io.github.omeg4dev.fmhy.ui.shell.JobRowUi
 import com.materialkolor.hct.Hct
 import io.github.omeg4dev.fmhy.theme.calloutColorsForSeed
@@ -75,6 +78,50 @@ import io.github.omeg4dev.fmhy.theme.paletteColorScheme
 import io.github.omeg4dev.fmhy.ui.common.Motion
 import io.github.omeg4dev.fmhy.ui.common.rememberHaptics
 import kotlin.math.roundToInt
+
+/** Title style for every settings row: bodyLarge with a 20 sp line height (SET-08). */
+@Composable
+@ReadOnlyComposable
+fun settingsRowTitleStyle(): TextStyle = MaterialTheme.typography.bodyLarge.copy(lineHeight = 20.sp)
+
+/** Extra space between a settings row title and its description (SET-08). */
+val SettingsDescriptionGap = 4.dp
+
+@Composable
+fun SettingsRowTitle(
+    text: String,
+    modifier: Modifier = Modifier,
+    color: Color = Color.Unspecified,
+    maxLines: Int = Int.MAX_VALUE,
+    overflow: TextOverflow = TextOverflow.Clip,
+) {
+    Text(
+        text = text,
+        modifier = modifier,
+        color = color,
+        style = settingsRowTitleStyle(),
+        maxLines = maxLines,
+        overflow = overflow,
+    )
+}
+
+@Composable
+fun SettingsRowDescription(
+    text: String,
+    modifier: Modifier = Modifier,
+    color: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    maxLines: Int = Int.MAX_VALUE,
+    overflow: TextOverflow = TextOverflow.Clip,
+) {
+    Text(
+        text = text,
+        modifier = modifier.padding(top = SettingsDescriptionGap),
+        color = color,
+        style = MaterialTheme.typography.bodyMedium,
+        maxLines = maxLines,
+        overflow = overflow,
+    )
+}
 
 @Composable
 fun SettingsGroupHeader(
@@ -176,15 +223,9 @@ fun SwitchRow(
 ) {
     val haptics = rememberHaptics()
     ListItem(
-        headlineContent = { Text(title, style = MaterialTheme.typography.bodyLarge) },
+        headlineContent = { SettingsRowTitle(title) },
         supportingContent = summary?.let {
-            {
-                Text(
-                    text = it,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            { SettingsRowDescription(it) }
         },
         leadingContent = icon?.let { { RowIcon(icon = it) } },
         trailingContent = {
@@ -226,10 +267,7 @@ fun NavRow(
     ListItem(
         headlineContent = {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.bodyLarge,
-                )
+                SettingsRowTitle(title)
                 if (badge != null) {
                     Spacer(modifier = Modifier.width(8.dp))
                     badge()
@@ -238,10 +276,8 @@ fun NavRow(
         },
         supportingContent = summary?.let {
             {
-                Text(
+                SettingsRowDescription(
                     text = it,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -283,14 +319,8 @@ fun InfoRow(
     trailing: (@Composable () -> Unit)? = null,
 ) {
     ListItem(
-        headlineContent = { Text(title, style = MaterialTheme.typography.bodyLarge) },
-        supportingContent = {
-            Text(
-                text = value,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        },
+        headlineContent = { SettingsRowTitle(title) },
+        supportingContent = { SettingsRowDescription(value) },
         leadingContent = icon?.let { { RowIcon(icon = it) } },
         trailingContent = trailing,
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
@@ -415,15 +445,9 @@ fun ExpandableSection(
 
     Column(modifier = modifier.fillMaxWidth()) {
         ListItem(
-            headlineContent = { Text(title, style = MaterialTheme.typography.titleMedium) },
+            headlineContent = { Text(title, style = MaterialTheme.typography.titleMedium.copy(lineHeight = 20.sp)) },
             supportingContent = summary?.let {
-                {
-                    Text(
-                        text = it,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                { SettingsRowDescription(it) }
             },
             trailingContent = {
                 Icon(
@@ -624,7 +648,7 @@ fun <T> ChoiceRow(
                 .then(if (!enabled) Modifier.alpha(0.38f) else Modifier)
         ) {
             ListItem(
-                headlineContent = { Text(title, style = MaterialTheme.typography.bodyLarge) },
+                headlineContent = { SettingsRowTitle(title) },
                 colors = ListItemDefaults.colors(containerColor = Color.Transparent),
             )
             SingleChoiceSegmentedButtonRow(
@@ -651,8 +675,8 @@ fun <T> ChoiceRow(
         val selectedLabel = options.firstOrNull { it.first == selected }?.second ?: ""
 
         ListItem(
-            headlineContent = { Text(title, style = MaterialTheme.typography.bodyLarge) },
-            supportingContent = { Text(selectedLabel) },
+            headlineContent = { SettingsRowTitle(title) },
+            supportingContent = { SettingsRowDescription(selectedLabel, color = Color.Unspecified) },
             colors = ListItemDefaults.colors(containerColor = Color.Transparent),
             modifier = rowModifier
                 .fillMaxWidth()
@@ -736,7 +760,7 @@ fun SliderRow(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(title, style = settingsRowTitleStyle())
             if (valueLabel != null) {
                 Text(
                     text = valueLabel,

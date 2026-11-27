@@ -19,13 +19,66 @@ class SettingsCatalogTest {
     }
 
     @Test
-    fun everyIdStartsWithPageLowercase() {
+    fun idsHaveStableFormat() {
+        val pattern = Regex("^[a-z_]+\\.[a-z_]+$")
         SettingsCatalog.all.forEach { entry ->
-            val expectedPrefix = "${entry.page.name.lowercase()}."
             assertTrue(
-                "Entry '${entry.id}' does not start with expected prefix '$expectedPrefix'",
-                entry.id.startsWith(expectedPrefix)
+                "Entry '${entry.id}' does not match expected id format",
+                pattern.matches(entry.id)
             )
+        }
+    }
+
+    @Test
+    fun everyDescriptionAtMost70Chars() {
+        SettingsCatalog.all.forEach { entry ->
+            assertTrue(
+                "Description exceeds 70 chars for ${entry.id} (${entry.description.length}): '${entry.description}'",
+                entry.description.length <= 70
+            )
+        }
+    }
+
+    @Test
+    fun everyEntryPageIsInHubTree() {
+        val treePages = SettingsTree.groups
+            .flatMap { it.items }
+            .filterIsInstance<HubItem.Page>()
+            .map { it.page }
+            .toSet()
+        SettingsCatalog.all.forEach { entry ->
+            assertTrue(
+                "Entry ${entry.id} has page ${entry.page} not present in SettingsTree.groups",
+                entry.page in treePages
+            )
+        }
+    }
+
+    @Test
+    fun everyPageAppearsOnceInTree() {
+        val treePages = SettingsTree.groups
+            .flatMap { it.items }
+            .filterIsInstance<HubItem.Page>()
+            .map { it.page }
+        SettingsPage.entries.forEach { page ->
+            assertEquals(
+                "Page $page must appear exactly once in SettingsTree.groups",
+                1,
+                treePages.count { it == page }
+            )
+        }
+    }
+
+    @Test
+    fun headingMatchesTreeGroup() {
+        SettingsTree.groups.forEach { group ->
+            group.items.filterIsInstance<HubItem.Page>().forEach { item ->
+                assertEquals(
+                    "Heading for ${item.page} must match group title '${group.title}'",
+                    group.title,
+                    item.page.heading()
+                )
+            }
         }
     }
 

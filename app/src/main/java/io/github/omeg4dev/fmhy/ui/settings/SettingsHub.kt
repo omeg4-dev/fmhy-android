@@ -40,10 +40,9 @@ import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Shield
-import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.SystemUpdate
-import androidx.compose.material.icons.filled.Wifi
-import androidx.compose.material.icons.outlined.Backup
+import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.material.icons.outlined.OndemandVideo
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -111,7 +110,6 @@ fun SettingsHub(
     val privacyPrefs by viewModel.privacyPrefs.collectAsStateWithLifecycle()
     val notificationPrefs by viewModel.notificationPrefs.collectAsStateWithLifecycle()
     val updatePrefs by viewModel.updatePrefs.collectAsStateWithLifecycle()
-    val dataUsagePrefs by viewModel.dataUsagePrefs.collectAsStateWithLifecycle()
     val follows by viewModel.follows.collectAsStateWithLifecycle()
     val fmhyXState by viewModel.fmhyXAccountState.collectAsStateWithLifecycle()
 
@@ -259,13 +257,14 @@ fun SettingsHub(
                             ) {
                                 Text(
                                     text = result.entry.title,
-                                    style = MaterialTheme.typography.bodyLarge,
+                                    style = settingsRowTitleStyle(),
                                     color = MaterialTheme.colorScheme.onSurface,
                                 )
                                 Text(
                                     text = result.path,
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(top = SettingsDescriptionGap),
                                 )
                                 Text(
                                     text = result.entry.description,
@@ -278,241 +277,123 @@ fun SettingsHub(
                         }
                     }
                 } else {
-                    // Look & feel
-                    item {
-                        val themeStr = when (state.appearance.themeMode) {
-                            ThemeMode.SYSTEM -> "System"
-                            ThemeMode.LIGHT -> "Light"
-                            ThemeMode.DARK -> "Dark"
-                        }
-                        val accentStr = if (state.appearance.colorSource == ColorSource.MATERIAL_YOU) {
-                            "Material You"
-                        } else {
-                            ACCENT_PRESETS.firstOrNull { it.seed == state.appearance.accentSeed }?.name ?: "Custom"
-                        }
-                        val homeSummary = "${homePrefs.blocks.enabledCount} of ${HomeBlock.entries.size} blocks on"
-                        val listsSummary = when (state.appearance.sectionLayout) {
-                            SectionLayout.CONTINUOUS -> "Continuous"
-                            SectionLayout.CATEGORIES -> "Categories"
-                        }
-
-                        SettingsSection(title = "Look & feel") {
-                            NavRow(
-                                title = "Appearance",
-                                summary = "$themeStr · $accentStr",
-                                icon = Icons.Default.Palette,
-                                onClick = { onNavigateToPage(SettingsPage.APPEARANCE) },
-                            )
-                            SettingsDivider(hasIcon = true)
-                            NavRow(
-                                title = "Home",
-                                summary = homeSummary,
-                                icon = Icons.Default.Home,
-                                onClick = { onNavigateToPage(SettingsPage.HOME) },
-                            )
-                            SettingsDivider(hasIcon = true)
-                            NavRow(
-                                title = "Lists & gestures",
-                                summary = listsSummary,
-                                icon = Icons.AutoMirrored.Filled.List,
-                                onClick = { onNavigateToPage(SettingsPage.LISTS) },
-                            )
+                    val themeStr = when (state.appearance.themeMode) {
+                        ThemeMode.SYSTEM -> "System"
+                        ThemeMode.LIGHT -> "Light"
+                        ThemeMode.DARK -> "Dark"
+                    }
+                    val accentStr = if (state.appearance.colorSource == ColorSource.MATERIAL_YOU) {
+                        "Material You"
+                    } else {
+                        ACCENT_PRESETS.firstOrNull { it.seed == state.appearance.accentSeed }?.name ?: "Custom"
+                    }
+                    val homeSummary = "${homePrefs.blocks.enabledCount} of ${HomeBlock.entries.size} blocks on"
+                    val listsSummary = when (state.appearance.sectionLayout) {
+                        SectionLayout.CONTINUOUS -> "Continuous"
+                        SectionLayout.CATEGORIES -> "Categories"
+                    }
+                    val browserStr = when (browserPrefs.openLinksWith) {
+                        OpenLinksWith.IN_APP -> "In-app browser"
+                        OpenLinksWith.CUSTOM_TAB -> "Custom tab"
+                        OpenLinksWith.EXTERNAL -> "External browser"
+                    }
+                    val adblockStr = when {
+                        !blockingPrefs.adblock -> "Off"
+                        blockingPrefs.enabledLists == FilterListCatalog.balancedIds -> "Balanced"
+                        blockingPrefs.enabledLists == FilterListCatalog.strictIds -> "Strict"
+                        else -> "Custom"
+                    }
+                    val privacyOnCount = listOf(
+                        privacyPrefs.blockThirdPartyCookies,
+                        privacyPrefs.hideCookieBanners,
+                        privacyPrefs.clearDataOnExit,
+                        privacyPrefs.privateTabsByDefault,
+                        privacyPrefs.sendGpc,
+                    ).count { it }
+                    val privacyStr = if (privacyOnCount >= 3) "Strict" else "Standard"
+                    val count = follows.size
+                    val followingSummary = if (count > 0) {
+                        "$count followed ${if (count == 1) "section" else "sections"}"
+                    } else {
+                        "Nothing followed yet"
+                    }
+                    val notifSummary = if (notificationPrefs.enabled) "Notifications on" else "Notifications off"
+                    val appUpdatesSummary = if (updatePrefs.autoCheck) "Automatic checks on" else "Automatic checks off"
+                    val syncStr = if (state.lastSyncedText.startsWith("Never")) {
+                        "Never synced"
+                    } else {
+                        "Synced ${state.lastSyncedText.substringBefore(" via ")}"
+                    }
+                    val fmhyXSummary = when (val fx = fmhyXState) {
+                        FmhyXAccountState.SignedOut -> "Not signed in"
+                        is FmhyXAccountState.SignedIn -> when {
+                            fx.running -> "Syncing…"
+                            fx.error != null -> formatFmhyXError(fx.error)
+                            fx.lastSyncedAt != null -> "Synced ${formatFmhyXSyncTime(fx.lastSyncedAt)}"
+                            else -> "Not synced yet"
                         }
                     }
 
-                    // Browsing
-                    item {
-                        val browserStr = when (browserPrefs.openLinksWith) {
-                            OpenLinksWith.IN_APP -> "In-app browser"
-                            OpenLinksWith.CUSTOM_TAB -> "Custom tab"
-                            OpenLinksWith.EXTERNAL -> "External browser"
-                        }
-
-                        SettingsSection(title = "Browsing") {
-                            NavRow(
-                                title = "Browser",
-                                summary = browserStr,
-                                icon = Icons.Default.Public,
-                                onClick = { onNavigateToPage(SettingsPage.BROWSER) },
-                            )
-                            SettingsDivider(hasIcon = true)
-                            NavRow(
-                                title = "Video",
-                                summary = "Fullscreen, picture-in-picture, speed",
-                                icon = Icons.Outlined.OndemandVideo,
-                                onClick = { onNavigateToPage(SettingsPage.VIDEO) },
-                            )
-                            SettingsDivider(hasIcon = true)
-                            NavRow(
-                                title = "Downloads",
-                                summary = "Folder, checks, FMHY status",
-                                icon = Icons.Default.Download,
-                                onClick = { onNavigateToPage(SettingsPage.DOWNLOADS) },
-                            )
-                        }
-                    }
-
-                    // Safety & privacy
-                    item {
-                        val adblockStr = when {
-                            !blockingPrefs.adblock -> "Off"
-                            blockingPrefs.enabledLists == FilterListCatalog.balancedIds -> "Balanced"
-                            blockingPrefs.enabledLists == FilterListCatalog.strictIds -> "Strict"
-                            else -> "Custom"
-                        }
-                        val privacyOnCount = listOf(
-                            privacyPrefs.blockThirdPartyCookies,
-                            privacyPrefs.hideCookieBanners,
-                            privacyPrefs.clearDataOnExit,
-                            privacyPrefs.privateTabsByDefault,
-                            privacyPrefs.sendGpc,
-                        ).count { it }
-                        val privacyStr = if (privacyOnCount >= 3) "Strict" else "Standard"
-
-                        SettingsSection(title = "Safety & privacy") {
-                            NavRow(
-                                title = "Ad blocking",
-                                summary = adblockStr,
-                                icon = Icons.Default.Shield,
-                                onClick = { onNavigateToPage(SettingsPage.AD_BLOCKING) },
-                            )
-                            SettingsDivider(hasIcon = true)
-                            NavRow(
-                                title = "Protection",
-                                summary = "Pop-ups, redirects, unsafe sites",
-                                icon = Icons.Default.Security,
-                                onClick = { onNavigateToPage(SettingsPage.PROTECTION) },
-                            )
-                            SettingsDivider(hasIcon = true)
-                            NavRow(
-                                title = "Privacy & history",
-                                summary = privacyStr,
-                                icon = Icons.Default.Lock,
-                                onClick = { onNavigateToPage(SettingsPage.PRIVACY) },
-                            )
-                        }
-                    }
-
-                    // Updates
-                    item {
-                        val count = follows.size
-                        val followingSummary = if (count > 0) {
-                            "$count followed ${if (count == 1) "section" else "sections"}"
-                        } else {
-                            "Nothing followed yet"
-                        }
-                        val notifSummary = if (notificationPrefs.enabled) "Notifications on" else "Notifications off"
-                        val appUpdatesSummary = if (updatePrefs.autoCheck) "Automatic checks on" else "Automatic checks off"
-
-                        SettingsSection(title = "Updates") {
-                            NavRow(
-                                title = "Following",
-                                summary = followingSummary,
-                                icon = Icons.Default.Bookmarks,
-                                onClick = onNavigateToFollowing,
-                            )
-                            SettingsDivider(hasIcon = true)
-                            NavRow(
-                                title = "Notifications",
-                                summary = notifSummary,
-                                icon = Icons.Default.NotificationsActive,
-                                onClick = { onNavigateToPage(SettingsPage.NOTIFICATIONS) },
-                            )
-                            SettingsDivider(hasIcon = true)
-                            NavRow(
-                                title = "What's new",
-                                summary = "Recent changes to FMHY",
-                                icon = Icons.Default.NewReleases,
-                                onClick = onNavigateToWhatsNew,
-                            )
-                            if (viewModel.updateController.enabled) {
-                                SettingsDivider(hasIcon = true)
-                                NavRow(
-                                    title = "App updates",
-                                    summary = appUpdatesSummary,
-                                    icon = Icons.Default.SystemUpdate,
-                                    onClick = { onNavigateToPage(SettingsPage.APP_UPDATES) },
-                                )
+                    SettingsTree.groups.forEach { group ->
+                        val visibleItems = group.items.filter { item ->
+                            when (item) {
+                                is HubItem.Page -> when (item.page) {
+                                    SettingsPage.APP_UPDATES -> viewModel.updateController.enabled
+                                    SettingsPage.FMHYX_ACCOUNT -> BuildConfig.FMHYX_ENABLED
+                                    else -> true
+                                }
+                                HubItem.Following, HubItem.WhatsNew -> true
                             }
                         }
-                    }
-
-                    // Your data
-                    item {
-                        val syncStr = if (state.lastSyncedText.startsWith("Never")) {
-                            "Never synced"
-                        } else {
-                            "Synced ${state.lastSyncedText.substringBefore(" via ")}"
-                        }
-                        val activeWifiOnlyCount = listOf(
-                            dataUsagePrefs.downloadWifiOnly,
-                            dataUsagePrefs.browseWifiOnly,
-                            dataUsagePrefs.appDataWifiOnly,
-                        ).count { it }
-                        val dataUsageSummary = if (activeWifiOnlyCount > 0) {
-                            "Wi-Fi only: $activeWifiOnlyCount of 3 on"
-                        } else {
-                            "Off"
-                        }
-
-                        SettingsSection(title = "Your data") {
-                            NavRow(
-                                title = "Sync",
-                                summary = syncStr,
-                                icon = Icons.Default.Sync,
-                                onClick = { onNavigateToPage(SettingsPage.SYNC) },
-                            )
-                            SettingsDivider(hasIcon = true)
-                            NavRow(
-                                title = "Data usage",
-                                summary = dataUsageSummary,
-                                icon = Icons.Default.Wifi,
-                                onClick = { onNavigateToPage(SettingsPage.DATA_USAGE) },
-                            )
-                            SettingsDivider(hasIcon = true)
-                            NavRow(
-                                title = "Backup & restore",
-                                summary = "Export or import your data",
-                                icon = Icons.Outlined.Backup,
-                                onClick = { onNavigateToPage(SettingsPage.BACKUP) },
-                            )
-                            if (BuildConfig.FMHYX_ENABLED) {
-                                SettingsDivider(hasIcon = true)
-                                val fmhyXSummary = when (val fx = fmhyXState) {
-                                    FmhyXAccountState.SignedOut -> "Not signed in"
-                                    is FmhyXAccountState.SignedIn -> when {
-                                        fx.running -> "Syncing…"
-                                        fx.error != null -> formatFmhyXError(fx.error)
-                                        fx.lastSyncedAt != null -> "Synced ${formatFmhyXSyncTime(fx.lastSyncedAt)}"
-                                        else -> "Not synced yet"
+                        if (visibleItems.isNotEmpty()) {
+                            item(key = group.title) {
+                                SettingsSection(title = group.title) {
+                                    visibleItems.forEachIndexed { index, hubItem ->
+                                        if (index > 0) SettingsDivider(hasIcon = true)
+                                        when (hubItem) {
+                                            is HubItem.Page -> {
+                                                val page = hubItem.page
+                                                val (summary, icon) = when (page) {
+                                                    SettingsPage.APPEARANCE -> "$themeStr · $accentStr" to Icons.Default.Palette
+                                                    SettingsPage.HOME -> homeSummary to Icons.Default.Home
+                                                    SettingsPage.LISTS -> listsSummary to Icons.AutoMirrored.Filled.List
+                                                    SettingsPage.BROWSER -> browserStr to Icons.Default.Public
+                                                    SettingsPage.VIDEO -> "Fullscreen, picture-in-picture, speed" to Icons.Outlined.OndemandVideo
+                                                    SettingsPage.DOWNLOADS -> "Folder, file checks, FMHY status" to Icons.Default.Download
+                                                    SettingsPage.AD_BLOCKING -> adblockStr to Icons.Default.Shield
+                                                    SettingsPage.PROTECTION -> "Pop-ups, redirects, unsafe sites" to Icons.Default.Security
+                                                    SettingsPage.CONNECTION -> "VPN ring, proxy, Private DNS" to Icons.Default.VpnKey
+                                                    SettingsPage.PRIVACY -> privacyStr to Icons.Default.Lock
+                                                    SettingsPage.NOTIFICATIONS -> notifSummary to Icons.Default.NotificationsActive
+                                                    SettingsPage.APP_UPDATES -> appUpdatesSummary to Icons.Default.SystemUpdate
+                                                    SettingsPage.DATA -> syncStr to Icons.Default.Storage
+                                                    SettingsPage.FMHYX_ACCOUNT -> fmhyXSummary to Icons.Default.CloudSync
+                                                    SettingsPage.REPORT -> "Tell us what went wrong" to Icons.Default.BugReport
+                                                    SettingsPage.ABOUT -> "Version $versionName" to Icons.Default.Info
+                                                }
+                                                NavRow(
+                                                    title = page.label(),
+                                                    summary = summary,
+                                                    icon = icon,
+                                                    onClick = { onNavigateToPage(page) },
+                                                )
+                                            }
+                                            HubItem.Following -> NavRow(
+                                                title = "Following",
+                                                summary = followingSummary,
+                                                icon = Icons.Default.Bookmarks,
+                                                onClick = onNavigateToFollowing,
+                                            )
+                                            HubItem.WhatsNew -> NavRow(
+                                                title = "What's new",
+                                                summary = "Recent changes to FMHY",
+                                                icon = Icons.Default.NewReleases,
+                                                onClick = onNavigateToWhatsNew,
+                                            )
+                                        }
                                     }
                                 }
-                                NavRow(
-                                    title = "FMHY X account",
-                                    summary = fmhyXSummary,
-                                    icon = Icons.Default.CloudSync,
-                                    onClick = { onNavigateToPage(SettingsPage.FMHYX_ACCOUNT) },
-                                )
                             }
-                        }
-                    }
-
-                    // Help & about
-                    item {
-                        SettingsSection(title = "Help & about") {
-                            NavRow(
-                                title = "Report a problem",
-                                summary = "Tell us what went wrong",
-                                icon = Icons.Default.BugReport,
-                                onClick = { onNavigateToPage(SettingsPage.REPORT) },
-                            )
-                            SettingsDivider(hasIcon = true)
-                            NavRow(
-                                title = "About",
-                                summary = "Version $versionName",
-                                icon = Icons.Default.Info,
-                                onClick = { onNavigateToPage(SettingsPage.ABOUT) },
-                            )
                         }
                     }
                 }

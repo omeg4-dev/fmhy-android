@@ -4,7 +4,7 @@ import io.github.omeg4dev.fmhy.BuildConfig
 import io.github.omeg4dev.fmhy.SettingsPage
 
 data class SettingEntry(
-    val id: String,              // "<page>.<snake_name>", e.g. "browser.javascript"; unique, stable
+    val id: String,              // "<prefix>.<snake_name>"; prefix = page where the setting was first added. Never renamed, even when the row moves (deep links and focus use it).
     val page: SettingsPage,
     val title: String,           // exactly the row title shown
     val description: String,     // one plain sentence, see 2.2
@@ -32,22 +32,22 @@ object SettingsCatalog {
         id = "appearance.accent_color",
         page = SettingsPage.APPEARANCE,
         title = "Accent colour",
-        description = "Pick an accent color palette or use Material You dynamic colors",
+        description = "Pick an accent palette or Material You colours",
         keywords = listOf("accent", "colour", "color", "palette", "material you"),
-    )
-    val appearanceBottomBarStyle = SettingEntry(
-        id = "appearance.bottom_bar_style",
-        page = SettingsPage.APPEARANCE,
-        title = "Bottom bar style",
-        description = "Choose the style and layout of the bottom navigation bar",
-        keywords = listOf("bottom", "bar", "navigation", "nav", "style"),
     )
     val appearanceTextSize = SettingEntry(
         id = "appearance.text_size",
         page = SettingsPage.APPEARANCE,
         title = "Text size",
-        description = "Scale text size up or down across the app",
+        description = "Make text bigger or smaller across the app",
         keywords = listOf("text", "font", "size", "scale", "zoom"),
+    )
+    val appearanceBottomBarStyle = SettingEntry(
+        id = "appearance.bottom_bar_style",
+        page = SettingsPage.APPEARANCE,
+        title = "Bottom bar style",
+        description = "Style and layout of the bottom navigation bar",
+        keywords = listOf("bottom", "bar", "navigation", "nav", "style"),
     )
     val appearanceAppIcon = SettingEntry(
         id = "appearance.app_icon",
@@ -148,7 +148,7 @@ object SettingsCatalog {
         id = "lists.search_tap_target",
         page = SettingsPage.LISTS,
         title = "Tap a search result opens",
-        description = "The site, or its section in Browse (the site stays in the details sheet)",
+        description = "The site itself, or its section in Browse",
         keywords = listOf("tap", "search", "result", "section", "open", "site", "gesture", "jump", "browse"),
     )
     val listsSwapTapAndHold = SettingEntry(
@@ -169,7 +169,7 @@ object SettingsCatalog {
         id = "lists.category_names",
         page = SettingsPage.LISTS,
         title = "Category names from the FMHY website",
-        description = "On: Streaming, Listening, Gaming. Off: the wiki titles used before, like Movies / TV / Anime",
+        description = "On: Streaming, Gaming. Off: older names like Movies / TV",
         keywords = listOf("category", "names", "titles", "wiki", "website", "streaming", "listening", "movies"),
     )
     val listsSwipeBetweenScreens = SettingEntry(
@@ -199,14 +199,21 @@ object SettingsCatalog {
         id = "browser.open_links_with",
         page = SettingsPage.BROWSER,
         title = "Open links with",
-        description = "Choose whether links open in the built-in browser, custom tabs, or an external browser",
+        description = "Built-in browser, custom tab, or another browser app",
         keywords = listOf("open", "links", "in-app", "custom tab", "external", "browser"),
+    )
+    val aboutOpenFmhyLinks = SettingEntry(
+        id = "about.open_fmhy_links",
+        page = SettingsPage.BROWSER,
+        title = "Open fmhy.net links in the app",
+        description = "Let Android open fmhy.net links in this app",
+        keywords = listOf("links", "intent", "default", "open", "url", "about"),
     )
     val browserSearchEngine = SettingEntry(
         id = "browser.search_engine",
         page = SettingsPage.BROWSER,
         title = "Search engine",
-        description = "Default search provider for web queries entered in the address bar",
+        description = "Search engine for words typed in the address bar",
         keywords = listOf("search", "engine", "google", "duckduckgo", "bing", "brave"),
     )
     val browserAddressBar = SettingEntry(
@@ -220,7 +227,7 @@ object SettingsCatalog {
         id = "browser.site_bar",
         page = SettingsPage.BROWSER,
         title = "FMHY status icon",
-        description = "Show an icon in the address bar indicating if the current site is on FMHY",
+        description = "Address bar icon showing if the site is listed on FMHY",
         keywords = listOf("fmhy", "status", "icon", "address bar", "badge"),
     )
     val browserDeadSiteRescue = SettingEntry(
@@ -230,19 +237,19 @@ object SettingsCatalog {
         description = "Offer mirrors and alternative links when a webpage fails to load",
         keywords = listOf("dead", "site", "rescue", "mirror", "wayback", "archive"),
     )
-    val browserMaxTabs = SettingEntry(
-        id = "browser.max_tabs",
-        page = SettingsPage.BROWSER,
-        title = "Maximum tabs",
-        description = "Limit how many open tabs the browser keeps in memory at once",
-        keywords = listOf("max", "tabs", "limit", "memory", "count"),
-    )
     val browserRestoreTabs = SettingEntry(
         id = "browser.restore_tabs",
         page = SettingsPage.BROWSER,
         title = "Restore tabs on start",
         description = "Reopen your open tabs when relaunching the browser",
         keywords = listOf("restore", "tabs", "reopen", "session", "start"),
+    )
+    val browserMaxTabs = SettingEntry(
+        id = "browser.max_tabs",
+        page = SettingsPage.BROWSER,
+        title = "Maximum tabs",
+        description = "Limit how many open tabs the browser keeps in memory at once",
+        keywords = listOf("max", "tabs", "limit", "memory", "count"),
     )
     val browserForceDark = SettingEntry(
         id = "browser.force_dark",
@@ -276,7 +283,7 @@ object SettingsCatalog {
         id = "browser.javascript",
         page = SettingsPage.BROWSER,
         title = "JavaScript",
-        description = "Allow websites to run JavaScript scripts and dynamic code",
+        description = "Let websites run JavaScript (most sites need it)",
         keywords = listOf("javascript", "js", "script", "code"),
         advanced = true,
     )
@@ -294,7 +301,7 @@ object SettingsCatalog {
         id = "video.fullscreen_orientation",
         page = SettingsPage.VIDEO,
         title = "Fullscreen orientation",
-        description = "Control screen rotation when entering fullscreen video playback",
+        description = "Screen rotation when a video goes fullscreen",
         keywords = listOf("fullscreen", "orientation", "landscape", "rotation", "rotate"),
     )
     val videoDoubleTapSeek = SettingEntry(
@@ -321,9 +328,9 @@ object SettingsCatalog {
     val videoAutoPip = SettingEntry(
         id = "video.auto_pip",
         page = SettingsPage.VIDEO,
-        title = "Start automatically",
-        description = "Automatically shrink video to picture-in-picture when leaving the app",
-        keywords = listOf("pip", "auto", "shrink", "leave", "background"),
+        title = "Auto picture-in-picture",
+        description = "Shrink the video to picture-in-picture when you leave the app",
+        keywords = listOf("pip", "auto", "shrink", "leave", "background", "start automatically"),
     )
     val videoAutoplay = SettingEntry(
         id = "video.autoplay",
@@ -363,61 +370,83 @@ object SettingsCatalog {
         description = "Choose where newly downloaded files are saved on your device",
         keywords = listOf("download", "folder", "directory", "storage", "path"),
     )
+    val protectionAskBeforeDownloads = SettingEntry(
+        id = "protection.ask_before_downloads",
+        page = SettingsPage.DOWNLOADS,
+        title = "Ask before downloads",
+        description = "Confirm before a file is saved",
+        keywords = listOf("download", "prompt", "confirm", "ask", "save", "protection"),
+    )
     val downloadsVideoDownloadButton = SettingEntry(
         id = "downloads.video_download_button",
         page = SettingsPage.DOWNLOADS,
         title = "Video download button",
-        description = "Show a download button in the address bar when a downloadable video is detected",
+        description = "Download button in the address bar when a video is found",
         keywords = listOf("download", "button", "save", "video", "media"),
+    )
+    val downloadsShowFmhyStatus = SettingEntry(
+        id = "downloads.show_fmhy_status",
+        page = SettingsPage.DOWNLOADS,
+        title = "Show FMHY status in downloads",
+        description = "Show which FMHY section lists the site a file came from",
+        keywords = listOf("fmhy", "status", "source", "listing", "downloads"),
     )
     val downloadsVirusTotal = SettingEntry(
         id = "downloads.virustotal",
         page = SettingsPage.DOWNLOADS,
         title = "VirusTotal",
-        description = "Scan downloaded files and links against multiple antivirus engines using VirusTotal",
+        description = "Check files and links with VirusTotal's antivirus engines",
         keywords = listOf("virustotal", "scan", "antivirus", "security", "malware"),
     )
     val downloadsVirusTotalKey = SettingEntry(
         id = "downloads.virustotal_key",
         page = SettingsPage.DOWNLOADS,
         title = "VirusTotal key",
-        description = "Add your personal free VirusTotal API key to check files automatically",
+        description = "Your free VirusTotal API key for automatic checks",
         keywords = listOf("virustotal", "key", "api", "token", "credentials"),
     )
     val downloadsHybridAnalysis = SettingEntry(
         id = "downloads.hybrid_analysis",
         page = SettingsPage.DOWNLOADS,
         title = "Hybrid Analysis",
-        description = "Scan downloaded files with the Falcon Sandbox on Hybrid Analysis",
+        description = "Check files in the Falcon Sandbox on Hybrid Analysis",
         keywords = listOf("hybrid", "analysis", "sandbox", "security", "malware"),
     )
     val downloadsHybridAnalysisKey = SettingEntry(
         id = "downloads.hybrid_analysis_key",
         page = SettingsPage.DOWNLOADS,
         title = "Hybrid Analysis key",
-        description = "Add your personal free Hybrid Analysis API key to check files automatically",
+        description = "Your free Hybrid Analysis API key for automatic checks",
         keywords = listOf("hybrid", "analysis", "key", "api", "token"),
-    )
-    val downloadsHoldUntilChecked = SettingEntry(
-        id = "downloads.hold_until_checked",
-        page = SettingsPage.DOWNLOADS,
-        title = "Hold new files until checked",
-        description = "Keep new downloads hidden from other apps until you review and approve them",
-        keywords = listOf("hold", "quarantine", "isolate", "pending", "downloads"),
     )
     val downloadsCheckRiskyFiles = SettingEntry(
         id = "downloads.check_risky_files",
         page = SettingsPage.DOWNLOADS,
         title = "Check risky files automatically",
-        description = "Automatically send fingerprints of APKs, executables, and scripts to enabled security services",
+        description = "Send hashes of APKs, EXEs and scripts to the checks you turned on",
         keywords = listOf("check", "risky", "apk", "exe", "automatic", "scan"),
     )
-    val downloadsShowFmhyStatus = SettingEntry(
-        id = "downloads.show_fmhy_status",
+    val downloadsHoldUntilChecked = SettingEntry(
+        id = "downloads.hold_until_checked",
         page = SettingsPage.DOWNLOADS,
-        title = "Show FMHY status in downloads",
-        description = "Show where the downloaded file source site is listed in FMHY directories",
-        keywords = listOf("fmhy", "status", "source", "listing", "downloads"),
+        title = "Hold new files until checked",
+        description = "Hide new downloads from other apps until you approve them",
+        keywords = listOf("hold", "quarantine", "isolate", "pending", "downloads"),
+    )
+    val protectionWarnRiskyDownloads = SettingEntry(
+        id = "protection.warn_risky_downloads",
+        page = SettingsPage.DOWNLOADS,
+        title = "Warn about APK and EXE downloads",
+        description = "Extra warning for app and program files",
+        keywords = listOf("apk", "exe", "executable", "warning", "installers", "protection"),
+    )
+    val protectionForgetVtChecks = SettingEntry(
+        id = "protection.forget_vt_checks",
+        page = SettingsPage.DOWNLOADS,
+        title = "Forget checked sites",
+        description = "Clears your VirusTotal results and green badges",
+        keywords = listOf("virustotal", "checked", "forget", "badge", "safe", "protection"),
+        advanced = false,
     )
 
     // Ad blocking
@@ -425,7 +454,7 @@ object SettingsCatalog {
         id = "ad_blocking.block_ads_and_trackers",
         page = SettingsPage.AD_BLOCKING,
         title = "Block ads and trackers",
-        description = "Block advertisements, behavioral trackers, and malicious domains across web pages",
+        description = "Block ads, trackers and malware domains on web pages",
         keywords = listOf("ad", "ads", "adblock", "tracker", "privacy", "blocking"),
     )
     val adBlockingBlockingLevel = SettingEntry(
@@ -446,28 +475,28 @@ object SettingsCatalog {
         id = "ad_blocking.hide_page_elements",
         page = SettingsPage.AD_BLOCKING,
         title = "Hide page elements",
-        description = "Hide empty ad spaces and cosmetic placeholders on web pages",
+        description = "Hide empty ad spaces and placeholders on pages",
         keywords = listOf("hide", "cosmetic", "elements", "collapse", "clean"),
     )
     val adBlockingFixBrokenPages = SettingEntry(
         id = "ad_blocking.fix_broken_pages",
         page = SettingsPage.AD_BLOCKING,
         title = "Fix broken pages",
-        description = "Inject uBlock Origin compatibility scriptlets to fix pages that break with ad blocking",
+        description = "Run uBlock Origin fix scripts on pages that break",
         keywords = listOf("fix", "scriptlets", "broken", "compatibility", "ublock"),
     )
     val adBlockingUpdateListsAutomatically = SettingEntry(
         id = "ad_blocking.update_lists_automatically",
         page = SettingsPage.AD_BLOCKING,
         title = "Update lists automatically",
-        description = "Periodically check for and download updated filter lists in the background",
+        description = "Download updated filter lists in the background",
         keywords = listOf("auto", "update", "lists", "periodic", "refresh"),
     )
     val adBlockingListStatus = SettingEntry(
         id = "ad_blocking.list_status",
         page = SettingsPage.AD_BLOCKING,
         title = "List status",
-        description = "View active rule count, last update time, and manually refresh filter lists",
+        description = "Active rules, last update, and an Update now button",
         keywords = listOf("status", "rules", "active", "updated", "refresh", "now"),
     )
     val adBlockingFilterLists = SettingEntry(
@@ -503,20 +532,6 @@ object SettingsCatalog {
         description = "Show a warning before opening known scam or malware sites",
         keywords = listOf("unsafe", "malware", "phishing", "warning", "security"),
     )
-    val protectionCriticalNoteWarning = SettingEntry(
-        id = "protection.critical_note_warning",
-        page = SettingsPage.PROTECTION,
-        title = "Warn before opening sites with a critical note",
-        description = "Show a warning before opening sites that have a critical note",
-        keywords = listOf("critical", "warning", "note", "dialog"),
-    )
-    val protectionResetHiddenWarnings = SettingEntry(
-        id = "protection.reset_hidden_warnings",
-        page = SettingsPage.PROTECTION,
-        title = "Reset hidden warnings",
-        description = "Show critical note warnings again for all sites",
-        keywords = listOf("critical", "warning", "note", "reset", "hidden"),
-    )
     val protectionWarnPotentiallyUnsafeSites = SettingEntry(
         id = "protection.warn_potentially_unsafe_sites",
         page = SettingsPage.PROTECTION,
@@ -531,47 +546,19 @@ object SettingsCatalog {
         description = "Also check sites against Google's list of dangerous sites",
         keywords = listOf("google", "safe", "browsing", "phishing", "malware"),
     )
-    val protectionShowVpnState = SettingEntry(
-        id = "protection.show_vpn_state",
+    val protectionCriticalNoteWarning = SettingEntry(
+        id = "protection.critical_note_warning",
         page = SettingsPage.PROTECTION,
-        title = "Show VPN and HTTPS ring",
-        description = "Coloured ring around the site icon: green = HTTPS and VPN, purple = Orbot, amber = HTTPS only, red = not secure. Tap it for details",
-        keywords = listOf("vpn", "ring", "https", "secure", "lock", "protected", "favicon"),
+        title = "Warn before opening sites with a critical note",
+        description = "Show a warning before opening sites that have a critical note",
+        keywords = listOf("critical", "warning", "note", "dialog"),
     )
-    val protectionShowVpnHomeIcon = SettingEntry(
-        id = "protection.show_vpn_home_icon",
+    val protectionResetHiddenWarnings = SettingEntry(
+        id = "protection.reset_hidden_warnings",
         page = SettingsPage.PROTECTION,
-        title = "Show VPN icon on Home",
-        description = "Lock icon on Home: green with a VPN, purple with Orbot, else amber. Off by default",
-        keywords = listOf("vpn", "lock", "home", "icon", "protected"),
-    )
-    val protectionShowIpCountry = SettingEntry(
-        id = "protection.show_ip_country",
-        page = SettingsPage.PROTECTION,
-        title = "Show my IP and country",
-        description = "Shows your IP and country in the connection details, looked up through Mullvad (am.i.mullvad.net). Off by default",
-        keywords = listOf("ip", "country", "location", "mullvad", "vpn"),
-    )
-    val protectionBlockWithoutVpn = SettingEntry(
-        id = "protection.block_without_vpn",
-        page = SettingsPage.PROTECTION,
-        title = "Disable browsing without VPN",
-        description = "Shows a \"No VPN active\" page while no VPN is on. You can still load a site once. Needs \"Show VPN and HTTPS ring\"",
-        keywords = listOf("vpn", "block", "disable", "browsing", "without", "kill", "switch"),
-    )
-    val protectionProxy = SettingEntry(
-        id = "protection.proxy",
-        page = SettingsPage.PROTECTION,
-        title = "Proxy",
-        description = "Send all app and tab traffic through Orbot or a SOCKS5/HTTP proxy",
-        keywords = listOf("proxy", "tor", "orbot", "socks", "socks5", "http"),
-    )
-    val protectionPrivateDns = SettingEntry(
-        id = "protection.private_dns",
-        page = SettingsPage.PROTECTION,
-        title = "Private DNS (system)",
-        description = "Shows the state of Android's Private DNS and opens its setting. Android applies it to the in-app browser",
-        keywords = listOf("dns", "doh", "dot", "private", "tls", "resolver", "provider", "adguard", "cloudflare"),
+        title = "Reset hidden warnings",
+        description = "Show critical note warnings again for all sites",
+        keywords = listOf("critical", "warning", "note", "reset", "hidden"),
     )
     val protectionBlockPopups = SettingEntry(
         id = "protection.block_popups",
@@ -594,27 +581,49 @@ object SettingsCatalog {
         description = "Ask before a page opens another app",
         keywords = listOf("apps", "intent", "external", "open", "links"),
     )
-    val protectionAskBeforeDownloads = SettingEntry(
-        id = "protection.ask_before_downloads",
-        page = SettingsPage.PROTECTION,
-        title = "Ask before downloads",
-        description = "Confirm before a file is saved",
-        keywords = listOf("download", "prompt", "confirm", "ask", "save"),
+
+    // VPN & proxy
+    val protectionShowVpnState = SettingEntry(
+        id = "protection.show_vpn_state",
+        page = SettingsPage.CONNECTION,
+        title = "Show VPN and HTTPS ring",
+        description = "Ring on the site icon shows HTTPS, VPN and Orbot. Tap for details",
+        keywords = listOf("vpn", "ring", "https", "secure", "lock", "protected", "favicon", "protection"),
     )
-    val protectionWarnRiskyDownloads = SettingEntry(
-        id = "protection.warn_risky_downloads",
-        page = SettingsPage.PROTECTION,
-        title = "Warn about APK and EXE downloads",
-        description = "Extra warning for app and program files",
-        keywords = listOf("apk", "exe", "executable", "warning", "installers"),
+    val protectionBlockWithoutVpn = SettingEntry(
+        id = "protection.block_without_vpn",
+        page = SettingsPage.CONNECTION,
+        title = "Disable browsing without VPN",
+        description = "Show a \"No VPN\" page while no VPN is on. Needs the VPN ring",
+        keywords = listOf("vpn", "block", "disable", "browsing", "without", "kill", "switch", "protection"),
     )
-    val protectionForgetVtChecks = SettingEntry(
-        id = "protection.forget_vt_checks",
-        page = SettingsPage.PROTECTION,
-        title = "Forget checked sites",
-        description = "Clears your VirusTotal results and green badges",
-        keywords = listOf("virustotal", "checked", "forget", "badge", "safe"),
-        advanced = false,
+    val protectionShowVpnHomeIcon = SettingEntry(
+        id = "protection.show_vpn_home_icon",
+        page = SettingsPage.CONNECTION,
+        title = "Show VPN icon on Home",
+        description = "Lock icon on Home: green with a VPN, purple with Orbot, else amber",
+        keywords = listOf("vpn", "lock", "home", "icon", "protected", "protection"),
+    )
+    val protectionShowIpCountry = SettingEntry(
+        id = "protection.show_ip_country",
+        page = SettingsPage.CONNECTION,
+        title = "Show my IP and country",
+        description = "Show your IP and country in connection details (via Mullvad)",
+        keywords = listOf("ip", "country", "location", "mullvad", "vpn", "protection"),
+    )
+    val protectionProxy = SettingEntry(
+        id = "protection.proxy",
+        page = SettingsPage.CONNECTION,
+        title = "Proxy",
+        description = "Send all app and tab traffic through Orbot or a SOCKS5/HTTP proxy",
+        keywords = listOf("proxy", "tor", "orbot", "socks", "socks5", "http", "protection"),
+    )
+    val protectionPrivateDns = SettingEntry(
+        id = "protection.private_dns",
+        page = SettingsPage.CONNECTION,
+        title = "Private DNS (system)",
+        description = "Android's Private DNS state; it also covers the in-app browser",
+        keywords = listOf("dns", "doh", "dot", "private", "tls", "resolver", "provider", "adguard", "cloudflare", "protection"),
     )
 
     // Privacy & history
@@ -622,21 +631,21 @@ object SettingsCatalog {
         id = "privacy.block_third_party_cookies",
         page = SettingsPage.PRIVACY,
         title = "Block third-party cookies",
-        description = "Prevent external domains from setting tracking cookies in your browser session",
+        description = "Stop other sites from setting tracking cookies",
         keywords = listOf("cookie", "cookies", "third-party", "tracking", "privacy"),
     )
     val privacyHideCookieBanners = SettingEntry(
         id = "privacy.hide_cookie_banners",
         page = SettingsPage.PRIVACY,
         title = "Hide cookie banners",
-        description = "Automatically suppress and reject annoying cookie consent banners on websites",
+        description = "Hide and reject cookie consent pop-ups",
         keywords = listOf("cookie", "cookies", "banners", "consent", "gdpr", "notices"),
     )
     val privacySendGpc = SettingEntry(
         id = "privacy.send_gpc",
         page = SettingsPage.PRIVACY,
         title = "Ask sites not to track me",
-        description = "Send Global Privacy Control signal requesting sites do not sell or share data",
+        description = "Send the Global Privacy Control signal (do not sell or share)",
         keywords = listOf("track", "gpc", "dnt", "privacy", "signal"),
     )
     val privacyPrivateTabsByDefault = SettingEntry(
@@ -650,7 +659,7 @@ object SettingsCatalog {
         id = "privacy.clear_data_on_exit",
         page = SettingsPage.PRIVACY,
         title = "Clear site data on exit",
-        description = "Automatically remove cookies and site storage whenever you close the app",
+        description = "Delete cookies and site storage when you close the app",
         keywords = listOf("clear", "exit", "close", "cleanup", "storage", "cookies"),
     )
     val privacyKeepHistory = SettingEntry(
@@ -694,7 +703,7 @@ object SettingsCatalog {
         id = "notifications.watch_saved",
         page = SettingsPage.NOTIFICATIONS,
         title = "Changes to saved sites",
-        description = "Receive an alert when bookmarked sites are updated, moved, or removed",
+        description = "Alert when saved sites change, move or are removed",
         keywords = listOf("saved", "bookmarks", "changes", "updates", "alerts"),
     )
     val notificationsNotifyNewPosts = SettingEntry(
@@ -708,7 +717,7 @@ object SettingsCatalog {
         id = "notifications.check_every",
         page = SettingsPage.NOTIFICATIONS,
         title = "Check every",
-        description = "Set how frequently the background worker checks for site and section updates",
+        description = "How often to check followed sections and saved sites",
         keywords = listOf("interval", "frequency", "schedule", "period", "background"),
         advanced = true,
     )
@@ -716,7 +725,7 @@ object SettingsCatalog {
         id = "notifications.detailed_change_history",
         page = SettingsPage.NOTIFICATIONS,
         title = "Detailed change history",
-        description = "Fetch exact dates and diffs from fmhy-tracker instead of basic section checks",
+        description = "Get exact dates and changes from fmhy-tracker",
         keywords = listOf("tracker", "history", "diff", "detailed", "changes"),
         advanced = true,
     )
@@ -729,66 +738,99 @@ object SettingsCatalog {
         advanced = true,
     )
 
-    // Sync
+    // App updates
+    val appUpdatesCheckNow = SettingEntry(
+        id = "app_updates.check_now",
+        page = SettingsPage.APP_UPDATES,
+        title = "Check for updates",
+        description = "Look for a new version on GitHub now",
+        keywords = listOf("check", "update", "upgrade", "version", "now"),
+    )
+    val appUpdatesAutoCheck = SettingEntry(
+        id = "app_updates.auto_check",
+        page = SettingsPage.APP_UPDATES,
+        title = "Automatic checks",
+        description = "Look for new app versions in the background",
+        keywords = listOf("auto", "check", "update", "periodic", "background"),
+    )
+    val appUpdatesNotify = SettingEntry(
+        id = "app_updates.notify",
+        page = SettingsPage.APP_UPDATES,
+        title = "Update notifications",
+        description = "Notify me when a new app version is available",
+        keywords = listOf("notify", "notification", "alert", "update", "push"),
+    )
+    val appUpdatesInterval = SettingEntry(
+        id = "app_updates.interval",
+        page = SettingsPage.APP_UPDATES,
+        title = "Check frequency",
+        description = "How often to look for new versions; the app also checks at start",
+        keywords = listOf("frequency", "interval", "hours", "daily", "weekly", "check", "background"),
+    )
+    val appUpdatesSkippedVersion = SettingEntry(
+        id = "app_updates.skipped_version",
+        page = SettingsPage.APP_UPDATES,
+        title = "Skipped version",
+        description = "A version you skipped; you won't be asked about it again",
+        keywords = listOf("skipped", "ignore", "version", "update"),
+    )
+
+    // Data & backup
     val syncSyncNow = SettingEntry(
         id = "sync.sync_now",
-        page = SettingsPage.SYNC,
+        page = SettingsPage.DATA,
         title = "Sync now",
-        description = "Fetch the latest FMHY directory data immediately",
+        description = "Get the latest FMHY site list now",
         keywords = listOf("sync", "now", "fetch", "refresh", "download"),
     )
     val syncSyncOnLaunch = SettingEntry(
         id = "sync.sync_on_launch",
-        page = SettingsPage.SYNC,
+        page = SettingsPage.DATA,
         title = "Sync on launch",
-        description = "Automatically check for new directory data every time the app opens",
+        description = "Check for new FMHY data every time the app opens",
         keywords = listOf("sync", "launch", "start", "open", "automatic"),
     )
     val syncLastSynced = SettingEntry(
         id = "sync.last_synced",
-        page = SettingsPage.SYNC,
+        page = SettingsPage.DATA,
         title = "Last synced",
-        description = "Timestamp of the most recent successful directory synchronization",
-        keywords = listOf("last", "synced", "updated", "time", "status"),
+        description = "When the FMHY data was last updated",
+        keywords = listOf("last", "synced", "updated", "time", "status", "sync"),
     )
-
-    // Data usage
     val dataUsageDownloadWifiOnly = SettingEntry(
         id = "data_usage.download_wifi_only",
-        page = SettingsPage.DATA_USAGE,
+        page = SettingsPage.DATA,
         title = "Download only on Wi-Fi",
-        description = "Only download files and media when connected to an unmetered Wi-Fi network",
-        keywords = listOf("download", "wifi", "cellular", "mobile data", "metered"),
+        description = "Download files and media only on Wi-Fi",
+        keywords = listOf("download", "wifi", "cellular", "mobile data", "metered", "data usage"),
     )
     val dataUsageBrowseWifiOnly = SettingEntry(
         id = "data_usage.browse_wifi_only",
-        page = SettingsPage.DATA_USAGE,
+        page = SettingsPage.DATA,
         title = "Browse only on Wi-Fi",
-        description = "Restrict in-app web browsing to Wi-Fi connections to save mobile data",
-        keywords = listOf("browse", "wifi", "cellular", "mobile data", "network"),
+        description = "Load web pages only on Wi-Fi to save mobile data",
+        keywords = listOf("browse", "wifi", "cellular", "mobile data", "network", "data usage"),
     )
     val dataUsageAppDataWifiOnly = SettingEntry(
         id = "data_usage.app_data_wifi_only",
-        page = SettingsPage.DATA_USAGE,
+        page = SettingsPage.DATA,
         title = "App data and updates only on Wi-Fi",
-        description = "Restrict database sync, adblock lists, and app updates to Wi-Fi connections",
-        keywords = listOf("sync", "updates", "wifi", "cellular", "mobile data"),
+        description = "FMHY data, filter lists and app updates only on Wi-Fi",
+        keywords = listOf("sync", "updates", "wifi", "cellular", "mobile data", "data usage"),
     )
-
-    // Backup & restore
     val backupExportBackup = SettingEntry(
         id = "backup.export_backup",
-        page = SettingsPage.BACKUP,
+        page = SettingsPage.DATA,
         title = "Export backup",
         description = "Save bookmarks, followed sections and settings to a JSON file",
-        keywords = listOf("export", "backup", "save", "json", "exporting", "settings"),
+        keywords = listOf("export", "backup", "save", "json", "exporting", "settings", "backup & restore"),
     )
     val backupImportBackup = SettingEntry(
         id = "backup.import_backup",
-        page = SettingsPage.BACKUP,
+        page = SettingsPage.DATA,
         title = "Import backup",
         description = "Restore bookmarks, folders and settings from a JSON backup",
-        keywords = listOf("import", "backup", "restore", "json", "recover", "settings"),
+        keywords = listOf("import", "backup", "restore", "json", "recover", "settings", "backup & restore"),
     )
 
     // FMHY X account
@@ -817,7 +859,7 @@ object SettingsCatalog {
         id = "fmhyx_account.sign_out",
         page = SettingsPage.FMHYX_ACCOUNT,
         title = "Sign out",
-        description = "Stop syncing with FMHY X while keeping saved sites",
+        description = "Stop syncing; saved sites stay on this phone",
         keywords = listOf("fmhy x", "fmhyx", "account", "sign out", "logout", "saved"),
     )
     val fmhyxAccountDeleteAccount = SettingEntry(
@@ -833,14 +875,14 @@ object SettingsCatalog {
         id = "report.report_problem",
         page = SettingsPage.REPORT,
         title = "Report a problem",
-        description = "Submit feedback, report a broken site, or report an app issue",
+        description = "Tell us what went wrong or what is missing",
         keywords = listOf("report", "problem", "feedback", "bug", "issue", "support"),
     )
     val reportOfferToReportCrashes = SettingEntry(
         id = "report.offer_to_report_crashes",
         page = SettingsPage.REPORT,
         title = "Offer to report crashes",
-        description = "Show a prompt after an unexpected app crash allowing you to send an error report",
+        description = "After a crash, offer to send an error report",
         keywords = listOf("crash", "report", "crashes", "errors", "bug"),
     )
 
@@ -859,20 +901,6 @@ object SettingsCatalog {
         description = "Current installed version of the app",
         keywords = listOf("version", "build", "release", "app"),
     )
-    val aboutRunSetupAgain = SettingEntry(
-        id = "about.run_setup_again",
-        page = SettingsPage.ABOUT,
-        title = "Run setup again",
-        description = "Restart the first-run onboarding setup walkthrough",
-        keywords = listOf("setup", "onboarding", "walkthrough", "restart", "first-run"),
-    )
-    val aboutOpenFmhyLinks = SettingEntry(
-        id = "about.open_fmhy_links",
-        page = SettingsPage.ABOUT,
-        title = "Open fmhy.net links in the app",
-        description = "Configure Android system to open fmhy.net links directly in this app",
-        keywords = listOf("links", "intent", "default", "open", "url"),
-    )
     val aboutGithubRepo = SettingEntry(
         id = "about.github_repo",
         page = SettingsPage.ABOUT,
@@ -880,42 +908,12 @@ object SettingsCatalog {
         description = "Source code, releases and issues",
         keywords = listOf("github", "repo", "source", "code", "issues", "releases"),
     )
-
-    // App updates
-    val appUpdatesAutoCheck = SettingEntry(
-        id = "app_updates.auto_check",
-        page = SettingsPage.APP_UPDATES,
-        title = "Automatic checks",
-        description = "Check the project release page for new versions automatically",
-        keywords = listOf("auto", "check", "update", "periodic", "background"),
-    )
-    val appUpdatesNotify = SettingEntry(
-        id = "app_updates.notify",
-        page = SettingsPage.APP_UPDATES,
-        title = "Update notifications",
-        description = "Notify me when a new app version is available",
-        keywords = listOf("notify", "notification", "alert", "update", "push"),
-    )
-    val appUpdatesInterval = SettingEntry(
-        id = "app_updates.interval",
-        page = SettingsPage.APP_UPDATES,
-        title = "Check frequency",
-        description = "How often the background check looks for new app versions (6 hours, 12 hours, daily or weekly). The app also checks at every start",
-        keywords = listOf("frequency", "interval", "hours", "daily", "weekly", "check", "background"),
-    )
-    val appUpdatesCheckNow = SettingEntry(
-        id = "app_updates.check_now",
-        page = SettingsPage.APP_UPDATES,
-        title = "Check for updates",
-        description = "Check GitHub releases right now for newer available versions",
-        keywords = listOf("check", "update", "upgrade", "version", "now"),
-    )
-    val appUpdatesSkippedVersion = SettingEntry(
-        id = "app_updates.skipped_version",
-        page = SettingsPage.APP_UPDATES,
-        title = "Skipped version",
-        description = "Update version that was skipped and will not prompt to install",
-        keywords = listOf("skipped", "ignore", "version", "update"),
+    val aboutRunSetupAgain = SettingEntry(
+        id = "about.run_setup_again",
+        page = SettingsPage.ABOUT,
+        title = "Run setup again",
+        description = "Show the first-start setup again",
+        keywords = listOf("setup", "onboarding", "walkthrough", "restart", "first-run"),
     )
 
     val all: List<SettingEntry> = listOf(
@@ -923,8 +921,8 @@ object SettingsCatalog {
         appearanceTheme,
         appearancePureBlack,
         appearanceAccentColor,
-        appearanceBottomBarStyle,
         appearanceTextSize,
+        appearanceBottomBarStyle,
         appearanceAppIcon,
         // Home
         homeBlocks,
@@ -947,12 +945,13 @@ object SettingsCatalog {
         listsIconLegend,
         // Browser
         browserOpenLinksWith,
+        aboutOpenFmhyLinks,
         browserSearchEngine,
         browserAddressBar,
         browserSiteBar,
         browserDeadSiteRescue,
-        browserMaxTabs,
         browserRestoreTabs,
+        browserMaxTabs,
         browserForceDark,
         browserTextZoomFollowsApp,
         browserForceZoom,
@@ -971,14 +970,17 @@ object SettingsCatalog {
         videoForgetSiteSpeeds,
         // Downloads
         downloadsDownloadFolder,
+        protectionAskBeforeDownloads,
         downloadsVideoDownloadButton,
+        downloadsShowFmhyStatus,
         downloadsVirusTotal,
         downloadsVirusTotalKey,
         downloadsHybridAnalysis,
         downloadsHybridAnalysisKey,
-        downloadsHoldUntilChecked,
         downloadsCheckRiskyFiles,
-        downloadsShowFmhyStatus,
+        downloadsHoldUntilChecked,
+        protectionWarnRiskyDownloads,
+        protectionForgetVtChecks,
         // Ad blocking
         adBlockingBlockAdsAndTrackers,
         adBlockingBlockingLevel,
@@ -992,22 +994,20 @@ object SettingsCatalog {
         adBlockingAllowedSites,
         // Protection
         protectionWarnUnsafeSites,
-        protectionCriticalNoteWarning,
-        protectionResetHiddenWarnings,
         protectionWarnPotentiallyUnsafeSites,
         protectionGoogleSafeBrowsing,
-        protectionShowVpnState,
-        protectionShowVpnHomeIcon,
-        protectionShowIpCountry,
-        protectionBlockWithoutVpn,
-        protectionProxy,
-        protectionPrivateDns,
+        protectionCriticalNoteWarning,
+        protectionResetHiddenWarnings,
         protectionBlockPopups,
         protectionBlockRedirects,
         protectionBlockAppLinks,
-        protectionAskBeforeDownloads,
-        protectionWarnRiskyDownloads,
-        protectionForgetVtChecks,
+        // VPN & proxy
+        protectionShowVpnState,
+        protectionBlockWithoutVpn,
+        protectionShowVpnHomeIcon,
+        protectionShowIpCountry,
+        protectionProxy,
+        protectionPrivateDns,
         // Privacy & history
         privacyBlockThirdPartyCookies,
         privacyHideCookieBanners,
@@ -1025,15 +1025,19 @@ object SettingsCatalog {
         notificationsCheckEvery,
         notificationsDetailedChangeHistory,
         notificationsCheckNow,
-        // Sync
+        // App updates
+        appUpdatesCheckNow,
+        appUpdatesAutoCheck,
+        appUpdatesNotify,
+        appUpdatesInterval,
+        appUpdatesSkippedVersion,
+        // Data & backup
         syncSyncNow,
         syncSyncOnLaunch,
         syncLastSynced,
-        // Data usage
         dataUsageDownloadWifiOnly,
         dataUsageBrowseWifiOnly,
         dataUsageAppDataWifiOnly,
-        // Backup & restore
         backupExportBackup,
         backupImportBackup,
         // FMHY X account
@@ -1048,48 +1052,12 @@ object SettingsCatalog {
         // About
         aboutAboutFmhy,
         aboutVersion,
-        aboutRunSetupAgain,
-        aboutOpenFmhyLinks,
         aboutGithubRepo,
-        // App updates
-        appUpdatesAutoCheck,
-        appUpdatesNotify,
-        appUpdatesInterval,
-        appUpdatesCheckNow,
-        appUpdatesSkippedVersion,
+        aboutRunSetupAgain,
     ).filter { entry ->
         (BuildConfig.NSFW_LINK_ENABLED || entry != homeNsfwLink) &&
             (BuildConfig.FMHYX_ENABLED || entry.page != SettingsPage.FMHYX_ACCOUNT)
     }
 
     fun byId(id: String): SettingEntry? = all.firstOrNull { it.id == id }
-}
-
-fun SettingsPage.heading(): String = when (this) {
-    SettingsPage.APPEARANCE, SettingsPage.HOME, SettingsPage.LISTS -> "Look & feel"
-    SettingsPage.BROWSER, SettingsPage.VIDEO, SettingsPage.DOWNLOADS -> "Browsing"
-    SettingsPage.AD_BLOCKING, SettingsPage.PROTECTION, SettingsPage.PRIVACY -> "Safety & privacy"
-    SettingsPage.NOTIFICATIONS, SettingsPage.APP_UPDATES -> "Updates"
-    SettingsPage.SYNC, SettingsPage.DATA_USAGE, SettingsPage.BACKUP, SettingsPage.FMHYX_ACCOUNT -> "Your data"
-    SettingsPage.REPORT, SettingsPage.ABOUT -> "Help & about"
-}
-
-fun SettingsPage.label(): String = when (this) {
-    SettingsPage.APPEARANCE -> "Appearance"
-    SettingsPage.HOME -> "Home"
-    SettingsPage.LISTS -> "Lists & gestures"
-    SettingsPage.BROWSER -> "Browser"
-    SettingsPage.VIDEO -> "Video"
-    SettingsPage.DOWNLOADS -> "Downloads"
-    SettingsPage.AD_BLOCKING -> "Ad blocking"
-    SettingsPage.PROTECTION -> "Protection"
-    SettingsPage.PRIVACY -> "Privacy & history"
-    SettingsPage.NOTIFICATIONS -> "Notifications"
-    SettingsPage.APP_UPDATES -> "App updates"
-    SettingsPage.SYNC -> "Sync"
-    SettingsPage.DATA_USAGE -> "Data usage"
-    SettingsPage.BACKUP -> "Backup & restore"
-    SettingsPage.FMHYX_ACCOUNT -> "FMHY X account"
-    SettingsPage.REPORT -> "Report a problem"
-    SettingsPage.ABOUT -> "About"
 }

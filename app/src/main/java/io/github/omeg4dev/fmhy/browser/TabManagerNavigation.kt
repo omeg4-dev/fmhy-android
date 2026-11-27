@@ -32,7 +32,7 @@ fun TabManager.blocksWithoutVpn(url: String, tabId: Long): Boolean =
 fun TabManager.openDataUsageSettings() {
     onOpenDataUsageSettings?.invoke() ?: run {
         val container = (appContext as? FmhyApp)?.container
-        container?.pushNavigation(SettingsPageNavKey(SettingsPage.DATA_USAGE))
+        container?.pushNavigation(SettingsPageNavKey(SettingsPage.DATA, focusSetting = "data_usage.browse_wifi_only"))
         bringFmhyToFront(appContext)
     }
 }
@@ -45,7 +45,7 @@ fun TabManager.openFileCheckSettings(focusSetting: String? = null) {
 
 fun TabManager.openProxySettings() {
     val container = (appContext as? FmhyApp)?.container
-    container?.pushNavigation(SettingsPageNavKey(SettingsPage.PROTECTION, "protection.proxy"))
+    container?.pushNavigation(SettingsPageNavKey(SettingsPage.CONNECTION, "protection.proxy"))
     bringFmhyToFront(appContext)
 }
 

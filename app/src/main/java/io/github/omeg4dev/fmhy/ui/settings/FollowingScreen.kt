@@ -208,10 +208,7 @@ fun FollowingScreen(
                                     )
                                 },
                                 headlineContent = {
-                                    Text(
-                                        text = section.displayTitle,
-                                        style = MaterialTheme.typography.bodyLarge,
-                                    )
+                                    SettingsRowTitle(section.displayTitle)
                                 },
                                 supportingContent = when (state) {
                                     SectionFollowState.PARTIAL -> {
@@ -220,6 +217,7 @@ fun FollowingScreen(
                                                 text = "Partly followed",
                                                 style = MaterialTheme.typography.bodySmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.padding(top = SettingsDescriptionGap),
                                             )
                                         }
                                     }
@@ -229,6 +227,7 @@ fun FollowingScreen(
                                                 text = "All subsections",
                                                 style = MaterialTheme.typography.bodySmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.padding(top = SettingsDescriptionGap),
                                             )
                                         }
                                     }

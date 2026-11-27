@@ -45,14 +45,17 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.omeg4dev.fmhy.ui.shell.JobKind
+import java.io.IOException
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlinx.coroutines.launch
+import org.json.JSONException
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BackupPage(
+fun DataPage(
     viewModel: SettingsViewModel,
     onBack: () -> Unit,
     onShowSnackbar: (String) -> Unit,
@@ -62,12 +65,29 @@ fun BackupPage(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val dataPrefs by viewModel.dataPrefs.collectAsStateWithLifecycle()
+    val jobs by viewModel.jobs.collectAsStateWithLifecycle()
+    val dataUsagePrefs by viewModel.dataUsagePrefs.collectAsStateWithLifecycle()
+    val pendingMobileAction by viewModel.pendingMobileAction.collectAsStateWithLifecycle()
+
+    val eSyncNow = SettingsCatalog.syncSyncNow
+    val eSyncOnLaunch = SettingsCatalog.syncSyncOnLaunch
+    val eLastSynced = SettingsCatalog.syncLastSynced
+    val eDownloadWifiOnly = SettingsCatalog.dataUsageDownloadWifiOnly
+    val eBrowseWifiOnly = SettingsCatalog.dataUsageBrowseWifiOnly
+    val eAppDataWifiOnly = SettingsCatalog.dataUsageAppDataWifiOnly
     val eExportBackup = SettingsCatalog.backupExportBackup
     val eImportBackup = SettingsCatalog.backupImportBackup
 
+    val fmhyDataIds = listOf(eSyncNow.id, eSyncOnLaunch.id, eLastSynced.id)
+    val mobileDataIds = listOf(eDownloadWifiOnly.id, eBrowseWifiOnly.id, eAppDataWifiOnly.id)
     val backupIds = listOf(eExportBackup.id, eImportBackup.id)
-    val sectionSettingIds = remember { listOf(backupIds) }
+    val sectionSettingIds = remember { listOf(fmhyDataIds, mobileDataIds, backupIds) }
     val listState = rememberFocusedListState(sectionSettingIds)
+
+    val sitesStr = if (state.entryCount > 0) "%,d sites".format(Locale.getDefault(), state.entryCount) else "No sites loaded"
+    val footerText = "$sitesStr · last synced ${state.lastSyncedText}"
 
     var showExportConfirmDialog by remember { mutableStateOf(false) }
     var exportIncludeHistory by remember { mutableStateOf(false) }
@@ -82,19 +102,33 @@ fun BackupPage(
         }
     }
 
+    suspend fun performBackupIo(fallbackMessage: String, block: suspend () -> Unit) {
+        try {
+            block()
+        } catch (e: IOException) {
+            onShowSnackbar(e.message ?: fallbackMessage)
+        } catch (e: SecurityException) {
+            onShowSnackbar(e.message ?: fallbackMessage)
+        } catch (e: IllegalArgumentException) {
+            onShowSnackbar(e.message ?: fallbackMessage)
+        } catch (e: IllegalStateException) {
+            onShowSnackbar(e.message ?: fallbackMessage)
+        } catch (e: JSONException) {
+            onShowSnackbar(e.message ?: fallbackMessage)
+        }
+    }
+
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
     ) { uri: Uri? ->
         if (uri != null) {
             scope.launch {
-                try {
+                performBackupIo("Failed to export backup") {
                     val json = viewModel.exportBackup(includeHistory = exportIncludeHistory)
                     context.contentResolver.openOutputStream(uri)?.use { os ->
                         os.write(json.toByteArray(Charsets.UTF_8))
                     }
                     onShowSnackbar("Backup exported")
-                } catch (e: Exception) {
-                    onShowSnackbar(e.message ?: "Failed to export backup")
                 }
             }
         }
@@ -105,7 +139,7 @@ fun BackupPage(
     ) { uri: Uri? ->
         if (uri != null) {
             scope.launch {
-                try {
+                performBackupIo("Failed to import backup") {
                     val json = context.contentResolver.openInputStream(uri)?.use { inputStream ->
                         inputStream.bufferedReader(Charsets.UTF_8).readText()
                     } ?: ""
@@ -115,8 +149,6 @@ fun BackupPage(
                         val result = viewModel.importBackup(json, restoreSettings = false)
                         onShowSnackbar("Imported ${result.bookmarks} bookmarks, ${result.folders} folders")
                     }
-                } catch (e: Exception) {
-                    onShowSnackbar(e.message ?: "Failed to import backup")
                 }
             }
         }
@@ -125,7 +157,7 @@ fun BackupPage(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Backup & restore") },
+                title = { Text("Data & backup") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -145,6 +177,83 @@ fun BackupPage(
             ),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            item {
+                SettingsSection(
+                    title = "FMHY data",
+                    footer = footerText,
+                ) {
+                    ButtonRow(
+                        text = eSyncNow.title,
+                        loading = false,
+                        enabled = !state.isUpdating,
+                        settingId = eSyncNow.id,
+                        onClick = { viewModel.updateNow() },
+                    )
+                    val wikiJob = jobs.firstOrNull { it.kind == JobKind.WIKI }
+                    if (wikiJob != null) {
+                        JobProgressRow(wikiJob)
+                    }
+                    if (!state.updateStatusMessage.isNullOrEmpty()) {
+                        Text(
+                            text = state.updateStatusMessage ?: "",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                        )
+                    }
+                    SettingsDivider()
+                    SwitchRow(
+                        title = eSyncOnLaunch.title,
+                        summary = eSyncOnLaunch.description,
+                        checked = dataPrefs.syncOnLaunch,
+                        settingId = eSyncOnLaunch.id,
+                        onChange = { checked ->
+                            viewModel.updateData { it.copy(syncOnLaunch = checked) }
+                        },
+                    )
+                    SettingsDivider()
+                    InfoRow(
+                        title = eLastSynced.title,
+                        value = state.lastSyncedText,
+                        settingId = eLastSynced.id,
+                    )
+                }
+            }
+
+            item {
+                SettingsSection(title = "Mobile data") {
+                    SwitchRow(
+                        title = eDownloadWifiOnly.title,
+                        summary = eDownloadWifiOnly.description,
+                        checked = dataUsagePrefs.downloadWifiOnly,
+                        settingId = eDownloadWifiOnly.id,
+                        onChange = { checked ->
+                            viewModel.updateDataUsage { it.copy(downloadWifiOnly = checked) }
+                        },
+                    )
+                    SettingsDivider()
+                    SwitchRow(
+                        title = eBrowseWifiOnly.title,
+                        summary = eBrowseWifiOnly.description,
+                        checked = dataUsagePrefs.browseWifiOnly,
+                        settingId = eBrowseWifiOnly.id,
+                        onChange = { checked ->
+                            viewModel.updateDataUsage { it.copy(browseWifiOnly = checked) }
+                        },
+                    )
+                    SettingsDivider()
+                    SwitchRow(
+                        title = eAppDataWifiOnly.title,
+                        summary = eAppDataWifiOnly.description,
+                        checked = dataUsagePrefs.appDataWifiOnly,
+                        settingId = eAppDataWifiOnly.id,
+                        onChange = { checked ->
+                            viewModel.updateDataUsage { it.copy(appDataWifiOnly = checked) }
+                        },
+                    )
+                }
+            }
+
             item {
                 SettingsSection(title = "Backup & restore") {
                     NavRow(
@@ -167,6 +276,12 @@ fun BackupPage(
 
             extraRows()
         }
+
+        MobileDataConfirmationDialog(
+            visible = pendingMobileAction != null,
+            onConfirm = viewModel::confirmMobileAction,
+            onDismiss = viewModel::dismissMobileActionDialog,
+        )
     }
 
     if (showExportConfirmDialog) {
@@ -247,7 +362,7 @@ fun BackupPage(
                     onClick = {
                         viewModel.dismissPendingBackupImport()
                         scope.launch {
-                            try {
+                            performBackupIo("Failed to import backup") {
                                 val result = viewModel.importBackup(
                                     pending.json,
                                     restoreSettings = pending.restoreSettings,
@@ -264,8 +379,6 @@ fun BackupPage(
                                 ) {
                                     permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                                 }
-                            } catch (e: Exception) {
-                                onShowSnackbar(e.message ?: "Failed to import backup")
                             }
                         }
                     }

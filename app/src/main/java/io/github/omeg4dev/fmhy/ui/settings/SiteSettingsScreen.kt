@@ -41,6 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.omeg4dev.fmhy.browser.SitePopupPref
 import io.github.omeg4dev.fmhy.browser.SiteRedirectPref
@@ -129,14 +130,17 @@ fun SiteSettingsScreen(
 
                             ListItem(
                                 headlineContent = {
-                                    Text(site.host, style = MaterialTheme.typography.titleMedium)
+                                    Text(
+                                        text = site.host,
+                                        style = MaterialTheme.typography.titleMedium.copy(lineHeight = 20.sp),
+                                    )
                                 },
                                 supportingContent = if (overrides.isNotEmpty()) {
                                     {
                                         FlowRow(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .padding(top = 4.dp),
+                                                .padding(top = SettingsDescriptionGap),
                                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                                             verticalArrangement = Arrangement.spacedBy(4.dp),
                                         ) {

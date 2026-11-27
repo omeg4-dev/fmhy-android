@@ -147,8 +147,8 @@ fun AppearancePage(
             listOf(
                 listOf(eTheme.id, ePureBlack.id),
                 listOf(eAccent.id),
-                listOf(eBottomBar.id),
                 listOf(eTextSize.id),
+                listOf(eBottomBar.id),
                 listOf(eAppIcon.id),
             )
         }
@@ -459,28 +459,6 @@ fun AppearancePage(
                 }
             }
 
-            // Bottom bar section
-            item {
-                SettingsSection(
-                    title = "Bottom bar",
-                    modifier = Modifier.settingHighlight(eBottomBar.id),
-                ) {
-                    ListItem(
-                        headlineContent = {
-                            Text(eBottomBar.title, style = MaterialTheme.typography.bodyLarge)
-                        },
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                    )
-                    BottomBarStyle.entries.forEach { style ->
-                        BottomBarStyleRow(
-                            style = style,
-                            selected = appearance.bottomBarStyle == style,
-                            onClick = { viewModel.setBottomBarStyle(style) },
-                        )
-                    }
-                }
-            }
-
             // Text size section
             item {
                 SettingsSection(
@@ -541,6 +519,28 @@ fun AppearancePage(
                                 }
                             }
                         }
+                    }
+                }
+            }
+
+            // Bottom bar section
+            item {
+                SettingsSection(
+                    title = "Bottom bar",
+                    modifier = Modifier.settingHighlight(eBottomBar.id),
+                ) {
+                    ListItem(
+                        headlineContent = {
+                            SettingsRowTitle(eBottomBar.title)
+                        },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                    )
+                    BottomBarStyle.entries.forEach { style ->
+                        BottomBarStyleRow(
+                            style = style,
+                            selected = appearance.bottomBarStyle == style,
+                            onClick = { viewModel.setBottomBarStyle(style) },
+                        )
                     }
                 }
             }
@@ -821,7 +821,7 @@ private fun BottomBarStyleRow(
     val haptics = rememberHaptics()
     ListItem(
         headlineContent = {
-            Text(style.label, style = MaterialTheme.typography.bodyLarge)
+            SettingsRowTitle(style.label)
         },
         leadingContent = {
             BottomBarPreview(style = style)
